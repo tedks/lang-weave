@@ -1,0 +1,19 @@
+id: spanish-curriculum-review
+title: Have a Spanish speaker review vocabulary and contextual grammar
+desc: Review the 147-word bundled starter set, regional wording, approximate pronunciation
+  hints, contextual substitutions and adjective agreement. Starter vocabulary is AI-drafted
+  and not a validated curriculum. Model outputs need linguistic QA before educational-quality
+  claims.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-17T15:50:16-00:00
+references: []
+log_events:
+- time: 2026-10-17T15:50:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
