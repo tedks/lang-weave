@@ -1,6 +1,6 @@
 # Current state
 
-State: browser-local recall implementation complete in draft [PR #2](https://github.com/tedks/spanish-weave/pull/2); council review and root integration are pending. Root CTO owns cross-repository integration and fleet deployment; this Lead lane owns learning code and review fixes in `learning-review`. No takeover or Duolingo credentials authorized by this mission.
+State: browser-local recall implementation complete in [PR #2](https://github.com/tedks/spanish-weave/pull/2); council convergence CLEAN at `6d77039`, root integration and fleet delivery pending. This Lead lane is idle after delivered implementation and review fixes in `learning-review`. No takeover or Duolingo credentials authorized by this mission.
 
 Lane: Codex Lead, worktree `learning-review` from `ae3809d` on 2026-10-17. Exclusive source edits here; root owns integration. Acceptance evidence is local unit/worker/UI gates plus Chromium MV3 smoke with synthetic Gemini, version and Python gates, and a pushed draft PR. Stop for any product ruling outside voluntary local reviews.
 
@@ -33,3 +33,4 @@ The fleet payload needs `extension/manifest.json`, `extension/src/*.js`, `extens
 - Mutation checks: removing the reveal guard failed both scheduler and worker tests; removing the interval cap failed the scheduler test (900 vs 365 days); removing the selected-level guard failed the worker test. Each guard was restored.
 - After adding the source override, real Chromium smoke passed in both default mode and `SPANISH_WEAVE_TEST_EXTENSION=/absolute/staged/extension` mode using the repository files as the staged source. The actual fleet-installed path awaits the root's installer staging.
 - Council fix delta from `69e0682`: the due-card comparator now subtracts both due timestamps. A regression with a later-list, more-overdue card failed on the old comparator (`and` instead of `but`) and passes with the fix. Worker acceptance checks confirm cache clearing preserves reviews, malformed saved tickets are rejected, and a revealed Level 2 ticket resets across a Level 1 switch without losing cards or rating history. Chromium smoke also checks a meaningful popup operation status.
+- Exact head `6d77039`: 95 Bun tests, 85 Python tests, 35 inherited blocks, version 0.4.0 and real Chromium default/absolute-source modes passed. Gemini was synthetic. OpenAI and Anthropic convergence reviews are CLEAN; Google seat unavailable due to quota. Actual installed-payload testing belongs to fleet integration.
