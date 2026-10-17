@@ -1,0 +1,20 @@
+id: review-takeover-policy
+title: Choose opt-in distracting-site review takeover behavior
+desc: 'CEO decision for stretch feature. Options: reminder banner, dismissible review
+  interstitial, or mandatory reviews on explicitly selected domains. Recommend dismissible
+  opt-in interstitial with a visible bypass and no interception of forms or sensitive
+  sites. Blocks tab takeover only, not Spanish core or local spaced repetition. Source:
+  initial mission stretch goals.'
+type: feature
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-17T15:50:16-00:00
+references: []
+log_events:
+- time: 2026-10-17T15:50:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
