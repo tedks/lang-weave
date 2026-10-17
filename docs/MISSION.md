@@ -1,6 +1,6 @@
 # Current state
 
-State: both Important findings repaired; fix-delta convergence review pending on PR #1. Codex owns integration as CTO/implementer; the test worker has completed its assignment and is idle. Source branch `spanish-extension`; full-review head `33f821b`, base `59b9b02`. No owned servers or running browsers.
+State: Spanish core implemented; review complete and fixpoint CLEAN at `c28ed48`. [PR #1](https://github.com/tedks/spanish-weave/pull/1) records final exact-head gates, acceptance and merge status. Codex owns the consolidated evidence. Test-worker and reviewer assignments are complete and idle; no further editing is delegated. Source branch `spanish-extension`; full-review head `33f821b`, base `59b9b02`. No owned servers or running browsers. The core lane becomes idle after final acceptance; next bounded candidate is `local-spaced-repetition`, with takeover policy awaiting the CEO's tracker ruling.
 
 Intent and acceptance: [DESIGN.md](DESIGN.md). Issue `spanish-core` is in progress on `ditz-metadata`. Fork `tedks/spanish-weave`; Actions disabled. No existing project roster or predecessor handoff.
 
@@ -14,6 +14,7 @@ Intent and acceptance: [DESIGN.md](DESIGN.md). Issue `spanish-core` is in progre
 - 2026-10-17: Follow-ups created and synchronized: `local-spaced-repetition`, `review-takeover-policy` (open-questions, CEO decision), `duolingo-level-import`, `spanish-curriculum-review`. Stretch integrations are deferred; none blocks core acceptance.
 - 2026-10-17: Council round 1 on `33f821b`: OpenAI gpt-6-sol native reviewer completed a full diff review; Anthropic Opus and Google agy attempts returned quota failures and are empty seats. No Critical findings or nits. Two Important findings: UTC/local-day dedup mismatch (`local-day-feedback`); English noun stemming accepts plural English against singular Spanish (`spanish-noun-number`). Both accepted for repair. No same-provider substitutions.
 - 2026-10-17: Repairs use the same localDay function in content and storage; article-bearing Spanish nouns require explicit gloss forms/synonyms rather than English stemming, while generic verb-inflection behavior remains. Tests exercise real content visibility/hover events across a simulated UTC−05:00 midnight (same UTC date), same-day deduplication, plural rejection and positive singular/plural/verb counterparts. Runtime test passes normally and under TZ=UTC. Mutation checks restored the old UTC dedup and old noun validator independently: each corresponding regression failed, then returned green with the repair restored.
+- 2026-10-17: Native OpenAI gpt-6-sol convergence review of `33f821b..c28ed48` is CLEAN: both Important issues resolved, no new Critical/Important or nits. Reviewer read the complete delta and ran independent read-only noun/plural/verb and timezone checks. Foreign seats remain empty due to their reported quota limits. Root targeted gate on `c28ed48`: six runtime/Spanish tests passed with 152 assertions. This final record update changes documentation only; final merged-head gate output is posted to PR #1.
 
 ## Verification before council
 
