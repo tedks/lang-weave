@@ -1,5 +1,4 @@
 import { test, expect } from 'bun:test';
-import { STATE_KEY } from '../src/hostsource.js';
 import { hashKey } from '../src/hash.js';
 
 // The real worker (fresh copy via ?selfupdate) with a fake chrome. 0.2.1 only showed a NEW badge after an update
@@ -8,12 +7,11 @@ test('an update on disk reloads the extension once per version, after any model 
   const saved = Object.fromEntries(['chrome', 'fetch', 'setTimeout'].map((k) => [k, globalThis[k]]));
   const realTimeout = globalThis.setTimeout;
   globalThis.setTimeout = (fn, ms, ...rest) => (ms >= 10000 ? 0 : realTimeout(fn, ms, ...rest));
-  const data = { settings: { enabled: true, newSitesEnabled: true }, apiKey: 'synthetic-key',
-    [STATE_KEY]: { version: 't.1', stage: 1, paused: false, sites: 'all', fetchedAt: Date.now(), words: [{ fr: 'et', en: 'and', hint: 'ay', status: 'active' }] } };
+  const data = { settings: { enabled: true, newSitesEnabled: true }, apiKey: 'synthetic-key' };
   const listeners = [];
   const badges = [];
   const log = [];
-  let diskVersion = '0.2.1';
+  let diskVersion = '0.3.0';
   let reloadThrows = false;
   let releaseModel;
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
@@ -28,9 +26,9 @@ test('an update on disk reloads the extension once per version, after any model 
       async remove(keys) { for (const k of keys) delete data[k]; },
     } },
     runtime: {
-      id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`, getManifest: () => ({ version: '0.2.1' }),
+      id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`, getManifest: () => ({ version: '0.3.0' }),
       onMessage: on(listeners), onInstalled: on(), onStartup: on(),
-      sendNativeMessage: async () => ({ ok: false }),
+      sendNativeMessage: async () => { throw new Error('native host must never be called'); },
       reload: () => { log.push('reload'); if (reloadThrows) throw new Error('reload failed'); },
     },
     action: { setBadgeText: async ({ text }) => { badges.push(text); } },
@@ -64,26 +62,26 @@ test('an update on disk reloads the extension once per version, after any model 
     const swaps = dispatch({ type: 'swaps', revision, items: [{ key: `${revision}:${hashKey(text)}`, text }] }, page);
     await wait();
     expect(log).toEqual(['model start']);
-    diskVersion = '0.2.2';
+    diskVersion = '0.3.1';
     const opened = dispatch({ type: 'status' }, popup); // opening the popup checks for an update
     await wait();
     expect(log).toEqual(['model start']);
     releaseModel();
     await swaps; await wait();
     expect(log).toEqual(['model start', 'model end', 'reload']);
-    expect(data[RELOADED_KEY]).toBe('0.2.2');
+    expect(data[RELOADED_KEY]).toBe('0.3.1');
     expect(badges).not.toContain('NEW');
     void opened;
 
-    // Still running 0.2.1 after reloading for 0.2.2 (Chrome kept the old copy): never loop, show NEW instead.
-    expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.2.2');
+    // Still running 0.3.0 after reloading for 0.3.1 (Chrome kept the old copy): never loop, show NEW instead.
+    expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.3.1');
     expect(log.filter((x) => x === 'reload')).toHaveLength(1);
     expect(badges.at(-1)).toBe('NEW');
 
     // A newer version gets one try; if reload throws, the badge is the fallback.
-    diskVersion = '0.2.3';
+    diskVersion = '0.3.2';
     reloadThrows = true;
-    expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.2.3');
+    expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.3.2');
     expect(log.filter((x) => x === 'reload')).toHaveLength(2);
     expect(badges.at(-1)).toBe('NEW');
   } finally {

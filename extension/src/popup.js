@@ -1,4 +1,4 @@
-import { resolveLevel, MAX_BUILT_LEVEL } from './levels.js';
+import { resolveLevel } from './levels.js';
 import { MODELS } from './gemini.js';
 import { siteEnabled, siteOn, hasSiteAccess } from './settings.js';
 
@@ -13,15 +13,6 @@ const send = async (msg) => {
   if (res?.error && !('ok' in res)) throw new Error(res.error);
   return res;
 };
-
-function ago(t) {
-  if (!t) return '';
-  const m = Math.round((Date.now() - t) / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
-}
 
 async function refresh() {
   status = await send({ type: 'status' });
@@ -39,18 +30,15 @@ async function refresh() {
   $('accessNote').textContent = s.newSitesEnabled
     ? (all ? 'On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off.' : 'Chrome needs your OK before it can run on other sites.')
     : 'Off on sites until you turn them on here.';
-  const { stage, chosen } = resolveLevel(s, c.stage);
-  $('levelInfo').textContent = `L${chosen}${stage && chosen !== stage ? ` (Claude Code stage ${stage})` : ''}${chosen > MAX_BUILT_LEVEL ? ` · L${MAX_BUILT_LEVEL} rules for now` : ''}`;
+  const { effective } = resolveLevel(s);
+  $('levelInfo').textContent = `L${effective}`;
   $('levelOverride').value = String(s.levelOverride || 0);
   $('model').value = s.model;
   $('apiKey').value = '';
-  $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : status.hostKey ? 'from setup (paste to override)' : 'AIza…';
-  $('wordInfo').textContent = status.words
-    ? `${status.words} from Claude Code · ${ago(status.fetchedAt)}${c.paused ? ' · paused' : ''}`
-    : 'built-in list';
+  $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
+  $('wordInfo').textContent = `${status.words} Spanish words`;
   $('operation').textContent = !s.enabled ? 'Off'
     : !c.hasKey ? 'Add a Gemini key to start'
-    : c.paused ? 'Paused from Claude Code'
     : host && !siteEnabled(s, tab.url) ? 'Off on this site'
     : host && !hasSiteAccess(tab.url, c.origins) ? 'This site needs your OK'
     : status.modelStatus?.error || 'On';
@@ -113,12 +101,6 @@ $('siteEnabled').addEventListener('change', (e) => run(async () => {
 }));
 $('grantSites').addEventListener('click', () => run(async () => {
   if (await chrome.permissions.request({ origins: ALL_SITES })) { await refresh(); await inject(); }
-}));
-$('syncWords').addEventListener('click', () => run(async () => {
-  $('wordInfo').textContent = 'syncing…';
-  const res = await send({ type: 'syncWords' });
-  await refresh();
-  if (!res?.ok) $('notice').textContent = `No Claude Code sync (${res?.error || 'failed'})`;
 }));
 $('clearCache').addEventListener('click', () => run(async () => {
   const res = await send({ type: 'clearCache' });

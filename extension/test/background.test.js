@@ -1,8 +1,8 @@
 import { test, expect } from 'bun:test';
-import { PENDING_KEY, STATE_KEY } from '../src/hostsource.js';
+import { PENDING_KEY } from '../src/events.js';
 
 // The real service worker (fresh module copy via ?background) with a minimal fake chrome: no page, no Gemini.
-test('worker: update badge follows the manifest on disk; concurrent page events are all queued', async () => {
+test('worker: update badge follows the manifest on disk; concurrent Spanish page events stay local', async () => {
   const saved = Object.fromEntries(['chrome', 'fetch', 'setTimeout'].map((k) => [k, globalThis[k]]));
   // The worker's 10 s event flush would otherwise fire during a later test file, against that file's fake chrome.
   const realTimeout = globalThis.setTimeout;
@@ -11,14 +11,11 @@ test('worker: update badge follows the manifest on disk; concurrent page events 
   const data = {
     settings: { enabled: true, newSitesEnabled: true },
     apiKey: 'synthetic-key',
-    [STATE_KEY]: { version: 't.1', stage: 1, paused: false, sites: 'all', fetchedAt: 1,
-      words: [{ fr: 'et', en: 'and', hint: 'ay', status: 'active' }, { fr: 'très', en: 'very', hint: 'treh', status: 'shaky' },
-        { fr: 'mais', en: 'but', hint: 'meh', status: 'active' }] },
   };
   const tick = () => new Promise((done) => realTimeout(done, 1));
   const listeners = [];
   const badges = [];
-  let diskVersion = '0.2.1';
+  let diskVersion = '0.3.0';
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
@@ -33,9 +30,9 @@ test('worker: update badge follows the manifest on disk; concurrent page events 
       async remove(keys) { for (const k of keys) delete data[k]; },
     } },
     runtime: {
-      id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`, getManifest: () => ({ version: '0.2.1' }),
+      id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`, getManifest: () => ({ version: '0.3.0' }),
       onMessage: on(listeners), onInstalled: on(), onStartup: on(),
-      sendNativeMessage: async () => ({ ok: false }),
+      sendNativeMessage: async () => { throw new Error('native host must never be called'); },
     },
     action: { setBadgeText: async ({ text }) => { badges.push(text); } },
     tabs: { query: async () => [], sendMessage: async () => {} },
@@ -60,23 +57,26 @@ test('worker: update badge follows the manifest on disk; concurrent page events 
     // no sign that a reload was needed. The popup's status reports the waiting version and the icon shows NEW.
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('');
     expect(badges.at(-1)).toBe('');
-    diskVersion = '0.2.2';
-    expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.2.2');
+    diskVersion = '0.3.1';
+    expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.3.1');
     expect(badges.at(-1)).toBe('NEW');
-    diskVersion = '0.2.1'; // reloaded: the running copy matches the disk again
+    diskVersion = '0.3.0'; // reloaded: the running copy matches the disk again
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('');
     expect(badges.at(-1)).toBe('');
 
     // 0338f19 regression: concurrent events from a page each did their own storage read-modify-write, and all but
     // one were lost. All three must reach the queue.
     const replies = await Promise.all([
-      dispatch({ type: 'event', word: 'et', event: 'seen' }, page),
-      dispatch({ type: 'event', word: 'très', event: 'flip' }, page),
-      dispatch({ type: 'event', word: 'mais', event: 'peek' }, page),
+      dispatch({ type: 'event', word: 'y', event: 'seen' }, page),
+      dispatch({ type: 'event', word: 'muy', event: 'flip' }, page),
+      dispatch({ type: 'event', word: 'pero', event: 'peek' }, page),
     ]);
     expect(replies).toEqual([{ ok: true }, { ok: true }, { ok: true }]);
-    expect(data[PENDING_KEY].map((e) => `${e.word}:${e.kind}`).sort()).toEqual(['et:seen', 'mais:peek', 'très:flip']);
-    expect(held.length).toBeGreaterThan(0); // the flush was scheduled (and is dropped with this fake chrome)
+    expect(data[PENDING_KEY].map((e) => `${e.word}:${e.kind}`).sort()).toEqual(['muy:flip', 'pero:peek', 'y:seen']);
+    expect(await dispatch({ type: 'event', word: 'y', event: 'seen' }, page)).toEqual({ ok: true });
+    expect(data[PENDING_KEY]).toHaveLength(3); // one sighting per word per local day
+    expect(data[PENDING_KEY].every((e) => e.day && !JSON.stringify(e).includes('example.com'))).toBe(true);
+    expect(held).toHaveLength(0); // local events have no host flush timer
   } finally {
     Object.assign(globalThis, saved);
   }

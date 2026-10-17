@@ -1,31 +1,16 @@
-// Service worker: word state and the Gemini key from the Claude Code plugin (native host), site access,
-// one model call at a time, results back to pages, seen/flip/peek events back to the plugin.
+// Standalone Spanish service worker: site access, one model call at a time and local reading events.
 // Keys stay here; pages only get a config without them.
 import { createCache, chromeStorage } from './cache.js';
 import { requestSwaps } from './engine.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
-import { resolveLevel, exactFr, isZeroFrench, wordCount } from './levels.js';
+import { resolveLevel, exactFr, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
-import { HOST, refresh, readCached, queueEvents, flushEvents, shownToday } from './hostsource.js';
+import { queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 
 const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
-const send = (message) => chrome.runtime.sendNativeMessage(HOST, message);
-const ALARM = 'sync';
-const SYNC_MINUTES = 30; // word statuses change at most a few times a day
-const FLUSH_DELAY_MS = 10000;
-// A pause from Claude Code (fw.py pause) has to stop page text going to Gemini within minutes, not at the next
-// 30-minute sync: before a model call, the word state is re-read from the native host when the last read is older.
-export const HOST_CHECK_MS = 2 * 60000;
-let hostChecked = 0;
-let hostCheck = null;
-function recheckHost() {
-  if (!hostCheck && Date.now() - hostChecked >= HOST_CHECK_MS) {
-    hostCheck = syncWords().catch(() => {}).finally(() => { hostCheck = null; });
-  }
-  return hostCheck;
-}
+const ALARM = 'updates';
 const cooldown = new Map(); // model -> rate-limit cooldown end; worker memory is enough
 
 const serial = () => {
@@ -46,16 +31,15 @@ const ready = (async () => {
 // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
 async function context() {
   await ready;
-  const data = await store.get(['settings', 'wordState', 'apiKey', 'hostKey', 'epoch']);
-  const state = data.wordState?.words?.length ? data.wordState : null;
+  const data = await store.get(['settings', 'apiKey', 'epoch']);
   const saved = cleanSettings(data.settings);
-  const settings = { ...saved, newSitesEnabled: newSitesDefault(saved, state?.sites) };
-  const level = resolveLevel(saved, state?.stage).effective;
-  const hasKey = !!(data.apiKey || data.hostKey);
-  const paused = !!state?.paused;
+  const settings = { ...saved, newSitesEnabled: newSitesDefault(saved) };
+  const level = resolveLevel(saved).effective;
+  const hasKey = !!data.apiKey;
+  const paused = false; // retained in the page config protocol; pause is settings.enabled
   const { origins = [] } = await chrome.permissions.getAll();
-  const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, state?.version || '', paused, hasKey, origins]));
-  return { settings, level, revision, hasKey, paused, origins, stage: state?.stage || 0 };
+  const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, chrome.runtime.getManifest().version, hasKey, origins]));
+  return { settings, level, revision, hasKey, paused, origins, stage: 0 };
 }
 
 const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
@@ -75,17 +59,14 @@ async function swaps(msg, sender) {
   const results = await cache.getMany(items.map((i) => i.key));
   const misses = items.filter((i) => !(i.key in results));
   if (!misses.length) return { results };
-  if (recheckHost()) {
-    await hostCheck;
-    if ((await context()).revision !== ctx.revision) return { results, stale: true };
-  }
   try {
     const fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
-      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; French resumes tomorrow`);
-      const { wordState, apiKey, hostKey } = await store.get(['wordState', 'apiKey', 'hostKey']);
+      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; Spanish resumes tomorrow`);
+      const { apiKey } = await store.get('apiKey');
       const fetchImpl = async (...args) => { await countCall(chromeStorage); return fetch(...args); };
-      return requestSwaps({ apiKey: apiKey || hostKey, model: ctx.settings.model, level: ctx.level, words: wordState?.words, language: wordState?.language, fetchImpl,
+      return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level,
+        words: wordsForLevel(ctx.level).map((w) => ({ ...w, status: 'active' })), fetchImpl,
         shownToday: await shownToday(chromeStorage), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
     });
     return await locked(async () => {
@@ -101,32 +82,14 @@ async function swaps(msg, sender) {
   }
 }
 
-const flush = () => locked(() => flushEvents({ storage: chromeStorage, send }));
-let flushTimer = null;
-function scheduleFlush() {
-  clearTimeout(flushTimer);
-  flushTimer = setTimeout(flush, FLUSH_DELAY_MS);
-}
-
-// Events only for words in the plugin's word state; queueEvents keeps seen and peek to once per word per day.
+// Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
 async function record(msg, sender) {
   const ctx = await context();
   if (!activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
-  const word = (await readCached(chromeStorage))?.words.find((w) => exactFr(w.fr) === exactFr(msg.word));
+  const word = wordsForLevel(ctx.level).find((w) => exactFr(w.fr) === exactFr(msg.word));
   if (!word) return { ok: false };
   await locked(() => queueEvents(chromeStorage, [{ word: word.fr, kind: msg.event }]));
-  scheduleFlush();
   return { ok: true };
-}
-
-// A new word-state version clears the decision cache, because cached swaps were chosen against the old list.
-async function syncWords() {
-  hostChecked = Date.now();
-  await flush();
-  const res = await refresh({ storage: chromeStorage, send });
-  if (res.changed) await locked(() => cache.clear());
-  await broadcast();
-  return { ok: !res.error, error: res.error, count: res.state?.words?.length || 0, stage: res.state?.stage || 0 };
 }
 
 async function clearCache() {
@@ -161,13 +124,13 @@ async function save(msg) {
 
 async function status() {
   const config = await context();
-  const data = await store.get(['wordState', 'apiKey', 'hostKey', 'modelStatus']);
-  return { config, words: data.wordState?.words?.length || 0, fetchedAt: data.wordState?.fetchedAt || 0,
-    pastedKey: !!data.apiKey, hostKey: !!data.hostKey, modelStatus: data.modelStatus || null,
+  const data = await store.get(['apiKey', 'modelStatus']);
+  return { config, words: wordsForLevel(config.level).length,
+    pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
     update: await checkUpdate() };
 }
 
-// An update replaces this folder on disk (setup, or the Claude Code hook after a plugin update), but Chrome keeps
+// A git update can replace this folder on disk, but Chrome keeps
 // running the loaded copy. Compare the manifest on disk with the running one and reload from disk by ourselves,
 // once per disk version, after any model call in flight and pending storage writes. If the running copy still
 // differs after that (or reload fails), mark the toolbar icon so the user can reload by hand.
@@ -196,10 +159,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const popup = sender.url === chrome.runtime.getURL('src/popup.html');
   const page = sender.tab && /^https?:\/\//.test(sender.url || '');
   const handlers = {
-    config: () => { if (page) void recheckHost(); return context(); }, // a page load also notices a pause or resume
+    config: context,
     swaps: () => swaps(msg, sender),
     event: () => record(msg, sender),
-    status, syncWords, clearCache,
+    status, clearCache,
     save: () => save(msg),
   };
   if (!handlers[msg.type] || (!popup && !(page && ['config', 'swaps', 'event'].includes(msg.type)))) return false;
@@ -235,15 +198,13 @@ chrome.permissions.onRemoved.addListener(permissionsChanged);
 // create() replaces an alarm of the same name, so calling it on both events is safe. Startup matters
 // because disabling and re-enabling the extension clears alarms without firing onInstalled.
 function arm() {
-  chrome.alarms.create(ALARM, { periodInMinutes: SYNC_MINUTES });
-  void syncWords().catch(() => {});
+  chrome.alarms.create(ALARM, { periodInMinutes: 30 });
   void checkUpdate();
 }
 chrome.runtime.onInstalled.addListener(arm);
 chrome.runtime.onStartup.addListener(arm);
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name !== ALARM) return;
-  void syncWords().catch(() => {});
   void checkUpdate();
 });
 void ready.then(registerSites).catch(() => {});

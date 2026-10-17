@@ -3,8 +3,8 @@
 export const DEFAULT_SETTINGS = {
   enabled: true,
   model: 'gemini-3.5-flash-lite', // on free keys 3.8 Flash mostly answered 503 or timed out (QA, 2026-10-15)
-  levelOverride: 0, // 0 = follow the Claude Code stage (Level 1 without the plugin)
-  newSitesEnabled: null, // null = what setup chose (prefs.extension_sites), else on
+  levelOverride: 0, // 0 = beginner default; 1/2 = explicit reading level
+  newSitesEnabled: null, // null = on for permitted sites, excluding sensitive domains
   siteOverrides: {}, // hostname -> true/false, set from the popup
 };
 

@@ -18,11 +18,6 @@ test('churn: live text stops costing model calls, and a page that undoes swaps s
   let modelThrows = 0;
   let delayed = null;
   let release;
-  const hostEvents = [];
-  let hostState = { version: 'test.1', stage: 1, paused: false, prefs: { extension_sites: 'ask' }, words: [
-    { fr: 'et', en: 'and', hint: 'ay', status: 'active' },
-    { fr: 'très', en: 'very', hint: 'treh', status: 'shaky' },
-  ] };
   const listener = (arr) => ({ addListener: (fn) => arr.push(fn) });
   const storageArea = (data) => ({
     async setAccessLevel(v) { accessLevel = v.accessLevel; },
@@ -52,14 +47,10 @@ test('churn: live text stops costing model calls, and a page that undoes swaps s
     chrome: {
       storage: { local: storageArea(local) },
       runtime: {
-        id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`,
+        id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`, getManifest: () => ({ version: '0.3.0' }),
         onMessage: listener(messageListeners), onInstalled: listener([]), onStartup: listener([]),
         sendMessage: (msg) => dispatch(msg, page()).then((r) => { pageReplies.push(JSON.stringify(r ?? null)); return r; }),
-        sendNativeMessage: async (_host, msg) => {
-          if (msg.type === 'state') return { ok: true, ...structuredClone(hostState), geminiKey: 'synthetic-host' };
-          if (msg.type === 'events') { hostEvents.push(...msg.events); return { ok: true, applied: msg.events.length }; }
-          return { ok: false };
-        },
+        sendNativeMessage: async () => { throw new Error('native host must never be called'); },
       },
       tabs: { query: async () => [{ id: 1, url: win.location.href }], sendMessage: async (_id, msg) => { toPages.push(JSON.stringify(msg)); for (const fn of contentListeners) fn(msg); } },
       alarms: { create: async () => {}, onAlarm: listener([]) },
@@ -74,7 +65,7 @@ test('churn: live text stops costing model calls, and a page that undoes swaps s
       if (delayed) { release = () => { delayed = null; }; await new Promise((done) => { const free = release; release = () => { free(); done(); }; }); }
       const body = JSON.parse(init.body);
       const items = JSON.parse(body.contents[0].parts[0].text.replace(/^Passages:\n/, ''));
-      const passages = items.map(({ id, text }) => ({ id, swaps: text.includes(' and ') ? [{ o: 'and', f: 'et', ctx: '' }] : [] }));
+      const passages = items.map(({ id, text }) => ({ id, swaps: text.includes(' and ') ? [{ o: 'and', f: 'y', ctx: '' }] : [] }));
       return reply({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
     },
   });
@@ -105,11 +96,11 @@ test('churn: live text stops costing model calls, and a page that undoes swaps s
     fought.textContent = original;
     await wait(1000);
     expect(restores).toBeLessThanOrEqual(6);
-    // Other text on the page still gets French.
+    // Other text on the page still gets Spanish.
     const calm = win.document.createElement('p');
     calm.textContent = 'We read books and listen to music every quiet evening.';
     win.document.querySelector('main').append(calm); await wait();
-    expect(calm.querySelector('.fw-word')?.textContent).toBe('et');
+    expect(calm.querySelector('.fw-word')?.textContent).toBe('y');
   } finally {
     await win.happyDOM.close();
     Object.assign(globalThis, originalGlobals);

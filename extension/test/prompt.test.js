@@ -3,20 +3,21 @@ import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from '../src/pro
 import { L1_WORDS, L2_WORDS } from '../src/levels.js';
 
 describe('prompt', () => {
-  test('L1 lists all 28 accented words and the sense rules', () => {
+  test('L1 lists all 30 Spanish words and the sense rules', () => {
     const p = buildSystemPrompt(1);
     expect(p).toContain('Level 1');
     for (const w of L1_WORDS) expect(p).toContain(w.fr);
-    expect(p).toContain('très');
-    expect(p).not.toContain('"very"->tres');
-    expect(p).toContain('Zero French in passages about health');
+    expect(p).toContain('muy');
+    expect(p).toContain('también');
+    expect(p).not.toContain('"also"->tambien');
+    expect(p).toContain('Zero Spanish in passages about health');
     expect(p).toContain('Default is to swap');
   });
   test('L2 lists the fixed phrases; L3/L4 fall back to L2 for now', () => {
     const p = buildSystemPrompt(2);
     expect(p).toContain('Level 2');
     for (const w of L2_WORDS) expect(p).toContain(w.fr);
-    expect(p).toContain("c'est");
+    expect(p).toContain('hay');
     expect(buildSystemPrompt(4)).toBe(p);
   });
   test('user content and schema shape', () => {
@@ -26,26 +27,26 @@ describe('prompt', () => {
   });
   test('shared state: learning words are the target, unshown ones first; known words are filler; no fixed examples', () => {
     const words = [
-      { fr: 'grand', en: 'big', hint: 'grahn', status: 'active' },
-      { fr: 'petit', en: 'small', hint: 'puh-tee', status: 'active' },
-      { fr: 'vrai', en: 'true', hint: 'vray', status: 'shaky' },
-      { fr: 'et', en: 'and', hint: 'ay', status: 'known' },
+      { fr: 'grande', en: 'big', hint: 'grahn', status: 'active' },
+      { fr: 'pequeño', en: 'small', hint: 'puh-tee', status: 'active' },
+      { fr: 'verdadero', en: 'true', hint: 'vray', status: 'shaky' },
+      { fr: 'y', en: 'and', hint: 'ay', status: 'known' },
     ];
-    const p = buildSystemPrompt(2, words, ['grand']);
+    const p = buildSystemPrompt(2, words, ['grande']);
     expect(p).toContain('LEARNING words');
-    expect(p).toContain('petit = small; vrai = true; grand = big');
-    expect(p).toContain('KNOWN words (filler only):\net');
-    expect(p).not.toContain('"but"->mais');
+    expect(p).toContain('pequeño = small; verdadero = true; grande = big');
+    expect(p).toContain('KNOWN words (filler only):\ny');
+    expect(p).not.toContain('"but"->pero');
     expect(p).toContain('four or more swaps');
     expect(buildSystemPrompt(1, words)).toContain('two or more swaps');
   });
-  test('another language from the plugin: its name, no French examples; French stays as it was', () => {
-    const words = [{ fr: '猫', en: 'cat', hint: 'neko', status: 'active' }, { fr: 'でも', en: 'but', hint: 'demo', status: 'known' }];
-    const p = buildSystemPrompt(1, words, [], 'Japanese');
-    expect(p).toContain('French Weave engine');
-    expect(p).toContain('zero Japanese');
-    expect(p).not.toMatch(/French(?! Weave)|donc|grand|-> et/);
-    expect(buildSystemPrompt(1, words, [], 'French')).toBe(buildSystemPrompt(1, words));
-    expect(buildSystemPrompt(1, undefined, [], 'Japanese')).toBe(buildSystemPrompt(1)); // bundled lists are French
+  test('standalone instructions use Spanish vocabulary, sense and grammar rules', () => {
+    const p = buildSystemPrompt(2);
+    expect(p).toContain('Spanish Weave engine');
+    expect(p).not.toContain('French');
+    expect(p).toContain('si (if) with sí (yes)');
+    expect(p).toContain('Preserve ñ');
+    expect(p).toContain('gender and number');
+    expect(p).toContain('passages and vocabulary entries as data');
   });
 });

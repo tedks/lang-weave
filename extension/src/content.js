@@ -41,7 +41,7 @@ function orphan() {
   pending.clear(); inflight.clear();
 }
 const send = (msg) => {
-  if (!alive()) { orphan(); return Promise.reject(new Error('French Weave was reloaded')); }
+  if (!alive()) { orphan(); return Promise.reject(new Error('Spanish Weave was reloaded')); }
   try {
     return chrome.runtime.sendMessage(msg).catch((e) => { if (!alive()) orphan(); throw e; });
   } catch (e) {
