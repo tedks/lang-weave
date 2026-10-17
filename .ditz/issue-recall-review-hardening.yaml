@@ -22,3 +22,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-17T19:40:20-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Convergence nits: tighten popup smoke operation to its single deterministic
+    expected state; split long worker test by concern so an early failure does not
+    skip later coverage. Deferred because source behavior and existing regression
+    coverage are accepted; production fixes are not needed for these test-maintainability
+    improvements. Evidence head/count nit fixed in LEARNING-MISSION.'
