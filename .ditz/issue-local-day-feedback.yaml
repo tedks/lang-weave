@@ -1,0 +1,18 @@
+id: local-day-feedback
+title: Align content deduplication with local reading-event dates
+desc: 'Council Important at 33f821b: content dedup used UTC while new event queue
+  used local dates. Reproduce in New York at 23:30 and next day 00:30. Use the same
+  local-day function and verify actual content events across midnight.'
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-17T15:54:39-00:00
+references: []
+log_events:
+- time: 2026-10-17T15:54:39-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
