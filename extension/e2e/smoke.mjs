@@ -2,17 +2,19 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const source = process.env.SPANISH_WEAVE_TEST_EXTENSION || root;
+if (!isAbsolute(source)) throw new Error('SPANISH_WEAVE_TEST_EXTENSION must be an absolute extension directory');
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-smoke-'));
 const extension = join(scratch, 'extension');
 let context;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
+  await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
+  const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
   manifest.host_permissions.push(...manifest.optional_host_permissions);
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
