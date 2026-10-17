@@ -7,6 +7,7 @@ import { resolveLevel, exactFr, isZeroFrench, wordCount, wordsForLevel } from '.
 import { hashKey } from './hash.js';
 import { queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
+import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview } from './review.js';
 
 const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
@@ -127,7 +128,57 @@ async function status() {
   const data = await store.get(['apiKey', 'modelStatus']);
   return { config, words: wordsForLevel(config.level).length,
     pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
+    review: await reviewStatus(),
     update: await checkUpdate() };
+}
+
+async function reviewState() {
+  const { settings, [REVIEW_KEY]: raw } = await store.get(['settings', REVIEW_KEY]);
+  const words = wordsForLevel(resolveLevel(cleanSettings(settings)).effective);
+  return { state: cleanReview(raw, wordsForLevel(2)), words };
+}
+
+async function reviewStatus() {
+  const { state, words } = await reviewState();
+  return reviewCounts(state, words, Date.now());
+}
+
+async function reviewIntroduce() {
+  return locked(async () => {
+    const { state, words } = await reviewState();
+    const added = introduce(state, words, Date.now());
+    if (added) await store.set({ [REVIEW_KEY]: state });
+    return { added, ...reviewCounts(state, words, Date.now()) };
+  });
+}
+
+async function reviewNext() {
+  return locked(async () => {
+    const { state, words } = await reviewState();
+    const card = nextReview(state, words, Date.now());
+    await store.set({ [REVIEW_KEY]: state });
+    return { card, ...reviewCounts(state, words, Date.now()) };
+  });
+}
+
+async function reviewReveal(msg) {
+  return locked(async () => {
+    const { state, words } = await reviewState();
+    const answer = revealReview(state, words, msg.ticket, Date.now());
+    if (!answer) return { error: 'This review card is no longer available. Reload the queue.' };
+    await store.set({ [REVIEW_KEY]: state });
+    return { answer };
+  });
+}
+
+async function reviewRate(msg) {
+  return locked(async () => {
+    const { state } = await reviewState();
+    const result = rateReview(state, msg.ticket, msg.rating, Date.now());
+    if (!result) return { error: 'This rating is stale or the answer has not been revealed.' };
+    await store.set({ [REVIEW_KEY]: state });
+    return { ok: true, ...result };
+  });
 }
 
 // A git update can replace this folder on disk, but Chrome keeps
@@ -157,6 +208,7 @@ async function checkUpdate() {
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || sender.id !== chrome.runtime.id) return false;
   const popup = sender.url === chrome.runtime.getURL('src/popup.html');
+  const review = sender.url === chrome.runtime.getURL('src/review.html');
   const page = sender.tab && /^https?:\/\//.test(sender.url || '');
   const handlers = {
     config: context,
@@ -164,8 +216,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     event: () => record(msg, sender),
     status, clearCache,
     save: () => save(msg),
+    reviewStatus, reviewIntroduce, reviewNext,
+    reviewReveal: () => reviewReveal(msg),
+    reviewRate: () => reviewRate(msg),
   };
-  if (!handlers[msg.type] || (!popup && !(page && ['config', 'swaps', 'event'].includes(msg.type)))) return false;
+  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate'];
+  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'reviewStatus'].includes(msg.type)) &&
+      !(review && reviews.includes(msg.type)) &&
+      !(page && ['config', 'swaps', 'event'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
