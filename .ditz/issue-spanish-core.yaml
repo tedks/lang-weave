@@ -28,3 +28,16 @@ log_events:
     local-day-feedback and spanish-noun-number. Anthropic and Google seats were attempted
     and unavailable due to quota. Repairs and fix-delta convergence in progress; not
     yet merged or accepted.'
+- time: 2026-10-17T15:59:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'DELIVERED / ACCEPTED / MERGED. PR #1 merged normally as ae3809d9e0b0535c6ace7e0b9306fb5b31426166.
+    Tested source head 62f0d21e6eec491d2cbf10bebfcd0d88e2f7b923: 91 Bun tests (1051
+    assertions), 85 Python tests, frozen dependency lock, version/generated-block
+    gates and real Chromium smoke with synthetic Gemini all passed. Merge tree equals
+    tested tree (git diff HEAD origin/main clean). Council round 2 CLEAN on fix delta
+    after two Important repairs, both mutation-checked. Foreign seats quota-limited
+    and recorded empty. Full gate/council evidence: https://github.com/tedks/spanish-weave/pull/1#issuecomment-6236220041
+    . No live Gemini, personal browser install or store publication. Core lane idle
+    after acceptance; next bounded candidate local-spaced-repetition, with review-takeover-policy
+    awaiting CEO ruling.'
