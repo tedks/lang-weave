@@ -16,11 +16,11 @@ test('worker owns review access, persistence, and raced rating serialization', a
       async setAccessLevel() {},
       async get(keys) {
         await tick();
-        const pick = typeof keys === 'string' ? [keys] : keys;
+        const pick = keys == null ? Object.keys(data) : typeof keys === 'string' ? [keys] : keys;
         return structuredClone(Object.fromEntries(pick.filter((key) => key in data).map((key) => [key, data[key]])));
       },
       async set(value) { await tick(); Object.assign(data, structuredClone(value)); },
-      async remove() {},
+      async remove(keys) { for (const key of typeof keys === 'string' ? [keys] : keys) delete data[key]; },
     } },
     runtime: { id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`,
       getManifest: () => ({ version: '0.4.0' }), onMessage: on(handlers), onInstalled: on(), onStartup: on() },
@@ -60,16 +60,44 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect(data[REVIEW_KEY].cards.y.reviews).toBe(1);
     expect(data[REVIEW_KEY].cards.y.interval).toBe(7);
     expect((await dispatch({ type: 'reviewReveal', ticket: first.ticket }, review)).error).toMatch(/no longer/);
+    data['c:synthetic'] = { s: [], t: now };
+    const beforeClear = structuredClone(data[REVIEW_KEY]);
+    expect((await dispatch({ type: 'clearCache' }, popup)).removed).toBe(1);
+    expect(data['c:synthetic']).toBeUndefined();
+    expect(data[REVIEW_KEY]).toEqual(beforeClear); // model cache controls cannot erase recall history
     expect((await dispatch({ type: 'reviewNext' }, review)).card.en).toBe('but');
     now += 7 * DAY_MS;
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(10);
     // Storage survives a page refresh or service worker suspension.
     expect((await dispatch({ type: 'reviewNext' }, review)).card.ticket).toBe(data[REVIEW_KEY].current.ticket);
-    const oldTicket = crypto.randomUUID();
-    data[REVIEW_KEY].cards.si = { due: now, interval: 0, reviews: 0 };
-    data[REVIEW_KEY].current = { word: 'si', ticket: oldTicket, revealed: true };
-    expect((await dispatch({ type: 'reviewRate', ticket: oldTicket, rating: 'easy' }, review)).error).toMatch(/stale/);
-    expect(data[REVIEW_KEY].cards.si.reviews).toBe(0); // L2 card cannot be rated while L1 is selected
+    // A revealed L2 prompt becomes stale on switching to L1, while card history survives.
+    for (const card of Object.values(data[REVIEW_KEY].cards)) card.due = now + 10 * DAY_MS;
+    data[REVIEW_KEY].cards.si = { due: now - DAY_MS, interval: 0, reviews: 0 };
+    data[REVIEW_KEY].current = null;
+    data.settings.levelOverride = 2;
+    const l2 = (await dispatch({ type: 'reviewNext' }, review)).card;
+    expect(l2.en).toBe('if');
+    expect((await dispatch({ type: 'reviewReveal', ticket: l2.ticket }, review)).answer.fr).toBe('si');
+    const cardsBeforeSwitch = structuredClone(data[REVIEW_KEY].cards);
+    data.settings.levelOverride = 1;
+    expect((await dispatch({ type: 'reviewRate', ticket: l2.ticket, rating: 'easy' }, review)).error).toMatch(/stale/);
+    expect((await dispatch({ type: 'reviewNext' }, review)).card).toBeNull();
+    expect(data[REVIEW_KEY].current).toBeNull();
+    expect(data[REVIEW_KEY].cards).toEqual(cardsBeforeSwitch);
+    data.settings.levelOverride = 2;
+    const resumed = (await dispatch({ type: 'reviewNext' }, review)).card;
+    expect(resumed.en).toBe('if');
+    expect(resumed.ticket).not.toBe(l2.ticket);
+    expect((await dispatch({ type: 'reviewRate', ticket: l2.ticket, rating: 'easy' }, review)).error).toMatch(/stale/);
+    expect(data[REVIEW_KEY].cards.si.reviews).toBe(0);
+
+    // A malformed persisted ticket cannot authorize a rating or survive the next load.
+    data[REVIEW_KEY].current = { word: 'si', ticket: 'invalid', revealed: true };
+    expect((await dispatch({ type: 'reviewRate', ticket: 'invalid', rating: 'easy' }, review)).error).toMatch(/stale/);
+    const recovered = (await dispatch({ type: 'reviewNext' }, review)).card;
+    expect(recovered.en).toBe('if');
+    expect(recovered.ticket).not.toBe('invalid');
+    expect(data[REVIEW_KEY].cards).toEqual(cardsBeforeSwitch);
   } finally {
     Object.assign(globalThis, saved);
   }

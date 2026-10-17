@@ -80,6 +80,7 @@ try {
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent.includes('Spanish words'));
   assert.equal(await popup.locator('h1').textContent(), 'Spanish Weave');
   assert.equal(await popup.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
+  assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
   assert.equal(await popup.locator('#reviewInfo').textContent(), '0 due');
   const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#openReview').click()]);
   await review.waitForLoadState();
