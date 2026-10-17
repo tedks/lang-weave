@@ -1,0 +1,24 @@
+id: recall-review-hardening
+title: Harden local recall migrations and recovery affordances
+desc: 'Council PR2 follow-ups (nonblocking): preserve/migrate histories for vocabulary
+  renames or future level additions rather than assuming current L2 is the all-words
+  set; define forward-clock-jump recovery before changing timestamp semantics; consider
+  structured stale responses and auto-refresh across tabs, avoid unchanged reviewNext
+  writes, isolate review-status read failure from reading settings, improve override-path
+  error messages. Current finite L1/L2 curriculum, explicit Refresh, bounded state
+  and documented clock behavior satisfy current voluntary-review scope. Do not silently
+  clamp dates or rename the compatible fr field. Root inspected popup messages: only
+  status/save/clearCache, so narrower permissions are intentional.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-17T19:37:23-00:00
+references: []
+log_events:
+- time: 2026-10-17T19:37:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
