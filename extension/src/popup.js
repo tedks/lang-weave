@@ -37,6 +37,7 @@ async function refresh() {
   $('apiKey').value = '';
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
   $('wordInfo').textContent = `${status.words} Spanish words`;
+  $('reviewInfo').textContent = `${status.review.due} due`;
   $('operation').textContent = !s.enabled ? 'Off'
     : !c.hasKey ? 'Add a Gemini key to start'
     : host && !siteEnabled(s, tab.url) ? 'Off on this site'
@@ -117,3 +118,6 @@ void run(async () => {
 $('openExtensions').addEventListener('click', () => {
   void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
 });
+$('openReview').addEventListener('click', () => run(async () => {
+  await chrome.tabs.create({ url: chrome.runtime.getURL('src/review.html') });
+}));

@@ -78,6 +78,27 @@ try {
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent.includes('Spanish words'));
   assert.equal(await popup.locator('h1').textContent(), 'Spanish Weave');
   assert.equal(await popup.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
+  assert.equal(await popup.locator('#reviewInfo').textContent(), '0 due');
+  const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#openReview').click()]);
+  await review.waitForLoadState();
+  await review.locator('#counts').getByText('0 due · 30 available to add').waitFor();
+  assert.equal(await review.locator('#question').isHidden(), true);
+  await review.locator('#introduce').click();
+  await review.locator('#prompt').getByText('and').waitFor();
+  assert.equal(await review.locator('#prompt').textContent(), 'and');
+  assert.equal(await review.locator('#solution').isHidden(), true);
+  await review.locator('#reveal').click();
+  await review.locator('#answer').getByText('y').waitFor();
+  assert.equal(await review.locator('#answer').textContent(), 'y');
+  await review.reload(); // a revealed card survives closing/reopening the extension page
+  await review.locator('#answer').getByText('y').waitFor();
+  await review.locator('[data-rating="hard"]').click();
+  await review.locator('#prompt').getByText('but').waitFor();
+  assert.equal(await review.locator('#counts').textContent(), '4 due · 25 available to add');
+  const savedReview = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((s) => s.recallReview));
+  assert.equal(savedReview.cards.y.interval, 1);
+  assert.equal(savedReview.cards.y.reviews, 1);
+  assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length); // review never calls Gemini
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length);
@@ -90,7 +111,7 @@ try {
   await page.locator('#reading .fw-word').waitFor();
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
-  console.log('PASS: real Chromium MV3 load; Spanish swaps, hover, click/keyboard, popup, level switch, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
+  console.log('PASS: real Chromium MV3 load; Spanish swaps, hover, click/keyboard, popup, local recall review, level switch, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
 } finally {
   if (context) await context.close();
   // Only the exact mkdtemp directory created above, after closing its browser.

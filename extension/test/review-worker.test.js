@@ -65,6 +65,11 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(10);
     // Storage survives a page refresh or service worker suspension.
     expect((await dispatch({ type: 'reviewNext' }, review)).card.ticket).toBe(data[REVIEW_KEY].current.ticket);
+    const oldTicket = crypto.randomUUID();
+    data[REVIEW_KEY].cards.si = { due: now, interval: 0, reviews: 0 };
+    data[REVIEW_KEY].current = { word: 'si', ticket: oldTicket, revealed: true };
+    expect((await dispatch({ type: 'reviewRate', ticket: oldTicket, rating: 'easy' }, review)).error).toMatch(/stale/);
+    expect(data[REVIEW_KEY].cards.si.reviews).toBe(0); // L2 card cannot be rated while L1 is selected
   } finally {
     Object.assign(globalThis, saved);
   }

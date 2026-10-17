@@ -173,8 +173,9 @@ async function reviewReveal(msg) {
 
 async function reviewRate(msg) {
   return locked(async () => {
-    const { state } = await reviewState();
-    const result = rateReview(state, msg.ticket, msg.rating, Date.now());
+    const { state, words } = await reviewState();
+    const result = state.current && words.some(({ fr }) => fr === state.current.word)
+      ? rateReview(state, msg.ticket, msg.rating, Date.now()) : null;
     if (!result) return { error: 'This rating is stale or the answer has not been revealed.' };
     await store.set({ [REVIEW_KEY]: state });
     return { ok: true, ...result };

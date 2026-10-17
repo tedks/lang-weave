@@ -45,6 +45,6 @@ The inherited Python companion tests run from the repository root with `python3 
 
 ## Next
 
-Spaced repetition, easy/medium/hard feedback, an opt-in review screen for selected distracting sites, and Duolingo level import are follow-up features. The first version records local reading events but does not infer mastery or schedule reviews. Duolingo integration needs a supported method or an export; it must not collect a password or browser session token.
+The popup opens a voluntary recall review page. Choose **Add 5 new words** to introduce bundled vocabulary from your current reading level, recall the Spanish from its English meaning, reveal the answer, then rate it Hard, Medium or Easy. Reviews and due dates stay in this browser; sightings, hints and flips while reading never count as recall. No Gemini call or key is needed for reviews. A site takeover screen and Duolingo level import remain follow-up features. Duolingo integration needs a supported method or an export; it must not collect a password or browser session token.
 
 The original CLI hooks, slash commands, ready-made French blocks and native-host scripts are retained for upstream comparison. They remain French-oriented and are outside this fork's Spanish extension product; see the [upstream reference](docs/UPSTREAM.md).

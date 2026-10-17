@@ -10,7 +10,7 @@ export function cleanReview(raw, words) {
   for (const { fr } of words) {
     const card = Object.hasOwn(source, fr) ? source[fr] : null;
     if (card && Number.isSafeInteger(card.due) && card.due >= 0 &&
-        Number.isSafeInteger(card.interval) && card.interval >= 0 && card.interval <= 36500 &&
+        Number.isSafeInteger(card.interval) && card.interval >= 0 && card.interval <= 365 &&
         Number.isSafeInteger(card.reviews) && card.reviews >= 0 && card.reviews <= 10000) {
       cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews };
     }
@@ -64,9 +64,9 @@ export function rateReview(state, ticket, rating, now) {
   if (!card || card.due > now) return null;
   const interval = rating === 'hard' ? 1 : rating === 'medium'
     ? Math.max(3, card.interval * 2) : Math.max(7, card.interval * 3);
-  card.interval = interval;
-  card.due = now + interval * DAY_MS;
-  card.reviews += 1;
+  card.interval = Math.min(365, interval);
+  card.due = now + card.interval * DAY_MS;
+  card.reviews = Math.min(10000, card.reviews + 1);
   state.current = null;
-  return { due: card.due, interval };
+  return { due: card.due, interval: card.interval };
 }

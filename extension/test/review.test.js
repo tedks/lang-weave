@@ -28,6 +28,10 @@ test('explicit introduction, clock scheduling, and one revealed rating per ticke
   expect(state.cards.y.due).toBe(now + 21 * DAY_MS);
   state.current = { word: 'y', ticket: 'ticket-3', revealed: true };
   expect(rateReview(state, 'ticket-3', 'hard', now + 21 * DAY_MS)?.interval).toBe(1);
+  state.cards.y = { due: now, interval: 300, reviews: 10000 };
+  state.current = { word: 'y', ticket: 'ticket-4', revealed: true };
+  expect(rateReview(state, 'ticket-4', 'easy', now)?.interval).toBe(365);
+  expect(state.cards.y.reviews).toBe(10000);
 });
 
 test('loaded state drops foreign and malformed cards, preserving Spanish accents and level scope', () => {
