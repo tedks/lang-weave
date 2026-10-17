@@ -1,6 +1,6 @@
 # Current state
 
-State: core implemented and locally verified; preparing council review of PR #1. Codex owns integration as CTO/implementer. One bounded test worker completed its five-file assignment and is idle; no work remains delegated. Source branch `spanish-extension`; base `59b9b02`. No owned servers or running browsers.
+State: both Important findings repaired; fix-delta convergence review pending on PR #1. Codex owns integration as CTO/implementer; the test worker has completed its assignment and is idle. Source branch `spanish-extension`; full-review head `33f821b`, base `59b9b02`. No owned servers or running browsers.
 
 Intent and acceptance: [DESIGN.md](DESIGN.md). Issue `spanish-core` is in progress on `ditz-metadata`. Fork `tedks/spanish-weave`; Actions disabled. No existing project roster or predecessor handoff.
 
@@ -12,6 +12,8 @@ Intent and acceptance: [DESIGN.md](DESIGN.md). Issue `spanish-core` is in progre
 - 2026-10-17: Native host removed from Spanish worker and manifest permission. Chrome assigns a separate unpacked extension ID because the inherited fixed French key is omitted. Legacy CLI tools remain French-oriented and unsupported as Spanish extension setup. Repository version advanced together to 0.3.0 to satisfy the inherited release gate.
 - 2026-10-17: Test worker delivered five adapted integration suites; root inspected its diff and ran the full gate. No worker commit or external writes. Core and QA form one logical PR; no separate feature stack is needed.
 - 2026-10-17: Follow-ups created and synchronized: `local-spaced-repetition`, `review-takeover-policy` (open-questions, CEO decision), `duolingo-level-import`, `spanish-curriculum-review`. Stretch integrations are deferred; none blocks core acceptance.
+- 2026-10-17: Council round 1 on `33f821b`: OpenAI gpt-6-sol native reviewer completed a full diff review; Anthropic Opus and Google agy attempts returned quota failures and are empty seats. No Critical findings or nits. Two Important findings: UTC/local-day dedup mismatch (`local-day-feedback`); English noun stemming accepts plural English against singular Spanish (`spanish-noun-number`). Both accepted for repair. No same-provider substitutions.
+- 2026-10-17: Repairs use the same localDay function in content and storage; article-bearing Spanish nouns require explicit gloss forms/synonyms rather than English stemming, while generic verb-inflection behavior remains. Tests exercise real content visibility/hover events across a simulated UTC−05:00 midnight (same UTC date), same-day deduplication, plural rejection and positive singular/plural/verb counterparts. Runtime test passes normally and under TZ=UTC. Mutation checks restored the old UTC dedup and old noun validator independently: each corresponding regression failed, then returned green with the repair restored.
 
 ## Verification before council
 

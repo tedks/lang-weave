@@ -94,7 +94,7 @@ const SYNONYMS = {
   hello: ['hi'],
 };
 
-export function glossMatches(original, en) {
+export function glossMatches(original, en, { inflections = true } = {}) {
   const forms = new Set();
   for (const alt of String(en).split(/\s*[/;,]\s*/)) {
     const g = cleanEn(alt);
@@ -108,6 +108,7 @@ export function glossMatches(original, en) {
   if (!t) return false;
   for (const c of new Set([t, t.replace(EN_LEAD_RE, '')])) {
     if (forms.has(c)) return true;
+    if (!inflections) continue;
     for (const [suffix, stem] of [['ies', 'y'], ['es', ''], ['s', ''], ['ed', ''], ['ed', 'e'], ['ing', ''], ['ing', 'e']]) {
       if (c.endsWith(suffix) && forms.has(c.slice(0, -suffix.length) + stem)) return true;
     }
@@ -128,7 +129,9 @@ export function validateSwaps(level, swaps, sharedWords) {
     if (!o || !s.f.trim()) continue;
     const exact = exactFr(s.f);
     let hit = idx.exact.get(exact) || (!AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
-    if (!hit || !glossMatches(o, hit.en)) continue;
+    // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
+    // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
+    if (!hit || !glossMatches(o, hit.en, { inflections: !ARTICLE_RE.test(hit.word) })) continue;
     // "my problem" -> "my el problema", "the answer" -> "the la respuesta": when the English article (or a
     // possessive) stays outside the swap, use the bare noun.
     const bare = exactFr(hit.canon).replace(DEFINITE_RE, '');

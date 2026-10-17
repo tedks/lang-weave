@@ -8,7 +8,18 @@ import { wordsForLevel } from '../src/levels.js';
 // The real worker and content modules together on a plain article page, with fake Gemini.
 test('runtime: key isolation, local events, site controls, stale replies, retries and quota', async () => {
   const win = new Window({ url: 'https://example.com/article' });
-  const originalGlobals = Object.fromEntries(['chrome', 'fetch', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval'].map((k) => [k, globalThis[k]]));
+  const originalGlobals = Object.fromEntries(['chrome', 'fetch', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval', 'Date'].map((k) => [k, globalThis[k]]));
+  // Model a reader at UTC-05:00. Both instants are January 2 in UTC, but straddle local midnight.
+  const RealDate = originalGlobals.Date;
+  let clock = RealDate.parse('2026-01-02T04:59:00Z');
+  class ReaderDate extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [clock])); }
+    static now() { return clock; }
+    getFullYear() { return new RealDate(this.getTime() - 5 * 3600000).getUTCFullYear(); }
+    getMonth() { return new RealDate(this.getTime() - 5 * 3600000).getUTCMonth(); }
+    getDate() { return new RealDate(this.getTime() - 5 * 3600000).getUTCDate(); }
+  }
+  globalThis.Date = ReaderDate;
   const local = { settings: { apiKey: 'synthetic-gemini', enabled: true, levelOverride: 1 },
     hostKey: 'foreign-french-key', wordState: { version: 'french', words: [{ fr: 'et', en: 'and', status: 'active' }] } }; // foreign legacy data must be ignored
   const messageListeners = [], contentListeners = [];
@@ -136,10 +147,26 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await wait(800);
     expect(local[PENDING_KEY]).toHaveLength(2); // one peek per word per day
+    span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
+    const callsBeforeLocalMidnight = modelCalls;
+    clock = RealDate.parse('2026-01-02T05:01:00Z');
+    visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
+    await wait(20);
+    span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
+    await wait(800);
+    expect(local[PENDING_KEY].map((e) => `${e.day}:${e.kind}`)).toEqual([
+      '2026-01-01:seen', '2026-01-01:peek', '2026-01-02:seen', '2026-01-02:peek',
+    ]);
+    // Repeated exposure within the new local day still produces only one seen and peek.
+    span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
+    visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
+    span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
+    await wait(800);
+    expect(local[PENDING_KEY]).toHaveLength(4);
     span.dispatchEvent(user(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await wait(20);
     expect(span.textContent).toBe('and');
-    expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'flip']);
+    expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
     expect(await dispatch({ type: 'event', word: 'bonjour', event: 'seen' }, page())).toEqual({ ok: false }); // not a known word
     expect(await dispatch({ type: 'event', word: 'et', event: 'seen' }, page())).toEqual({ ok: false }); // foreign state cannot add French words
     // Nothing in the DOM names the word or the revision; pages can't forge events with fake spans or synthetic input.
@@ -159,11 +186,11 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     await wait(800);
     expect(fake.textContent).toBe('muy');
     expect(span.textContent).toBe('and');
-    expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'flip']);
+    expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
     fake.remove(); await wait();
 
     // Feedback stays local and bounded to word, event kind and day.
-    expect(local[PENDING_KEY].map((e) => `${e.word}:${e.kind}`)).toEqual(['y:seen', 'y:peek', 'y:flip']);
+    expect(local[PENDING_KEY].map((e) => `${e.word}:${e.kind}`)).toEqual(['y:seen', 'y:peek', 'y:seen', 'y:peek', 'y:flip']);
     expect(JSON.stringify(local[PENDING_KEY])).not.toContain('cats');
     expect(nativeCalls).toBe(0);
 
@@ -240,7 +267,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(toPages.join('')).not.toContain('synthetic-');
     expect(pageReplies.join('')).not.toContain('synthetic-');
     expect(pageReplies.some((r) => r.includes('"hasKey":true'))).toBe(true);
-    expect(local.modelCalls.count).toBe(modelCalls); // every Gemini request counts toward the daily cap
+    expect(local.modelCalls.count).toBe(modelCalls - callsBeforeLocalMidnight); // daily quota resets at local midnight
     expect(nativeCalls).toBe(0);
   } finally {
     if (release) release();

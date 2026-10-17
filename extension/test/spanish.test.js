@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { validateSwaps, normalizeFr, L1_WORDS, L2_WORDS } from '../src/levels.js';
+import { validateSwaps, glossMatches, normalizeFr, L1_WORDS, L2_WORDS } from '../src/levels.js';
 import { queueEvents, shownToday, PENDING_KEY } from '../src/events.js';
 import { memoryStorage } from '../src/cache.js';
 
@@ -46,6 +46,23 @@ test('fork identity and permissions cannot collide with or contact the French co
   const worker = readFileSync(new URL('../src/background.js', import.meta.url), 'utf8');
   expect(worker).not.toContain('sendNativeMessage');
   expect(worker).not.toContain("from './hostsource.js'");
+});
+
+test('plural English anchors cannot become singular Spanish nouns, while listed plurals and verbs still work', () => {
+  for (const [plural, singular, word] of [
+    ['dogs', 'dog', 'el perro'], ['problems', 'problem', 'el problema'],
+    ['weeks', 'week', 'la semana'], ['cities', 'city', 'la ciudad'],
+  ]) {
+    expect(validateSwaps(2, [{ o: plural, f: word }])).toEqual([]);
+    expect(validateSwaps(2, [{ o: `the ${plural}`, f: word }])).toEqual([]);
+    expect(validateSwaps(2, [{ o: singular, f: word }])[0]?.f).toBe(word.replace(/^(el|la) /, ''));
+  }
+  const words = [{ fr: 'los perros', en: 'the dogs', hint: 'lohs PEH-rrohs' },
+    { fr: 'empezar', en: 'to start', hint: 'em-peh-SAHR' }];
+  expect(validateSwaps(2, [{ o: 'dogs', f: 'los perros' }], words)[0]?.f).toBe('perros');
+  expect(validateSwaps(2, [{ o: 'the dogs', f: 'los perros' }], words)[0]?.f).toBe('los perros');
+  expect(validateSwaps(2, [{ o: 'started', f: 'empezar' }], words)[0]?.f).toBe('empezar');
+  expect(glossMatches('starting', 'to start')).toBe(true);
 });
 
 test('local feedback is deduplicated daily and capped without retaining page text', async () => {
