@@ -212,6 +212,6 @@ export function toggle(span) {
   const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
   span.textContent = showEn ? span.getAttribute('data-en') : span.getAttribute('data-fr');
-  span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? 'French' : 'English'}`);
+  span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? 'Spanish' : 'English'}`);
   return showEn;
 }

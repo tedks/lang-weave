@@ -1,0 +1,28 @@
+# Current state
+
+State: Spanish core implemented; review complete and fixpoint CLEAN at `c28ed48`. [PR #1](https://github.com/tedks/spanish-weave/pull/1) records final exact-head gates, acceptance and merge status. Codex owns the consolidated evidence. Test-worker and reviewer assignments are complete and idle; no further editing is delegated. Source branch `spanish-extension`; full-review head `33f821b`, base `59b9b02`. No owned servers or running browsers. The core lane becomes idle after final acceptance; next bounded candidate is `local-spaced-repetition`, with takeover policy awaiting the CEO's tracker ruling.
+
+Intent and acceptance: [DESIGN.md](DESIGN.md). Issue `spanish-core` is in progress on `ditz-metadata`. Fork `tedks/spanish-weave`; Actions disabled. No existing project roster or predecessor handoff.
+
+## Decision log
+
+- 2026-10-17: User permits direct implementation, overriding the default CTO delegation rule. Fork rather than fresh scaffold preserves the upstream graph, MIT license and inherited tools. Apply the repository setup skill only to missing fork infrastructure; do not replace existing tooling or add a language scaffold.
+- 2026-10-17: Standalone Spanish browser operation is the core acceptance target. Retain inherited French terminal tools as legacy; isolate the extension from their native messaging state. Stretch integrations remain follow-up work after core acceptance.
+- 2026-10-17: Read org roles, doctrine and Codex binding before implementation. Use durable records for evidence and name testing limits explicitly.
+- 2026-10-17: Native host removed from Spanish worker and manifest permission. Chrome assigns a separate unpacked extension ID because the inherited fixed French key is omitted. Legacy CLI tools remain French-oriented and unsupported as Spanish extension setup. Repository version advanced together to 0.3.0 to satisfy the inherited release gate.
+- 2026-10-17: Test worker delivered five adapted integration suites; root inspected its diff and ran the full gate. No worker commit or external writes. Core and QA form one logical PR; no separate feature stack is needed.
+- 2026-10-17: Follow-ups created and synchronized: `local-spaced-repetition`, `review-takeover-policy` (open-questions, CEO decision), `duolingo-level-import`, `spanish-curriculum-review`. Stretch integrations are deferred; none blocks core acceptance.
+- 2026-10-17: Council round 1 on `33f821b`: OpenAI gpt-6-sol native reviewer completed a full diff review; Anthropic Opus and Google agy attempts returned quota failures and are empty seats. No Critical findings or nits. Two Important findings: UTC/local-day dedup mismatch (`local-day-feedback`); English noun stemming accepts plural English against singular Spanish (`spanish-noun-number`). Both accepted for repair. No same-provider substitutions.
+- 2026-10-17: Repairs use the same localDay function in content and storage; article-bearing Spanish nouns require explicit gloss forms/synonyms rather than English stemming, while generic verb-inflection behavior remains. Tests exercise real content visibility/hover events across a simulated UTC−05:00 midnight (same UTC date), same-day deduplication, plural rejection and positive singular/plural/verb counterparts. Runtime test passes normally and under TZ=UTC. Mutation checks restored the old UTC dedup and old noun validator independently: each corresponding regression failed, then returned green with the repair restored.
+- 2026-10-17: Native OpenAI gpt-6-sol convergence review of `33f821b..c28ed48` is CLEAN: both Important issues resolved, no new Critical/Important or nits. Reviewer read the complete delta and ran independent read-only noun/plural/verb and timezone checks. Foreign seats remain empty due to their reported quota limits. Root targeted gate on `c28ed48`: six runtime/Spanish tests passed with 152 assertions. This final record update changes documentation only; final merged-head gate output is posted to PR #1.
+
+## Verification before council
+
+- `cd extension && bun install --frozen-lockfile`: passed with Bun 1.4.2 (provided through `nix shell nixpkgs#bun --command`). No runtime dependencies added; Playwright is development-only and pinned.
+- `cd extension && bun test`: 90 tests passed, zero failures, 1,033 assertions. Includes standalone worker/content interactions and inherited generic/legacy tests.
+- `python3 -m unittest discover -s tests`: 85 tests passed. The old manifest-key equality test now checks the Spanish/French identity separation.
+- `python3 tests/check_version_bump.py --base origin/main`: passed, 0.2.1 → 0.3.0.
+- `python3 scripts/make_blocks.py --check`: passed; inherited 35 French levels remain unchanged.
+- `cd extension && node e2e/smoke.mjs`: passed in real Playwright Chromium 156.0.8078.4. MV3 worker, dynamic site injection, Spanish words, hover, click/Enter, local feedback, sensitive-site and form exclusions, popup/level controls, pause/resume, and site-off restoration verified. Gemini response is synthetic, not a real-service or translation-quality check. Isolated test profile and extension copy removed after closing the browser.
+- Mutation checks: removing ñ preservation made `manana` incorrectly resolve to `mañana` and the Spanish accent test failed; removing accent homograph protection made L1 `si` resolve to `sí` and the same test failed. Restoring each fix returned all four Spanish tests to green.
+- `git diff --check`: passed. Browser cache installed for reproducible development QA is intentionally retained. No credentials used; no extension installed in the user's browser; no live Gemini call made.

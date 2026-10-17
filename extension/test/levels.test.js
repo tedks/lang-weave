@@ -16,9 +16,7 @@ describe('level', () => {
 
 describe('word lists', () => {
   test('L1 is the bundled starter list', () => {
-    const spec = ['et', 'mais', 'ou', 'donc', 'parce que', 'avec', 'sans', 'pour', 'très', 'aussi', 'bien', 'beaucoup', 'un peu',
-      'maintenant', 'toujours', 'peut-être', 'ici', 'voilà', 'oui', 'non', 'merci', 'le problème', 'la question', "l'idée",
-      'la réponse', 'important', 'possible', 'difficile'];
+    const spec = ['y', 'pero', 'o', 'entonces', 'porque', 'con', 'sin', 'para', 'muy', 'también', 'bien', 'mucho', 'un poco', 'ahora', 'siempre', 'quizás', 'aquí', 'sí', 'no', 'gracias', 'el problema', 'la pregunta', 'la idea', 'la respuesta', 'importante', 'posible', 'difícil', 'hoy', 'mañana', 'nunca'];
     expect(L1_WORDS.map((w) => w.fr)).toEqual(spec);
   });
   test('L2 is about 150 words, includes L1 and the fixed phrases, every entry glossed with a hint', () => {
@@ -26,7 +24,7 @@ describe('word lists', () => {
     expect(L2_WORDS.length).toBeLessThanOrEqual(160);
     const frs = L2_WORDS.map((w) => w.fr);
     for (const w of L1_WORDS) expect(frs).toContain(w.fr);
-    for (const p of ["c'est", 'il y a', 'je pense que', 'il faut']) expect(frs).toContain(p);
+    for (const p of ['no sé', 'hay', 'creo que', 'hace falta']) expect(frs).toContain(p);
     expect(new Set(frs).size).toBe(frs.length);
     for (const w of L2_WORDS) {
       expect(w.en.length).toBeGreaterThan(0);
@@ -38,71 +36,71 @@ describe('word lists', () => {
 describe('validateSwaps', () => {
   test('an English article left outside the swap gets the bare noun, never a double article', () => {
     const f = (o, fr) => validateSwaps(1, [{ o, f: fr, ctx: '' }])[0]?.f;
-    expect(f('problem', 'le problème')).toBe('problème'); // "my problem", "a solved problem"
-    expect(f('answer', 'la réponse')).toBe('réponse'); // "The answer is"
-    expect(f('idea', "l'idée")).toBe('idée');
-    expect(f('the problem', 'le problème')).toBe('le problème');
-    expect(f('The answer', 'la réponse')).toBe('La réponse');
+    expect(f('problem', 'el problema')).toBe('problema'); // "my problem", "a solved problem"
+    expect(f('answer', 'la respuesta')).toBe('respuesta'); // "The answer is"
+    expect(f('idea', "la idea")).toBe('idea');
+    expect(f('the problem', 'el problema')).toBe('el problema');
+    expect(f('The answer', 'la respuesta')).toBe('La respuesta');
   });
   test('keeps list words, canonicalizes accents, fills gloss and hint from the list', () => {
-    const out = validateSwaps(1, [{ o: 'very', f: 'tres', g: 'x', h: 'y', ctx: 'is very good' }]);
-    expect(out).toEqual([{ o: 'very', f: 'très', g: 'very', h: 'treh', ctx: 'is very good' }]);
+    const out = validateSwaps(1, [{ o: 'very', f: 'muy', g: 'x', h: 'y', ctx: 'is very good' }]);
+    expect(out).toEqual([{ o: 'very', f: 'muy', g: 'very', h: 'mwee', ctx: 'is very good' }]);
   });
   test('drops words off the level list and malformed entries', () => {
-    expect(validateSwaps(1, [{ o: 'in', f: 'dans' }])).toEqual([]);
-    expect(validateSwaps(2, [{ o: 'in', f: 'dans' }])[0].f).toBe('dans');
-    expect(validateSwaps(1, [{ o: 'and' }, null, { f: 'et' }, { o: '  ', f: 'et' }])).toEqual([]);
+    expect(validateSwaps(1, [{ o: 'in', f: 'en' }])).toEqual([]);
+    expect(validateSwaps(2, [{ o: 'in', f: 'en' }])[0].f).toBe('en');
+    expect(validateSwaps(1, [{ o: 'and' }, null, { f: 'y' }, { o: '  ', f: 'y' }])).toEqual([]);
     expect(validateSwaps(1, 'nope')).toEqual([]);
   });
-  test('keeps the synonym swaps the prompt itself asks for, with the bundled list and the plugin lexicon glosses', () => {
-    // prompt.js examples and synonym rule; the lexicon (data/lexicon.csv) glosses grand as "big", il y a as "there is".
-    const lexicon = [['grand', 'big'], ['seul', 'alone / only'], ['autre', 'other'], ['même', 'same / even'],
-      ['je pense que', 'I think that'], ["c'est", "it's"], ['il y a', 'there is'], ['merci', 'thank you'],
-      ["d'accord", 'okay / agreed'], ['un peu', 'a little'], ['beaucoup', 'a lot'], ['peut-être', 'maybe']]
+  test('keeps synonym swaps with supplied and bundled vocabulary', () => {
+    // Synonyms work with supplied vocabulary as well as the bundled list.
+    const lexicon = [['grande', 'big'], ['solo', 'alone / only'], ['otro', 'other'], ['incluso', 'same / even'],
+      ['creo que', 'I think that'], ["c'est", "it's"], ['hay', 'there is'], ['gracias', 'thank you'],
+      ["de acuerdo", 'okay / agreed'], ['un poco', 'a little'], ['mucho', 'a lot'], ['quizás', 'maybe']]
       .map(([fr, en]) => ({ fr, en, hint: '', status: 'active' }));
-    const pairs = [['large', 'grand'], ['huge', 'grand'], ['single', 'seul'], ['another', 'autre'], ['else', 'autre'],
-      ['even', 'même'], ['I think', 'je pense que'], ['it is', "c'est"], ["that's", "c'est"], ['there are', 'il y a'],
-      ['Thanks', 'merci'], ['OK', "d'accord"], ['a bit', 'un peu'], ['so much', 'beaucoup'], ['perhaps', 'peut-être']];
+    const pairs = [['large', 'grande'], ['huge', 'grande'], ['single', 'solo'], ['another', 'otro'], ['else', 'otro'],
+      ['even', 'incluso'], ['I think', 'creo que'], ['it is', "c'est"], ["that's", "c'est"], ['there are', 'hay'],
+      ['Thanks', 'gracias'], ['OK', "de acuerdo"], ['a bit', 'un poco'], ['so much', 'mucho'], ['perhaps', 'quizás']];
     const kept = validateSwaps(2, pairs.map(([o, f]) => ({ o, f, ctx: '' })), lexicon).map((s) => s.o);
     expect(kept).toEqual(pairs.map(([o]) => o));
-    // The bundled level 2 examples in the prompt ("I think"->je pense que, "it's"->c'est, ...) all survive too.
-    const bundled = [['I think', 'je pense que'], ["it's", "c'est"], ['there is', 'il y a'], ['the world', 'le monde'], ['today', "aujourd'hui"]];
+    // The bundled level 2 examples in the prompt also survive.
+    const bundled = [['I think', 'creo que'], ['there is', 'hay'], ['the world', 'el mundo'], ['today', 'hoy']];
     expect(validateSwaps(2, bundled.map(([o, f]) => ({ o, f, ctx: '' }))).map((s) => s.o)).toEqual(bundled.map(([o]) => o));
     // Issue #1 still drops.
-    expect(validateSwaps(1, [{ o: 'to start', f: 'donc', ctx: '' }])).toEqual([]);
+    expect(validateSwaps(1, [{ o: 'to start', f: 'entonces', ctx: '' }])).toEqual([]);
   });
 
-  test('drops a swap whose English is not the word\'s gloss (issue #1: "to start" -> donc)', () => {
-    expect(validateSwaps(1, [{ o: 'to start', f: 'donc' }])).toEqual([]);
-    expect(validateSwaps(1, [{ o: 'So', f: 'donc' }])[0].f).toBe('Donc');
-    expect(validateSwaps(1, [{ o: 'really', f: 'très' }])).toEqual([]);
+  test('drops a swap whose English is not the word\'s gloss (issue #1: "to start" -> entonces)', () => {
+    expect(validateSwaps(1, [{ o: 'to start', f: 'entonces' }])).toEqual([]);
+    expect(validateSwaps(1, [{ o: 'So', f: 'entonces' }])[0].f).toBe('Entonces');
+    expect(validateSwaps(1, [{ o: 'really', f: 'muy' }])).toEqual([]);
   });
   test('accepts the bare noun and keeps accents', () => {
-    const [s] = validateSwaps(1, [{ o: 'problem', f: 'probleme' }]);
-    expect(s.f).toBe('problème');
+    const [s] = validateSwaps(1, [{ o: 'problem', f: 'problema' }]);
+    expect(s.f).toBe('problema');
     expect(s.g).toBe('problem');
-    const [t] = validateSwaps(1, [{ o: 'the problem', f: 'le problème' }]);
-    expect(t.f).toBe('le problème');
+    const [t] = validateSwaps(1, [{ o: 'the problem', f: 'el problema' }]);
+    expect(t.f).toBe('el problema');
   });
   test('matches capitalization of the original', () => {
-    expect(validateSwaps(1, [{ o: 'And', f: 'et' }])[0].f).toBe('Et');
-    expect(validateSwaps(1, [{ o: 'AND', f: 'et' }])[0].f).toBe('et');
-    expect(validateSwaps(1, [{ o: 'Because', f: 'parce que' }])[0].f).toBe('Parce que');
-    expect(matchCase("l'idée", 'The idea')).toBe("L'idée");
+    expect(validateSwaps(1, [{ o: 'And', f: 'y' }])[0].f).toBe('Y');
+    expect(validateSwaps(1, [{ o: 'AND', f: 'y' }])[0].f).toBe('y');
+    expect(validateSwaps(1, [{ o: 'Because', f: 'porque' }])[0].f).toBe('Porque');
+    expect(matchCase("la idea", 'The idea')).toBe("La idea");
   });
   test('keeps accented homographs distinct and rejects blank replacements', () => {
-    expect(validateSwaps(2, [{ o: 'or', f: 'ou' }])[0].f).toBe('ou');
-    expect(validateSwaps(2, [{ o: 'where', f: 'où' }])[0].f).toBe('où');
+    expect(validateSwaps(2, [{ o: 'or', f: 'o' }])[0].f).toBe('o');
+    expect(validateSwaps(2, [{ o: 'where', f: 'donde' }])[0].f).toBe('donde');
     expect(validateSwaps(2, [{ o: 'and', f: '' }, { o: 'and', f: '  ' }])).toEqual([]);
   });
   test('plugin words replace the bundled list and keep the event spelling and status', () => {
-    const words = [{ fr: 'la lumière', en: 'the light', hint: 'loo-myair', status: 'active' }];
-    expect(validateSwaps(1, [{ o: 'light', f: 'lumiere' }, { o: 'and', f: 'et' }], words))
-      .toEqual([{ o: 'light', f: 'lumière', g: 'light', h: 'loo-myair', ctx: '', word: 'la lumière', status: 'active' }]);
+    const words = [{ fr: 'la luz', en: 'the light', hint: 'loos', status: 'active' }];
+    expect(validateSwaps(1, [{ o: 'light', f: 'luz' }, { o: 'and', f: 'y' }], words))
+      .toEqual([{ o: 'light', f: 'luz', g: 'light', h: 'loos', ctx: '', word: 'la luz', status: 'active' }]);
   });
   test('normalizeFr', () => {
-    expect(normalizeFr(' Peut-Être ')).toBe('peut-etre');
-    expect(normalizeFr('l’idée')).toBe("l'idee");
+    expect(normalizeFr(' Quizás ')).toBe('quizas');
+    expect(normalizeFr(' MAÑANA ')).toBe('mañana');
   });
 });
 

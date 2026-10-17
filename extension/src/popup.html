@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>French Weave</title>
+<title>Spanish Weave</title>
 <style>
   * { box-sizing: border-box; }
   body { width: 300px; margin: 0; padding: 12px 14px; font: 13px/1.4 system-ui, sans-serif; color: #111; background: #fff; }
@@ -29,10 +29,10 @@
 </style>
 </head>
 <body>
-  <div class="row"><h1>French Weave</h1><label>On <input type="checkbox" id="enabled"></label></div>
+  <div class="row"><h1>Spanish Weave</h1><label>On <input type="checkbox" id="enabled"></label></div>
   <div id="operation" class="small" role="status"></div>
   <div id="update" class="small" hidden>Update <span id="updateVersion"></span> didn't load by itself: click the
-    reload arrow on French Weave in the extensions page. <button id="openExtensions">Open extensions page</button></div>
+    reload arrow on Spanish Weave in the extensions page. <button id="openExtensions">Open extensions page</button></div>
   <section>
     <label class="row"><span id="siteName">This site</span><input type="checkbox" id="siteEnabled" aria-label="On for this site"></label>
     <label class="row"><span>Other sites</span><select id="newSitesEnabled"><option value="true">On by default</option><option value="false">Only sites I turn on</option></select></label>
@@ -42,19 +42,18 @@
   </section>
   <section>
     <div class="row"><span>Level</span><span id="levelInfo" class="small"></span></div>
-    <label class="row"><span>Force level</span>
+    <label class="row"><span>Reading level</span>
       <select id="levelOverride">
-        <option value="0">Auto (Claude Code stage)</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
+        <option value="0">Beginner (default)</option>
+        <option value="1">1 · Beginner</option>
+        <option value="2">2 · Expanded</option>
       </select>
     </label>
     <label class="row"><span>Model</span><select id="model"></select></label>
     <label class="row"><span>Gemini key</span><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"></label>
     <div class="row"><span>Words</span><span id="wordInfo" class="small"></span></div>
-    <div class="row"><button id="syncWords">Sync words</button><button id="clearCache">Clear cache</button></div>
+    <div class="row"><span>Hover for meaning; click for English.</span></div>
+    <button id="clearCache">Clear cache</button>
   </section>
   <p class="small">Sites where it's on send readable page text to Gemini with your key. With a free key, Google may use it to improve its products; a paid key avoids that. Links and inline code go with their sentence but are never changed; code blocks, forms and editable text are skipped.</p>
   <div id="notice" class="small error" role="alert"></div>

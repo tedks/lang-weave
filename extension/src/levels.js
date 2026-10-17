@@ -3,7 +3,7 @@
 // L3/L4 prompts are not built yet; anything above this uses L2 rules.
 export const MAX_BUILT_LEVEL = 2;
 
-// stage: from the Claude Code plugin's word state (0 when there is none); chosen: after the popup override;
+// stage: optional legacy stage; chosen: after the popup override;
 // effective: what the prompt uses.
 export function resolveLevel(settings = {}, stage = 0) {
   const override = Number(settings.levelOverride) || 0;
@@ -12,182 +12,13 @@ export function resolveLevel(settings = {}, stage = 0) {
   return { stage: synced, chosen, effective: Math.min(chosen, MAX_BUILT_LEVEL) };
 }
 
-const W = (fr, en, hint) => ({ fr, en, hint });
+export { L1_WORDS, L2_EXTRA, L2_WORDS, wordsForLevel } from './vocabulary.js';
+import { wordsForLevel } from './vocabulary.js';
 
-// Level 1: the bundled starter list, used when the Claude Code plugin's word state isn't available.
-export const L1_WORDS = [
-  W('et', 'and', 'ay'),
-  W('mais', 'but', 'meh'),
-  W('ou', 'or', 'oo'),
-  W('donc', 'so', 'donk'),
-  W('parce que', 'because', 'pars kuh'),
-  W('avec', 'with', 'ah-vek'),
-  W('sans', 'without', 'sahn'),
-  W('pour', 'for', 'poor'),
-  W('très', 'very', 'treh'),
-  W('aussi', 'also', 'oh-see'),
-  W('bien', 'well / good', 'byan'),
-  W('beaucoup', 'a lot', 'boh-koo'),
-  W('un peu', 'a little', 'uhn puh'),
-  W('maintenant', 'now', 'man-tuh-nahn'),
-  W('toujours', 'always', 'too-zhoor'),
-  W('peut-être', 'maybe', 'puh-tet-ruh'),
-  W('ici', 'here', 'ee-see'),
-  W('voilà', 'there it is', 'vwah-lah'),
-  W('oui', 'yes', 'wee'),
-  W('non', 'no', 'noh'),
-  W('merci', 'thank you', 'mair-see'),
-  W('le problème', 'the problem', 'luh prob-lem'),
-  W('la question', 'the question', 'lah kess-tyon'),
-  W("l'idée", 'the idea', 'lee-day'),
-  W('la réponse', 'the answer', 'lah ray-ponss'),
-  W('important', 'important', 'an-por-tahn'),
-  W('possible', 'possible', 'po-see-bluh'),
-  W('difficile', 'difficult', 'dee-fee-seel'),
-];
-
-// Level 2: L1 plus frequent words, cognates, and fixed phrases (~150 total).
-export const L2_EXTRA = [
-  // question words and connectors
-  W('si', 'if', 'see'),
-  W('comme', 'like / as', 'kom'),
-  W('quand', 'when', 'kahn'),
-  W('où', 'where', 'oo'),
-  W('pourquoi', 'why', 'poor-kwah'),
-  W('comment', 'how', 'ko-mahn'),
-  W('qui', 'who', 'kee'),
-  W('quoi', 'what', 'kwah'),
-  W('alors', 'so / then', 'ah-lor'),
-  W('en fait', 'actually', 'ahn fet'),
-  W('par exemple', 'for example', 'par eg-zahm-pl'),
-  // adverbs
-  W('jamais', 'never', 'zha-meh'),
-  W('encore', 'again / still', 'ahn-kor'),
-  W('déjà', 'already', 'day-zha'),
-  W('souvent', 'often', 'soo-vahn'),
-  W('parfois', 'sometimes', 'par-fwah'),
-  W('vraiment', 'really', 'vray-mahn'),
-  W('seulement', 'only', 'suhl-mahn'),
-  W('trop', 'too much', 'troh'),
-  W('assez', 'enough', 'ah-say'),
-  W('presque', 'almost', 'presk'),
-  W('surtout', 'especially', 'sur-too'),
-  W('ensemble', 'together', 'ahn-sahm-bl'),
-  W('bientôt', 'soon', 'byan-toh'),
-  W("aujourd'hui", 'today', 'oh-zhoor-dwee'),
-  W('demain', 'tomorrow', 'duh-man'),
-  W('hier', 'yesterday', 'yair'),
-  W('ce soir', 'tonight', 'suh swar'),
-  W('là', 'there', 'lah'),
-  W('plus', 'more', 'plüs'),
-  W('moins', 'less', 'mwan'),
-  W('mieux', 'better', 'myuh'),
-  W('pire', 'worse', 'peer'),
-  W('bien sûr', 'of course', 'byan sür'),
-  W("d'accord", 'okay / agreed', 'da-kor'),
-  W('pas du tout', 'not at all', 'pah dü too'),
-  // pronouns and quantifiers
-  W('tout', 'everything / all', 'too'),
-  W('rien', 'nothing', 'ryan'),
-  W('quelque chose', 'something', 'kel-kuh shohz'),
-  W("quelqu'un", 'someone', 'kel-kuhn'),
-  W('tout le monde', 'everyone', 'too luh mond'),
-  W('même', 'same / even', 'mem'),
-  W('autre', 'other', 'oh-tr'),
-  W('ça', 'that / this', 'sa'),
-  // prepositions
-  W('dans', 'in', 'dahn'),
-  W('sur', 'on', 'sür'),
-  W('entre', 'between', 'ahn-tr'),
-  W('après', 'after', 'ah-preh'),
-  W('avant', 'before', 'ah-vahn'),
-  W('pendant', 'during', 'pahn-dahn'),
-  W('depuis', 'since', 'duh-pwee'),
-  // nouns
-  W('le temps', 'time / the weather', 'luh tahn'),
-  W('la vie', 'life', 'lah vee'),
-  W('le monde', 'the world', 'luh mond'),
-  W('la maison', 'the house / home', 'lah may-zon'),
-  W('le travail', 'work', 'luh tra-vye'),
-  W('la chose', 'the thing', 'lah shohz'),
-  W('le jour', 'the day', 'luh zhoor'),
-  W('la semaine', 'the week', 'lah suh-men'),
-  W("l'année", 'the year', 'lah-nay'),
-  W("l'ami", 'the friend', 'lah-mee'),
-  W('la famille', 'the family', 'lah fa-mee'),
-  W('la ville', 'the city', 'lah veel'),
-  W('la fin', 'the end', 'lah fan'),
-  W('la raison', 'the reason', 'lah ray-zon'),
-  W('le moment', 'the moment', 'luh mo-mahn'),
-  W('la chance', 'luck', 'lah shahns'),
-  W("l'histoire", 'the story / history', 'lees-twar'),
-  W('la musique', 'music', 'lah mü-zeek'),
-  W('le chat', 'the cat', 'luh sha'),
-  W('le chien', 'the dog', 'luh shyan'),
-  W("l'école", 'school', 'lay-kol'),
-  // adjectives
-  W('bon', 'good', 'bon'),
-  W('mauvais', 'bad', 'mo-veh'),
-  W('grand', 'big / tall', 'grahn'),
-  W('petit', 'small', 'puh-tee'),
-  W('nouveau', 'new', 'noo-voh'),
-  W('vieux', 'old', 'vyuh'),
-  W('jeune', 'young', 'zhuhn'),
-  W('beau', 'beautiful', 'boh'),
-  W('vrai', 'true', 'vray'),
-  W('faux', 'false / fake', 'foh'),
-  W('facile', 'easy', 'fa-seel'),
-  W('fort', 'strong', 'for'),
-  W('long', 'long', 'lon'),
-  W('chaud', 'hot', 'shoh'),
-  W('froid', 'cold', 'frwah'),
-  W('heureux', 'happy', 'uh-ruh'),
-  W('triste', 'sad', 'treest'),
-  W('libre', 'free', 'lee-br'),
-  W('sûr', 'sure', 'sür'),
-  W('simple', 'simple', 'san-pl'),
-  W('intéressant', 'interesting', 'an-tay-reh-sahn'),
-  W('incroyable', 'incredible', 'an-krwa-ya-bl'),
-  W('parfait', 'perfect', 'par-feh'),
-  W('terrible', 'terrible', 'teh-ree-bl'),
-  W('excellent', 'excellent', 'ek-seh-lahn'),
-  W('différent', 'different', 'dee-fay-rahn'),
-  W('normal', 'normal', 'nor-mal'),
-  W('rapide', 'fast', 'ra-peed'),
-  W('dernier', 'last', 'dair-nyay'),
-  W('premier', 'first', 'pruh-myay'),
-  W('prochain', 'next', 'pro-shan'),
-  W('seul', 'alone / only', 'suhl'),
-  W('gratuit', 'free (no cost)', 'gra-twee'),
-  W('sérieux', 'serious', 'say-ryuh'),
-  W('drôle', 'funny', 'drohl'),
-  W('fou', 'crazy', 'foo'),
-  W('génial', 'great / brilliant', 'zhay-nyal'),
-  W('impossible', 'impossible', 'an-po-see-bl'),
-  // fixed phrases and greetings
-  W("c'est", "it's / this is", 'seh'),
-  W('il y a', 'there is / there are', 'eel ee ah'),
-  W('je pense que', 'I think that', 'zhuh pahns kuh'),
-  W('il faut', 'you have to / we need', 'eel foh'),
-  W("j'aime", 'I love / I like', 'zhem'),
-  W('je sais', 'I know', 'zhuh seh'),
-  W('je ne sais pas', "I don't know", 'zhuh nuh seh pah'),
-  W("s'il vous plaît", 'please', 'seel voo pleh'),
-  W('bonjour', 'hello', 'bon-zhoor'),
-  W('désolé', 'sorry', 'day-zo-lay'),
-  W('ça va', "it's fine / how's it going", 'sa va'),
-];
-
-export const L2_WORDS = [...L1_WORDS, ...L2_EXTRA];
-
-export function wordsForLevel(level) {
-  return level <= 1 ? L1_WORDS : L2_WORDS;
-}
-
-// "très", "tres", "Très " and "l’idée" all map to the same entry.
+// Legacy function names and fr fields mean target-language text. Keep ñ distinct from n.
 export function normalizeFr(s) {
   return String(s)
-    .normalize('NFD')
+    .normalize('NFD').replace(/n\u0303/gi, (s) => s[0] === 'N' ? 'Ñ' : 'ñ')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[’‘`]/g, "'")
@@ -195,9 +26,11 @@ export function normalizeFr(s) {
     .trim();
 }
 
-const ARTICLE_RE = /^(?:(?:les|le|la|une|un|des)\s+|l')/i;
-const DEFINITE_RE = /^(?:(?:les|le|la)\s+|l')/i;
+const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
+const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+// An omitted accent here spells a different Spanish word, not a harmless typo.
+const AMBIGUOUS_FOLDS = new Set(['si', 'el', 'tu', 'mi', 'te', 'se', 'de', 'mas', 'aun', 'como', 'cuando', 'donde', 'que', 'quien']);
 
 const indexCache = new Map();
 function indexFor(level, sharedWords) {
@@ -209,9 +42,9 @@ function indexFor(level, sharedWords) {
     idx.set(full, { canon: w.fr, en: w.en, hint: w.hint, word: w.fr, status: w.status });
     const stripped = full.replace(ARTICLE_RE, '');
     if (stripped !== full && !idx.has(stripped)) {
-      // Accept the bare noun ("problème" for "problem") and keep the accents from the list.
+      // Accept a bare noun ("problema" for "problem") and keep the accents from the list.
       const canon = w.fr.replace(ARTICLE_RE, '');
-      idx.set(stripped, { canon, en: w.en.replace(/^the /, ''), hint: w.hint.replace(/^(luh|lah|lay|lee|uhn|ün) /, ''), word: w.fr, status: w.status });
+      idx.set(stripped, { canon, en: w.en.replace(/^the /, ''), hint: w.hint.replace(/^(el|lah|lohs|lahs|oon|OO-nah) /i, ''), word: w.fr, status: w.status });
     }
   }
   const folded = new Map();
@@ -232,13 +65,13 @@ export function matchCase(fr, original) {
 }
 
 // The English a swap replaces must be one of the word's glosses, or a plain inflection of one, so a model
-// slip like "to start" -> donc is dropped instead of shown.
+// slip like "to start" -> entonces is dropped instead of shown.
 const EN_LEAD_RE = /^(?:the|a|an|to)\s+/;
 const cleanEn = (s) => String(s).toLowerCase().replace(/[’‘`]/g, "'").replace(/\(.*?\)/g, ' ')
   .replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
 
 // Everyday English variants of a gloss, including the synonyms the prompt itself asks the model to use
-// (prompt.js: "big"/"large"/"huge" -> grand, "other"/"another"/"else" -> autre, "I think" -> je pense que, ...).
+// ("big"/"large"/"huge" -> grande, "other"/"another"/"else" -> otro, "I think" -> creo que, ...).
 const SYNONYMS = {
   big: ['large', 'huge'],
   only: ['single'],
@@ -261,7 +94,7 @@ const SYNONYMS = {
   hello: ['hi'],
 };
 
-export function glossMatches(original, en) {
+export function glossMatches(original, en, { inflections = true } = {}) {
   const forms = new Set();
   for (const alt of String(en).split(/\s*[/;,]\s*/)) {
     const g = cleanEn(alt);
@@ -275,6 +108,7 @@ export function glossMatches(original, en) {
   if (!t) return false;
   for (const c of new Set([t, t.replace(EN_LEAD_RE, '')])) {
     if (forms.has(c)) return true;
+    if (!inflections) continue;
     for (const [suffix, stem] of [['ies', 'y'], ['es', ''], ['s', ''], ['ed', ''], ['ed', 'e'], ['ing', ''], ['ing', 'e']]) {
       if (c.endsWith(suffix) && forms.has(c.slice(0, -suffix.length) + stem)) return true;
     }
@@ -282,7 +116,7 @@ export function glossMatches(original, en) {
   return false;
 }
 
-// Fail closed: keep only swaps whose French is on the list (the plugin's word state, else the level's bundled list)
+// Fail closed: keep only swaps whose Spanish is on the supplied or bundled vocabulary list
 // and whose English matches that word's gloss.
 // Canonicalizes accents, fills gloss and hint from the list, matches capitalization of the original.
 export function validateSwaps(level, swaps, sharedWords) {
@@ -293,9 +127,12 @@ export function validateSwaps(level, swaps, sharedWords) {
     if (!s || typeof s.o !== 'string' || typeof s.f !== 'string') continue;
     const o = s.o.trim();
     if (!o || !s.f.trim()) continue;
-    let hit = idx.exact.get(exactFr(s.f)) || idx.folded.get(normalizeFr(s.f));
-    if (!hit || !glossMatches(o, hit.en)) continue;
-    // "my problem" -> "my le problème", "the answer" -> "the la réponse": when the English article (or a
+    const exact = exactFr(s.f);
+    let hit = idx.exact.get(exact) || (!AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
+    // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
+    // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
+    if (!hit || !glossMatches(o, hit.en, { inflections: !ARTICLE_RE.test(hit.word) })) continue;
+    // "my problem" -> "my el problema", "the answer" -> "the la respuesta": when the English article (or a
     // possessive) stays outside the swap, use the bare noun.
     const bare = exactFr(hit.canon).replace(DEFINITE_RE, '');
     if (bare !== exactFr(hit.canon) && !/^the\s/i.test(o) && idx.exact.has(bare)) hit = idx.exact.get(bare);
@@ -315,7 +152,7 @@ export function sentenceCount(text) {
   return Math.max(1, String(text).split(/[.!?…]+(?:\s|$)|\n+/).filter((s) => wordCount(s) >= 3).length);
 }
 
-// Density ceiling per passage, one use per French word, learning words (active/shaky) kept before known ones.
+// Density ceiling per passage, one use per Spanish word, learning words (active/shaky) kept before known ones.
 export function capSwaps(level, swaps, text, sharedWords) {
   const max = (level <= 1 ? 1 : 2) * sentenceCount(text);
   const status = new Map((sharedWords || []).map((w) => [w.fr, w.status]));
@@ -331,7 +168,7 @@ export function wordCount(text) {
   return t ? t.split(/\s+/).length : 0;
 }
 
-// Small, conservative client-side guard for the zero-French topics. The model rule does the real work;
+// Small, conservative client-side guard for the zero-Spanish topics. The model rule does the real work;
 // this just guarantees the obvious cases never leave the page.
 const ZERO_FRENCH = [
   /\b(doctor|hospital|diagnos\w*|symptoms?|medication|meds|ibuprofen|tylenol|prescription|overdose|vaccine|cancer|surgery|pregnan\w*|therapist|antidepressants?|ssri|adderall|stimulants?|chemo)\b/i,
@@ -341,6 +178,9 @@ const ZERO_FRENCH = [
   /\b(driving|drunk driv\w*|car crash|dui|speed limit|seat ?belt)\b/i,
 ];
 
-export function isZeroFrench(text) {
+export function isZeroSpanish(text) {
   return ZERO_FRENCH.some((re) => re.test(text));
 }
+
+// Compatibility for inherited modules; the guard excludes target-language swaps, not just French.
+export const isZeroFrench = isZeroSpanish;

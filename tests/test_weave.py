@@ -589,12 +589,13 @@ class Setup(Home):
         with self.assertRaises(SystemExit), mock.patch('sys.stderr', new=io.StringIO()):
             fw.main(['setup', '--dry-run', '--sites', 'some'])
 
-    def test_extension_id_matches_manifest_key(self):
-        import base64
-        import hashlib
-        key = json.loads((ROOT / 'extension' / 'manifest.json').read_text())['key']
-        digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
-        self.assertEqual(''.join(chr(ord('a') + int(c, 16)) for c in digest), fw.EXTENSION_ID)
+    def test_spanish_extension_is_independent_of_legacy_native_host(self):
+        manifest = json.loads((ROOT / 'extension' / 'manifest.json').read_text())
+        self.assertEqual(manifest['name'], 'Spanish Weave')
+        self.assertNotIn('key', manifest)
+        self.assertNotIn('nativeMessaging', manifest['permissions'])
+        # The inherited CLI still registers its historical French extension ID, never this browser fork.
+        self.assertRegex(fw.EXTENSION_ID, r'^[a-p]{32}$')
 
 
 SPANISH = 'word,en,hint,scan\ny,and,ee,\npero,but,PEH-roh,\nentonces,so,en-TON-ses,\nahora,now,ah-OH-rah,\nsolo,only,SOH-loh,no\n'

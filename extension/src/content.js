@@ -4,6 +4,7 @@ import { flatten, applySwaps, revert, toggle, isSwap, swapWord, SWAP_CLASS } fro
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
+import { localDay } from './events.js';
 
 let config = null;
 let observer = null;
@@ -41,7 +42,7 @@ function orphan() {
   pending.clear(); inflight.clear();
 }
 const send = (msg) => {
-  if (!alive()) { orphan(); return Promise.reject(new Error('French Weave was reloaded')); }
+  if (!alive()) { orphan(); return Promise.reject(new Error('Spanish Weave was reloaded')); }
   try {
     return chrome.runtime.sendMessage(msg).catch((e) => { if (!alive()) orphan(); throw e; });
   } catch (e) {
@@ -60,7 +61,7 @@ const swapFor = (e) => {
 function record(span, event) {
   const word = swapWord(span);
   if (!word || !on()) return;
-  const id = new Date().toISOString().slice(0, 10) + ':' + event + ':' + word;
+  const id = localDay() + ':' + event + ':' + word;
   const daily = event === 'seen' || event === 'peek';
   if (daily && seen.has(id)) return;
   if (daily) seen.add(id);
