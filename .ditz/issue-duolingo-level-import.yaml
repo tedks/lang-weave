@@ -1,0 +1,19 @@
+id: duolingo-level-import
+title: Investigate supported Duolingo level import
+desc: 'Stretch goal: investigate documented supported account/export APIs, map course
+  placement conservatively, and allow manual level selection. Do not collect passwords,
+  scrape cookies, depend on private endpoints or send credentials to the model. No
+  authentication attempted in the core mission.'
+type: feature
+component: integrations
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-17T15:50:16-00:00
+references: []
+log_events:
+- time: 2026-10-17T15:50:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
