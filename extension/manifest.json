@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Spanish Weave",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Learn Spanish through the English you already read: contextual words, hover hints and click-to-English.",
   "permissions": [
     "storage",

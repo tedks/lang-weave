@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spanish Weave · Review</title>
+<style>
+  * { box-sizing: border-box; }
+  body { max-width: 640px; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.5 system-ui, sans-serif; color: #182027; background: #faf9f5; }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .muted { color: #59636b; }
+  .card { background: white; border: 1px solid #cbd2d5; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; min-height: 220px; }
+  #prompt { font-size: 1.8rem; margin: .25rem 0 1.25rem; }
+  #answer { font-size: 1.6rem; font-weight: 600; }
+  button { font: inherit; padding: .5rem .8rem; margin: .25rem .35rem .25rem 0; cursor: pointer; }
+  button:disabled { cursor: default; opacity: .5; }
+  #notice { color: #9b221b; min-height: 1.5em; }
+  @media (prefers-color-scheme: dark) { body { color: #f3f3f3; background: #15181c; } .muted { color: #bbc3c9; } .card { background: #22282d; border-color: #52606a; } button { color: #f3f3f3; background: #343d45; border: 1px solid #7a8790; } #notice { color: #ffb4a8; } }
+</style>
+</head>
+<body>
+<h1>Recall practice</h1>
+<p class="muted">Think of the Spanish for the English prompt, then reveal and rate your recall. Reading sightings do not count as reviews.</p>
+<p id="counts" class="muted" role="status"></p>
+<main class="card">
+  <p id="empty">Loading your review queue…</p>
+  <div id="question" hidden>
+    <div class="muted">Say this in Spanish:</div>
+    <p id="prompt"></p>
+    <button id="reveal">Reveal answer</button>
+    <div id="solution" hidden>
+      <div id="answer"></div>
+      <div id="hint" class="muted"></div>
+      <p class="muted">How well did you recall it?</p>
+      <button data-rating="hard">Hard</button>
+      <button data-rating="medium">Medium</button>
+      <button data-rating="easy">Easy</button>
+    </div>
+  </div>
+</main>
+<button id="introduce" hidden>Add 5 new words</button>
+<button id="refresh">Refresh queue</button>
+<p id="notice" role="alert"></p>
+<script type="module" src="review-page.js"></script>
+</body>
+</html>

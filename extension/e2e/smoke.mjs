@@ -2,17 +2,19 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const source = process.env.SPANISH_WEAVE_TEST_EXTENSION || root;
+if (!isAbsolute(source)) throw new Error('SPANISH_WEAVE_TEST_EXTENSION must be an absolute extension directory');
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-smoke-'));
 const extension = join(scratch, 'extension');
 let context;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
+  await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
+  const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
   manifest.host_permissions.push(...manifest.optional_host_permissions);
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
@@ -78,6 +80,28 @@ try {
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent.includes('Spanish words'));
   assert.equal(await popup.locator('h1').textContent(), 'Spanish Weave');
   assert.equal(await popup.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
+  assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
+  assert.equal(await popup.locator('#reviewInfo').textContent(), '0 due');
+  const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#openReview').click()]);
+  await review.waitForLoadState();
+  await review.locator('#counts').getByText('0 due · 30 available to add').waitFor();
+  assert.equal(await review.locator('#question').isHidden(), true);
+  await review.locator('#introduce').click();
+  await review.locator('#prompt').getByText('and').waitFor();
+  assert.equal(await review.locator('#prompt').textContent(), 'and');
+  assert.equal(await review.locator('#solution').isHidden(), true);
+  await review.locator('#reveal').click();
+  await review.locator('#answer').getByText('y').waitFor();
+  assert.equal(await review.locator('#answer').textContent(), 'y');
+  await review.reload(); // a revealed card survives closing/reopening the extension page
+  await review.locator('#answer').getByText('y').waitFor();
+  await review.locator('[data-rating="hard"]').click();
+  await review.locator('#prompt').getByText('but').waitFor();
+  assert.equal(await review.locator('#counts').textContent(), '4 due · 25 available to add');
+  const savedReview = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((s) => s.recallReview));
+  assert.equal(savedReview.cards.y.interval, 1);
+  assert.equal(savedReview.cards.y.reviews, 1);
+  assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length); // review never calls Gemini
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length);
@@ -90,7 +114,7 @@ try {
   await page.locator('#reading .fw-word').waitFor();
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
-  console.log('PASS: real Chromium MV3 load; Spanish swaps, hover, click/keyboard, popup, level switch, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
+  console.log('PASS: real Chromium MV3 load; Spanish swaps, hover, click/keyboard, popup, local recall review, level switch, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
 } finally {
   if (context) await context.close();
   // Only the exact mkdtemp directory created above, after closing its browser.
