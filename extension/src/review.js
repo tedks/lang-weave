@@ -41,7 +41,7 @@ export function nextReview(state, words, now, ticket = () => crypto.randomUUID()
   if (!active || state.cards[active.fr]?.due > now) state.current = null;
   if (!state.current) {
     const due = words.filter(({ fr }) => state.cards[fr]?.due <= now)
-      .sort((a, b) => state.cards[a.fr].due - state.cards[b.fr]);
+      .sort((a, b) => state.cards[a.fr].due - state.cards[b.fr].due);
     if (!due.length) return null;
     state.current = { word: due[0].fr, ticket: ticket(), revealed: false };
   }

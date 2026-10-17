@@ -48,3 +48,12 @@ test('loaded state drops foreign and malformed cards, preserving Spanish accents
   expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 1, new: 29 });
   expect(reviewCounts(state, L2_WORDS, now).due).toBe(2);
 });
+
+test('the most overdue card wins even when it is later in the vocabulary list', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const state = cleanReview(null, L1_WORDS);
+  introduce(state, L1_WORDS, now, 2); // y precedes pero in the list
+  state.cards.y.due = now - DAY_MS;
+  state.cards.pero.due = now - 3 * DAY_MS;
+  expect(nextReview(state, L1_WORDS, now, () => 'ticket').en).toBe('but');
+});
