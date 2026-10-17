@@ -1,0 +1,5 @@
+name: spanish-extension
+version: "0.1.0"
+components:
+- name: spanish-extension
+releases: []
