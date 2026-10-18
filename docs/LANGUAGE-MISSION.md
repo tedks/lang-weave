@@ -2,10 +2,14 @@
 
 ## Current state
 
-State: implementation started on the `generic-language` feature branch. The
-Spanish 0.4.0 extension is the accepted base. Source, installer, review,
-rename, and fleet gates remain open. This record belongs to the language Lead;
-the existing mission records belong to other lanes.
+State: generic extension implementation and local gates are complete on the
+`generic-language` feature branch, with council review pending. Draft source
+PR #3 remains open. The Spanish 0.4.0 extension is the accepted base; this
+branch is 0.5.0. A separate gradual-learning branch is stacked on this branch
+and owns density/adaptive/in-band work. The CTO owns bottom/top merge, final
+rename timing, installer pin and fleet release. Dotfiles draft PR #200 carries
+installer compatibility with its old pin still intact. This record belongs to
+the language Lead; the existing mission records belong to other lanes.
 
 ## Intent and boundaries
 
@@ -52,6 +56,32 @@ exact reviewed head; council convergence; normal PR merge; verified owned
 GitHub rename; checksum-pinned installer tests and archive staging; targeted
 host status showing staged payload separately from browser activation.
 No live Gemini request is part of development verification.
+
+## 2026-10-18 implementation and gate evidence
+
+- `src/languages.js` validates canonical language identifiers and bounded
+  generated packs (20–80 entries, two levels, unique target forms, short
+  fields, no markup/control characters). The popup explicitly generates a
+  pack with the saved key, then selects it only if generation and validation
+  succeed. A failed generation preserves the selected target and histories.
+- `src/scope.js` maps reading and recall state by language and pack version.
+  The legacy Spanish storage keys are retained. Cache keys include the
+  context revision; content events include that revision and the worker
+  rejects late events after a switch. The same revision guard rejects late
+  model swaps. Spanish-specific article/diacritic behavior remains confined
+  to Spanish; other targets use exact listed forms and gloss matching.
+- Focused tests cover French and Japanese fixtures, malformed output,
+  generation failure/success, migration, restart, language switch-back,
+  same-spelled event isolation, recall isolation and stale events. Removing
+  the event revision check made the stale cross-language event test fail;
+  restoring it returned the test to green.
+- On the current uncommitted tree before council: Bun 100/100 tests, Python
+  85/85 tests, version 0.4.0→0.5.0 gate, 35 inherited block check and
+  `git diff --check` passed. Real Playwright Chromium MV3 smoke passed with
+  synthetic Gemini for Spanish migration, generated French and Japanese,
+  source reading switches, review isolation, privacy gates and pause/site-off.
+  No live Gemini request or linguistic quality claim was made. Final exact
+  commit gates and council evidence remain to be recorded.
 
 ## Authority and stop conditions
 

@@ -126,10 +126,11 @@ async function addLanguage(msg) {
       fetchImpl: async (...args) => { await countCall(chromeStorage); return fetch(...args); } });
   });
   await locked(async () => {
-    const current = await store.get(['settings', PACKS_KEY]);
+    const current = await store.get(['settings', 'apiKey', PACKS_KEY]);
     const packs = cleanPacks(current[PACKS_KEY]);
     if (packs[code] || Object.keys(packs).length >= MAX_PACKS) throw new Error('Languages changed while generating; try again');
     if (cleanSettings(current.settings).language !== selected) throw new Error('Selection changed while generating; try again');
+    if (current.apiKey !== before.apiKey || cleanSettings(current.settings).model !== model) throw new Error('Model settings changed while generating; try again');
     await store.set({ [PACKS_KEY]: { ...packs, [code]: pack },
       settings: cleanSettings({ ...current.settings, language: code }) });
   });
@@ -141,6 +142,10 @@ async function addLanguage(msg) {
 async function save(msg) {
   await locked(async () => {
     const saved = await store.get('settings');
+    if (msg.settings && typeof msg.settings === 'object' && Object.hasOwn(msg.settings, 'language') &&
+        msg.settings.language !== 'es' && languageCode(msg.settings.language) !== msg.settings.language) {
+      throw new Error('Invalid language code');
+    }
     const merged = { ...saved.settings, ...msg.settings };
     if (msg.siteOverride && typeof msg.siteOverride.host === 'string') {
       merged.siteOverrides = { ...saved.settings?.siteOverrides };

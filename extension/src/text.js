@@ -207,11 +207,11 @@ export function revert(root) {
   return spans.length;
 }
 
-// Click: flip one swap between French and English.
-export function toggle(span) {
+// Click: flip one swap between the selected target language and English.
+export function toggle(span, language = 'Spanish') {
   const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
   span.textContent = showEn ? span.getAttribute('data-en') : span.getAttribute('data-fr');
-  span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? 'Spanish' : 'English'}`);
+  span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? language : 'English'}`);
   return showEn;
 }

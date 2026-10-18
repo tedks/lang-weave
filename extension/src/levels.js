@@ -29,6 +29,7 @@ export function normalizeFr(s) {
 const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
 const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').replace(/\s+/g, ' ').trim();
 // An omitted accent here spells a different Spanish word, not a harmless typo.
 const AMBIGUOUS_FOLDS = new Set(['si', 'el', 'tu', 'mi', 'te', 'se', 'de', 'mas', 'aun', 'como', 'cuando', 'donde', 'que', 'quien']);
 
@@ -38,7 +39,7 @@ function indexFor(level, sharedWords, language = 'es') {
   if (!sharedWords && indexCache.has(lvl)) return indexCache.get(lvl);
   const idx = new Map();
   for (const w of sharedWords || wordsForLevel(lvl)) {
-    const full = exactFr(w.fr);
+    const full = exactTarget(w.fr, language);
     idx.set(full, { canon: w.fr, en: w.en, hint: w.hint, word: w.fr, status: w.status });
     const stripped = language === 'es' ? full.replace(ARTICLE_RE, '') : full;
     if (stripped !== full && !idx.has(stripped)) {
@@ -127,7 +128,7 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es') {
     if (!s || typeof s.o !== 'string' || typeof s.f !== 'string') continue;
     const o = s.o.trim();
     if (!o || !s.f.trim()) continue;
-    const exact = exactFr(s.f);
+    const exact = exactTarget(s.f, language);
     let hit = idx.exact.get(exact) || (language === 'es' && !AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
@@ -138,7 +139,7 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es') {
     if (bare !== exactFr(hit.canon) && !/^the\s/i.test(o) && idx.exact.has(bare)) hit = idx.exact.get(bare);
     out.push({
       o,
-      f: matchCase(hit.canon, o),
+      f: language === 'es' ? matchCase(hit.canon, o) : hit.canon,
       g: hit.en,
       h: hit.hint,
       ctx: typeof s.ctx === 'string' ? s.ctx.trim() : '',

@@ -5,6 +5,7 @@ import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
 import { localDay } from './events.js';
+import { languageName } from './languages.js';
 
 let config = null;
 let observer = null;
@@ -226,7 +227,7 @@ function reveal(e) {
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip();
-  if (toggle(span)) record(span, 'flip');
+  if (toggle(span, languageName(config.language))) record(span, 'flip');
   observer?.takeRecords();
 }
 chrome.runtime.onMessage.addListener((msg) => {
