@@ -74,6 +74,20 @@ log_events:
     privacy backport candidate is being repaired locally for CTO decision. Product
     questions generated-language-removal-confirmation and generated-pack-quality-policy
     remain open; no live Gemini or personal browser rollout performed.'
+- time: 2026-10-18T07:24:32-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Source delivery is MERGED: PR #3 normal merge 31b1cc3f68770015543d6c88edf4681a8c4c0acf
+    in tedks/lang-weave, tree-identical to tested/pushed e005d7f73d72bb187bcc90b4eeb39b37747a7bd0.
+    The exact GitHub rename is complete. Installer PR #200 is separately MERGED as
+    c2243c18ce8fd646b4e2f551ad8e7aefb236dcbd, pinning the actual renamed archive;
+    stable installed spanish-weave/extension path is preserved. Fleet rollout and
+    browser-profile activation are NOT yet verified; CTO owns rollout and will report
+    outcome. The isolated 0.4 prefetch-consent hotfix candidate is coherent/local
+    at 0c9c681 but its final head has only focused tests, not full gates, and has
+    no public push/PR. Separate release path is redundant if 0.5 rollout succeeds.
+    Generated-language product questions remain open. Keep this integration issue
+    in progress until fleet outcome is recorded; no new product phase from this lane.'
 blocks:
 - gradual-inband-learning
 blocked_by:
