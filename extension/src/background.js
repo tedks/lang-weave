@@ -25,6 +25,10 @@ const serial = () => {
 const modelCall = serial(); // one model call at a time
 const locked = serial(); // storage read-modify-writes one at a time, or concurrent ones drop data
 // When both queues are needed, enter modelCall before locked; reversing them can deadlock update reload.
+// Model status is diagnostic; failure to save it must not hide a valid reading result.
+async function saveModelStatus(status) {
+  try { await store.set({ modelStatus: { at: Date.now(), ...status } }); } catch { /* diagnostic only */ }
+}
 
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
@@ -118,7 +122,7 @@ async function swaps(msg, sender) {
     });
   } catch (e) {
     const error = e?.message || 'Model request failed';
-    await store.set({ modelStatus: { at: Date.now(), error } });
+    await saveModelStatus({ error });
     try {
       // Cache entries are raw validated swaps. They still need the current gradual
       // quota and cards, even when another item in this batch failed at the model.
@@ -132,7 +136,7 @@ async function swaps(msg, sender) {
   try {
     const delivered = await deliver({ ...results, ...fresh.results }, true);
     if (!delivered.stale) {
-      await store.set({ modelStatus: { at: Date.now(), error: '', model: fresh.model } });
+      await saveModelStatus({ error: '', model: fresh.model });
     }
     return delivered;
   } catch (e) {
@@ -140,7 +144,7 @@ async function swaps(msg, sender) {
     const latest = await context();
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     const error = e?.message || 'Model request failed';
-    await store.set({ modelStatus: { at: Date.now(), error } });
+    await saveModelStatus({ error });
     return { results: {}, error, retryAfterMs: e?.retryAfterMs };
   }
 }

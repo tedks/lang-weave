@@ -6,10 +6,13 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
   const data = { settings: { enabled: true, newSitesEnabled: true, gradual: true, newWordsPerDay: 1, inlineRecall: true },
     apiKey: 'synthetic-key' };
   const listeners = [];
+  const permissionAdded = [], permissionRemoved = [];
+  let origins = ['<all_urls>'];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
   let writesFail = false;
   let cacheWritesFail = false;
+  let statusWritesFail = true;
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
@@ -17,6 +20,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]]))); },
       async set(values) { await tick(); if (writesFail && 'recallReview' in values) throw new Error('Storage failed');
         if (cacheWritesFail && Object.keys(values).some((key) => key.startsWith('c:'))) throw new Error('Cache storage failed');
+        if (statusWritesFail && 'modelStatus' in values) throw new Error('Status storage failed');
         Object.assign(data, structuredClone(values)); },
       async remove(keys) { for (const key of keys) delete data[key]; },
     } },
@@ -24,7 +28,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
       getManifest: () => ({ version: '0.5.0' }), onMessage: on(listeners), onInstalled: on(), onStartup: on() },
     tabs: { query: async () => [], sendMessage: async () => {} }, action: { setBadgeText: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
+    permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
@@ -73,6 +77,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     expect(mixed.results[`${revision}:${hashKey(excludedText)}`]).toEqual([]);
     expect(data.recallReview.learning.count).toBe(1);
     modelFails = false;
+    statusWritesFail = false;
     expect(await send({ type: 'inlineBegin', word: due, revision }, { ...page, url: 'https://mail.google.com/' }))
       .toMatchObject({ error: expect.any(String) });
     expect(await send({ type: 'inlineBegin', word: due, revision }, page)).toMatchObject({ ticket: expect.any(String) });
@@ -80,13 +85,33 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     expect((await send({ type: 'inlineRate', ticket, rating: 'easy', revision }, page)).error).toMatch(/Reveal/);
     expect((await send({ type: 'inlineReveal', ticket, revision }, other)).error).toMatch(/stale/);
     expect((await send({ type: 'inlineReveal', ticket, revision }, page)).answer.fr).toBe(due);
+    await send({ type: 'save', settings: { enabled: false } }, popup);
+    expect((await send({ type: 'inlineRate', ticket, rating: 'easy', revision }, page)).error).toMatch(/no longer/);
+    await send({ type: 'save', settings: { enabled: true } }, popup);
+    const reenabled = (await send({ type: 'config' }, page)).revision;
+    expect(reenabled).not.toBe(revision);
+    expect((await send({ type: 'inlineRate', ticket, rating: 'easy', revision }, page)).error).toMatch(/no longer/);
+    const afterToggle = (await send({ type: 'inlineBegin', word: due, revision: reenabled }, page)).ticket;
+    expect(afterToggle).toEqual(expect.any(String));
+    expect((await send({ type: 'inlineReveal', ticket: afterToggle, revision: reenabled }, page)).answer.fr).toBe(due);
+    origins = [];
+    await permissionRemoved[0]();
+    expect((await send({ type: 'inlineRate', ticket: afterToggle, rating: 'easy', revision: reenabled }, page)).error).toMatch(/no longer/);
+    origins = ['<all_urls>'];
+    await permissionAdded[0]();
+    const restored = (await send({ type: 'config' }, page)).revision;
+    expect(restored).not.toBe(reenabled);
+    expect((await send({ type: 'inlineRate', ticket: afterToggle, rating: 'easy', revision: reenabled }, page)).error).toMatch(/no longer/);
+    const current = (await send({ type: 'inlineBegin', word: due, revision: restored }, page)).ticket;
+    expect(current).toEqual(expect.any(String));
+    expect((await send({ type: 'inlineReveal', ticket: current, revision: restored }, page)).answer.fr).toBe(due);
     const raced = await Promise.all([
-      send({ type: 'inlineRate', ticket, rating: 'easy', revision }, page),
-      send({ type: 'inlineRate', ticket, rating: 'hard', revision }, page),
+      send({ type: 'inlineRate', ticket: current, rating: 'easy', revision: restored }, page),
+      send({ type: 'inlineRate', ticket: current, rating: 'hard', revision: restored }, page),
     ]);
     expect(raced.filter((r) => r.ok)).toHaveLength(1);
     expect(data.recallReview.cards[due].reviews).toBe(1);
-    expect((await send({ type: 'inlineBegin', word: due, revision }, page)).error).toMatch(/not due/);
+    expect((await send({ type: 'inlineBegin', word: due, revision: restored }, page)).error).toMatch(/not due/);
     expect(await send({ type: 'reviewStatus' }, page)).toBeUndefined();
     await send({ type: 'save', settings: { enabled: false } }, popup);
     expect((await send({ type: 'inlineBegin', word: due, revision }, page)).error).toMatch(/no longer/);
