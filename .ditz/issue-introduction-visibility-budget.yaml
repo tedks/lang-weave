@@ -25,5 +25,13 @@ log_events:
   who: Ted Smith
   what: blocks gradual-inband-learning
   comment: ""
+- time: 2026-10-18T18:58:32-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Ted explicitly approved recommendation 2 on 2026-10-18: a new word consumes
+    the daily introduction allowance only on its first visible occurrence, not on
+    worker delivery. Unseen, stale, failed placements must not spend budget; shared-tab
+    concurrency and retry/restart must not overspend. Decision resolved; implementation/gates
+    remain tracked by gradual-inband-learning.'
 blocks:
 - gradual-inband-learning
