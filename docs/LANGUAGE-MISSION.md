@@ -3,20 +3,19 @@
 ## Current state
 
 State: visible generic Lead owns this branch and the installer compatibility
-branch. Cold-start audit verified the source branch at `5ad04de` and installer
-branch at `9507a25`; both were clean and pushed. Source draft PR #3 targets
-`main`, and installer draft PR #200 retains its old pin. Source repair
-`4208190` was pushed and fully gated: 101 Bun tests, 85 Python tests, the
-version and block checks, diff check, and real Chromium smoke with synthetic
-Gemini. Invalid-pack and removal-history tests each failed when their guard
-was removed, then passed after restoration. The first fix-delta council round
-found no Critical issues. OpenAI and Anthropic reported CLEAN; Google flagged
-a content-script dependency leak and Turkish event casing. Follow-up code
-checkpoint `f79ab44` moves language-code validation into a lightweight module,
-fixes locale-aware event matching, rejects stale popup removal requests and
-tightens review dispatch. The focused 10/10 Bun tests pass; the Turkish test
-failed before its fix. Next: run all local gates on the final head and review
-only the new fix delta until CLEAN. Neither source nor installer has been
+branch. Source draft PR #3 targets `main`; installer draft PR #200 remains at
+`9507a25` with its old pin. Source `98e3d46` passed 101 Bun tests, 85 Python
+tests, version/block/diff checks and real Chromium with synthetic Gemini.
+Three-seat convergence on its latest fix delta was CLEAN. The CTO then found
+that a language, settings or permission round trip could recreate an old page
+revision. Lower commit `a521269` now rotates a persisted epoch on successful
+settings/pack mutations and permission events; language round-trip, in-flight
+model, permission round-trip and worker-restart tests pass. The settings and
+permission guards each failed mutation checks before restoration. The lower
+branch owns this revision contract; the upper gradual-learning branch owns
+inline recall ticket checks against it. Next: full exact-head gates and a
+convergence review of only the ABA fix delta, then publish an immutable CLEAN
+lower SHA to the upper Lead and CTO. Neither source nor installer has been
 merged or released. The separate gradual-learning branch
 owns density/adaptive/in-band work and is holding rebase until this branch has
 a CLEAN, gated head. The CTO owns bottom/top merge, GitHub rename timing,
