@@ -61,5 +61,16 @@ log_events:
     gates still missing. Do not describe it as verified or deployed. Keep this issue
     open for CTO''s rollout/legacy-path disposition; no separate 0.4 release phase
     is authorized while 0.5 rollout proceeds.'
+- time: 2026-10-18T07:25:51-00:00
+  who: Ted Smith
+  what: commented
+  comment: The fetch-boundary consent repair is in merged Lang Weave 0.5 source31b1cc3
+    and the pinned installer is merged c2243c1. CTO verified payload staging/status
+    on framework0, drynwyn, splinter1 and tower0; no live user text/model traffic
+    or browser profile activation was tested. The separate legacy 0.4 candidate remains
+    local/unpublished, full final gates incomplete, and its separate release path
+    is redundant after this 0.5 rollout. The original static risk was real, but no
+    observed unwanted traffic was claimed. Close the source landing blocker after
+    preservation; splinter0 host follow-up remains separate.
 blocks:
 - generic-language
