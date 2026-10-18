@@ -12,8 +12,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-18T06:20:32-00:00
 references: []
 log_events:
@@ -102,6 +102,13 @@ log_events:
     four-host integration are complete subject to private preservation receipt; the
     upper gradual-learning lane is separate. Legacy 0.4 hotfix candidate remains local/unpublished
     and unverified at final head; no extra release phase.'
+- time: 2026-10-18T07:27:00-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'General-language 0.5 source PR #3 merged normally as 31b1cc3; exact GitHub
+    rename completed; installer PR #200 merged as c2243c1 and CTO verified four targeted
+    staged installs/status plus framework0 installed-path Chromium. Browser profile
+    reload/activation and splinter0 are separate follow-ups.'
 blocks:
 - gradual-inband-learning
 blocked_by:
