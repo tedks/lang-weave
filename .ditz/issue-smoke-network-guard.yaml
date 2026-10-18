@@ -52,3 +52,22 @@ log_events:
     full delta convergence and exact-head gates. Released runtime43fee1c and fleet0.6
     remain unchanged; no rollback/pin change. Do not treat prior root light acceptance
     as a full council clearance. No new product ruling is required.'
+- time: 2026-10-18T20:02:05-00:00
+  who: Ted Smith
+  what: commented
+  comment: '2026-10-18 follow-up checkpoint after merged PR #5: PR #6 https://github.com/tedks/lang-weave/pull/6
+    is clean/pushed at fed2e5a3afead2fab96a361e0e56c19cb50808e7, based on normal PR
+    #5 merge 3dd06b0211a5b872a90cf29c5ef5f1ad2434514a. Source repair 71cf974 enforces
+    a narrow two-harness e2e version exemption and installed-runtime reference tripwire,
+    with mixed/moved/new-file tests; smoke proves HTTP and HTTPS CONNECT denial from
+    a fresh unmocked Chromium worker via an owned local proxy plus working local positive
+    control. No runtime, installer, manifest, version, pin or fleet change. Full gates
+    rerun on final docs-only head fed2e5a: frozen Bun install, 118 Bun/1504 assertions,
+    91 Python, both isolated Chromium synthetic flows, version/diff/runtime isolation,
+    clean status. Owned-endpoint proxy-to-origin and HTTP-only mutations fail red;
+    Gemini DNS guard remained active. Initial three-provider council on 3dd06b0..4bb67ba
+    was not CLEAN; OpenAI/Anthropic/Google fix-delta council on 4bb67ba..71cf974 was
+    CLEAN with zero new Critical/Important. PR evidence: https://github.com/tedks/lang-weave/pull/6#issuecomment-6254492487
+    . Nonblocking nits filed as smoke-harness-hardening. Keep this issue in progress
+    for root acceptance/normal merge; PR #5''s late council result remains historical
+    not-CLEAN.'
