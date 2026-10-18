@@ -43,7 +43,8 @@ describe('prompt', () => {
     expect(p).toContain('Fill the remaining density with KNOWN words');
     expect(p).not.toContain('due first, then active');
     const french = buildSystemPrompt(2, words, [], 'fr');
-    expect(french).toContain('grande = big; pequeño = small');
+    expect(french).toContain('{"target":"grande","english":"big"},{"target":"pequeño","english":"small"}');
+    expect(french).toContain('Prefer an unshown word if several listed words fit');
     expect(french).not.toContain('Prefer listed due words');
     expect(french).not.toContain('Use up to two target words');
     expect(buildSystemPrompt(2, words, [], 'fr', 'light')).toContain('at most one target word');
