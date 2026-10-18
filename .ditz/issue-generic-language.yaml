@@ -29,5 +29,14 @@ log_events:
   who: Ted Smith
   what: blocks gradual-inband-learning
   comment: ""
+- time: 2026-10-18T06:26:17-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO integration directive: gradual-inband-learning is a separately owned
+    top branch/PR targeting generic-language. Publish a committed language/pack/state/review
+    interface and coordinate peer checkpoints. Generic scope unchanged; bottom source
+    and final installer merges/cutover now coordinated by root CTO after clean exact-head
+    evidence, not independently. Continue implementation/review/repair/push without
+    waiting for next-attempt approval; keep bottom branch until whole stack lands.'
 blocks:
 - gradual-inband-learning
