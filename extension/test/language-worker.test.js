@@ -19,15 +19,39 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   const permissionAdded = [];
   const permissionRemoved = [];
   let origins = ['<all_urls>'];
+  let blockSeenRead = false;
+  let seenReadStarted;
+  let releaseSeenRead;
+  let blockCacheRead = false;
+  let cacheReadStarted;
+  let releaseCacheRead;
+  let failEpochOnce = false;
+  let registrationCalls = 0;
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
       async get(keys) {
+        if (blockCacheRead && Array.isArray(keys) && keys.some((key) => key.startsWith('c:'))) {
+          blockCacheRead = false;
+          cacheReadStarted();
+          await new Promise((resolve) => { releaseCacheRead = resolve; });
+        }
+        if (blockSeenRead && Array.isArray(keys) && keys.includes('seenSent')) {
+          blockSeenRead = false;
+          seenReadStarted();
+          await new Promise((resolve) => { releaseSeenRead = resolve; });
+        }
         const pick = keys == null ? Object.keys(data) : typeof keys === 'string' ? [keys] : keys;
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]])));
       },
-      async set(value) { Object.assign(data, structuredClone(value)); },
+      async set(value) {
+        if (failEpochOnce && Object.keys(value).length === 1 && Object.hasOwn(value, 'epoch')) {
+          failEpochOnce = false;
+          throw new Error('Storage unavailable');
+        }
+        Object.assign(data, structuredClone(value));
+      },
       async remove(keys) { for (const key of keys) delete data[key]; },
     } },
     runtime: { id: 'lang-test', getURL: (path) => `chrome-extension://lang-test/${path}`,
@@ -35,8 +59,8 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     tabs: { query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
-    scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
-      updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
+    scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => { registrationCalls++; },
+      updateContentScripts: async () => { registrationCalls++; }, unregisterContentScripts: async () => {} },
   };
   globalThis.fetch = async () => { throw new Error('Unexpected model request'); };
   const popup = { id: 'lang-test', url: 'chrome-extension://lang-test/src/popup.html' };
@@ -129,6 +153,88 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(data[`c:${key}`]).toBeUndefined();
     expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
 
+    // Site-off during a delayed review read must stop the model request before text leaves.
+    const beforeSiteOff = await dispatch({ type: 'config' }, page);
+    const noOpEpoch = data.epoch;
+    expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
+    expect(data.epoch).toBe(noOpEpoch);
+    expect((await dispatch({ type: 'config' }, page)).revision).toBe(beforeSiteOff.revision);
+    let modelFetches = 0;
+    globalThis.fetch = async () => { modelFetches++; throw new Error('Unexpected model request'); };
+    const readStarted = new Promise((resolve) => { seenReadStarted = resolve; });
+    blockSeenRead = true;
+    const siteOffPending = dispatch({ type: 'swaps', revision: beforeSiteOff.revision,
+      items: [{ key: `${beforeSiteOff.revision}:${hashKey(passage)}`, text: passage }] }, page);
+    await readStarted;
+    expect((await dispatch({ type: 'save', settings: { enabled: false } }, popup)).ok).toBe(true);
+    releaseSeenRead();
+    expect((await siteOffPending).stale).toBe(true);
+    expect(modelFetches).toBe(0);
+    expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+
+    // The same held read must not disclose text after an origin permission is revoked.
+    const beforeRevocation = await dispatch({ type: 'config' }, page);
+    const revokedReadStarted = new Promise((resolve) => { seenReadStarted = resolve; });
+    blockSeenRead = true;
+    const revokedPending = dispatch({ type: 'swaps', revision: beforeRevocation.revision,
+      items: [{ key: `${beforeRevocation.revision}:${hashKey(passage)}`, text: passage }] }, page);
+    await revokedReadStarted;
+    origins = [];
+    await Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseSeenRead();
+    expect((await revokedPending).stale).toBe(true);
+    expect(modelFetches).toBe(0);
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+
+    // An unchanged, permitted page still makes exactly one model request.
+    const allowed = await dispatch({ type: 'config' }, page);
+    const allowedKey = `${allowed.revision}:${hashKey(passage)}`;
+    globalThis.fetch = async () => {
+      modelFetches++;
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: {
+        parts: [{ text: JSON.stringify({ passages: [{ id: allowedKey, swaps: [] }] }) }],
+      } }] }) };
+    };
+    expect((await dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: allowedKey, text: passage }] }, page)).results[allowedKey]).toEqual([]);
+    expect(modelFetches).toBe(1);
+
+    // A cached answer must also be dropped when the site turns off during storage I/O.
+    const cacheStarted = new Promise((resolve) => { cacheReadStarted = resolve; });
+    blockCacheRead = true;
+    const cachedPending = dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: allowedKey, text: passage }] }, page);
+    await cacheStarted;
+    expect((await dispatch({ type: 'save', settings: { enabled: false } }, popup)).ok).toBe(true);
+    releaseCacheRead();
+    expect((await cachedPending).stale).toBe(true);
+    expect(modelFetches).toBe(1);
+    expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+
+    // Site-off after the primary send must also stop a fallback model send.
+    expect((await dispatch({ type: 'save', settings: { model: 'gemini-3.8-flash' } }, popup)).ok).toBe(true);
+    const beforeFallback = await dispatch({ type: 'config' }, page);
+    const fallbackKey = `${beforeFallback.revision}:${hashKey(passage)}`;
+    let primaryStarted;
+    const startedPrimary = new Promise((resolve) => { primaryStarted = resolve; });
+    let finishPrimary;
+    const sentModels = [];
+    globalThis.fetch = async (url) => {
+      sentModels.push(url);
+      if (!url.includes('gemini-3.8-flash')) throw new Error('Fallback disclosed page text');
+      primaryStarted();
+      return new Promise((resolve) => { finishPrimary = resolve; });
+    };
+    const fallbackPending = dispatch({ type: 'swaps', revision: beforeFallback.revision,
+      items: [{ key: fallbackKey, text: passage }] }, page);
+    await startedPrimary;
+    expect((await dispatch({ type: 'save', settings: { enabled: false } }, popup)).ok).toBe(true);
+    finishPrimary({ ok: false, status: 503, text: async () => '', headers: { get: () => null } });
+    expect((await fallbackPending).stale).toBe(true);
+    expect(sentModels).toHaveLength(1);
+    expect((await dispatch({ type: 'save', settings: { enabled: true, model: 'gemini-3.5-flash-lite' } }, popup)).ok).toBe(true);
+
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');
     expect(await dispatch({ type: 'addLanguage', code: 'de' }, page)).toBeUndefined();
@@ -179,6 +285,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(await dispatch({ type: 'event', word: 'no', event: 'seen', revision: beforePermission.revision }, page)).toEqual({ ok: false });
     expect((await dispatch({ type: 'swaps', revision: beforePermission.revision,
       items: [{ key: `${beforePermission.revision}:${hashKey(passage)}`, text: passage }] }, page)).stale).toBe(true);
+    const registeredBeforeFailure = registrationCalls;
+    failEpochOnce = true;
+    await Promise.all(permissionAdded.map((notify) => notify()));
+    expect(registrationCalls).toBeGreaterThan(registeredBeforeFailure);
     globalThis.fetch = async () => { throw new Error('Unexpected model request'); };
 
     // A suspended MV3 worker is reconstructed from storage without resetting selection or histories.

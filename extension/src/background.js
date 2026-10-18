@@ -67,13 +67,33 @@ async function swaps(msg, sender) {
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
   const results = await cache.getMany(items.map((i) => i.key));
   const misses = items.filter((i) => !(i.key in results));
-  if (!misses.length) return { results };
+  if (!misses.length) {
+    const latest = await context();
+    return latest.revision === ctx.revision && activeOn(latest, sender.url)
+      ? { results } : { results: {}, stale: true };
+  }
   try {
     const fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
       if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; try again tomorrow`);
       const { apiKey } = await store.get('apiKey');
-      const fetchImpl = async (...args) => { await countCall(chromeStorage); return fetch(...args); };
+      const fetchImpl = async (...args) => {
+        // Storage and review reads above can yield while a site is turned off. Dispatch under
+        // the same lock as settings writes, and check again after counting the model call.
+        const { response } = await locked(async () => {
+          const current = await context();
+          if (current.revision !== ctx.revision || !activeOn(current, sender.url)) {
+            throw Object.assign(new Error('Page context changed before model request'), { stale: true });
+          }
+          await countCall(chromeStorage);
+          const final = await context();
+          if (final.revision !== ctx.revision || !activeOn(final, sender.url)) {
+            throw Object.assign(new Error('Page context changed before model request'), { stale: true });
+          }
+          return { response: fetch(...args) };
+        });
+        return response;
+      };
       return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
         words: ctx.words.map((w) => ({ ...w, status: 'active' })), fetchImpl,
         shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
@@ -85,6 +105,9 @@ async function swaps(msg, sender) {
       return { results: { ...results, ...fresh.results } };
     });
   } catch (e) {
+    if (e?.stale) return { results: {}, stale: true };
+    const latest = await context();
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     const error = e?.message || 'Model request failed';
     await store.set({ modelStatus: { at: Date.now(), error } });
     return { results, error, retryAfterMs: e?.retryAfterMs };
@@ -164,7 +187,7 @@ async function removeLanguage(msg) {
 // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
 async function save(msg) {
   await locked(async () => {
-    const saved = await store.get('settings');
+    const saved = await store.get(['settings', 'apiKey']);
     if (msg.settings && typeof msg.settings === 'object' && Object.hasOwn(msg.settings, 'language') &&
         msg.settings.language !== 'es' && languageCode(msg.settings.language) !== msg.settings.language) {
       throw new Error('Invalid language code');
@@ -181,12 +204,16 @@ async function save(msg) {
       next.language = 'es';
     }
     // A settings round trip must not revive a result from its earlier revision.
-    const patch = { settings: next, epoch: crypto.randomUUID() };
+    const patch = { settings: next };
     if (typeof msg.apiKey === 'string') {
       if (msg.apiKey.length > 500) throw new Error('Key is too long');
       patch.apiKey = msg.apiKey.trim();
     }
-    await store.set(patch);
+    if (JSON.stringify(next) !== JSON.stringify(cleanSettings(saved.settings)) ||
+        (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey)) {
+      patch.epoch = crypto.randomUUID();
+      await store.set(patch);
+    }
   });
   await broadcast();
   return { ok: true };
@@ -326,7 +353,7 @@ function registerSites() {
 const permissionsChanged = () => locked(async () => {
   // The final origin list can equal an earlier one after a remove/regrant round trip.
   await store.set({ epoch: crypto.randomUUID() });
-}).then(() => registerSites()).then(() => broadcast('retry')).catch(() => {});
+}).catch(() => {}).then(() => registerSites()).then(() => broadcast('retry')).catch(() => {});
 chrome.permissions.onAdded.addListener(permissionsChanged);
 chrome.permissions.onRemoved.addListener(permissionsChanged);
 

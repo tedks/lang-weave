@@ -13,9 +13,10 @@ in vocabulary and swaps for wire compatibility; it does not mean French.
   `level`, and `revision`. `scope` is `es` for the legacy bundled pack, or
   `<language>:<pack version>` otherwise. `revision` changes when selection,
   pack, level, site settings, permissions or model settings change. It also
-  changes on every successful popup settings/pack mutation, cache clear and
+  changes on every effective popup settings/pack mutation, cache clear and
   permission event, so an off/on, away/back or remove/regrant round trip cannot
-  revive an earlier page token even when the final values are identical.
+  revive an earlier page token even when the final values are identical. The
+  revision is an opaque equality token, not an ordering or timestamp value.
 - `src/scope.js` maps event and review storage through `scopedStorage`.
   Spanish retains the original `readingEvents`, `seenSent`, and
   `recallReview` keys. Other packs use namespaced keys. The decision cache
