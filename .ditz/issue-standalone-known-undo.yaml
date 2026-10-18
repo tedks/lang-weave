@@ -1,0 +1,22 @@
+id: standalone-known-undo
+title: Decide recovery for an accidental Already know review
+desc: 'PR #4 fix-delta council nit: the existing standalone review Already know action
+  marks a card familiar permanently, even while gradual mode is off; no undo control
+  is offered. Options: retain explicit irreversible familiarity, add an undo/relearn
+  action, or restrict known to gradual mode. Recommend a future undo/relearn control
+  so mistaken taps are recoverable while preserving the existing explicit action today.
+  CTO/CEO decides UX and whether this blocks feature acceptance; no silent behavior
+  change in this integration delta.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:23:29-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:23:29-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
