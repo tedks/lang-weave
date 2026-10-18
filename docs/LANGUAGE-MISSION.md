@@ -2,14 +2,25 @@
 
 ## Current state
 
-State: generic extension implementation and local gates are complete on the
-`generic-language` feature branch, with council review pending. Draft source
-PR #3 remains open. The Spanish 0.4.0 extension is the accepted base; this
-branch is 0.5.0. A separate gradual-learning branch is stacked on this branch
-and owns density/adaptive/in-band work. The CTO owns bottom/top merge, final
-rename timing, installer pin and fleet release. Dotfiles draft PR #200 carries
-installer compatibility with its old pin still intact. This record belongs to
-the language Lead; the existing mission records belong to other lanes.
+State: visible generic Lead owns this branch and the installer compatibility
+branch. Cold-start audit verified the source branch clean and pushed at
+`5ad04dee82b65951e38831447ff4312c1f90b59f` (draft PR #3, base `main`)
+and the installer branch clean and pushed at `9507a2502a6a1eb058cea306382338e4b1ed028a`
+(draft PR #200). The source head is a council-fix checkpoint, not CLEAN or
+accepted. The prior fully gated source head was `e357bf9`; the inherited
+checkpoint had only focused 6/6 Bun tests and a diff check. Regression tests
+now cover invalid stored packs, removal/history isolation, concurrent adds,
+stale swaps, and review-tab refresh races. The focused 2/2 Bun run passed
+with 68 assertions; invalid-pack and removal-history tests each failed when
+their respective guards were removed, then passed after restoration. Chromium
+smoke passed with synthetic model responses. Next: commit this checkpoint,
+run all local gates on its exact head, then review the fix delta from
+`e357bf9` to convergence. The separate gradual-learning branch
+owns density/adaptive/in-band work and is holding rebase until this branch has
+a CLEAN, gated head. The CTO owns bottom/top merge, GitHub rename timing,
+installer pin and fleet release. The installer PR still carries its old pin.
+This record belongs to the language Lead; other mission records have separate
+owners.
 
 ## Intent and boundaries
 

@@ -39,7 +39,11 @@ async function load() {
     : 'You are caught up. Come back when a card is due.';
   if (!card) return;
   $('prompt').textContent = card.en;
-  if (card.revealed) showAnswer((await send('reviewReveal', { ticket: card.ticket })).answer);
+  if (card.revealed) {
+    const { answer } = await send('reviewReveal', { ticket: card.ticket });
+    if (generation !== loadGeneration) return;
+    showAnswer(answer);
+  }
 }
 
 async function run(action) {
@@ -58,7 +62,10 @@ async function run(action) {
 
 $('reveal').addEventListener('click', () => run(async () => {
   if (!card) return;
-  showAnswer((await send('reviewReveal', { ticket: card.ticket })).answer);
+  const generation = loadGeneration;
+  const { answer } = await send('reviewReveal', { ticket: card.ticket });
+  if (generation !== loadGeneration) return;
+  showAnswer(answer);
 }));
 $('introduce').addEventListener('click', () => run(async () => {
   await send('reviewIntroduce');
