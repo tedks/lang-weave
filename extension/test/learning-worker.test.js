@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test';
 import { hashKey } from '../src/hash.js';
+import { localDay } from '../src/events.js';
 
 test('worker serializes introductions and inline tickets, rejects stale/off/site messages', async () => {
   const prior = { chrome: globalThis.chrome, fetch: globalThis.fetch };
@@ -62,8 +63,28 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
       ask('I answered the question for my class today.', other, revision),
     ]);
     expect([a, b].flatMap((r) => Object.values(r.results).flat()).filter((s) => s.status === 'new')).toHaveLength(1);
-    expect(Object.keys(data.recallReview.cards)).toHaveLength(1);
+    expect(Object.keys(data.recallReview.cards)).toHaveLength(0);
+    expect(data.recallReview.learning.count).toBe(0);
+    expect(data.recallReview.learning.pending).toHaveLength(1);
+    const first = [a, b].flatMap((r, i) => Object.values(r.results).flat().map((s) => ({ swap: s, sender: i ? other : page })))
+      .find(({ swap }) => swap.status === 'new');
+    expect((await send({ type: 'introAck', word: first.swap.word, ticket: first.swap.introTicket,
+      revision }, first.sender === page ? other : page)).ok).toBe(false);
+    expect(data.recallReview.learning.count).toBe(0);
+    writesFail = true;
+    expect((await send({ type: 'introAck', word: first.swap.word, ticket: first.swap.introTicket,
+      revision }, first.sender)).error).toMatch(/Storage failed/);
+    expect(data.recallReview.learning.count).toBe(0);
+    writesFail = false;
+    expect((await send({ type: 'introAck', word: first.swap.word, ticket: first.swap.introTicket,
+      revision }, first.sender)).ok).toBe(true);
+    expect((await send({ type: 'introAck', word: first.swap.word, ticket: first.swap.introTicket,
+      revision }, first.sender)).ok).toBe(true);
     expect(data.recallReview.learning.count).toBe(1);
+    expect(Object.keys(data.recallReview.cards)).toHaveLength(1);
+    expect((await send({ type: 'inlineBegin', word: first.swap.word, revision }, first.sender)).error).toMatch(/not due/);
+    // The local calendar day boundary, rather than elapsed hours, authorizes automatic cues.
+    data.recallReview.cards[first.swap.word].introducedDay = '2000-01-01';
     expect(modelCalls).toBe(2);
     expect((await ask('I explained the idea to my friends today.', page, revision)).results).toBeDefined();
     expect(data.recallReview.learning.count).toBe(1);
@@ -153,5 +174,60 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const beforeEmpty = modelCalls;
     expect(Object.values((await ask(excludedText, page, nextRevision)).results)).toEqual([[]]);
     expect(modelCalls).toBe(beforeEmpty);
+    const preserved = structuredClone(data.recallReview.cards);
+    data.recallReview.learning = { day: '2099-01-01', count: 1, pending: [] };
+    const warning = await send({ type: 'status' }, popup);
+    expect(warning.budgetWarning).toBe('2099-01-01');
+    expect((await send({ type: 'recoverBudget', confirm: false, day: '2099-01-01', scope: 'es' }, popup)).error)
+      .toMatch(/Confirm/);
+    expect((await send({ type: 'recoverBudget', confirm: true, day: '2099-01-01', scope: 'wrong' }, popup)).ok)
+      .toBe(false);
+    expect(data.recallReview.learning.day).toBe('2099-01-01');
+    expect((await send({ type: 'recoverBudget', confirm: true, day: '2099-01-01', scope: 'es' }, page)))
+      .toBeUndefined();
+    writesFail = true;
+    expect((await send({ type: 'recoverBudget', confirm: true, day: '2099-01-01', scope: 'es' }, popup)).error)
+      .toMatch(/Storage failed/);
+    expect(data.recallReview.learning.day).toBe('2099-01-01');
+    expect(data.recallReview.cards).toEqual(preserved);
+    writesFail = false;
+    expect((await send({ type: 'recoverBudget', confirm: true, day: '2099-01-01', scope: 'es' }, popup)).ok)
+      .toBe(true);
+    expect(data.recallReview.learning.count).toBe(0);
+    expect(data.recallReview.cards).toEqual(preserved);
+    expect((await send({ type: 'status' }, popup)).budgetWarning).toBe('');
+    data.recallReview.cards = {};
+    data.recallReview.learning = { day: localDay(), count: 0, pending: [] };
+    const unplaced = Object.values((await ask(includedText, page, nextRevision)).results).flat()[0];
+    expect(unplaced.introTicket).toEqual(expect.any(String));
+    expect(data.recallReview.learning.count).toBe(0);
+    await send({ type: 'introRelease', word: unplaced.word, ticket: unplaced.introTicket,
+      revision: nextRevision }, other);
+    expect(data.recallReview.learning.pending).toHaveLength(1);
+    await send({ type: 'introRelease', word: unplaced.word, ticket: unplaced.introTicket,
+      revision: nextRevision }, page);
+    expect(data.recallReview.learning.pending).toHaveLength(0);
+    const replacement = Object.values((await ask(excludedText, other, nextRevision)).results).flat()[0];
+    expect(replacement.introTicket).toEqual(expect.any(String));
+    expect((await send({ type: 'introAck', word: replacement.word, ticket: replacement.introTicket,
+      revision: nextRevision }, other)).ok).toBe(true);
+    expect(data.recallReview.learning.count).toBe(1);
+    data.recallReview.cards = {};
+    data.recallReview.learning = { day: localDay(), count: 0, pending: [] };
+    const staleHold = Object.values((await ask(includedText, page, nextRevision)).results).flat()[0];
+    data.recallReview.learning.pending[0].until = 0;
+    expect((await send({ type: 'introAck', word: staleHold.word, ticket: staleHold.introTicket,
+      revision: nextRevision }, page)).ok).toBe(false);
+    const beforeRenew = modelCalls;
+    expect((await send({ type: 'introRenew', word: staleHold.word, ticket: staleHold.introTicket,
+      revision: nextRevision }, other)).ok).toBe(false);
+    const renewed = await send({ type: 'introRenew', word: staleHold.word, ticket: staleHold.introTicket,
+      revision: nextRevision }, page);
+    expect(renewed.ticket).toEqual(expect.any(String));
+    expect(renewed.ticket).not.toBe(staleHold.introTicket);
+    expect(modelCalls).toBe(beforeRenew);
+    expect((await send({ type: 'introAck', word: staleHold.word, ticket: renewed.ticket,
+      revision: nextRevision }, page)).ok).toBe(true);
+    expect(data.recallReview.learning.count).toBe(1);
   } finally { Object.assign(globalThis, prior); }
 }, 30000);

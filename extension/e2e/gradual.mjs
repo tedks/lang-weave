@@ -52,11 +52,14 @@ try {
     <form><p>Private form text and the idea stay here.</p><input value="private"></form>
     <p contenteditable="true">Editable the idea stays here.</p>
   </main></body></html>`;
-  await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
+  await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
+    body: route.request().url().endsWith('/offscreen')
+      ? '<main><div style="height:900px"></div><p id="offscreen">We discussed the question with friends every week.</p></main>' : html }));
   const page = await browser.newPage();
   await page.goto('https://reading.example/one');
   const word = page.locator('#reading .fw-word');
   await word.waitFor();
+  await page.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('data-fr') === 'la idea');
   assert.equal(await word.getAttribute('data-fr'), 'la idea');
   assert.equal(await word.getAttribute('title'), null); // first encounter is reading, not an immediate quiz
   assert.equal(await page.locator('#health .fw-word, form .fw-word, [contenteditable] .fw-word').count(), 0);
@@ -67,6 +70,16 @@ try {
 
   await page.goto('https://reading.example/two');
   const due = page.locator('#reading .fw-word');
+  await due.waitFor();
+  await page.locator('#reading2 .fw-word').waitFor();
+  assert.equal(await due.getAttribute('title'), null); // same local day is still reading, not a quiz
+  assert.equal(await due.textContent(), 'la idea');
+  await worker.evaluate(async () => {
+    const { recallReview } = await chrome.storage.local.get('recallReview');
+    recallReview.cards['la idea'].introducedDay = '2000-01-01';
+    await chrome.storage.local.set({ recallReview });
+  });
+  await page.reload();
   await due.waitFor();
   await page.locator('#reading2 .fw-word').waitFor();
   assert.equal(await due.getAttribute('title'), 'Open inline recall');
@@ -115,6 +128,7 @@ try {
   await due.waitFor();
   await due.click();
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await page.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
   const canFailWrite = await worker.evaluate(() => {
     const original = chrome.storage.local.set;
     const failOnce = (...args) => {
@@ -178,6 +192,7 @@ try {
   });
   await page.locator('#question').evaluate((p) => { p.textContent += ' '; }); // same normalized passage
   await page.locator('#question .fw-word').waitFor();
+  await page.waitForFunction(() => document.querySelector('#question .fw-word')?.getAttribute('data-fr') === 'la pregunta');
   assert.equal(await page.locator('#question .fw-word').textContent(), 'la pregunta');
 
   const popup = await browser.newPage();
@@ -207,6 +222,81 @@ try {
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   assert.equal(await worker.evaluate(() => chrome.storage.local.get('settings').then((x) => x.settings.language)), 'fr');
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
+  await popup.locator('#language').selectOption('es');
+  await popup.locator('#gradual').check();
+  await popup.locator('#newWordsPerDay').selectOption('2');
+  await worker.evaluate(async () => {
+    const { recallReview } = await chrome.storage.local.get('recallReview');
+    delete recallReview.cards['la pregunta'];
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    recallReview.learning = { day, count: 1, pending: [] };
+    await chrome.storage.local.set({ recallReview });
+  });
+  const offscreen = await browser.newPage();
+  await offscreen.goto('https://reading.example/offscreen');
+  const reserved = offscreen.locator('#offscreen .fw-word');
+  await reserved.waitFor();
+  assert.equal(await reserved.textContent(), 'the question');
+  assert.equal(await reserved.getAttribute('data-fr'), null);
+  const beforeVisible = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
+  assert.equal(beforeVisible.learning.count, 1);
+  assert.equal(beforeVisible.cards['la pregunta'], undefined);
+  await worker.evaluate(async () => {
+    const { recallReview } = await chrome.storage.local.get('recallReview');
+    recallReview.learning.pending[0].until = 0; // emulate a reader returning after the bounded hold expires
+    await chrome.storage.local.set({ recallReview });
+  });
+  await reserved.scrollIntoViewIfNeeded();
+  await offscreen.waitForFunction(() => document.querySelector('#offscreen .fw-word')?.getAttribute('data-fr') === 'la pregunta');
+  const afterVisible = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
+  assert.equal(afterVisible.learning.count, 2);
+  assert.ok(afterVisible.cards['la pregunta']);
+  await worker.evaluate(async () => {
+    const { recallReview } = await chrome.storage.local.get('recallReview');
+    delete recallReview.cards['la pregunta'];
+    recallReview.learning.count = 1;
+    recallReview.learning.pending = [];
+    await chrome.storage.local.set({ recallReview });
+  });
+  const retryPage = await browser.newPage();
+  await retryPage.goto('https://reading.example/offscreen');
+  const retryReserved = retryPage.locator('#offscreen .fw-word');
+  await retryReserved.waitFor();
+  assert.equal(await retryReserved.textContent(), 'the question');
+  await worker.evaluate(() => {
+    const original = chrome.storage.local.set;
+    chrome.storage.local.set = (...args) => {
+      if (Object.hasOwn(args[0], 'recallReview')) {
+        chrome.storage.local.set = original;
+        return Promise.reject(new Error('Synthetic introduction acknowledgement failure'));
+      }
+      return original.call(chrome.storage.local, ...args);
+    };
+  });
+  await retryReserved.scrollIntoViewIfNeeded();
+  await retryPage.waitForFunction(() => document.querySelector('#offscreen .fw-word')?.getAttribute('data-fr') === 'la pregunta');
+  const afterRetry = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
+  assert.equal(afterRetry.learning.count, 2);
+  assert.ok(afterRetry.cards['la pregunta']);
+  await worker.evaluate(async () => {
+    const { recallReview } = await chrome.storage.local.get('recallReview');
+    recallReview.learning.day = '2099-01-01';
+    await chrome.storage.local.set({ recallReview });
+  });
+  await popup.reload();
+  await popup.locator('#budgetRecovery').waitFor();
+  assert.match(await popup.locator('#budgetWarning').textContent(), /2099-01-01/);
+  await popup.locator('#cancelBudget').click();
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).learning.day, '2099-01-01');
+  await popup.reload();
+  await popup.locator('#budgetRecovery').waitFor();
+  await popup.locator('#recoverBudget').click();
+  await popup.locator('#budgetRecovery').waitFor({ state: 'hidden' });
+  const recovered = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
+  assert.equal(recovered.learning.count, 0);
+  assert.equal(recovered.cards['la idea'].reviews, 1);
+  assert.ok(recovered.cards['la pregunta']);
   console.log('PASS: Chromium MV3 gradual introduction, persisted budget, due inline reveal/rate, detached-cue rejection, review interoperability, exclusions, off/site restoration and language isolation; Gemini synthetic.');
 } finally {
   if (browser) await browser.close();

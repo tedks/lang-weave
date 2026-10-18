@@ -36,6 +36,9 @@ async function refresh() {
   $('gradual').checked = s.gradual;
   $('newWordsPerDay').value = String(s.newWordsPerDay);
   $('newWordsPerDay').disabled = !s.gradual;
+  $('budgetRecovery').hidden = !status.budgetWarning;
+  $('budgetWarning').textContent = status.budgetWarning
+    ? `The saved introduction date (${status.budgetWarning}) is over seven days ahead of your local date. New introductions stay paused. Reset only today's introduction budget? Your reviews and progress stay saved.` : '';
   $('density').value = s.density;
   $('inlineRecall').checked = s.inlineRecall;
   $('inlineRecall').disabled = !s.gradual;
@@ -105,6 +108,12 @@ $('newSitesEnabled').addEventListener('change', (e) => run(() => save({ settings
 $('levelOverride').addEventListener('change', (e) => run(() => save({ settings: { levelOverride: Number(e.target.value) || 0 } })));
 $('gradual').addEventListener('change', (e) => run(() => save({ settings: { gradual: e.target.checked } })));
 $('newWordsPerDay').addEventListener('change', (e) => run(() => save({ settings: { newWordsPerDay: Number(e.target.value) } })));
+$('cancelBudget').addEventListener('click', () => { $('budgetRecovery').hidden = true; });
+$('recoverBudget').addEventListener('click', () => run(async () => {
+  const res = await send({ type: 'recoverBudget', confirm: true, day: status.budgetWarning, scope: status.config.scope });
+  if (!res.ok) throw new Error('Budget changed. Refresh and try again.');
+  await refresh();
+}));
 $('density').addEventListener('change', (e) => run(() => save({ settings: { density: e.target.value } })));
 $('inlineRecall').addEventListener('change', (e) => run(() => save({ settings: { inlineRecall: e.target.checked } })));
 $('language').addEventListener('change', (e) => run(() => save({ settings: { language: e.target.value } })));

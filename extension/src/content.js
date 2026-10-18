@@ -1,6 +1,8 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish, finishPractice, SWAP_CLASS } from './text.js';
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish,
+  finishPractice, introductionTicket, replaceIntroductionTicket, dropIntroduction,
+  finishIntroduction, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -19,6 +21,9 @@ const pending = new Map();
 const inflight = new Set();
 const tracked = new Set();
 const visibleWords = new Set();
+const introInflight = new Set();
+let introRetries = new WeakMap(); // an expired visible reservation gets a bounded fresh attempt
+const introErrors = new Map();
 const seen = new Set();
 const failures = new Map(); // text key -> failed model attempts; retried with backoff
 const MAX_RETRIES = 3;
@@ -174,7 +179,7 @@ async function openCue(span) {
 }
 function armTip(e) {
   const span = swapFor(e);
-  if (!span || !on() || isPractice(span) || span.classList.contains('fw-tip')) return;
+  if (!span || !on() || isPractice(span) || introductionTicket(span) || span.classList.contains('fw-tip')) return;
   hideTip();
   tipTimer = setTimeout(() => {
     tipTimer = null;
@@ -187,15 +192,80 @@ function disarmTip(e) {
   const span = swapFor(e);
   if (span && !span.contains(e.relatedTarget)) hideTip();
 }
+function introSpans(ticket) {
+  return [...document.querySelectorAll(`span.${SWAP_CLASS}`)]
+    .filter((span) => isSwap(span) && introductionTicket(span) === ticket);
+}
+function abandonIntro(ticket, word, revision) {
+  for (const span of introSpans(ticket)) {
+    visibleWords.delete(span);
+    visible?.unobserve(span);
+    dropIntroduction(span);
+  }
+  introErrors.delete(ticket);
+  observer?.takeRecords();
+  void send({ type: 'introRelease', ticket, word, revision }).catch(() => {});
+}
+function retryIntro(ticket, word, revision, gen) {
+  if (!introSpans(ticket).length) { introErrors.delete(ticket); return; }
+  const attempts = (introErrors.get(ticket) || 0) + 1;
+  introErrors.set(ticket, attempts);
+  if (attempts > 3) { abandonIntro(ticket, word, revision); return; }
+  setTimeout(() => { if (gen === generation && alive()) seenVisible(); }, attempts * 1000);
+}
 function seenVisible() {
   if (document.visibilityState === 'hidden') return;
-  for (const span of visibleWords) if (span.isConnected && !isPractice(span)) record(span, 'seen');
+  for (const span of visibleWords) {
+    if (!span.isConnected || isPractice(span)) continue;
+    const ticket = introductionTicket(span);
+    if (ticket) {
+      if (!introInflight.has(ticket) && on()) {
+        introInflight.add(ticket);
+        const gen = generation, revision = config.revision, word = swapWord(span);
+        void send({ type: 'introAck', ticket, word, revision }).then(async (result) => {
+          if (gen !== generation || !on()) return;
+          if (result?.ok) {
+            introErrors.delete(ticket);
+            for (const related of introSpans(ticket)) {
+              if (finishIntroduction(related) && visibleWords.has(related)) record(related, 'seen');
+            }
+            observer?.takeRecords();
+          } else if (result?.error || !result?.stale) {
+            retryIntro(ticket, word, revision, gen);
+          } else {
+            const related = introSpans(ticket);
+            const roots = new Set(related.map((s) => s.closest(targets())).filter(Boolean));
+            if (!related.length || [...roots].some((root) => (introRetries.get(root) || 0) >= 2)) {
+              abandonIntro(ticket, word, revision);
+              return;
+            }
+            try {
+              const renewed = await send({ type: 'introRenew', ticket, word, revision });
+              if (gen !== generation || !on()) return;
+              if (renewed?.ticket) {
+                for (const root of roots) introRetries.set(root, (introRetries.get(root) || 0) + 1);
+                const moved = related.filter((item) => replaceIntroductionTicket(item, ticket, renewed.ticket));
+                if (!moved.length) {
+                  void send({ type: 'introRelease', ticket: renewed.ticket, word, revision }).catch(() => {});
+                  return;
+                }
+                introErrors.delete(ticket);
+                seenVisible();
+              } else if (renewed?.error) retryIntro(ticket, word, revision, gen);
+              else abandonIntro(ticket, word, revision);
+            } catch { if (gen === generation && alive()) retryIntro(ticket, word, revision, gen); }
+          }
+        }).catch(() => { if (gen === generation && alive()) retryIntro(ticket, word, revision, gen); })
+          .finally(() => { introInflight.delete(ticket); });
+      }
+    } else record(span, 'seen');
+  }
 }
-function paint(el, key) {
+function paint(el, key, placedTickets = new Set()) {
   if (!on() || keys.get(el) !== key || !readable(el, location.href)) return;
   const swaps = memo.get(key);
   if (!swaps?.length || busy(el, 'paints')) return;
-  applySwaps(el, swaps);
+  applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); });
   for (const span of el.querySelectorAll(`.${SWAP_CLASS}`)) if (isSwap(span)) visible.observe(span);
   observer?.takeRecords();
 }
@@ -232,6 +302,7 @@ function consider(el) {
 async function flush() {
   timer = null;
   if (!on()) return;
+  if (config.settings.gradual && document.visibilityState === 'hidden') return;
   const gen = generation;
   const items = [...pending].filter(([key]) => !inflight.has(key)).slice(0, 8).map(([key, p]) => ({ key, text: p.text }));
   if (!items.length) return;
@@ -240,6 +311,14 @@ async function flush() {
   try { result = await send({ type: 'swaps', revision: config.revision, items }); }
   catch { result = { error: 'Extension unavailable' }; }
   if (gen !== generation || !on()) return;
+  if (config.settings.gradual && document.visibilityState === 'hidden') {
+    for (const i of items) inflight.delete(i.key);
+    for (const swaps of Object.values(result?.results || {})) for (const swap of Array.isArray(swaps) ? swaps : [])
+      if (swap.introTicket) void send({ type: 'introRelease', ticket: swap.introTicket,
+        word: swap.word, revision: config.revision }).catch(() => {});
+    return; // pending text is reconsidered when this document becomes visible
+  }
+  const deliveredTickets = new Map(), placedTickets = new Set();
   for (const i of items) {
     inflight.delete(i.key);
     const p = pending.get(i.key);
@@ -257,9 +336,12 @@ async function flush() {
     }
     failures.delete(i.key);
     memo.set(i.key, swaps);
-    if (p) for (const el of p.els) paint(el, i.key);
+    if (p) for (const el of p.els) paint(el, i.key, placedTickets);
+    for (const swap of swaps) if (swap.introTicket) deliveredTickets.set(swap.introTicket, swap.word);
     if (config.settings.gradual) memo.delete(i.key);
   }
+  for (const [ticket, word] of deliveredTickets) if (!placedTickets.has(ticket))
+    void send({ type: 'introRelease', ticket, word, revision: config.revision }).catch(() => {});
   if (result?.stale) { try { update(await send({ type: 'config' })); } catch { /* reloaded or gone */ } return; }
   if ([...pending.keys()].some((k) => !inflight.has(k))) timer = setTimeout(flush, 50);
 }
@@ -307,13 +389,25 @@ function start() {
   track(document.documentElement);
 }
 function stop() {
+  if (config?.settings.gradual && alive()) {
+    const tickets = new Map();
+    for (const root of tracked) for (const span of root.querySelectorAll(`span.${SWAP_CLASS}`)) {
+      const ticket = introductionTicket(span);
+      if (ticket) tickets.set(ticket, swapWord(span));
+    }
+    for (const [ticket, word] of tickets)
+      void send({ type: 'introRelease', ticket, word, revision: config.revision }).catch(() => {});
+  }
   generation++;
   observer?.disconnect(); observer = null;
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null;
   pending.clear(); inflight.clear(); memo.clear(); failures.clear(); hideTip();
+  introInflight.clear();
+  introErrors.clear();
   closeCue();
   churn = new WeakMap();
+  introRetries = new WeakMap();
   for (const el of tracked) { revert(el); keys.delete(el); }
   tracked.clear(); visibleWords.clear();
 }
@@ -325,7 +419,7 @@ function update(next, retry = false) {
 function reveal(e) {
   if (!e.isTrusted) return;
   const span = swapFor(e);
-  if (!span || !on()) return;
+  if (!span || !on() || introductionTicket(span)) return;
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip();
@@ -343,7 +437,10 @@ document.addEventListener('focusin', armTip, true);
 document.addEventListener('mouseout', disarmTip, true);
 document.addEventListener('focusout', disarmTip, true);
 window.addEventListener('scroll', hideTip, { passive: true, capture: true });
-document.addEventListener('visibilitychange', seenVisible);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden' && pending.size && !timer) timer = setTimeout(flush, 0);
+  seenVisible();
+});
 window.addEventListener('online', () => { void send({ type: 'config' }).then((c) => update(c, true)).catch(() => {}); });
 // SPA navigation can reuse DOM nodes without changing their text.
 let page = location.href;

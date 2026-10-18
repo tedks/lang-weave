@@ -1,10 +1,11 @@
 // Browser-local recall state. The caller serializes read/modify/write and owns storage.
-import { cleanLearning, validDay } from './learning.js';
+import { cleanLearning, validDay, RESERVATION_MS } from './learning.js';
+import { localDay } from './events.js';
 export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
 const RATINGS = new Set(['hard', 'medium', 'easy']);
 
-export function cleanReview(raw, words) {
+export function cleanReview(raw, words, now = Date.now()) {
   const cards = Object.create(null);
   const source = raw?.version === 1 && raw.cards && typeof raw.cards === 'object' && !Array.isArray(raw.cards)
     ? raw.cards : {};
@@ -17,6 +18,12 @@ export function cleanReview(raw, words) {
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
         ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}) };
+      const receipt = card.introReceipt;
+      if (typeof receipt?.ticket === 'string' && /^[0-9a-f-]{36}$/.test(receipt.ticket) &&
+          typeof receipt.ownerKey === 'string' && /^[0-9a-f]{16}$/.test(receipt.ownerKey) &&
+          Number.isSafeInteger(receipt.until) && receipt.until > now && receipt.until <= now + RESERVATION_MS) {
+        cards[fr].introReceipt = { ticket: receipt.ticket, ownerKey: receipt.ownerKey, until: receipt.until };
+      }
     }
   }
   const current = raw?.version === 1 ? raw.current : null;
@@ -32,7 +39,7 @@ export function cleanReview(raw, words) {
     typeof inline.revealed === 'boolean';
   return { version: 1, cards, current: valid
     ? { word: current.word, ticket: current.ticket, revealed: current.revealed } : null,
-    learning: cleanLearning(raw?.learning), inline: validInline ? { word: inline.word, ticket: inline.ticket,
+    learning: cleanLearning(raw?.learning, now), inline: validInline ? { word: inline.word, ticket: inline.ticket,
       documentId: inline.documentId, tabId: inline.tabId, frameId: inline.frameId,
       revision: inline.revision, revealed: inline.revealed } : null };
 }
@@ -104,7 +111,7 @@ export function markFamiliar(state, ticket, now) {
 
 export function beginInline(state, word, sender, revision, now, ticket = () => crypto.randomUUID()) {
   const card = state.cards[word];
-  if (!card || card.familiar || card.due > now || !sender.documentId ||
+  if (!card || card.familiar || card.due > now || card.introducedDay >= localDay(new Date(now)) || !sender.documentId ||
       !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId)) return null;
   state.inline = { word, ticket: ticket(), documentId: sender.documentId,
     tabId: sender.tab.id, frameId: sender.frameId, revision, revealed: false };

@@ -9,7 +9,7 @@ import { localDay, queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
   beginInline, revealInline, finishInline } from './review.js';
-import { policyWords, remaining, commitLearning } from './learning.js';
+import { policyWords, remaining, commitLearning, acknowledgeIntroduction, releaseIntroduction, futureBudgetDay } from './learning.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
 
@@ -77,7 +77,7 @@ async function swaps(msg, sender) {
   const { state } = ctx.settings.gradual ? await reviewState() : { state: null };
   const now = Date.now();
   const day = localDay(new Date(now));
-  const candidates = policyWords(ctx.words, state, ctx.settings, now, day);
+  const candidates = policyWords(ctx.words, state, ctx.settings, now, day, ctx.revision);
   if (ctx.settings.gradual && !candidates.length) return locked(async () => {
     const latest = await context();
     return latest.revision === ctx.revision && activeOn(latest, sender.url)
@@ -85,7 +85,7 @@ async function swaps(msg, sender) {
       : { results: {}, stale: true };
   });
   const policy = ctx.settings.gradual ? hashKey(JSON.stringify([day,
-    remaining(state.learning, day, ctx.settings.newWordsPerDay),
+    remaining(state.learning, day, ctx.settings.newWordsPerDay, now, ctx.revision),
     candidates.map(({ fr, status }) => [fr, status])])) : '';
   const cacheKey = (key) => policy ? `${key}:gradual:${policy}` : key;
   const cached = await cache.getMany(items.map((i) => cacheKey(i.key)));
@@ -110,7 +110,7 @@ async function swaps(msg, sender) {
       .map(([key, swaps]) => [cacheKey(key), swaps])));
     const { state, scoped } = await reviewState();
     const before = JSON.stringify(state.learning);
-    const output = commitLearning(state, raw, ctx.settings);
+    const output = commitLearning(state, raw, ctx.settings, sender, ctx.revision);
     if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });
     return { results: output };
   });
@@ -178,6 +178,37 @@ async function swaps(msg, sender) {
       return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
     }
   }
+}
+
+async function introduction(msg, sender) {
+  return locked(async () => {
+    const ctx = await context();
+    if (!ctx.settings.gradual || msg.revision !== ctx.revision || !activeOn(ctx, sender.url) ||
+        sender.documentLifecycle && sender.documentLifecycle !== 'active' ||
+        !sender.documentId || !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId))
+      return { ok: false, stale: true };
+    const { state, scoped, words } = await reviewState(ctx);
+    const word = words.find((w) => w.fr === msg.word);
+    if (!word || typeof msg.ticket !== 'string') return { ok: false, stale: true };
+    if (msg.type === 'introRelease') {
+      if (releaseIntroduction(state, msg.ticket, sender, ctx.revision)) await scoped.set({ [REVIEW_KEY]: state });
+      return { ok: true };
+    }
+    if (msg.type === 'introRenew') {
+      const old = state.learning.pending.find((p) => p.word === word.fr && p.ticket === msg.ticket &&
+        p.documentId === sender.documentId && p.tabId === sender.tab.id && p.frameId === sender.frameId &&
+        p.revision === ctx.revision);
+      if (!old) return { ok: false, stale: true };
+      const before = JSON.stringify(state.learning);
+      const renewed = commitLearning(state, { renew: [{ word: word.fr }] }, ctx.settings, sender, ctx.revision);
+      if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });
+      return renewed.renew[0]?.introTicket ? { ticket: renewed.renew[0].introTicket } : { ok: false, stale: true };
+    }
+    if (!acknowledgeIntroduction(state, word.fr, msg.ticket, sender, ctx.revision,
+      ctx.settings.newWordsPerDay)) return { ok: false, stale: true };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return { ok: true };
+  });
 }
 
 // Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
@@ -288,11 +319,29 @@ async function save(msg) {
 async function status() {
   const config = await context();
   const data = await store.get(['apiKey', 'modelStatus', PACKS_KEY]);
+  const { state } = await reviewState(config);
   return { config: { ...config, words: undefined, allWords: undefined }, words: config.words.length,
     languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
     pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
+    budgetWarning: futureBudgetDay(state.learning, localDay()),
     review: await reviewStatus(config),
     update: await checkUpdate() };
+}
+
+async function recoverBudget(msg) {
+  if (msg.confirm !== true) return { error: 'Confirm budget recovery first.' };
+  const recovered = await locked(async () => {
+    const ctx = await context();
+    const { state, scoped } = await reviewState(ctx);
+    const today = localDay();
+    if (!futureBudgetDay(state.learning, today) || msg.day !== state.learning.day || msg.scope !== ctx.scope)
+      return false;
+    state.learning = { day: today, count: 0, pending: [] };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return true;
+  });
+  if (recovered) await broadcast('retry');
+  return { ok: recovered };
 }
 
 async function reviewState(ctx) {
@@ -420,6 +469,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     swaps: () => swaps(msg, sender),
     event: () => record(msg, sender),
     status, clearCache,
+    recoverBudget: () => recoverBudget(msg),
     save: () => save(msg),
     addLanguage: () => addLanguage(msg),
     removeLanguage: () => removeLanguage(msg),
@@ -430,11 +480,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     inlineBegin: () => inlineAction(msg, sender),
     inlineReveal: () => inlineAction(msg, sender),
     inlineRate: () => inlineAction(msg, sender),
+    introAck: () => introduction(msg, sender),
+    introRelease: () => introduction(msg, sender),
+    introRenew: () => introduction(msg, sender),
   };
   const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown'];
-  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus'].includes(msg.type)) &&
+  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
-      !(page && ['config', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate'].includes(msg.type))) return false;
+      !(page && ['config', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate', 'introAck', 'introRelease', 'introRenew'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });

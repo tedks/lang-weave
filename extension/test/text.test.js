@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice } from '../src/text.js';
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice,
+  introductionTicket, finishIntroduction, dropIntroduction } from '../src/text.js';
 
 const win = new Window();
 const document = win.document;
@@ -12,6 +13,41 @@ function tweet(inner) {
   return wrap.firstElementChild;
 }
 const S = (swap) => ({ g: swap.g || 'and', h: swap.h || 'ay', ctx: '', ...swap });
+
+test('reserved introduction stays English and private until a saved visible acknowledgement', () => {
+  const el = tweet('We discussed the idea with friends.');
+  document.body.append(el);
+  const ticket = 'a'.repeat(36);
+  const placed = [];
+  expect(applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', introTicket: ticket })],
+    (span) => placed.push(span))).toBe(1);
+  const span = placed[0];
+  expect(span.textContent).toBe('the idea');
+  expect(span.getAttribute('data-fr')).toBeNull();
+  expect(span.outerHTML).not.toContain(ticket);
+  expect(introductionTicket(span)).toBe(ticket);
+  expect(finishIntroduction(span)).toBe(true);
+  expect(span.textContent).toBe('la idea');
+  expect(span.getAttribute('data-fr')).toBe('la idea');
+  expect(introductionTicket(span)).toBe('');
+  el.remove();
+});
+
+test('dropping one rejected introduction keeps neighboring woven words', () => {
+  const el = tweet('The book and the idea are here.');
+  document.body.append(el);
+  const spans = [];
+  applySwaps(el, [S({ o: 'book', f: 'libro', word: 'libro' }),
+    S({ o: 'the idea', f: 'la idea', word: 'la idea', introTicket: 'b'.repeat(36) })],
+  (span) => spans.push(span));
+  const pending = spans.find((span) => introductionTicket(span));
+  expect(dropIntroduction(pending)).toBe(true);
+  expect(el.textContent).toBe('The libro and the idea are here.');
+  expect(el.querySelectorAll('.fw-word')).toHaveLength(1);
+  revert(el);
+  expect(el.textContent).toBe('The book and the idea are here.');
+  el.remove();
+});
 
 describe('contractions and compounds', () => {
   test('never swaps part of a contraction or hyphenated word', () => {
