@@ -1,0 +1,23 @@
+id: gradual-policy-polish
+title: Polish gradual visible introduction edge cases
+desc: 'Follow-up to PR #4 policy council, not a release blocker at current bounded
+  behavior. Review same-document rerender while a live reservation exists (ticket
+  reuse without duplicate spend), async acknowledgement success followed by generation
+  change or tab close, cross-tab stale placeholders, shadow-root scope, hidden stale-result
+  config refresh, and recovery warning wording when gradual mode is off. Preserve
+  worker-owned budget, private tickets, exact site/revision guards, and current light-DOM
+  placement contract. See docs/GRADUAL-REVIEW.md second policy council table for per-finding
+  dispositions. Do not widen page authority or claim atomic save/render without evidence.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T19:25:14-00:00
+references: []
+log_events:
+- time: 2026-10-18T19:25:14-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
