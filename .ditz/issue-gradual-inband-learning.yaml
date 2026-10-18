@@ -12,8 +12,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-18T06:26:17-00:00
 references: []
 log_events:
@@ -93,6 +93,13 @@ log_events:
     fail-closed claim was too broad: current smoke source lacked flags; smoke-network-guard
     separately tracks assigned test/docs repair without changing this released runtime.
     Bounded reservations/save-to-render limits remain documented in gradual-policy-polish.'
+- time: 2026-10-18T19:41:21-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Accepted approved gradual policy, three-provider convergence and exact-head
+    source gates; PR4 normal merge43fee1c and installer PR202 merge18567e2, four-host0.6
+    install/status and actual installed-artifact Chromium verified. Activation/splinter0/harness-polish
+    remain separate followups.
 blocked_by:
 - generic-language
 - inline-new-word-delay
