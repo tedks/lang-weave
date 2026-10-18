@@ -46,7 +46,7 @@ describe('prompt', () => {
     expect(french).toContain('{"target":"grande","english":"big"},{"target":"pequeño","english":"small"}');
     expect(french).toContain('Prefer an unshown word if several listed words fit');
     expect(french).not.toContain('Prefer listed due words');
-    expect(french).not.toContain('Use up to two target words');
+    expect(french).not.toContain('Use up to 2 target words');
     expect(buildSystemPrompt(2, words, [], 'fr', 'light')).toContain('at most one target word');
     expect(buildSystemPrompt(2, [{ ...words[0], status: 'due' }], [], 'fr'))
       .toContain('Prefer listed due words first');

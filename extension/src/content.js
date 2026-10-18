@@ -1,6 +1,6 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish, SWAP_CLASS } from './text.js';
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish, finishPractice, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -114,6 +114,7 @@ async function openCue(span) {
   document.documentElement.append(panel); cue = panel;
   const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
+  let answer;
   try {
     const started = await send({ type: 'inlineBegin', word: swapWord(span), revision });
     if (!started?.ticket) throw new Error(started?.error || 'Cue unavailable');
@@ -131,6 +132,7 @@ async function openCue(span) {
       const r = await send({ type: 'inlineReveal', ticket, revision });
       if (!r?.answer) throw new Error(r?.error || 'Cue expired');
       if (!liveCue()) { closeCue(); return; }
+      answer = r.answer;
       status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
       revealButton.remove();
       let firstRating;
@@ -141,7 +143,11 @@ async function openCue(span) {
           try {
             const result = await send({ type: 'inlineRate', ticket, rating, revision });
             if (!result?.ok) throw new Error(result?.error || 'Cue expired');
-            if (cue === panel) update(config, true); // repaint the now-rated card under current policy
+            if (cue === panel) {
+              closeCue();
+              if (gen === generation && on() && span.isConnected &&
+                  finishPractice(span, answer, result.familiar)) observer?.takeRecords();
+            }
           } catch {
             if (!liveCue()) { closeCue(); return; }
             for (const b of buttons.querySelectorAll('button')) b.disabled = false;

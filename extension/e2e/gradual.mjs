@@ -129,6 +129,8 @@ try {
   await page.locator('.fw-recall-status').getByText(/Rating was not saved/).waitFor();
   assert.equal(await page.locator('.fw-recall button:disabled').count(), 0);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
+  const callsBeforeRating = (await worker.evaluate(() => globalThis.calls)).length;
+  await due.evaluate((span) => span.setAttribute('data-en', 'forged after reveal'));
   await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
   await page.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
@@ -137,7 +139,10 @@ try {
   await page.waitForFunction(() => {
     const span = document.querySelector('#reading .fw-word');
     return span && span.textContent === 'la idea' && span.getAttribute('title') !== 'Open inline recall';
-  }); // a rated cue is repainted under the now-active policy
+  }); // only the rated span changes, without re-requesting the whole page
+  assert.equal(await due.getAttribute('data-en'), 'the idea');
+  await page.waitForTimeout(750); // catches an unintended content flush after a full-page refresh
+  assert.equal((await worker.evaluate(() => globalThis.calls)).length, callsBeforeRating);
   const review = await browser.newPage();
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#counts').getByText(/0 due/).waitFor();

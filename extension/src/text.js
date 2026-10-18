@@ -19,6 +19,25 @@ export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
 export const isPractice = (span) => practice.has(span);
 
+// After a saved inline rating, keep the existing woven word in place. A full
+// page repaint would force a new model request under the changed card policy.
+export function finishPractice(span, answer, familiar = false) {
+  if (!practice.has(span) || !owned.has(span) || !span.isConnected ||
+      !answer || answer.fr !== owned.get(span) || typeof answer.en !== 'string') return false;
+  const en = sourceEnglish.get(span);
+  if (!en) return false;
+  practice.delete(span);
+  span.classList.remove('fw-practice');
+  span.removeAttribute('title');
+  span.setAttribute('data-en', en);
+  span.setAttribute('data-fr', answer.fr);
+  span.setAttribute('data-tip', tipFor({ g: answer.en, h: answer.hint }));
+  span.dataset.fwStatus = familiar ? 'known' : 'active';
+  span.setAttribute('aria-label', `${answer.fr}: ${answer.en}. Show English`);
+  span.textContent = answer.fr;
+  return true;
+}
+
 // Returns { text, map, segs, raw }:
 //   raw   = every text node's data in order (plus emoji alt text), untouched
 //   text  = raw with whitespace runs collapsed to one space and ends trimmed (what the model sees)
@@ -203,7 +222,7 @@ export function revert(root) {
   for (const span of spans) {
     const parent = span.parentNode;
     if (!parent) continue;
-    const en = span.getAttribute('data-en') ?? span.textContent;
+    const en = sourceEnglish.get(span) ?? span.getAttribute('data-en') ?? span.textContent;
     const prev = span.previousSibling;
     const next = span.nextSibling;
     if (
@@ -225,7 +244,7 @@ export function revert(root) {
 export function toggle(span, language = 'Spanish') {
   const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
-  span.textContent = showEn ? span.getAttribute('data-en') : span.getAttribute('data-fr');
+  span.textContent = showEn ? (sourceEnglish.get(span) ?? span.getAttribute('data-en')) : span.getAttribute('data-fr');
   span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? language : 'English'}`);
   return showEn;
 }

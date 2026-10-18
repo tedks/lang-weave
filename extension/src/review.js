@@ -139,5 +139,5 @@ export function finishInline(state, ticket, sender, revision, now, rating) {
   if (!RATINGS.has(rating)) return null;
   const result = scheduleCard(card, rating, now, true);
   state.inline = null;
-  return result;
+  return { ...result, familiar: card.familiar === true };
 }

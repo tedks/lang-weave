@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor } from '../src/text.js';
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice } from '../src/text.js';
 
 const win = new Window();
 const document = win.document;
@@ -214,4 +214,21 @@ describe('what leaves the page', () => {
     expect(note).not.toMatch(/links, code[^.]*skipped/i);
     expect(note).toContain('Links and inline code go with their sentence but are never changed');
   });
+});
+
+test('a saved practice rating changes only its span and restores trusted source English', () => {
+  const el = tweet('<span>We discussed the idea with friends.</span>');
+  document.body.append(el);
+  try {
+    applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', practice: true })]);
+    const span = el.querySelector('.fw-word');
+    span.setAttribute('data-en', 'forged');
+    expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
+    expect(span.textContent).toBe('la idea');
+    expect(span.getAttribute('title')).toBeNull();
+    expect(toggle(span)).toBe(true);
+    expect(span.textContent).toBe('the idea');
+    expect(revert(el)).toBe(1);
+    expect(el.textContent).toBe('We discussed the idea with friends.');
+  } finally { el.remove(); }
 });
