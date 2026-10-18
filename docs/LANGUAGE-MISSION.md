@@ -4,7 +4,7 @@
 
 State: visible generic Lead owns this branch and the installer compatibility
 branch. Source draft PR #3 targets `main`; installer draft PR #200 remains at
-`9507a25` with its old pin. Source `80947e6` passed 101 Bun tests (1263
+`9507a25` with its old pin. Reviewed source `4efb3af` passed 101 Bun tests (1263
 assertions), 85 Python tests, version/block/diff checks and real Chromium with
 synthetic Gemini. The prior fix delta through `9ed09c2` passed three-seat
 convergence. The lower branch rotates a persisted epoch on effective settings
@@ -15,11 +15,12 @@ tests prove zero sends, and a permitted case sends once. Mutation checks made
 the pre-dispatch guard and the post-counter guard fail red before restoration.
 The latest review found and repaired an update-check lock inversion; its
 held-read regression also failed red under the old order. Native and Anthropic
-reviews of the `5fb9f2d..80947e6` repair delta are CLEAN; Google was quota
-unavailable. Next: verify the final documentation/test polish, update the exact
-source checkpoint and publish the immutable lower SHA to the upper Lead and
-CTO. The upper gradual-learning branch owns inline recall ticket checks
-against this opaque revision and is holding rebase. A separate 0.4 privacy
+reviews of the `5fb9f2d..80947e6` repair delta and the final
+`80947e6..4efb3af` polish delta are CLEAN; Google was quota unavailable.
+Next: run exact-head gates after this record/test cleanup, then publish the
+immutable lower SHA to the upper Lead and CTO. The upper gradual-learning
+branch owns inline recall ticket checks against this opaque revision and is
+holding rebase. A separate 0.4 privacy
 backport candidate is being prepared for CTO review. Neither source nor
 installer has been merged or released. The CTO owns bottom/top merge, GitHub
 rename timing, installer pin and fleet release. This record belongs to the
