@@ -1,6 +1,8 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, swapWord, SWAP_CLASS } from './text.js';
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish,
+  finishPractice, introductionTicket, replaceIntroductionTicket, dropIntroduction,
+  finishIntroduction, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -19,6 +21,9 @@ const pending = new Map();
 const inflight = new Set();
 const tracked = new Set();
 const visibleWords = new Set();
+const introInflight = new Set();
+let introRetries = new WeakMap(); // an expired visible reservation gets a bounded fresh attempt
+const introErrors = new Map();
 const seen = new Set();
 const failures = new Map(); // text key -> failed model attempts; retried with backoff
 const MAX_RETRIES = 3;
@@ -29,6 +34,7 @@ const CHURN_WINDOW_MS = 60000;
 let churn = new WeakMap(); // element -> { text, asks: [ms], paints: [ms], live }
 const TIP_DELAY_MS = 700; // a beat to recall the word before the meaning appears
 let tipTimer = null;
+let cue = null;
 // After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
 // no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
 let orphaned = false;
@@ -40,6 +46,7 @@ function orphan() {
   observer?.disconnect(); observer = null;
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null; clearInterval(navTimer); hideTip();
+  closeCue();
   pending.clear(); inflight.clear();
 }
 const send = (msg) => {
@@ -76,9 +83,103 @@ function hideTip() {
   clearTimeout(tipTimer); tipTimer = null;
   for (const el of document.querySelectorAll(`.${SWAP_CLASS}.fw-tip`)) el.classList.remove('fw-tip');
 }
+function closeCue() { cue?.remove(); cue = null; }
+
+async function openCue(span) {
+  closeCue(); hideTip();
+  const gen = generation;
+  const revision = config.revision;
+  const panel = document.createElement('div');
+  panel.className = 'fw-recall';
+  panel.setAttribute('role', 'group');
+  panel.setAttribute('aria-label', 'Inline recall');
+  const rect = span.getBoundingClientRect();
+  panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 300))}px`;
+  panel.style.top = `${Math.max(8, Math.min(rect.bottom + 6, innerHeight - 180))}px`;
+  const prompt = document.createElement('div');
+  prompt.textContent = `${swapEnglish(span)} → [?]`;
+  const status = document.createElement('div');
+  status.className = 'fw-recall-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const buttons = document.createElement('div');
+  const button = (label, fn) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void fn(); });
+    buttons.append(b); return b;
+  };
+  const dismiss = button('Dismiss', () => { closeCue(); if (span.isConnected) span.focus(); });
+  panel.append(prompt, status, buttons);
+  panel.addEventListener('keydown', (e) => {
+    if (e.isTrusted && e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation(); closeCue();
+      if (span.isConnected) span.focus();
+    }
+  });
+  document.documentElement.append(panel); cue = panel;
+  const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
+  let ticket;
+  let answer;
+  try {
+    const started = await send({ type: 'inlineBegin', word: swapWord(span), revision });
+    if (!started?.ticket) throw new Error(started?.error || 'Cue unavailable');
+    if (!liveCue()) { closeCue(); return; }
+    ticket = started.ticket;
+  } catch {
+    if (!liveCue()) closeCue();
+    else status.textContent = 'Cue unavailable. Dismiss and try again.';
+    return;
+  }
+  const revealButton = button('Reveal answer', async () => {
+    if (!liveCue()) { closeCue(); return; }
+    revealButton.disabled = true;
+    try {
+      const r = await send({ type: 'inlineReveal', ticket, revision });
+      if (!r?.answer) throw new Error(r?.error || 'Cue expired');
+      if (!liveCue()) { closeCue(); return; }
+      answer = r.answer;
+      status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
+      revealButton.remove();
+      let firstRating;
+      for (const [label, rating] of [['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
+        const rated = button(label, async () => {
+          if (!liveCue()) { closeCue(); return; }
+          for (const b of buttons.querySelectorAll('button')) b.disabled = true;
+          try {
+            const result = await send({ type: 'inlineRate', ticket, rating, revision });
+            if (!result?.ok) throw new Error(result?.error || 'Cue expired');
+            const ownCue = cue === panel;
+            if (ownCue) closeCue();
+            if (gen === generation && on()) {
+              const word = swapWord(span);
+              let changed = false;
+              for (const related of document.querySelectorAll(`.${SWAP_CLASS}.fw-practice`)) {
+                if (isPractice(related) && swapWord(related) === word)
+                  changed = finishPractice(related, answer, result.familiar) || changed;
+              }
+              if (changed) observer?.takeRecords();
+              if (ownCue && span.isConnected && !isPractice(span)) span.focus();
+            }
+          } catch {
+            if (!liveCue()) { closeCue(); return; }
+            for (const b of buttons.querySelectorAll('button')) b.disabled = false;
+            status.textContent = 'Rating was not saved. Try again or dismiss.';
+          }
+        });
+        firstRating ||= rated;
+      }
+      firstRating?.focus();
+    } catch {
+      if (!liveCue()) { closeCue(); return; }
+      revealButton.disabled = false;
+      status.textContent = 'Answer unavailable. Try again or dismiss.';
+    }
+  });
+  dismiss.focus();
+}
 function armTip(e) {
   const span = swapFor(e);
-  if (!span || !on() || span.classList.contains('fw-tip')) return;
+  if (!span || !on() || isPractice(span) || introductionTicket(span) || span.classList.contains('fw-tip')) return;
   hideTip();
   tipTimer = setTimeout(() => {
     tipTimer = null;
@@ -91,15 +192,80 @@ function disarmTip(e) {
   const span = swapFor(e);
   if (span && !span.contains(e.relatedTarget)) hideTip();
 }
+function introSpans(ticket) {
+  return [...document.querySelectorAll(`span.${SWAP_CLASS}`)]
+    .filter((span) => isSwap(span) && introductionTicket(span) === ticket);
+}
+function abandonIntro(ticket, word, revision) {
+  for (const span of introSpans(ticket)) {
+    visibleWords.delete(span);
+    visible?.unobserve(span);
+    dropIntroduction(span);
+  }
+  introErrors.delete(ticket);
+  observer?.takeRecords();
+  void send({ type: 'introRelease', ticket, word, revision }).catch(() => {});
+}
+function retryIntro(ticket, word, revision, gen) {
+  if (!introSpans(ticket).length) { introErrors.delete(ticket); return; }
+  const attempts = (introErrors.get(ticket) || 0) + 1;
+  introErrors.set(ticket, attempts);
+  if (attempts > 3) { abandonIntro(ticket, word, revision); return; }
+  setTimeout(() => { if (gen === generation && alive()) seenVisible(); }, attempts * 1000);
+}
 function seenVisible() {
   if (document.visibilityState === 'hidden') return;
-  for (const span of visibleWords) if (span.isConnected) record(span, 'seen');
+  for (const span of visibleWords) {
+    if (!span.isConnected || isPractice(span)) continue;
+    const ticket = introductionTicket(span);
+    if (ticket) {
+      if (!introInflight.has(ticket) && on()) {
+        introInflight.add(ticket);
+        const gen = generation, revision = config.revision, word = swapWord(span);
+        void send({ type: 'introAck', ticket, word, revision }).then(async (result) => {
+          if (gen !== generation || !on()) return;
+          if (result?.ok) {
+            introErrors.delete(ticket);
+            for (const related of introSpans(ticket)) {
+              if (finishIntroduction(related) && visibleWords.has(related)) record(related, 'seen');
+            }
+            observer?.takeRecords();
+          } else if (result?.error || !result?.stale) {
+            retryIntro(ticket, word, revision, gen);
+          } else {
+            const related = introSpans(ticket);
+            const roots = new Set(related.map((s) => s.closest(targets())).filter(Boolean));
+            if (!related.length || [...roots].some((root) => (introRetries.get(root) || 0) >= 2)) {
+              abandonIntro(ticket, word, revision);
+              return;
+            }
+            try {
+              const renewed = await send({ type: 'introRenew', ticket, word, revision });
+              if (gen !== generation || !on()) return;
+              if (renewed?.ticket) {
+                for (const root of roots) introRetries.set(root, (introRetries.get(root) || 0) + 1);
+                const moved = related.filter((item) => replaceIntroductionTicket(item, ticket, renewed.ticket));
+                if (!moved.length) {
+                  void send({ type: 'introRelease', ticket: renewed.ticket, word, revision }).catch(() => {});
+                  return;
+                }
+                introErrors.delete(ticket);
+                seenVisible();
+              } else if (renewed?.error) retryIntro(ticket, word, revision, gen);
+              else abandonIntro(ticket, word, revision);
+            } catch { if (gen === generation && alive()) retryIntro(ticket, word, revision, gen); }
+          }
+        }).catch(() => { if (gen === generation && alive()) retryIntro(ticket, word, revision, gen); })
+          .finally(() => { introInflight.delete(ticket); });
+      }
+    } else record(span, 'seen');
+  }
 }
-function paint(el, key) {
+function paint(el, key, placedTickets = new Set()) {
   if (!on() || keys.get(el) !== key || !readable(el, location.href)) return;
   const swaps = memo.get(key);
   if (!swaps?.length || busy(el, 'paints')) return;
-  applySwaps(el, swaps);
+  applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); });
   for (const span of el.querySelectorAll(`.${SWAP_CLASS}`)) if (isSwap(span)) visible.observe(span);
   observer?.takeRecords();
 }
@@ -123,7 +289,10 @@ function consider(el) {
   const text = flatten(el).text;
   const key = `${config.revision}:${hashKey(text)}`;
   keys.set(el, key);
-  if (memo.has(key)) { paint(el, key); return; }
+  // Gradual choices depend on a changing daily allowance and review cards.
+  // Revisit the worker on a same-text rerender; its policy-keyed cache avoids
+  // another model call when those inputs have not changed.
+  if (!config.settings.gradual && memo.has(key)) { paint(el, key); return; }
   if (busy(el, 'asks', text)) return;
   let p = pending.get(key);
   if (!p) { p = { text, els: new Set() }; pending.set(key, p); }
@@ -133,6 +302,7 @@ function consider(el) {
 async function flush() {
   timer = null;
   if (!on()) return;
+  if (config.settings.gradual && document.visibilityState === 'hidden') return;
   const gen = generation;
   const items = [...pending].filter(([key]) => !inflight.has(key)).slice(0, 8).map(([key, p]) => ({ key, text: p.text }));
   if (!items.length) return;
@@ -141,6 +311,14 @@ async function flush() {
   try { result = await send({ type: 'swaps', revision: config.revision, items }); }
   catch { result = { error: 'Extension unavailable' }; }
   if (gen !== generation || !on()) return;
+  if (config.settings.gradual && document.visibilityState === 'hidden') {
+    for (const i of items) inflight.delete(i.key);
+    for (const swaps of Object.values(result?.results || {})) for (const swap of Array.isArray(swaps) ? swaps : [])
+      if (swap.introTicket) void send({ type: 'introRelease', ticket: swap.introTicket,
+        word: swap.word, revision: config.revision }).catch(() => {});
+    return; // pending text is reconsidered when this document becomes visible
+  }
+  const deliveredTickets = new Map(), placedTickets = new Set();
   for (const i of items) {
     inflight.delete(i.key);
     const p = pending.get(i.key);
@@ -158,8 +336,12 @@ async function flush() {
     }
     failures.delete(i.key);
     memo.set(i.key, swaps);
-    if (p) for (const el of p.els) paint(el, i.key);
+    if (p) for (const el of p.els) paint(el, i.key, placedTickets);
+    for (const swap of swaps) if (swap.introTicket) deliveredTickets.set(swap.introTicket, swap.word);
+    if (config.settings.gradual) memo.delete(i.key);
   }
+  for (const [ticket, word] of deliveredTickets) if (!placedTickets.has(ticket))
+    void send({ type: 'introRelease', ticket, word, revision: config.revision }).catch(() => {});
   if (result?.stale) { try { update(await send({ type: 'config' })); } catch { /* reloaded or gone */ } return; }
   if ([...pending.keys()].some((k) => !inflight.has(k))) timer = setTimeout(flush, 50);
 }
@@ -207,12 +389,25 @@ function start() {
   track(document.documentElement);
 }
 function stop() {
+  if (config?.settings.gradual && alive()) {
+    const tickets = new Map();
+    for (const root of tracked) for (const span of root.querySelectorAll(`span.${SWAP_CLASS}`)) {
+      const ticket = introductionTicket(span);
+      if (ticket) tickets.set(ticket, swapWord(span));
+    }
+    for (const [ticket, word] of tickets)
+      void send({ type: 'introRelease', ticket, word, revision: config.revision }).catch(() => {});
+  }
   generation++;
   observer?.disconnect(); observer = null;
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null;
   pending.clear(); inflight.clear(); memo.clear(); failures.clear(); hideTip();
+  introInflight.clear();
+  introErrors.clear();
+  closeCue();
   churn = new WeakMap();
+  introRetries = new WeakMap();
   for (const el of tracked) { revert(el); keys.delete(el); }
   tracked.clear(); visibleWords.clear();
 }
@@ -222,11 +417,13 @@ function update(next, retry = false) {
   stop(); config = next; start();
 }
 function reveal(e) {
+  if (!e.isTrusted) return;
   const span = swapFor(e);
-  if (!span || !on()) return;
+  if (!span || !on() || introductionTicket(span)) return;
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip();
+  if (isPractice(span)) { void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
   observer?.takeRecords();
 }
@@ -240,11 +437,20 @@ document.addEventListener('focusin', armTip, true);
 document.addEventListener('mouseout', disarmTip, true);
 document.addEventListener('focusout', disarmTip, true);
 window.addEventListener('scroll', hideTip, { passive: true, capture: true });
-document.addEventListener('visibilitychange', seenVisible);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden' && pending.size && !timer) timer = setTimeout(flush, 0);
+  seenVisible();
+});
 window.addEventListener('online', () => { void send({ type: 'config' }).then((c) => update(c, true)).catch(() => {}); });
 // SPA navigation can reuse DOM nodes without changing their text.
 let page = location.href;
+let day = localDay();
 const navTimer = setInterval(() => {
-  if (page !== location.href) { page = location.href; if (config) update(config, true); }
+  const today = localDay();
+  if (page !== location.href || config?.settings.gradual && day !== today) {
+    page = location.href;
+    if (config) update(config, true);
+  }
+  day = today;
 }, 1000);
 void send({ type: 'config' }).then(update).catch(() => {});

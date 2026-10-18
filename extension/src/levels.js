@@ -154,10 +154,12 @@ export function sentenceCount(text) {
 }
 
 // Density ceiling per passage, one use per Spanish word, learning words (active/shaky) kept before known ones.
-export function capSwaps(level, swaps, text, sharedWords) {
-  const max = (level <= 1 ? 1 : 2) * sentenceCount(text);
+export function capSwaps(level, swaps, text, sharedWords, density = 'normal') {
+  const sentences = sentenceCount(text);
+  const max = density === 'light' ? Math.max(1, Math.ceil(sentences / 2)) :
+    density === 'heavy' ? 3 * sentences : (level <= 1 ? 1 : 2) * sentences;
   const status = new Map((sharedWords || []).map((w) => [w.fr, w.status]));
-  const rank = (s) => (status.get(s.word) && status.get(s.word) !== 'known' ? 0 : 1);
+  const rank = (s) => ({ due: 0, active: 1, new: 2, known: 3 })[status.get(s.word)] ?? 2;
   const used = new Set();
   const unique = swaps.filter((s) => { const k = exactFr(s.word || s.f); if (used.has(k)) return false; used.add(k); return true; });
   const keep = new Set([...unique].sort((a, b) => rank(a) - rank(b)).slice(0, max));

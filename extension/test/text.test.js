@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor } from '../src/text.js';
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice,
+  introductionTicket, finishIntroduction, dropIntroduction } from '../src/text.js';
 
 const win = new Window();
 const document = win.document;
@@ -12,6 +13,41 @@ function tweet(inner) {
   return wrap.firstElementChild;
 }
 const S = (swap) => ({ g: swap.g || 'and', h: swap.h || 'ay', ctx: '', ...swap });
+
+test('reserved introduction stays English and private until a saved visible acknowledgement', () => {
+  const el = tweet('We discussed the idea with friends.');
+  document.body.append(el);
+  const ticket = 'a'.repeat(36);
+  const placed = [];
+  expect(applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', introTicket: ticket })],
+    (span) => placed.push(span))).toBe(1);
+  const span = placed[0];
+  expect(span.textContent).toBe('the idea');
+  expect(span.getAttribute('data-fr')).toBeNull();
+  expect(span.outerHTML).not.toContain(ticket);
+  expect(introductionTicket(span)).toBe(ticket);
+  expect(finishIntroduction(span)).toBe(true);
+  expect(span.textContent).toBe('la idea');
+  expect(span.getAttribute('data-fr')).toBe('la idea');
+  expect(introductionTicket(span)).toBe('');
+  el.remove();
+});
+
+test('dropping one rejected introduction keeps neighboring woven words', () => {
+  const el = tweet('The book and the idea are here.');
+  document.body.append(el);
+  const spans = [];
+  applySwaps(el, [S({ o: 'book', f: 'libro', word: 'libro' }),
+    S({ o: 'the idea', f: 'la idea', word: 'la idea', introTicket: 'b'.repeat(36) })],
+  (span) => spans.push(span));
+  const pending = spans.find((span) => introductionTicket(span));
+  expect(dropIntroduction(pending)).toBe(true);
+  expect(el.textContent).toBe('The libro and the idea are here.');
+  expect(el.querySelectorAll('.fw-word')).toHaveLength(1);
+  revert(el);
+  expect(el.textContent).toBe('The book and the idea are here.');
+  el.remove();
+});
 
 describe('contractions and compounds', () => {
   test('never swaps part of a contraction or hyphenated word', () => {
@@ -214,4 +250,43 @@ describe('what leaves the page', () => {
     expect(note).not.toMatch(/links, code[^.]*skipped/i);
     expect(note).toContain('Links and inline code go with their sentence but are never changed');
   });
+});
+
+test('a saved practice rating changes only its span and restores trusted source English', () => {
+  const el = tweet('<span>We discussed the idea with friends.</span>');
+  document.body.append(el);
+  try {
+    applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', practice: true })]);
+    const span = el.querySelector('.fw-word');
+    span.setAttribute('data-en', 'forged');
+    expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
+    expect(span.textContent).toBe('la idea');
+    expect(span.getAttribute('title')).toBeNull();
+    expect(toggle(span)).toBe(true);
+    expect(span.textContent).toBe('the idea');
+    expect(revert(el)).toBe(1);
+    expect(el.textContent).toBe('We discussed the idea with friends.');
+  } finally { el.remove(); }
+});
+
+test('rated practice keeps the validated bare and capitalized display forms', () => {
+  for (const { source, original, display, card } of [
+    { source: 'We discussed my world today.', original: 'world', display: 'mundo', card: 'el mundo' },
+    { source: 'The idea matters to us.', original: 'The idea', display: 'La idea', card: 'la idea' },
+  ]) {
+    const el = tweet(`<span>${source}</span>`);
+    document.body.append(el);
+    try {
+      expect(applySwaps(el, [S({ o: original, f: display, g: original, h: 'context', word: card, practice: true })])).toBe(1);
+      const span = el.querySelector('.fw-word');
+      expect(finishPractice(span, { fr: card, en: original, hint: '' })).toBe(true);
+      expect(span.textContent).toBe(display);
+      expect(span.getAttribute('data-fr')).toBe(display);
+      expect(span.getAttribute('data-tip')).toBe(`${original} · "context"`);
+      expect(toggle(span)).toBe(true);
+      expect(span.textContent).toBe(original);
+      revert(el);
+      expect(el.textContent).toBe(source);
+    } finally { el.remove(); }
+  }
 });

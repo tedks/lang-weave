@@ -5,9 +5,12 @@ import { requestSwaps } from './engine.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
-import { queueEvents, shownToday } from './events.js';
+import { localDay, queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
-import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview } from './review.js';
+import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
+  beginInline, revealInline, finishInline } from './review.js';
+import { policyWords, remaining, commitLearning, acknowledgeIntroduction, releaseIntroduction,
+  futureBudgetDay, introductionOwner } from './learning.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
 
@@ -23,6 +26,10 @@ const serial = () => {
 const modelCall = serial(); // one model call at a time
 const locked = serial(); // storage read-modify-writes one at a time, or concurrent ones drop data
 // When both queues are needed, enter modelCall before locked; reversing them can deadlock update reload.
+// Model status is diagnostic; failure to save it must not hide a valid reading result.
+async function saveModelStatus(status) {
+  try { await store.set({ modelStatus: { at: Date.now(), ...status } }); } catch { /* diagnostic only */ }
+}
 
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
@@ -66,15 +73,52 @@ async function swaps(msg, sender) {
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
   const items = msg.items.filter((i) => i && typeof i.text === 'string' && i.text.length <= 2000 &&
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
-  const results = await cache.getMany(items.map((i) => i.key));
+  // Raw model decisions depend on which words are eligible now. A stable page
+  // revision alone would keep yesterday's empty decision after quota resets.
+  const { state } = ctx.settings.gradual ? await reviewState() : { state: null };
+  const now = Date.now();
+  const day = localDay(new Date(now));
+  const candidates = policyWords(ctx.words, state, ctx.settings, now, day, ctx.revision);
+  if (ctx.settings.gradual && !candidates.length) return locked(async () => {
+    const latest = await context();
+    return latest.revision === ctx.revision && activeOn(latest, sender.url)
+      ? { results: Object.fromEntries(items.map((i) => [i.key, []])) }
+      : { results: {}, stale: true };
+  });
+  const policy = ctx.settings.gradual ? hashKey(JSON.stringify([day,
+    remaining(state.learning, day, ctx.settings.newWordsPerDay, now, ctx.revision),
+    candidates.map(({ fr, status }) => [fr, status])])) : '';
+  const cacheKey = (key) => policy ? `${key}:gradual:${policy}` : key;
+  const cached = await cache.getMany(items.map((i) => cacheKey(i.key)));
+  const results = Object.fromEntries(items.filter((i) => cacheKey(i.key) in cached)
+    .map((i) => [i.key, cached[cacheKey(i.key)]]));
   const misses = items.filter((i) => !(i.key in results));
-  if (!misses.length) {
+  if (!misses.length && !ctx.settings.gradual) {
     const latest = await context();
     return latest.revision === ctx.revision && activeOn(latest, sender.url)
       ? { results } : { results: {}, stale: true };
   }
+  const deliver = async (raw, freshRaw) => locked(async () => {
+    const latest = await context();
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
+    if (!ctx.settings.gradual) {
+      if (freshRaw) await cache.setMany(freshRaw);
+      return { results: raw };
+    }
+    // A failed cache write must not spend an introduction that the page will
+    // receive only as an error. Cached raw swaps remain policy-filtered on read.
+    if (freshRaw) await cache.setMany(Object.fromEntries(Object.entries(freshRaw)
+      .map(([key, swaps]) => [cacheKey(key), swaps])));
+    const { state, scoped } = await reviewState();
+    const before = JSON.stringify(state.learning);
+    const output = commitLearning(state, raw, ctx.settings, sender, ctx.revision);
+    if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });
+    return { results: output };
+  });
+  if (!misses.length) return deliver(results);
+  let fresh;
   try {
-    const fresh = await modelCall(async () => {
+    fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
       if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; try again tomorrow`);
       const { apiKey } = await store.get('apiKey');
@@ -97,23 +141,81 @@ async function swaps(msg, sender) {
         return response;
       };
       return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
-        words: ctx.words.map((w) => ({ ...w, status: 'active' })), fetchImpl,
+        density: ctx.settings.density, words: candidates, fetchImpl,
         shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
-    });
-    return await locked(async () => {
-      if (!fresh || (await context()).revision !== ctx.revision) return { results: {}, stale: true };
-      await cache.setMany(fresh.results);
-      await store.set({ modelStatus: { at: Date.now(), error: '', model: fresh.model } });
-      return { results: { ...results, ...fresh.results } };
     });
   } catch (e) {
     if (e?.stale) return { results: {}, stale: true };
     const latest = await context();
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     const error = e?.message || 'Model request failed';
-    await store.set({ modelStatus: { at: Date.now(), error } });
-    return { results, error, retryAfterMs: e?.retryAfterMs };
+    await saveModelStatus({ error });
+    try {
+      // Cache entries are raw validated swaps. They still need the current gradual
+      // quota and cards, even when another item in this batch failed at the model.
+      const delivered = await deliver(results);
+      return { ...delivered, error, retryAfterMs: e?.retryAfterMs };
+    } catch (storageError) {
+      return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
+    }
   }
+  if (!fresh) return { results: {}, stale: true };
+  try {
+    const delivered = await deliver({ ...results, ...fresh.results }, fresh.results);
+    if (!delivered.stale) {
+      await saveModelStatus({ error: '', model: fresh.model });
+    }
+    return delivered;
+  } catch (e) {
+    if (e?.stale) return { results: {}, stale: true };
+    const latest = await context();
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
+    const error = e?.message || 'Model request failed';
+    await saveModelStatus({ error });
+    try {
+      const cached = await deliver(results);
+      return { ...cached, error, retryAfterMs: e?.retryAfterMs };
+    } catch (storageError) {
+      return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
+    }
+  }
+}
+
+async function introduction(msg, sender) {
+  return locked(async () => {
+    const ctx = await context();
+    if (!ctx.settings.gradual || msg.revision !== ctx.revision || !activeOn(ctx, sender.url) ||
+        sender.documentLifecycle && sender.documentLifecycle !== 'active' ||
+        !sender.documentId || !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId))
+      return { ok: false, stale: true };
+    const { state, scoped, words } = await reviewState(ctx);
+    const word = words.find((w) => w.fr === msg.word);
+    if (!word || typeof msg.ticket !== 'string') return { ok: false, stale: true };
+    if (msg.type === 'introRelease') {
+      if (releaseIntroduction(state, msg.ticket, sender, ctx.revision)) await scoped.set({ [REVIEW_KEY]: state });
+      return { ok: true };
+    }
+    if (msg.type === 'introRenew') {
+      const old = state.learning.pending.find((p) => p.word === word.fr && p.ticket === msg.ticket &&
+        p.ownerKey === introductionOwner(msg.ticket, sender, ctx.revision) && p.revision === ctx.revision);
+      if (!old) return { ok: false, stale: true };
+      // A lost renewal reply must return the already-live replacement ticket
+      // to this same document, rather than strand a visible English span.
+      const now = Date.now();
+      const current = state.learning.pending.find((p) => p.word === word.fr && p.ticket !== msg.ticket &&
+        p.day === localDay(new Date(now)) && p.until > now && p.revision === ctx.revision &&
+        p.ownerKey === introductionOwner(p.ticket, sender, ctx.revision));
+      if (current) return { ticket: current.ticket };
+      const before = JSON.stringify(state.learning);
+      const renewed = commitLearning(state, { renew: [{ word: word.fr }] }, ctx.settings, sender, ctx.revision);
+      if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });
+      return renewed.renew[0]?.introTicket ? { ticket: renewed.renew[0].introTicket } : { ok: false, stale: true };
+    }
+    if (!acknowledgeIntroduction(state, word.fr, msg.ticket, sender, ctx.revision,
+      ctx.settings.newWordsPerDay)) return { ok: false, stale: true };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return { ok: true };
+  });
 }
 
 // Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
@@ -224,11 +326,32 @@ async function save(msg) {
 async function status() {
   const config = await context();
   const data = await store.get(['apiKey', 'modelStatus', PACKS_KEY]);
+  const { state } = await reviewState(config);
   return { config: { ...config, words: undefined, allWords: undefined }, words: config.words.length,
     languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
     pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
+    budgetWarning: futureBudgetDay(state.learning, localDay()),
     review: await reviewStatus(config),
     update: await checkUpdate() };
+}
+
+async function recoverBudget(msg) {
+  if (msg.confirm !== true) return { error: 'Confirm budget recovery first.' };
+  const recovered = await locked(async () => {
+    const ctx = await context();
+    const { state, scoped } = await reviewState(ctx);
+    const today = localDay();
+    if (!futureBudgetDay(state.learning, today) || msg.day !== state.learning.day || msg.scope !== ctx.scope)
+      return false;
+    // Keep the historical date while allowing due inline recall from the next
+    // local day after an explicitly confirmed clock recovery.
+    for (const card of Object.values(state.cards)) if (card.introducedDay > today) card.introGateDay = today;
+    state.learning = { day: today, count: 0, pending: [] };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return true;
+  });
+  if (recovered) await broadcast('retry');
+  return { ok: recovered };
 }
 
 async function reviewState(ctx) {
@@ -273,10 +396,50 @@ async function reviewReveal(msg) {
 
 async function reviewRate(msg) {
   return locked(async () => {
-    const { state, words, scoped } = await reviewState();
+    const ctx = await context();
+    const { state, words, scoped } = await reviewState(ctx);
     const result = state.current && words.some(({ fr }) => fr === state.current.word)
-      ? rateReview(state, msg.ticket, msg.rating, Date.now()) : null;
+      ? rateReview(state, msg.ticket, msg.rating, Date.now(), ctx.settings.gradual) : null;
     if (!result) return { error: 'This rating is stale or the answer has not been revealed.' };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return { ok: true, ...result };
+  });
+}
+
+async function reviewKnown(msg) {
+  return locked(async () => {
+    const { state, words, scoped } = await reviewState();
+    const ok = state.current && words.some(({ fr }) => fr === state.current.word) &&
+      markFamiliar(state, msg.ticket, Date.now());
+    if (!ok) return { error: 'Reveal the current due card before marking it familiar.' };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return { ok: true };
+  });
+}
+
+async function inlineAction(msg, sender) {
+  return locked(async () => {
+    const ctx = await context();
+    if (!ctx.settings.gradual || !ctx.settings.inlineRecall || msg.revision !== ctx.revision ||
+        !activeOn(ctx, sender.url) || sender.documentLifecycle && sender.documentLifecycle !== 'active')
+      return { error: 'Inline recall is no longer available here.' };
+    const { state, words, scoped } = await reviewState();
+    const now = Date.now();
+    if (msg.type === 'inlineBegin') {
+      const word = words.find((w) => w.fr === msg.word);
+      const result = word && beginInline(state, word.fr, sender, ctx.revision, now);
+      if (!result) return { error: 'This word is not due here.' };
+      await scoped.set({ [REVIEW_KEY]: state });
+      return result;
+    }
+    if (msg.type === 'inlineReveal') {
+      const answer = revealInline(state, words, msg.ticket, sender, ctx.revision, now);
+      if (!answer) return { error: 'This recall cue is stale.' };
+      await scoped.set({ [REVIEW_KEY]: state });
+      return { answer };
+    }
+    const result = finishInline(state, msg.ticket, sender, ctx.revision, now, msg.rating);
+    if (!result) return { error: 'Reveal the current cue before rating it.' };
     await scoped.set({ [REVIEW_KEY]: state });
     return { ok: true, ...result };
   });
@@ -316,17 +479,25 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     swaps: () => swaps(msg, sender),
     event: () => record(msg, sender),
     status, clearCache,
+    recoverBudget: () => recoverBudget(msg),
     save: () => save(msg),
     addLanguage: () => addLanguage(msg),
     removeLanguage: () => removeLanguage(msg),
     reviewStatus: () => reviewStatus(), reviewIntroduce, reviewNext,
     reviewReveal: () => reviewReveal(msg),
     reviewRate: () => reviewRate(msg),
+    reviewKnown: () => reviewKnown(msg),
+    inlineBegin: () => inlineAction(msg, sender),
+    inlineReveal: () => inlineAction(msg, sender),
+    inlineRate: () => inlineAction(msg, sender),
+    introAck: () => introduction(msg, sender),
+    introRelease: () => introduction(msg, sender),
+    introRenew: () => introduction(msg, sender),
   };
-  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate'];
-  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus'].includes(msg.type)) &&
+  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown'];
+  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
-      !(page && ['config', 'swaps', 'event'].includes(msg.type))) return false;
+      !(page && ['config', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate', 'introAck', 'introRelease', 'introRenew'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });

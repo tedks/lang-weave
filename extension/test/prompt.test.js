@@ -39,6 +39,17 @@ describe('prompt', () => {
     expect(p).not.toContain('"but"->pero');
     expect(p).toContain('four or more swaps');
     expect(buildSystemPrompt(1, words)).toContain('two or more swaps');
+    expect(p).toContain('including its English synonyms. Use one whenever any fits');
+    expect(p).toContain('Fill the remaining density with KNOWN words');
+    expect(p).not.toContain('due first, then active');
+    const french = buildSystemPrompt(2, words, [], 'fr');
+    expect(french).toContain('{"target":"grande","english":"big"},{"target":"pequeño","english":"small"}');
+    expect(french).toContain('Prefer an unshown word if several listed words fit');
+    expect(french).not.toContain('Prefer listed due words');
+    expect(french).not.toContain('Use up to 2 target words');
+    expect(buildSystemPrompt(2, words, [], 'fr', 'light')).toContain('at most one target word');
+    expect(buildSystemPrompt(2, [{ ...words[0], status: 'due' }], [], 'fr'))
+      .toContain('Prefer listed due words first');
   });
   test('standalone instructions use Spanish vocabulary, sense and grammar rules', () => {
     const p = buildSystemPrompt(2);

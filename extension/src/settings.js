@@ -6,6 +6,10 @@ export const DEFAULT_SETTINGS = {
   model: 'gemini-3.5-flash-lite', // on free keys 3.8 Flash mostly answered 503 or timed out (QA, 2026-10-15)
   levelOverride: 0, // 0 = beginner default; 1/2 = explicit reading level
   language: 'es', // existing profiles migrate to the bundled Spanish pack
+  gradual: false,
+  newWordsPerDay: 5,
+  density: 'normal',
+  inlineRecall: false,
   newSitesEnabled: null, // null = on for permitted sites, excluding sensitive domains
   siteOverrides: {}, // hostname -> true/false, set from the popup
 };
@@ -13,6 +17,10 @@ export const DEFAULT_SETTINGS = {
 export function cleanSettings(s = {}) {
   const d = { ...DEFAULT_SETTINGS, siteOverrides: {} };
   if (typeof s.enabled === 'boolean') d.enabled = s.enabled;
+  if (typeof s.gradual === 'boolean') d.gradual = s.gradual;
+  if (Number.isInteger(s.newWordsPerDay) && s.newWordsPerDay >= 1 && s.newWordsPerDay <= 10) d.newWordsPerDay = s.newWordsPerDay;
+  if (['light', 'normal', 'heavy'].includes(s.density)) d.density = s.density;
+  if (typeof s.inlineRecall === 'boolean') d.inlineRecall = s.inlineRecall;
   if (typeof s.newSitesEnabled === 'boolean') d.newSitesEnabled = s.newSitesEnabled;
   if (['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(s.model)) d.model = s.model;
   if (Number.isInteger(s.levelOverride) && s.levelOverride >= 0 && s.levelOverride <= 4) d.levelOverride = s.levelOverride;

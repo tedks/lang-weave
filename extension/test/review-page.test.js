@@ -8,7 +8,7 @@ test('an open review tab discards a revealed answer after language changes while
     <p id="language"></p><p id="counts"></p><p id="empty"></p><p id="notice"></p>
     <div id="question" hidden><p id="prompt"></p><button id="reveal"></button>
       <div id="solution" hidden><p id="answer"></p><p id="hint"></p>
-        <button data-rating="hard"></button></div></div>
+        <button data-rating="hard"></button><button id="known"></button></div></div>
     <button id="introduce"></button><button id="refresh"></button>`;
   globalThis.document = window.document;
   let changed;

@@ -12,8 +12,65 @@ const spanGroups = new WeakMap();
 // Spans this extension made -> their learning word ('' if none). Kept out of the DOM, so a page can neither read the
 // word list from attributes nor pass off its own span as a swap.
 const owned = new WeakMap();
+const sourceEnglish = new WeakMap();
+const displaySwap = new WeakMap();
+const practice = new WeakSet();
+const introductions = new WeakMap();
 export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
+export const swapEnglish = (span) => sourceEnglish.get(span) || '';
+export const isPractice = (span) => practice.has(span);
+export const introductionTicket = (span) => introductions.get(span) || '';
+export function replaceIntroductionTicket(span, oldTicket, nextTicket) {
+  if (!owned.has(span) || !span.isConnected || introductions.get(span) !== oldTicket || !nextTicket) return false;
+  introductions.set(span, nextTicket);
+  return true;
+}
+export function dropIntroduction(span) {
+  if (!owned.has(span) || !span.isConnected || !introductions.has(span)) return false;
+  const en = sourceEnglish.get(span);
+  if (!en || !span.parentNode) return false;
+  const node = span.ownerDocument.createTextNode(en);
+  const group = spanGroups.get(span);
+  if (group) { group.pieces.delete(span); group.pieces.add(node); }
+  span.parentNode.replaceChild(node, span);
+  introductions.delete(span);
+  return true;
+}
+export function finishIntroduction(span) {
+  if (!owned.has(span) || !span.isConnected || !introductions.has(span)) return false;
+  const display = displaySwap.get(span);
+  if (!display?.f) return false;
+  introductions.delete(span);
+  span.setAttribute('data-fr', display.f);
+  span.setAttribute('data-tip', tipFor(display));
+  span.dataset.fwStatus = 'new';
+  span.tabIndex = 0;
+  span.setAttribute('role', 'button');
+  span.textContent = display.f;
+  span.setAttribute('aria-label', `${display.f}: ${display.g}. Show English`);
+  return true;
+}
+
+// After a saved inline rating, keep the existing woven word in place. A full
+// page repaint would force a new model request under the changed card policy.
+export function finishPractice(span, answer, familiar = false) {
+  if (!practice.has(span) || !owned.has(span) || !span.isConnected ||
+      !answer || answer.fr !== owned.get(span) || typeof answer.en !== 'string') return false;
+  const en = sourceEnglish.get(span);
+  const display = displaySwap.get(span);
+  if (!en || !display?.f) return false;
+  practice.delete(span);
+  span.classList.remove('fw-practice');
+  span.removeAttribute('title');
+  span.setAttribute('data-en', en);
+  span.setAttribute('data-fr', display.f);
+  span.setAttribute('data-tip', tipFor(display));
+  span.dataset.fwStatus = familiar ? 'known' : 'active';
+  span.setAttribute('aria-label', `${display.f}: ${display.g}. Show English`);
+  span.textContent = display.f;
+  return true;
+}
 
 // Returns { text, map, segs, raw }:
 //   raw   = every text node's data in order (plus emoji alt text), untouched
@@ -139,16 +196,28 @@ function wrap(place, swap) {
   const span = doc.createElement('span');
   span.className = SWAP_CLASS;
   span.setAttribute('data-en', mid.data);
-  span.setAttribute('data-fr', swap.f);
-  span.setAttribute('data-tip', tipFor(swap));
+  // A practice span shows the English cue until a trusted reveal. Do not put
+  // its answer in page-readable attributes before that reveal.
+  if (!swap.practice && !swap.introTicket) {
+    span.setAttribute('data-fr', swap.f);
+    span.setAttribute('data-tip', tipFor(swap));
+  }
   span.setAttribute('data-fw-split', '1');
-  if (swap.status) span.dataset.fwStatus = swap.status;
-  span.tabIndex = 0;
-  span.setAttribute('role', 'button');
-  span.setAttribute('aria-label', `${swap.f}: ${swap.g}. Show English`);
-  span.textContent = swap.f;
+  if (swap.status && !swap.practice && !swap.introTicket) span.dataset.fwStatus = swap.status;
+  if (!swap.introTicket) { span.tabIndex = 0; span.setAttribute('role', 'button'); }
+  span.setAttribute('aria-label', swap.practice ? `${swap.o}. Open inline recall` :
+    swap.introTicket ? mid.data : `${swap.f}: ${swap.g}. Show English`);
+  span.textContent = swap.practice ? `${mid.data} → [?]` : swap.introTicket ? mid.data : swap.f;
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');
+  sourceEnglish.set(span, mid.data);
+  displaySwap.set(span, { f: swap.f, g: swap.g, h: swap.h });
+  if (swap.introTicket) introductions.set(span, swap.introTicket);
+  if (swap.practice) {
+    practice.add(span);
+    span.classList.add('fw-practice');
+    span.setAttribute('title', 'Open inline recall');
+  }
   const group = splitGroups.get(node) || { node, pieces: new Set() };
   group.prefix = node.data;
   group.pieces.add(span); group.pieces.add(suffix);
@@ -157,7 +226,7 @@ function wrap(place, swap) {
 }
 
 // Applies validated swaps [{o, f, g, h, ctx}] to root. Returns the number placed.
-export function applySwaps(root, swaps) {
+export function applySwaps(root, swaps, onPlaced = () => {}) {
   const flat = flatten(root);
   const placed = [];
   const used = [];
@@ -172,7 +241,7 @@ export function applySwaps(root, swaps) {
   }
   // Later positions first, so earlier offsets in the same text node stay valid.
   placed.sort((a, b) => b.place.seg - a.place.seg || b.place.offset - a.place.offset);
-  for (const { place, swap } of placed) wrap(place, swap);
+  for (const { place, swap } of placed) onPlaced(wrap(place, swap), swap);
   return placed.length;
 }
 
@@ -189,7 +258,7 @@ export function revert(root) {
   for (const span of spans) {
     const parent = span.parentNode;
     if (!parent) continue;
-    const en = span.getAttribute('data-en') ?? span.textContent;
+    const en = sourceEnglish.get(span) ?? span.getAttribute('data-en') ?? span.textContent;
     const prev = span.previousSibling;
     const next = span.nextSibling;
     if (
@@ -211,7 +280,7 @@ export function revert(root) {
 export function toggle(span, language = 'Spanish') {
   const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
-  span.textContent = showEn ? span.getAttribute('data-en') : span.getAttribute('data-fr');
+  span.textContent = showEn ? (sourceEnglish.get(span) ?? span.getAttribute('data-en')) : span.getAttribute('data-fr');
   span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? language : 'English'}`);
   return showEn;
 }
