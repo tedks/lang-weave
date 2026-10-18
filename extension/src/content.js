@@ -143,16 +143,17 @@ async function openCue(span) {
           try {
             const result = await send({ type: 'inlineRate', ticket, rating, revision });
             if (!result?.ok) throw new Error(result?.error || 'Cue expired');
-            if (cue === panel) {
-              closeCue();
-              if (gen === generation && on() && span.isConnected) {
-                const word = swapWord(span);
-                for (const related of document.querySelectorAll(`.${SWAP_CLASS}.fw-practice`)) {
-                  if (isPractice(related) && swapWord(related) === word) finishPractice(related, answer, result.familiar);
-                }
-                observer?.takeRecords();
-                if (span.isConnected) span.focus();
+            const ownCue = cue === panel;
+            if (ownCue) closeCue();
+            if (gen === generation && on()) {
+              const word = swapWord(span);
+              let changed = false;
+              for (const related of document.querySelectorAll(`.${SWAP_CLASS}.fw-practice`)) {
+                if (isPractice(related) && swapWord(related) === word)
+                  changed = finishPractice(related, answer, result.familiar) || changed;
               }
+              if (changed) observer?.takeRecords();
+              if (ownCue && span.isConnected && !isPractice(span)) span.focus();
             }
           } catch {
             if (!liveCue()) { closeCue(); return; }

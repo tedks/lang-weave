@@ -13,7 +13,7 @@ const spanGroups = new WeakMap();
 // word list from attributes nor pass off its own span as a swap.
 const owned = new WeakMap();
 const sourceEnglish = new WeakMap();
-const displayTarget = new WeakMap();
+const displaySwap = new WeakMap();
 const practice = new WeakSet();
 export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
@@ -26,17 +26,17 @@ export function finishPractice(span, answer, familiar = false) {
   if (!practice.has(span) || !owned.has(span) || !span.isConnected ||
       !answer || answer.fr !== owned.get(span) || typeof answer.en !== 'string') return false;
   const en = sourceEnglish.get(span);
-  const display = displayTarget.get(span);
-  if (!en || !display) return false;
+  const display = displaySwap.get(span);
+  if (!en || !display?.f) return false;
   practice.delete(span);
   span.classList.remove('fw-practice');
   span.removeAttribute('title');
   span.setAttribute('data-en', en);
-  span.setAttribute('data-fr', display);
-  span.setAttribute('data-tip', tipFor({ g: answer.en, h: answer.hint }));
+  span.setAttribute('data-fr', display.f);
+  span.setAttribute('data-tip', tipFor(display));
   span.dataset.fwStatus = familiar ? 'known' : 'active';
-  span.setAttribute('aria-label', `${display}: ${answer.en}. Show English`);
-  span.textContent = display;
+  span.setAttribute('aria-label', `${display.f}: ${display.g}. Show English`);
+  span.textContent = display.f;
   return true;
 }
 
@@ -179,7 +179,7 @@ function wrap(place, swap) {
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');
   sourceEnglish.set(span, mid.data);
-  displayTarget.set(span, swap.f);
+  displaySwap.set(span, { f: swap.f, g: swap.g, h: swap.h });
   if (swap.practice) {
     practice.add(span);
     span.classList.add('fw-practice');
