@@ -1,0 +1,22 @@
+id: future-budget-date-recovery
+title: Choose recovery for extreme future introduction-budget dates
+desc: 'CEO product ruling from upper council: an extreme but calendar-valid future
+  introduction-budget date can indefinitely suppress new words under rollback protection.
+  Options: warn and offer user-confirmed budget reset when saved day is over seven
+  days ahead (recommendation), or automatically repair it. Preserve review history/schedules;
+  do not silently treat a genuine clock rollback as fresh quota. Ted decides. Blocks
+  final future-date recovery policy, not invalid-calendar parsing or normal rollback
+  tests. Async question pending.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:00:47-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:00:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
