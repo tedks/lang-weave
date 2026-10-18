@@ -39,3 +39,16 @@ log_events:
     : old smoke was synthetic but lacked browser-level blocking; new guarded results
     belong to PR #5. PR #5 evidence: https://github.com/tedks/lang-weave/pull/5#issuecomment-6254288858
     . Keep issue in progress for root acceptance/normal merge; root owns release integration.'
+- time: 2026-10-18T19:46:38-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR5 was normal merged as3dd06b0211a5b872a90cf29c5ef5f1ad2434514a, tree-identical
+    light-reviewed/gated3228c05, before the in-flight full council report reached
+    root. Full three-provider council on3228c05 is NOT CLEAN: enforce e2e developer-only
+    invariant/mixed runtime bump test; directly probe actual browser network blocking
+    after unmocked/restarted worker with safe owned endpoints; run full Bun; correct
+    current evidence/head wording. No Critical or observed runtime leak. Root keeps
+    this issue OPEN/in progress and delegates a bounded fresh followup PR from3dd06b0,
+    full delta convergence and exact-head gates. Released runtime43fee1c and fleet0.6
+    remain unchanged; no rollback/pin change. Do not treat prior root light acceptance
+    as a full council clearance. No new product ruling is required.'
