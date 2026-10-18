@@ -1,0 +1,23 @@
+id: introduction-visibility-budget
+title: Choose when a new word consumes introduction allowance
+desc: 'CEO product ruling from upper council: consume daily new-word allowance on
+  worker delivery or only after first actual visible occurrence in the viewport? Recommend
+  visible occurrence acknowledged through trusted content/worker path; unseen or stale
+  DOM results should not spend learning budget. Implementation must reserve bounded
+  slots and validate/idempotently commit acknowledgements so concurrent tabs cannot
+  exceed allowance; a sighting is introduction/exposure, never recall success. Ted
+  decides. Blocks final quota/placement semantics, not implementation-integrity repairs.
+  Async question pending.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:00:47-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:00:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
