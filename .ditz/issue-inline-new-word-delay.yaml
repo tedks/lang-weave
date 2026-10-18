@@ -11,8 +11,8 @@ type: task
 component: open-questions
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-18T07:00:47-00:00
 references: []
 log_events:
@@ -32,5 +32,10 @@ log_events:
     standalone review remains immediately available. Decision resolved. Implementation
     and new tests/review remain tracked by gradual-inband-learning; this is not feature
     acceptance or permission to merge.'
+- time: 2026-10-18T18:58:33-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Ted approved all three recommendations; decision questions resolved, implementation
+    remains open under gradual-inband-learning.
 blocks:
 - gradual-inband-learning
