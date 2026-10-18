@@ -40,6 +40,9 @@ test('only committed contextual new swaps spend the local-day allowance; rollbac
   expect(next.next).toHaveLength(1);
   expect(state.learning).toEqual({ day: '2026-10-19', count: 1 });
   expect(cleanLearning({ day: '2026-10-19', count: -1 })).toEqual({ day: '2026-10-19', count: 0 });
+  expect(cleanLearning({ day: '2024-02-29', count: 2 })).toEqual({ day: '2024-02-29', count: 2 });
+  expect(cleanLearning({ day: '9999-99-99', count: 2 })).toEqual({ day: '', count: 2 });
+  expect(cleanLearning({ day: '2025-02-29', count: 2 })).toEqual({ day: '', count: 2 });
 });
 
 test('due contextual result can cue recall; reveal and one rating require same document and revision', () => {

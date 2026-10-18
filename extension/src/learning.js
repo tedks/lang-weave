@@ -4,8 +4,17 @@ import { localDay } from './events.js';
 export const DENSITIES = ['light', 'normal', 'heavy'];
 const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)', 'in', 'the', 'a']);
 
+function validDay(value) {
+  const match = typeof value === 'string' && /^(\d{4})-(\d\d)-(\d\d)$/.exec(value);
+  if (!match) return false;
+  const date = new Date(0);
+  date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() + 1 === Number(match[2]) &&
+    date.getUTCDate() === Number(match[3]);
+}
+
 export function cleanLearning(raw) {
-  const day = typeof raw?.day === 'string' && /^\d{4}-\d\d-\d\d$/.test(raw.day) ? raw.day : '';
+  const day = validDay(raw?.day) ? raw.day : '';
   const count = Number.isSafeInteger(raw?.count) && raw.count >= 0 && raw.count <= 20 ? raw.count : 0;
   return { day, count };
 }
