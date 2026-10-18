@@ -1,0 +1,27 @@
+id: review-tab-refresh-scope
+title: Narrow review-tab refresh to selection and pack changes
+desc: 'Council follow-up for Lang Weave PR #3: the open review tab currently refreshes
+  on every local settings change, including site toggles and model changes, as well
+  as on languagePacks changes. The generation guard prevents stale answers, and Chromium
+  plus focused tests cover language switches. A site-only change causes an unnecessary
+  queue reload but no known correctness failure.
+
+  Follow-up: compare old/new selected language and pack versions before queue refresh,
+  keeping the stale-result guard and tests for a language switch during reviewNext/reviewReveal.
+  Do not weaken the current safety behavior merely to avoid the extra refresh.
+
+  Rationale for deferring: this is a bounded performance/UI nit, and the straightforward
+  condition risks missing a pack-invalidating change. It does not block PR #3.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:46:00-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:46:00-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
