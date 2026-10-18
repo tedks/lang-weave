@@ -1,0 +1,25 @@
+id: off-mode-easy-streak
+title: Decide whether pre-opt-in Easy ratings count toward gradual familiarity
+desc: 'Question from PR #4 fix-delta council nit: when gradual learning is off, ordinary
+  standalone reviews still accumulate Easy streaks but no automatic familiarity; after
+  opt-in, a later Easy rating can reach three using the earlier history. Options:
+  (A) count every reviewed Easy across modes (current; preserves learning history),
+  (B) count only ratings made while gradual is on, resetting or tracking a separate
+  opt-in streak, (C) require a fresh three-Easy sequence after opt-in. Recommend A
+  because all ratings are deliberate recall, not exposure, and no card is auto-familiarized
+  until mode is enabled; document this explicit rule. CTO/CEO decides if different
+  behavior is desired. Blocks product acceptance only if the policy owner rejects
+  A; technical fixpoint may proceed with A pending ruling.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:21:41-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:21:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
