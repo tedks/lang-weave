@@ -85,6 +85,7 @@ async function swaps(msg, sender) {
           if (current.revision !== ctx.revision || !activeOn(current, sender.url)) {
             throw Object.assign(new Error('Page context changed before model request'), { stale: true });
           }
+          // Counting can yield to a browser permission change; keep the second check.
           await countCall(chromeStorage);
           const final = await context();
           if (final.revision !== ctx.revision || !activeOn(final, sender.url)) {
@@ -292,7 +293,7 @@ async function checkUpdate() {
     if (waiting && (await store.get(RELOADED_KEY))[RELOADED_KEY] !== waiting) {
       await store.set({ [RELOADED_KEY]: waiting });
       try {
-        await locked(() => modelCall(() => chrome.runtime.reload()));
+        await modelCall(() => locked(() => chrome.runtime.reload()));
         return waiting; // normally not reached: the worker is gone
       } catch { /* fall back to the badge */ }
     }

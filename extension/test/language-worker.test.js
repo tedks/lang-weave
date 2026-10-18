@@ -25,8 +25,14 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let blockCacheRead = false;
   let cacheReadStarted;
   let releaseCacheRead;
+  let blockCounterSet = false;
+  let counterSetStarted;
+  let releaseCounterSet;
   let failEpochOnce = false;
   let registrationCalls = 0;
+  let reloadCalls = 0;
+  let reloadMarked;
+  let diskVersion = '0.5.0';
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
@@ -46,16 +52,23 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]])));
       },
       async set(value) {
+        if (blockCounterSet && Object.hasOwn(value, 'modelCalls')) {
+          blockCounterSet = false;
+          counterSetStarted();
+          await new Promise((resolve) => { releaseCounterSet = resolve; });
+        }
         if (failEpochOnce && Object.keys(value).length === 1 && Object.hasOwn(value, 'epoch')) {
           failEpochOnce = false;
           throw new Error('Storage unavailable');
         }
         Object.assign(data, structuredClone(value));
+        if (Object.hasOwn(value, 'reloadedFor')) reloadMarked?.();
       },
       async remove(keys) { for (const key of keys) delete data[key]; },
     } },
     runtime: { id: 'lang-test', getURL: (path) => `chrome-extension://lang-test/${path}`,
-      getManifest: () => ({ version: '0.5.0' }), onMessage: on(handlers), onInstalled: on(), onStartup: on() },
+      getManifest: () => ({ version: '0.5.0' }), reload: async () => { reloadCalls++; },
+      onMessage: on(handlers), onInstalled: on(), onStartup: on() },
     tabs: { query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
@@ -235,6 +248,25 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(sentModels).toHaveLength(1);
     expect((await dispatch({ type: 'save', settings: { enabled: true, model: 'gemini-3.5-flash-lite' } }, popup)).ok).toBe(true);
 
+    // Permission loss while the daily counter is being written must stop the send
+    // at the second, immediately pre-fetch check, even before its event gets the lock.
+    let counterFetches = 0;
+    globalThis.fetch = async () => { counterFetches++; throw new Error('Revoked origin disclosed page text'); };
+    const beforeCounterRevoke = await dispatch({ type: 'config' }, page);
+    const counterStarted = new Promise((resolve) => { counterSetStarted = resolve; });
+    blockCounterSet = true;
+    const counterPending = dispatch({ type: 'swaps', revision: beforeCounterRevoke.revision,
+      items: [{ key: `${beforeCounterRevoke.revision}:${hashKey(passage)}`, text: passage }] }, page);
+    await counterStarted;
+    origins = [];
+    const revokeDuringCount = Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseCounterSet();
+    expect((await counterPending).stale).toBe(true);
+    expect(counterFetches).toBe(0);
+    await revokeDuringCount;
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');
     expect(await dispatch({ type: 'addLanguage', code: 'de' }, page)).toBeUndefined();
@@ -291,12 +323,41 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(registrationCalls).toBeGreaterThan(registeredBeforeFailure);
     globalThis.fetch = async () => { throw new Error('Unexpected model request'); };
 
+    // Update reload waits for model work before taking the storage lock. The reverse
+    // order deadlocks against a swap waiting for its final consent check under that lock.
+    const beforeReload = await dispatch({ type: 'config' }, page);
+    const reloadReadStarted = new Promise((resolve) => { seenReadStarted = resolve; });
+    blockSeenRead = true;
+    const reloadSwap = dispatch({ type: 'swaps', revision: beforeReload.revision,
+      items: [{ key: `${beforeReload.revision}:${hashKey(passage)}`, text: passage }] }, page);
+    await reloadReadStarted;
+    diskVersion = '0.5.1';
+    globalThis.fetch = async (url) => {
+      if (url === 'chrome-extension://lang-test/manifest.json') return { ok: true, json: async () => ({ version: diskVersion }) };
+      throw new Error('Unexpected model request');
+    };
+    const marked = new Promise((resolve) => { reloadMarked = resolve; });
+    const updatePending = dispatch({ type: 'status' }, popup);
+    await marked;
+    await Promise.resolve();
+    await Promise.resolve();
+    const offPending = dispatch({ type: 'save', settings: { enabled: false } }, popup);
+    releaseSeenRead();
+    const within = (promise) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve('timed out'), 1000))]);
+    expect(await within(reloadSwap)).toMatchObject({ stale: true });
+    expect(await within(offPending)).toMatchObject({ ok: true });
+    expect(await within(updatePending)).toHaveProperty('update', '0.5.1');
+    expect(reloadCalls).toBe(1);
+    expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+    diskVersion = '0.5.0';
+    const beforeRestart = await dispatch({ type: 'config' }, page);
+
     // A suspended MV3 worker is reconstructed from storage without resetting selection or histories.
     handlers.length = 0;
     await import('../src/background.js?language-restarted');
     const restarted = await dispatch({ type: 'config' }, page);
     expect(restarted.language).toBe('es');
-    expect(restarted.revision).toBe(afterPermission.revision);
+    expect(restarted.revision).toBe(beforeRestart.revision);
     expect(await dispatch({ type: 'event', word: 'no', event: 'seen', revision: beforePermission.revision }, page)).toEqual({ ok: false });
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(5);
     expect(data['lang:fr:' + data.languagePacks.fr.version + ':recallReview'].cards.mot0).toBeDefined();

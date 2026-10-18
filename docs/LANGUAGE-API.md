@@ -17,6 +17,9 @@ in vocabulary and swaps for wire compatibility; it does not mean French.
   permission event, so an off/on, away/back or remove/regrant round trip cannot
   revive an earlier page token even when the final values are identical. The
   revision is an opaque equality token, not an ordering or timestamp value.
+  Model dispatch shares the settings lock and checks revision and site access
+  immediately before every primary or fallback send. No page text is sent
+  after a committed site-off or an effective permission revocation.
 - `src/scope.js` maps event and review storage through `scopedStorage`.
   Spanish retains the original `readingEvents`, `seenSent`, and
   `recallReview` keys. Other packs use namespaced keys. The decision cache
