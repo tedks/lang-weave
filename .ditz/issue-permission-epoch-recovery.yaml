@@ -1,0 +1,21 @@
+id: permission-epoch-recovery
+title: Recover permission listener after epoch storage failure
+desc: Permission listener in merged generic-language code rotates persisted epoch
+  before registration and broadcast. If the epoch write fails after a permission grant/revoke,
+  registration may be skipped; inspect whether browser runtime listener registration
+  is independently durable, then add a deterministic storage-failure test and a bounded
+  recovery path without weakening the opaque revision/site-consent rule. Coordinates
+  with lower contract owner; no keys or real user permissions.
+type: bugfix
+component: language
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:18:45-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:18:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
