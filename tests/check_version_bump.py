@@ -21,10 +21,11 @@ import sys
 
 PLUGIN = '.claude-plugin/plugin.json'
 VERSIONED = (PLUGIN, '.claude-plugin/marketplace.json', 'extension/manifest.json', 'extension/package.json')
-# What installed users run: the plugin copies these (the extension and scripts also land in ~/.french-weave).
+# Installed runtime roots. Some developer-only files under these roots are
+# copied by setup but never loaded by the plugin or unpacked extension.
 SHIPPED = ('.claude-plugin/', 'scripts/', 'hooks/', 'commands/', 'skills/', 'agents/', 'data/', 'extension/')
-# Inside those, files only developers use (setup never copies them).
-NOT_SHIPPED = ('extension/test/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
+# Developer-only tools do not need an installed runtime version bump.
+NOT_SHIPPED = ('extension/test/', 'extension/e2e/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
                'extension/bun.lockb')
 ZERO = re.compile(r'^0+$')  # GitHub's "before" SHA for a new branch
 
