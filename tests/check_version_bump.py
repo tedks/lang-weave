@@ -24,9 +24,11 @@ VERSIONED = (PLUGIN, '.claude-plugin/marketplace.json', 'extension/manifest.json
 # Installed runtime roots. Some developer-only files under these roots are
 # copied by setup but never loaded by the plugin or unpacked extension.
 SHIPPED = ('.claude-plugin/', 'scripts/', 'hooks/', 'commands/', 'skills/', 'agents/', 'data/', 'extension/')
-# Developer-only tools do not need an installed runtime version bump.
-NOT_SHIPPED = ('extension/test/', 'extension/e2e/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
+# Developer-only tools do not need an installed runtime version bump. Only
+# these two known harness entry points are exempt; new e2e files fail closed.
+NOT_SHIPPED = ('extension/test/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
                'extension/bun.lockb')
+E2E_HARNESSES = ('extension/e2e/smoke.mjs', 'extension/e2e/gradual.mjs')
 ZERO = re.compile(r'^0+$')  # GitHub's "before" SHA for a new branch
 
 
@@ -65,20 +67,23 @@ def versions(repo, ref=None):
 
 
 def shipped(path):
-    return path.startswith(SHIPPED) and not path.startswith(NOT_SHIPPED)
+    return path.startswith(SHIPPED) and not path.startswith(NOT_SHIPPED) and path not in E2E_HARNESSES
 
 
 def e2e_runtime_references(repo, ref=None):
-    """Find runtime files that would make the copied e2e directory executable."""
+    """Conservatively reject e2e path references anywhere in installed runtime files."""
     root = Path(repo) / 'extension'
+    def runtime(path):
+        return path.startswith('extension/') and not path.startswith(
+            ('extension/e2e/', 'extension/test/', 'extension/node_modules/')) and path not in (
+            'extension/package.json', 'extension/bun.lock', 'extension/bun.lockb')
     if ref is None:
-        paths = [root / 'manifest.json', *(root / 'src').rglob('*')]
-        return [str(path.relative_to(repo)) for path in paths
-                if path.is_file() and 'e2e/' in path.read_text(errors='replace')]
-    listed = git(repo, 'ls-tree', '-r', '--name-only', ref, '--',
-                 'extension/manifest.json', 'extension/src').stdout.splitlines()
+        return [str(path.relative_to(repo)) for path in root.rglob('*')
+                if path.is_file() and runtime(str(path.relative_to(repo)))
+                and 'e2e/' in path.read_text(errors='replace')]
+    listed = git(repo, 'ls-tree', '-r', '--name-only', ref, '--', 'extension').stdout.splitlines()
     return [path for path in listed
-            if 'e2e/' in git(repo, 'show', f'{ref}:{path}').stdout]
+            if runtime(path) and 'e2e/' in git(repo, 'show', f'{ref}:{path}').stdout]
 
 
 def key(version):

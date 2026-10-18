@@ -177,14 +177,14 @@ try {
   await page.locator('#reading .fw-word').waitFor();
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
-  // A fresh browser/profile starts a new MV3 worker without the synthetic
-  // fetch, exercising the fallback that a worker restart would use.
+  // A fresh browser/profile starts an MV3 worker without the synthetic fetch.
+  // Probe its browser-level network denial, which also survives worker restarts.
   await context.close();
   context = await chromium.launchPersistentContext(join(scratch, 'fresh-profile'), {
     channel: 'chromium', headless: true, args: launchArgs,
   });
   const freshWorker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
-  assert.notEqual(freshWorker, worker);
+  assert.equal(await freshWorker.evaluate(() => 'smokeCalls' in globalThis), false);
   // The owned origin is a positive control; a non-loopback hostname must
   // fail through the local rejecting proxy, with no request reaching origin.
   const probe = await freshWorker.evaluate(async (port) => {
@@ -192,18 +192,26 @@ try {
     const positive = await working.text();
     let denied = false;
     try { await fetch(`http://probe.weave.test:${port}/blocked`); } catch { denied = true; }
-    return { positive, denied };
+    let httpsDenied = false;
+    try { await fetch(`https://probe.weave.test:${port}/blocked`); } catch { httpsDenied = true; }
+    return { positive, denied, httpsDenied };
   }, originPort);
   assert.equal(probe.positive, 'owned probe works');
   assert.equal(probe.denied, true);
+  assert.equal(probe.httpsDenied, true);
   assert.ok(originHits.includes('/working'));
-  assert.equal(originHits.includes('/blocked'), false);
+  assert.equal(originHits.some((url) => url.includes('/blocked')), false);
   assert.ok(proxyHits.some((url) => url.includes('probe.weave.test')));
-  console.log('PASS: real Chromium MV3 load; Spanish migration, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
+  assert.ok(proxyHits.includes(`probe.weave.test:${originPort}`)); // HTTPS CONNECT reached only the owned sink
+  console.log('PASS: real Chromium MV3 load; Spanish migration, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration; unmocked worker HTTP/HTTPS proxy denial with owned positive control. Gemini mocked; no live model validation.');
 } finally {
-  if (context) await context.close();
-  await Promise.all([origin, proxy].filter((server) => server.listening).map((server) =>
-    new Promise((resolve) => server.close(resolve))));
-  // Only the exact mkdtemp directory created above, after closing its browser.
-  await rm(scratch, { recursive: true, force: true });
+  try {
+    if (context) await context.close();
+  } finally {
+    const servers = [origin, proxy].filter((server) => server.listening);
+    for (const server of servers) server.closeAllConnections();
+    await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve))));
+    // Only the exact mkdtemp directory created above, after closing its browser.
+    await rm(scratch, { recursive: true, force: true });
+  }
 }

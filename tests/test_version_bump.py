@@ -90,7 +90,8 @@ class VersionBump(unittest.TestCase):
 
     def test_unshipped_changes_need_no_bump(self):
         for path in ('README.md', 'tests/test_x.py', '.github/workflows/test.yml', 'extension/test/a.test.js',
-                     'extension/e2e/smoke.mjs', 'extension/bun.lock', 'blocks/level-01.md'):
+                     'extension/e2e/smoke.mjs', 'extension/e2e/gradual.mjs', 'extension/bun.lock',
+                     'blocks/level-01.md'):
             self.write(path, 'changed\n')
         self.assertEqual(self.problems(self.base, self.commit('docs and tests')), [])
 
@@ -107,6 +108,12 @@ class VersionBump(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn('extension/e2e-helpers/helper.js', problems[0])
 
+    def test_new_e2e_file_fails_closed(self):
+        self.write('extension/e2e/helper.js', 'changed\n')
+        problems = self.problems(self.base, self.commit('new harness helper'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn('extension/e2e/helper.js', problems[0])
+
     def test_moving_runtime_into_e2e_still_needs_bump(self):
         self.write('extension/src/old.js', 'export const old = true;\n')
         base = self.commit('runtime file')
@@ -117,20 +124,28 @@ class VersionBump(unittest.TestCase):
         self.assertIn('extension/src/old.js', problems[0])
 
     def test_e2e_runtime_dependency_invalidates_exclusion(self):
-        self.write('extension/e2e/helper.js', 'changed\n')
-        self.write('extension/src/content.js', "import '../e2e/helper.js';\n")
+        self.write('extension/e2e/smoke.mjs', 'changed\n')
+        self.write('extension/src/content.js', "import '../e2e/smoke.mjs';\n")
         head = self.commit('runtime imports developer harness')
-        self.assertIn('Runtime files reference developer-only extension/e2e/', self.problems(self.base, head)[0])
-        self.assertIn('extension/src/content.js', self.problems(self.base, head)[0])
-        self.write('extension/e2e/helper.js', 'changed again\n')
+        self.assertTrue(any('Runtime files reference developer-only extension/e2e/' in problem
+                            and 'extension/src/content.js' in problem for problem in self.problems(self.base, head)))
+        self.write('extension/e2e/smoke.mjs', 'changed again\n')
         e2e_only = self.commit('edit referenced harness file only')
         problems = self.problems(head, e2e_only)
         self.assertEqual(len(problems), 1)
         self.assertIn('extension/src/content.js', problems[0])
         self.write('extension/src/content.js', 'fixed\n')
         self.write('extension/manifest.json', json.dumps({'version': '0.2.0',
-            'web_accessible_resources': [{'resources': ['e2e/helper.js'], 'matches': ['https://*/*']}]}))
-        self.assertIn('extension/manifest.json', self.problems(self.base)[0])
+            'web_accessible_resources': [{'resources': ['e2e/smoke.mjs'], 'matches': ['https://*/*']}]}))
+        self.assertTrue(any('Runtime files reference developer-only extension/e2e/' in problem
+                            and 'extension/manifest.json' in problem for problem in self.problems(self.base)))
+        manifest_head = self.commit('manifest exposes developer harness')
+        self.assertTrue(any('Runtime files reference developer-only extension/e2e/' in problem
+                            and 'extension/manifest.json' in problem for problem in self.problems(self.base, manifest_head)))
+
+    def test_runtime_outside_src_cannot_reference_e2e(self):
+        self.write('extension/background.js', "import './e2e/smoke.mjs';\n")
+        self.assertIn('extension/background.js', self.problems()[0])
 
     def test_version_never_goes_down(self):
         self.write('scripts/weave.py', 'print(2)\n')
