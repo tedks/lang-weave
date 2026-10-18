@@ -68,6 +68,19 @@ def shipped(path):
     return path.startswith(SHIPPED) and not path.startswith(NOT_SHIPPED)
 
 
+def e2e_runtime_references(repo, ref=None):
+    """Find runtime files that would make the copied e2e directory executable."""
+    root = Path(repo) / 'extension'
+    if ref is None:
+        paths = [root / 'manifest.json', *(root / 'src').rglob('*')]
+        return [str(path.relative_to(repo)) for path in paths
+                if path.is_file() and 'e2e/' in path.read_text(errors='replace')]
+    listed = git(repo, 'ls-tree', '-r', '--name-only', ref, '--',
+                 'extension/manifest.json', 'extension/src').stdout.splitlines()
+    return [path for path in listed
+            if 'e2e/' in git(repo, 'show', f'{ref}:{path}').stdout]
+
+
 def key(version):
     return tuple(int(part) if part.isdigit() else 0 for part in re.split(r'[.+-]', version))
 
@@ -81,6 +94,11 @@ def check(repo, base=None, head=None):
     if len(set(found.values())) > 1:
         problems.append('Versions disagree; set them all to the same value:\n' +
                         '\n'.join(f'  {path}: {version}' for path, version in found.items()))
+    references = e2e_runtime_references(repo, head)
+    if references:
+        problems.append('Runtime files reference developer-only extension/e2e/; remove that dependency or '
+                        'reclassify e2e as shipped before excluding its changes from a version bump: ' +
+                        ', '.join(references[:8]))
     if not base or ZERO.match(base):
         notes.append('No base to compare with: skipped the version-bump check.')
         return problems, notes
@@ -88,7 +106,9 @@ def check(repo, base=None, head=None):
         notes.append(f'Base {base} is not in this clone (fetch more history): skipped the version-bump check.')
         return problems, notes
     merge_base = git(repo, 'merge-base', base, head or 'HEAD').stdout.strip()
-    diff = ['diff', '--name-only', merge_base] + ([head] if head else [])
+    # A move out of a runtime path is a shipped deletion even when its new
+    # path is developer-only. List both sides instead of a detected rename.
+    diff = ['diff', '--no-renames', '--name-only', merge_base] + ([head] if head else [])
     changed = [p for p in git(repo, *diff).stdout.splitlines() if shipped(p)]
     if not changed:
         notes.append('No shipped files changed: no version bump needed.')

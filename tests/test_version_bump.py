@@ -94,6 +94,44 @@ class VersionBump(unittest.TestCase):
             self.write(path, 'changed\n')
         self.assertEqual(self.problems(self.base, self.commit('docs and tests')), [])
 
+    def test_e2e_exclusion_does_not_hide_runtime_change(self):
+        self.write('extension/e2e/smoke.mjs', 'changed\n')
+        self.write('extension/src/content.js', 'changed\n')
+        problems = self.problems(self.base, self.commit('harness and runtime'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn('extension/src/content.js', problems[0])
+
+    def test_e2e_prefix_boundary_still_needs_bump(self):
+        self.write('extension/e2e-helpers/helper.js', 'changed\n')
+        problems = self.problems(self.base, self.commit('runtime beside harness'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn('extension/e2e-helpers/helper.js', problems[0])
+
+    def test_moving_runtime_into_e2e_still_needs_bump(self):
+        self.write('extension/src/old.js', 'export const old = true;\n')
+        base = self.commit('runtime file')
+        (self.repo / 'extension/e2e').mkdir(parents=True)
+        self.git('mv', 'extension/src/old.js', 'extension/e2e/old.js')
+        problems = self.problems(base, self.commit('move runtime into harness'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn('extension/src/old.js', problems[0])
+
+    def test_e2e_runtime_dependency_invalidates_exclusion(self):
+        self.write('extension/e2e/helper.js', 'changed\n')
+        self.write('extension/src/content.js', "import '../e2e/helper.js';\n")
+        head = self.commit('runtime imports developer harness')
+        self.assertIn('Runtime files reference developer-only extension/e2e/', self.problems(self.base, head)[0])
+        self.assertIn('extension/src/content.js', self.problems(self.base, head)[0])
+        self.write('extension/e2e/helper.js', 'changed again\n')
+        e2e_only = self.commit('edit referenced harness file only')
+        problems = self.problems(head, e2e_only)
+        self.assertEqual(len(problems), 1)
+        self.assertIn('extension/src/content.js', problems[0])
+        self.write('extension/src/content.js', 'fixed\n')
+        self.write('extension/manifest.json', json.dumps({'version': '0.2.0',
+            'web_accessible_resources': [{'resources': ['e2e/helper.js'], 'matches': ['https://*/*']}]}))
+        self.assertIn('extension/manifest.json', self.problems(self.base)[0])
+
     def test_version_never_goes_down(self):
         self.write('scripts/weave.py', 'print(2)\n')
         self.write_versions('0.1.9')
