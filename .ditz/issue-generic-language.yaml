@@ -54,6 +54,16 @@ log_events:
   who: Ted Smith
   what: blocked by prefetch-consent-race
   comment: ""
+- time: 2026-10-18T06:52:41-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO gate: prefetch-consent-race blocks source landing. Lower owns final
+    authorization at actual network dispatch for every primary/fallback attempt, including
+    quota-accounting awaits. Upper reported directly; root statically confirmed gap.
+    Require deterministic held-await revoke/off tests asserting zero underlying Gemini
+    calls and paired allowed-send positives, mutation-red guard, then new fix-delta
+    convergence/exact-head gates. Do not confuse stale response rejection with preventing
+    disclosure. Upper remains held for CLEAN immutable lower SHA.'
 blocks:
 - gradual-inband-learning
 blocked_by:
