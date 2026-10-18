@@ -1,6 +1,6 @@
 # Gradual lane review triage
 
-Review scope: pre-rebase review and full integration review on pushed `7b8ae6c` against main `31b1cc3`. OpenAI native and Anthropic Opus seats reviewed; Google was quota-limited, so that seat is empty. Locations identify the current upper source unless noted. Repairs after `7b8ae6c` have focused test evidence but still need exact-head gates and fix-delta review. This record does not claim acceptance.
+Review scope: pre-rebase review, full integration review on pushed `7b8ae6c` against main `31b1cc3`, and the first fix-delta council on `7b8ae6c..c8fdf49`. OpenAI native and Anthropic Opus seats reviewed; Google was quota-limited, so that seat is empty. Locations identify the current upper source unless noted. The first fix delta was not CLEAN: Anthropic found a new model-call regression from the full-page rating refresh. A narrow repair has focused test evidence; final exact-head gates and convergence review remain. This record does not claim acceptance.
 
 ## Critical and Important
 
@@ -12,11 +12,12 @@ Review scope: pre-rebase review and full integration review on pushed `7b8ae6c` 
 | Gradual priority wording changed ordinary default reading prompts (Claude I4) | `extension/src/prompt.js:48`, `extension/src/prompt.js:68` | Important | Repaired: default normal-density Spanish and generated-language prompts retain prior priority wording; gradual due/new and explicit density choices retain their intended guidance. Focused prompt parity test passed after main rebase. |
 | Valid but extreme future saved day blocks automatic new words until that date (Claude I5) | `extension/src/learning.js:22` | Important, product choice | CTO filed `future-budget-date-recovery` under open questions and presented it for ruling. Rollback protection remains; no automatic reset introduced. |
 | Monotonic revision in cache identity can orphan entries after settings or permission changes and spend model quota (Claude I6) | `extension/src/background.js:55`, `extension/src/background.js:87` | Important, integration | Rebased on lower's opaque monotonic revision contract. Old entries are deliberately unreachable after a settings or permission epoch; exact prior-consent cache reuse would violate the contract. Safe cache optimization and call-cost measurement tracked in `gradual-cache-churn`; no foundation rewrite. |
-| Daily introduction is committed on worker delivery before visible placement (Claude I7) | `extension/src/background.js:87`, `extension/src/learning.js:45` | Important, product choice | CTO filed `introduction-visibility-budget` under open questions and presented it for ruling. Existing behavior remains; no acknowledgement protocol approved. |
+| Daily introduction is committed on worker delivery before visible placement (Claude I7) | `extension/src/background.js:113`, `extension/src/learning.js:45` | Important, product choice | CTO filed `introduction-visibility-budget` under open questions and presented it for ruling. Existing behavior remains; no acknowledgement protocol approved. |
 | Raw cached empty model result persists after day/quota or due-candidate change (native 1) | `extension/src/background.js:87`, `extension/src/learning.js:30` | Important | Repaired: gradual cache identity includes local day, remaining allowance and ordered candidate statuses. Worker test primes an exhausted empty decision, changes saved day, and proves a new model call/new word. Removing the policy key fails red. |
 | Same-text content memo can keep yesterday's empty gradual decision after a day/card change (integration native) | `extension/src/content.js:206`, `extension/src/content.js:245` | Important | Repaired: gradual rerenders ask the worker again; same-policy results still use its validated raw cache. Isolated Chromium changes the saved day and rerenders identical normalized passage, then shows the newly allowed word. Restoring the persistent memo fails red. |
 | Three Easy standalone ratings auto-familiarized a card while gradual mode was off (integration Claude I1) | `extension/src/review.js:75`, `extension/src/background.js:338` | Important | Repaired: ordinary reviews retain scheduling; automatic familiarity is opt-in through gradual mode or inline review. Paired worker test covers both profiles. Final gates and fix-delta review pending. |
 | Candidate-state policy hashing can increase model calls after each introduction or rating (integration Claude I2) | `extension/src/background.js:87` | Important, performance | Conservative policy identity retained because an earlier empty or over-broad raw answer is not valid under a changed allowance/card set. No quantified cost evidence yet. Filed `gradual-cache-churn` for measurement and a consent-safe optimization; acceptance remains with the CTO. |
+| Full-page refresh after a saved inline rating changes policy key and immediately refetches every visible passage (fix-delta Claude F1) | `extension/src/content.js:144`, `extension/src/background.js:87` | Important, fix regression | Repaired locally: finish only the rated practice span using the worker-revealed answer, keep other spans and their DOM in place. Isolated Chromium asserts zero model calls after the rating and authentic source English despite page attribute tampering. Exact-head gates and second fix-delta council pending. |
 
 ## Nits and test gaps
 
@@ -33,6 +34,18 @@ Review scope: pre-rebase review and full integration review on pushed `7b8ae6c` 
 | MV3 worker restart could bypass the synthetic fetch and reach Gemini (Claude N9) | `extension/e2e/gradual.mjs:16` | Nit, test safety | Repaired: Chromium launch blocks the endpoint by DNS and routes all network through an unreachable local proxy. Synthetic flow still passes. |
 | Mission current-state header lagged upper branch (Claude N10) | `docs/GRADUAL-MISSION.md:3` | Nit | Updated for pushed main-based head and current repair delta; update again at final branch boundary. |
 | Weak repeated-cache assertion; frame/lifecycle/known-router and day-rollover test gaps (Claude test gaps) | `extension/test/learning-worker.test.js`, `extension/e2e/gradual.mjs` | Test gap | Day rollover asserts a fresh model call and new word; isolated Chromium now proves same-text rerender after a saved-day reset. Remaining frame/lifecycle/known-route checks filed in `gradual-frame-lifecycle-tests`. |
+
+## First fix-delta nits
+
+| Finding | Location | Severity | Disposition |
+| --- | --- | --- | --- |
+| Repeated same-text gradual rerenders reach the worker; policy changes can spend fresh model calls (Claude) | `extension/src/content.js:212` | Nit, performance | Added the trigger to `gradual-cache-churn`; the rating action is now a local span update. |
+| Revert and toggle trusted page-writable `data-en` (Claude) | `extension/src/text.js:206` | Nit, integrity | Repaired: both use the private source-English WeakMap; paired text and Chromium checks cover tampering. |
+| Easy streak from ordinary mode can count after later gradual opt-in (OpenAI and Claude) | `extension/src/review.js:91` | Nit, product choice | Filed `off-mode-easy-streak` with options and recommendation; current behavior preserves deliberate recall history. |
+| Existing standalone Already know has no undo (Claude) | `extension/src/background.js:350` | Nit, product choice | Filed `standalone-known-undo`; no unapproved product change in this delta. |
+| Popup dependent disabled states may not refresh on toggle (Claude) | `extension/src/popup.js:37` | Nit, verification | Verified `save()` calls `refresh()` after a successful toggle; density remains enabled by design. |
+| Local day import might be missing (Claude) | `extension/src/content.js:7` | Nit, verification | Verified module import and isolated Chromium load/flow. |
+| Prompt parity test used spelled-out “two” but implementation says “2” (Claude) | `extension/test/prompt.test.js:46` | Nit, test | Repaired the assertion to match the actual numeral. |
 
 ## Integration checks
 
