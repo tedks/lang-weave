@@ -1,0 +1,30 @@
+id: generated-language-removal-confirmation
+title: Decide confirmation for generated-language removal
+desc: 'The popup currently removes the selected generated language and its scoped
+  reading/review history in one click. Spanish is protected, and a stale popup request
+  is rejected, but the action has no confirmation or undo.
+
+  Options: (A) retain the explicit one-click action; (B) add a confirmation that names
+  the language and deleted history; (C) retain an undo/archive period.
+
+  Recommendation: B, with no change to Spanish or the stable installed extension path.
+
+  Decision owner: Ted (product ruling), coordinated by the CTO.
+
+  Blocks: the removal UX decision for final acceptance if confirmation is required;
+  technical source review can proceed while this is decided. The council treated it
+  as nonblocking policy, so this issue records the choice rather than silently choosing
+  it.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:45:46-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:45:46-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
