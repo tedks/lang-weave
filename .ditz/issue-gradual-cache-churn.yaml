@@ -1,0 +1,25 @@
+id: gradual-cache-churn
+title: Measure gradual decision-cache churn and bound model-call cost
+desc: 'Council review of PR #4 found that the model-decision cache key includes the
+  page revision plus local day, remaining allowance and every candidate status. Settings/permission
+  events rotate the lower revision; introductions and ratings change the gradual policy.
+  This is conservative for correctness but can orphan cached decisions and spend model
+  calls on revisits. Measure cache hit/miss and model-call behavior under realistic
+  revisit and review sessions without sending live Gemini requests. Propose a narrower
+  semantic key or safe reuse only if it preserves consent, due priority, new-word
+  eligibility and bounded quota; otherwise document the cost and retain the conservative
+  key. Include a deterministic regression for whichever invariant is chosen. No change
+  to the opaque revision contract or product budget semantics without CTO coordination.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:16:48-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:16:48-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
