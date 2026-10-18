@@ -51,5 +51,15 @@ log_events:
     . Separate accepted-0.4 backport candidate remains local/unpublished under repair
     before CTO review. Keep issue open until CTO decides hotfix/base integration and
     closes this blocker.'
+- time: 2026-10-18T07:24:32-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'The repaired fetch-boundary authorization landed in source PR #3 normal
+    merge 31b1cc3 (tested head e005d7f; full gates/council evidence on PR #3). Installer
+    PR #200 merged as c2243c1; fleet rollout is pending CTO confirmation. The legacy
+    0.4 backport remains a local unpublished candidate at 0c9c681, with final full
+    gates still missing. Do not describe it as verified or deployed. Keep this issue
+    open for CTO''s rollout/legacy-path disposition; no separate 0.4 release phase
+    is authorized while 0.5 rollout proceeds.'
 blocks:
 - generic-language
