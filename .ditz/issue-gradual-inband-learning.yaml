@@ -78,6 +78,21 @@ log_events:
     in docs/GRADUAL-REVIEW.md and gradual-policy-polish. PR evidence: https://github.com/tedks/lang-weave/pull/4#issuecomment-6254206810
     . Keep this implementation issue in progress for CTO acceptance/normal merge/fleet
     cutover; no feature acceptance or deployment claimed.'
+- time: 2026-10-18T19:41:21-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO accepted source8e94cbb and normal-merged PR4 as43fee1c675984c8225e18b01a865f4d822260281,
+    verified identical tested tree. Pin-only dotfiles PR202 normal merge18567e2d2f5f8eafa008105602873e4a8b2d7314
+    matches tested484f6b8. Targeted Lang Weave0.6.0 install/status VERIFIED framework0,drynwyn,splinter1,tower0;
+    actual framework0 installed-path Chromium synthetic smoke PASS under explicit
+    DNS denial and an owned loopback sink proxy. Isolated staged artifact matched
+    all accepted source runtime/manifest/LICENSE bytes and source gradual flow passed.
+    Approved policies implemented and feature accepted. Browser activation/reload/live
+    Gemini remain unverified; no profile/key edits, personal browser restart or install-all.
+    splinter0 DNS unavailable and separate followup open. Earlier both-browser-flows
+    fail-closed claim was too broad: current smoke source lacked flags; smoke-network-guard
+    separately tracks assigned test/docs repair without changing this released runtime.
+    Bounded reservations/save-to-render limits remain documented in gradual-policy-polish.'
 blocked_by:
 - generic-language
 - inline-new-word-delay
