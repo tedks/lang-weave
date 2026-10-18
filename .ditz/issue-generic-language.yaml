@@ -38,5 +38,17 @@ log_events:
     and final installer merges/cutover now coordinated by root CTO after clean exact-head
     evidence, not independently. Continue implementation/review/repair/push without
     waiting for next-attempt approval; keep bottom branch until whole stack lands.'
+- time: 2026-10-18T06:46:18-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO integration checkpoint: upper gradual-learning fdcbc83 fixes raw-cache
+    policy filtering on model/storage failures and revision/ticket revival after settings
+    or permission off/on round trips. Root inspected delta and verified PR4 still
+    bases generic-language. Bottom context currently hashes reversible settings/permission
+    state; agree epoch invalidation ownership across the stack and test that a stale
+    result cannot revive after a round trip. Preserve the upper repair when rebasing
+    and avoid duplicate conflicting implementations. Upper holds rebase for reviewed/gated
+    immutable lower SHA; no acceptance/merge/cutover yet. Known inherited upper Python/name
+    failures do not waive post-rebase full exact-head gates.'
 blocks:
 - gradual-inband-learning
