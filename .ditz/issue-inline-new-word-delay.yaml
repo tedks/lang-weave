@@ -1,0 +1,22 @@
+id: inline-new-word-delay
+title: Choose initial delay before automatic inline recall
+desc: 'CEO product ruling from upper pre-rebase council: should a word introduced
+  today be excluded from automatic inline recall until the next local day? Options:
+  delay until tomorrow (recommendation), or permit same-day inline quizzes after introduction.
+  Manual standalone review remains available immediately either way. Avoid presenting
+  a just-revealed new word as spaced retrieval. Ted decides. Blocks final gradual/in-band
+  policy acceptance, not unrelated repairs or the lower generic/privacy fix. Question
+  presented asynchronously; no choice submitted yet.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:00:47-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:00:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
