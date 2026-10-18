@@ -199,6 +199,13 @@ async function introduction(msg, sender) {
       const old = state.learning.pending.find((p) => p.word === word.fr && p.ticket === msg.ticket &&
         p.ownerKey === introductionOwner(msg.ticket, sender, ctx.revision) && p.revision === ctx.revision);
       if (!old) return { ok: false, stale: true };
+      // A lost renewal reply must return the already-live replacement ticket
+      // to this same document, rather than strand a visible English span.
+      const now = Date.now();
+      const current = state.learning.pending.find((p) => p.word === word.fr && p.ticket !== msg.ticket &&
+        p.day === localDay(new Date(now)) && p.until > now && p.revision === ctx.revision &&
+        p.ownerKey === introductionOwner(p.ticket, sender, ctx.revision));
+      if (current) return { ticket: current.ticket };
       const before = JSON.stringify(state.learning);
       const renewed = commitLearning(state, { renew: [{ word: word.fr }] }, ctx.settings, sender, ctx.revision);
       if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });

@@ -229,6 +229,8 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
       revision: nextRevision }, page);
     expect(renewed.ticket).toEqual(expect.any(String));
     expect(renewed.ticket).not.toBe(staleHold.introTicket);
+    expect((await send({ type: 'introRenew', word: staleHold.word, ticket: staleHold.introTicket,
+      revision: nextRevision }, page)).ticket).toBe(renewed.ticket);
     expect(modelCalls).toBe(beforeRenew);
     expect((await send({ type: 'introAck', word: staleHold.word, ticket: renewed.ticket,
       revision: nextRevision }, page)).ok).toBe(true);

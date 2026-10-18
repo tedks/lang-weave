@@ -80,8 +80,9 @@ export function commitLearning(state, results, settings, sender, revision, now =
   // another delivery. Only live tickets count against the daily allowance.
   const recent = state.learning.pending.filter((p) => p.day === day && p.revision === revision &&
     p.until > now - RENEW_GRACE_MS);
-  const live = recent.filter((p) => p.until > now);
-  state.learning.pending = [...recent.filter((p) => p.until <= now).slice(-(MAX_PENDING - live.length)), ...live];
+  const live = recent.filter((p) => p.until > now).slice(-MAX_PENDING);
+  const expired = recent.filter((p) => p.until <= now);
+  state.learning.pending = [...expired.slice(Math.max(0, expired.length - Math.max(0, MAX_PENDING - live.length))), ...live];
   const left = remaining(state.learning, day, settings.newWordsPerDay, now, revision);
   let added = 0;
   const batch = new Map();
@@ -116,9 +117,10 @@ export function commitLearning(state, results, settings, sender, revision, now =
     }
   }
   if (state.learning.pending.length > MAX_PENDING) {
-    const current = state.learning.pending.filter((p) => p.until > now);
-    state.learning.pending = [...state.learning.pending.filter((p) => p.until <= now)
-      .slice(-(MAX_PENDING - current.length)), ...current];
+    const current = state.learning.pending.filter((p) => p.until > now).slice(-MAX_PENDING);
+    const stale = state.learning.pending.filter((p) => p.until <= now);
+    state.learning.pending = [...stale.slice(Math.max(0, stale.length - Math.max(0, MAX_PENDING - current.length))),
+      ...current];
   }
   return output;
 }

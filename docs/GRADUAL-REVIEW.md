@@ -42,6 +42,12 @@ Seats: OpenAI Sol native, Anthropic Opus and Google via ask-agent. All three ret
 | Gradual cache policy changes with reservations (`background.js`, Google N5) | Nit, performance | Already tracked in `gradual-cache-churn`; conservative cache identity remains for correctness and retry safety. |
 | Mission header and unrelated-delivery tests lagged (`docs/GRADUAL-MISSION.md`, foreign N7/N8) | Nit/test | Header updated; worker test forces a separate delivery between expiry and renewal and proves no raw owner IDs. |
 
+### First policy fix-delta council on `86ba6a7..42b5bc6`
+
+Seats: OpenAI Sol native, Anthropic Opus and Google via ask-agent. All three were **CLEAN**, with no new Critical or Important findings. The branch head passed frozen install, 118 Bun/1503 assertions, 85 Python, version/block/diff and both isolated Chromium synthetic flows. Anthropic identified a lost-renewal-reply retry that could strand a visible placeholder, so the lane elected to repair this reversible correctness nit before final handoff. The follow-up delta returns the same live replacement ticket to the same document; a worker test exercises duplicate renewal. Both foreign seats also noted `slice(-0)` fragility in the twenty-ticket bound; the follow-up uses explicit nonnegative indices and caps live tickets. A later fix-delta council must verify these edits.
+
+Other first fix-delta nits: under heavy churn, the twenty-ticket cap can evict the oldest expired placeholder before it becomes visible; it then safely remains English. This is a bounded visibility limit tracked in `gradual-policy-polish`, not a promise of unlimited offscreen renewal. A recovered card with an absolute due time in the future remains unscheduled until that saved due time; the separate gate only unblocks an **already due** card after the next local day. The more-than-seven-day warning threshold leaves smaller future clock skews protected by the existing rollback rule. `reviewCounts` reads due/new cards, and the learning allowance reads `learning.count`, so stamping manual `introducedDay` does not spend or relabel the automatic daily budget. Unit coverage, rather than Chromium, proves the 24-hour renewal expiry boundary.
+
 ## Critical and Important
 
 | Finding | Location | Severity | Disposition |
