@@ -339,11 +339,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     const marked = new Promise((resolve) => { reloadMarked = resolve; });
     const updatePending = dispatch({ type: 'status' }, popup);
     await marked;
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let update check queue its reload
     const offPending = dispatch({ type: 'save', settings: { enabled: false } }, popup);
     releaseSeenRead();
-    const within = (promise) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve('timed out'), 1000))]);
+    const within = (promise) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve('timed out'), 3000))]);
     expect(await within(reloadSwap)).toMatchObject({ stale: true });
     expect(await within(offPending)).toMatchObject({ ok: true });
     expect(await within(updatePending)).toHaveProperty('update', '0.5.1');

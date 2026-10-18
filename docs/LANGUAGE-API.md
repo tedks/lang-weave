@@ -19,7 +19,8 @@ in vocabulary and swaps for wire compatibility; it does not mean French.
   revision is an opaque equality token, not an ordering or timestamp value.
   Model dispatch shares the settings lock and checks revision and site access
   immediately before every primary or fallback send. No page text is sent
-  after a committed site-off or an effective permission revocation.
+  after a committed site-off or a permission revocation visible through
+  `chrome.permissions.getAll()` at dispatch time.
 - `src/scope.js` maps event and review storage through `scopedStorage`.
   Spanish retains the original `readingEvents`, `seenSent`, and
   `recallReview` keys. Other packs use namespaced keys. The decision cache

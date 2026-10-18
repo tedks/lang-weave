@@ -4,24 +4,26 @@
 
 State: visible generic Lead owns this branch and the installer compatibility
 branch. Source draft PR #3 targets `main`; installer draft PR #200 remains at
-`9507a25` with its old pin. Source `98e3d46` passed 101 Bun tests, 85 Python
-tests, version/block/diff checks and real Chromium with synthetic Gemini.
-Three-seat convergence on its latest fix delta was CLEAN. The CTO then found
-that a language, settings or permission round trip could recreate an old page
-revision. Lower commit `a521269` now rotates a persisted epoch on successful
-settings/pack mutations and permission events; language round-trip, in-flight
-model, permission round-trip and worker-restart tests pass. The settings and
-permission guards each failed mutation checks before restoration. The lower
-branch owns this revision contract; the upper gradual-learning branch owns
-inline recall ticket checks against it. Next: full exact-head gates and a
-convergence review of only the ABA fix delta, then publish an immutable CLEAN
-lower SHA to the upper Lead and CTO. Neither source nor installer has been
-merged or released. The separate gradual-learning branch
-owns density/adaptive/in-band work and is holding rebase until this branch has
-a CLEAN, gated head. The CTO owns bottom/top merge, GitHub rename timing,
-installer pin and fleet release. The installer PR still carries its old pin.
-This record belongs to the language Lead; other mission records have separate
-owners.
+`9507a25` with its old pin. Source `80947e6` passed 101 Bun tests (1263
+assertions), 85 Python tests, version/block/diff checks and real Chromium with
+synthetic Gemini. The prior fix delta through `9ed09c2` passed three-seat
+convergence. The lower branch rotates a persisted epoch on effective settings
+and pack changes and permission events, so a round trip cannot revive an old
+page revision. A second repair guards primary and fallback network dispatch
+after asynchronous storage reads; held site-off and permission-revocation
+tests prove zero sends, and a permitted case sends once. Mutation checks made
+the pre-dispatch guard and the post-counter guard fail red before restoration.
+The latest review found and repaired an update-check lock inversion; its
+held-read regression also failed red under the old order. Native and Anthropic
+reviews of the `5fb9f2d..80947e6` repair delta are CLEAN; Google was quota
+unavailable. Next: verify the final documentation/test polish, update the exact
+source checkpoint and publish the immutable lower SHA to the upper Lead and
+CTO. The upper gradual-learning branch owns inline recall ticket checks
+against this opaque revision and is holding rebase. A separate 0.4 privacy
+backport candidate is being prepared for CTO review. Neither source nor
+installer has been merged or released. The CTO owns bottom/top merge, GitHub
+rename timing, installer pin and fleet release. This record belongs to the
+language Lead; other mission records have separate owners.
 
 ## Intent and boundaries
 
@@ -87,7 +89,7 @@ No live Gemini request is part of development verification.
   same-spelled event isolation, recall isolation and stale events. Removing
   the event revision check made the stale cross-language event test fail;
   restoring it returned the test to green.
-- On the current uncommitted tree before council: Bun 100/100 tests, Python
+- At the initial implementation checkpoint before council: Bun 100/100 tests, Python
   85/85 tests, version 0.4.0→0.5.0 gate, 35 inherited block check and
   `git diff --check` passed. Real Playwright Chromium MV3 smoke passed with
   synthetic Gemini for Spanish migration, generated French and Japanese,

@@ -22,6 +22,7 @@ const serial = () => {
 };
 const modelCall = serial(); // one model call at a time
 const locked = serial(); // storage read-modify-writes one at a time, or concurrent ones drop data
+// When both queues are needed, enter modelCall before locked; reversing them can deadlock update reload.
 
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
