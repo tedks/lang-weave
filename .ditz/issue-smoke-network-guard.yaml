@@ -12,8 +12,8 @@ type: bugfix
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-18T19:38:22-00:00
 references: []
 log_events:
@@ -85,3 +85,9 @@ log_events:
     change from released43fee1c, so fleet0.6/pin remain unchanged and no new deployment
     is needed. Public acceptance https://github.com/tedks/lang-weave/pull/6#issuecomment-6254512777
     .
+- time: 2026-10-18T20:05:06-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: PR6 normal merge18a0407 tree-identical gated fed2e5a; three-provider convergence
+    CLEAN, exact-head full gates and root independent91Python/network-denial probe
+    passed. Runtime/fleet pin unchanged; nonblocking hardening separately tracked.
