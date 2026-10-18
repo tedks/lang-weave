@@ -141,19 +141,22 @@ function wrap(place, swap) {
   const span = doc.createElement('span');
   span.className = SWAP_CLASS;
   span.setAttribute('data-en', mid.data);
-  span.setAttribute('data-fr', swap.f);
-  span.setAttribute('data-tip', tipFor(swap));
+  // A practice span shows the English cue until a trusted reveal. Do not put
+  // its answer in page-readable attributes before that reveal.
+  if (!swap.practice) {
+    span.setAttribute('data-fr', swap.f);
+    span.setAttribute('data-tip', tipFor(swap));
+  }
   span.setAttribute('data-fw-split', '1');
-  if (swap.status) span.dataset.fwStatus = swap.status;
+  if (swap.status && !swap.practice) span.dataset.fwStatus = swap.status;
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
-  span.setAttribute('aria-label', `${swap.f}: ${swap.g}. Show English`);
+  span.setAttribute('aria-label', swap.practice ? `${swap.o}. Open inline recall` : `${swap.f}: ${swap.g}. Show English`);
   span.textContent = swap.practice ? `${mid.data} → [?]` : swap.f;
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');
   if (swap.practice) {
     practice.add(span);
-    span.setAttribute('aria-label', `${swap.o}. Open inline recall`);
     span.setAttribute('title', 'Open inline recall');
   }
   const group = splitGroups.get(node) || { node, pieces: new Set() };

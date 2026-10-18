@@ -66,7 +66,9 @@ export function buildSystemPrompt(level, sharedWords, shownToday = [], language 
 ${ordered.map(entry).join('; ') || 'none'}
 KNOWN words (filler only):
 ${known.map((w) => w.fr).join(', ') || 'none'}`;
-    target = `Priority: the earlier LEARNING words are due first, then active, then new. Use them only when the English sense fits. Spread LEARNING words across passages instead of repeating one. Use KNOWN words only occasionally. Do not let common filler like "and" -> y crowd out a LEARNING word.`;
+    target = learning.some((w) => ['due', 'new'].includes(w.status))
+      ? `Priority: the earlier LEARNING words are due first, then active, then new. Use them only when the English sense fits. Spread LEARNING words across passages instead of repeating one. Use KNOWN words only occasionally. Do not let common filler like "and" -> y crowd out a LEARNING word.`
+      : `Priority: in every passage, first look for a LEARNING word whose sense fits, including its English synonyms. Use one whenever any fits; if several fit, prefer the earlier one in the list. Spread LEARNING words across passages instead of repeating one. Fill the remaining density with KNOWN words. Do not let common filler like "and" -> y crowd out a LEARNING word.`;
   } else {
     const words = wordsForLevel(lvl).map(entry).join('; ');
     const examples = lvl === 1

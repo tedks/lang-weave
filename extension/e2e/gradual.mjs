@@ -18,7 +18,11 @@ try {
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
     channel: 'chromium', headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+    // A restarted MV3 worker loses the synthetic fetch; DNS must then fail
+    // closed instead of sending the throwaway prompt to the real endpoint.
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
+      '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
+      '--proxy-server=127.0.0.1:9'],
   });
   const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
@@ -64,10 +68,26 @@ try {
   await due.waitFor();
   assert.equal(await due.getAttribute('title'), 'Open inline recall');
   assert.equal(await due.textContent(), 'the idea → [?]');
+  assert.equal(await due.getAttribute('data-fr'), null);
+  assert.equal(await due.getAttribute('data-tip'), null);
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea → [?] with friends every week.');
+  await due.evaluate((span) => {
+    span.click();
+    span.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  assert.equal(await page.locator('.fw-recall').count(), 0); // page script cannot open a ticket
   await due.click();
   await page.locator('.fw-recall').waitFor();
   assert.match(await page.locator('.fw-recall').textContent(), /the idea → \[\?\]/);
+  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
+  await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
+    .find((button) => button.textContent === 'Reveal answer').click());
+  assert.equal(await page.locator('.fw-recall button', { hasText: 'Easy' }).count(), 0);
+  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await page.locator('.fw-recall button', { hasText: 'Already know' }).waitFor();
+  await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
+    .find((button) => button.textContent === 'Already know').click());
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].familiar, undefined);
   await page.locator('.fw-recall button', { hasText: 'Dismiss' }).click();
   assert.equal(await page.locator('.fw-recall').count(), 0);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
@@ -89,6 +109,23 @@ try {
   await due.waitFor();
   await due.click();
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  const canFailWrite = await worker.evaluate(() => {
+    const original = chrome.storage.local.set;
+    const failOnce = (...args) => {
+      if (Object.hasOwn(args[0], 'recallReview')) {
+        chrome.storage.local.set = original;
+        return Promise.reject(new Error('Synthetic rating storage failure'));
+      }
+      return original.call(chrome.storage.local, ...args);
+    };
+    chrome.storage.local.set = failOnce;
+    return chrome.storage.local.set === failOnce;
+  });
+  assert.equal(canFailWrite, true);
+  await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await page.locator('.fw-recall-status').getByText(/Rating was not saved/).waitFor();
+  assert.equal(await page.locator('.fw-recall button:disabled').count(), 0);
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
   await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
   await page.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));

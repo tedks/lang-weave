@@ -98,7 +98,7 @@ async function openCue(span) {
   const buttons = document.createElement('div');
   const button = (label, fn) => {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
-    b.addEventListener('click', (e) => { e.stopPropagation(); void fn(); });
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void fn(); });
     buttons.append(b); return b;
   };
   const dismiss = button('Dismiss', closeCue);
@@ -129,10 +129,18 @@ async function openCue(span) {
             const result = await send({ type: 'inlineRate', ticket, rating, revision });
             if (!result?.ok) throw new Error(result?.error || 'Cue expired');
             if (cue === panel) closeCue();
-          } catch { if (cue === panel) status.textContent = 'Cue expired. Dismiss and try again.'; }
+          } catch {
+            if (!liveCue()) { closeCue(); return; }
+            for (const b of buttons.querySelectorAll('button')) b.disabled = false;
+            status.textContent = 'Rating was not saved. Try again or dismiss.';
+          }
         });
       }
-    } catch { if (cue === panel) status.textContent = 'Cue expired. Dismiss and try again.'; }
+    } catch {
+      if (!liveCue()) { closeCue(); return; }
+      revealButton.disabled = false;
+      status.textContent = 'Answer unavailable. Try again or dismiss.';
+    }
   });
   dismiss.focus();
 }
@@ -283,6 +291,7 @@ function update(next, retry = false) {
   stop(); config = next; start();
 }
 function reveal(e) {
+  if (!e.isTrusted) return;
   const span = swapFor(e);
   if (!span || !on()) return;
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;

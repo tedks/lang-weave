@@ -70,6 +70,9 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const due = Object.keys(data.recallReview.cards)[0];
     const includedText = due === 'la idea' ? 'I explained the idea to my friends today.' : 'I answered the question for my class today.';
     const excludedText = due === 'la idea' ? 'I answered the question for my class today.' : 'I explained the idea to my friends today.';
+    // Prime decisions under the current, exhausted policy; the earlier model
+    // decisions were made before the first introduction changed eligibility.
+    await askBatch([includedText, excludedText], page, revision);
     modelFails = true;
     const mixed = await askBatch([includedText, excludedText, 'This passage has no matching word at all today.'], page, revision);
     expect(mixed.error).toMatch(/Synthetic model failure/);
@@ -134,5 +137,17 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     expect(failed.error).toMatch(/Storage failed/);
     expect(failed.results).toEqual({});
     expect(data.recallReview).toEqual(old);
+    writesFail = false;
+    await send({ type: 'save', settings: { newWordsPerDay: 1 } }, popup);
+    const nextRevision = (await send({ type: 'config' }, page)).revision;
+    const empty = await ask(excludedText, page, nextRevision);
+    expect(Object.values(empty.results).flat()).toEqual([]);
+    const beforeNewDay = modelCalls;
+    // This stored count came from an earlier local day. The same passage must
+    // miss yesterday's cached empty decision and be considered for a new word.
+    data.recallReview.learning.day = '2000-01-01';
+    const nextDay = await ask(excludedText, page, nextRevision);
+    expect(Object.values(nextDay.results).flat().map((s) => s.status)).toEqual(['new']);
+    expect(modelCalls).toBe(beforeNewDay + 1);
   } finally { Object.assign(globalThis, prior); }
 }, 30000);

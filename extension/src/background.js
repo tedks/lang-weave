@@ -5,11 +5,11 @@ import { requestSwaps } from './engine.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
-import { queueEvents, shownToday } from './events.js';
+import { localDay, queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
   beginInline, revealInline, finishInline } from './review.js';
-import { policyWords, commitLearning } from './learning.js';
+import { policyWords, remaining, commitLearning } from './learning.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
 
@@ -72,7 +72,19 @@ async function swaps(msg, sender) {
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
   const items = msg.items.filter((i) => i && typeof i.text === 'string' && i.text.length <= 2000 &&
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
-  const results = await cache.getMany(items.map((i) => i.key));
+  // Raw model decisions depend on which words are eligible now. A stable page
+  // revision alone would keep yesterday's empty decision after quota resets.
+  const { state } = ctx.settings.gradual ? await reviewState() : { state: null };
+  const now = Date.now();
+  const day = localDay(new Date(now));
+  const candidates = policyWords(ctx.words, state, ctx.settings, now, day);
+  const policy = ctx.settings.gradual ? hashKey(JSON.stringify([day,
+    remaining(state.learning, day, ctx.settings.newWordsPerDay),
+    candidates.map(({ fr, status }) => [fr, status])])) : '';
+  const cacheKey = (key) => policy ? `${key}:gradual:${policy}` : key;
+  const cached = await cache.getMany(items.map((i) => cacheKey(i.key)));
+  const results = Object.fromEntries(items.filter((i) => cacheKey(i.key) in cached)
+    .map((i) => [i.key, cached[cacheKey(i.key)]]));
   const misses = items.filter((i) => !(i.key in results));
   const deliver = async (raw, model) => locked(async () => {
     const latest = await context();
@@ -83,7 +95,8 @@ async function swaps(msg, sender) {
     }
     // A failed cache write must not spend an introduction that the page will
     // receive only as an error. Cached raw swaps remain policy-filtered on read.
-    if (model) await cache.setMany(raw);
+    if (model) await cache.setMany(Object.fromEntries(Object.entries(raw)
+      .map(([key, swaps]) => [cacheKey(key), swaps])));
     const { state, scoped } = await reviewState();
     const before = JSON.stringify(state.learning);
     const output = commitLearning(state, raw, ctx.settings);
@@ -115,12 +128,14 @@ async function swaps(msg, sender) {
         });
         return response;
       };
-      const { state } = await reviewState();
       return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
-        density: ctx.settings.density, words: policyWords(ctx.words, state, ctx.settings), fetchImpl,
+        density: ctx.settings.density, words: candidates, fetchImpl,
         shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
     });
   } catch (e) {
+    if (e?.stale) return { results: {}, stale: true };
+    const latest = await context();
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     const error = e?.message || 'Model request failed';
     await saveModelStatus({ error });
     try {
