@@ -5,7 +5,7 @@ import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
 import { localDay } from './events.js';
-import { languageName } from './languages.js';
+import { languageName } from './language-name.js';
 
 let config = null;
 let observer = null;

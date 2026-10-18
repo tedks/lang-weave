@@ -41,6 +41,7 @@ async function refresh() {
     $('language').append(option);
   }
   $('language').value = c.language;
+  $('removeLanguage').hidden = c.language === 'es';
   $('model').value = s.model;
   $('apiKey').value = '';
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
@@ -103,6 +104,10 @@ $('addLanguage').addEventListener('click', () => run(async () => {
   $('operation').textContent = 'Generating experimental vocabulary…';
   try { await send({ type: 'addLanguage', code: $('newLanguage').value.trim() }); await refresh(); }
   finally { button.disabled = false; }
+}));
+$('removeLanguage').addEventListener('click', () => run(async () => {
+  await send({ type: 'removeLanguage', code: status.config.language });
+  await refresh();
 }));
 $('model').addEventListener('change', (e) => run(() => save({ settings: { model: e.target.value } })));
 $('apiKey').addEventListener('change', (e) => run(() => save({ apiKey: e.target.value })));

@@ -115,9 +115,9 @@ try {
   await popup.locator('#newLanguage').fill('fr');
   await popup.locator('#addLanguage').click();
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '12 French words');
-  await page.locator('#reading .fw-word').getByText('et').waitFor();
-  await review.locator('#refresh').click();
+  await review.locator('#language').getByText('Reviewing French').waitFor();
   await review.locator('#counts').getByText('0 due · 12 available to add').waitFor();
+  await page.locator('#reading .fw-word').getByText('et').waitFor();
   await review.locator('#introduce').click();
   await review.locator('#prompt').getByText('and').waitFor();
   const frenchState = await worker.evaluate(() => chrome.storage.local.get(null));
@@ -127,10 +127,11 @@ try {
   await popup.locator('#addLanguage').click();
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '12 Japanese words');
   await page.locator('#reading .fw-word').getByText('そして').waitFor();
-  await popup.locator('#language').selectOption('es');
+  await popup.locator('#removeLanguage').click();
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '30 Spanish words');
+  assert.equal(await popup.locator('#language option[value=ja]').count(), 0);
   await page.locator('#reading .fw-word').getByText('y').waitFor();
-  await review.locator('#refresh').click();
+  await review.locator('#language').getByText('Reviewing Spanish').waitFor();
   await review.locator('#counts').getByText('4 due · 25 available to add').waitFor();
   const afterLanguages = await worker.evaluate(() => globalThis.smokeCalls.length);
   await mail.waitForTimeout(800);

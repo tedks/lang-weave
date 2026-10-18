@@ -12,7 +12,7 @@ const fixture = (target) => ({ words: Array.from({ length: 24 }, (_, i) => ({
 test('language codes and generated packs are bounded, normalized, and reject malformed data', () => {
   expect(languageCode('fr')).toBe('fr');
   expect(languageCode('ja')).toBe('ja');
-  for (const value of ['en', 'es', 'x', 'fr<script>', 'ja\nignore', 'this-is-not-a-language']) expect(languageCode(value)).toBeNull();
+  for (const value of ['en', 'en-US', 'en-GB', 'es', 'x', 'fr<script>', 'ja\nignore', 'this-is-not-a-language']) expect(languageCode(value)).toBeNull();
   const fr = cleanPack(fixture('mot'), 'fr');
   const ja = cleanPack(fixture('語'), 'ja');
   expect(fr.words).toHaveLength(24);

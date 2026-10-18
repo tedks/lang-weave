@@ -1,36 +1,34 @@
 // Generated vocabulary is untrusted, profile-local data. Spanish is bundled and never needs generation.
 import { buildRequest, API_BASE } from './gemini.js';
 import { hashKey } from './hash.js';
+import { languageName } from './language-name.js';
+export { languageName } from './language-name.js';
 
 export const PACKS_KEY = 'languagePacks';
 export const MAX_PACKS = 5;
 const MAX_RESPONSE = 48000;
-const FIELD = /^[^\p{Cc}\p{Cf}<>\[\]{}\r\n]{1,80}$/u;
+const FIELD = /^[^\p{Cc}<>\[\]{}\r\n]{1,80}$/u;
 const CODE = /^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?$/;
+const validField = (s, joiners = false) => typeof s === 'string' && FIELD.test(s) &&
+  s.trim() === s && !/\p{Cf}/u.test(joiners ? s.replace(/[\u200c\u200d]/g, '') : s);
 
 export function languageCode(input) {
   if (typeof input !== 'string' || input.length > 20) return null;
   try {
     const code = Intl.getCanonicalLocales(input.trim())[0];
-    return code && CODE.test(code) && code !== 'en' && code !== 'es' ? code : null;
+    return code && CODE.test(code) && !['en', 'es'].includes(code.split('-')[0]) ? code : null;
   } catch { return null; }
 }
 
-export function languageName(code) {
-  if (code === 'es') return 'Spanish';
-  try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; }
-  catch { return code; }
-}
-
 export function cleanPack(raw, code) {
-  if (!languageCode(code) || !raw || !Array.isArray(raw.words) || raw.words.length < 20 || raw.words.length > 80) return null;
+  if (languageCode(code) !== code || !raw || !Array.isArray(raw.words) || raw.words.length < 20 || raw.words.length > 80) return null;
   const words = [];
   const seen = new Set();
   let beginner = 0;
   for (const w of raw.words) {
-    if (!w || ![1, 2].includes(w.level) || !['fr', 'en', 'hint'].every((k) => typeof w[k] === 'string' &&
-        FIELD.test(w[k]) && w[k].trim() === w[k])) return null;
-    const key = w.fr.normalize('NFC').toLocaleLowerCase();
+    if (!w || ![1, 2].includes(w.level) || !validField(w.fr, true) || !validField(w.en) || !validField(w.hint) ||
+        !/\p{L}/u.test(w.fr) || !/\p{L}/u.test(w.en)) return null;
+    const key = w.fr.normalize('NFC').toLocaleLowerCase(code);
     if (seen.has(key) || w.fr.length > 50 || w.en.length > 60 || w.hint.length > 60) return null;
     seen.add(key);
     if (w.level === 1) beginner++;
@@ -45,9 +43,10 @@ export function cleanPack(raw, code) {
 export function cleanPacks(raw) {
   const result = {};
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return result;
-  for (const [code, pack] of Object.entries(raw).slice(0, MAX_PACKS)) {
+  for (const [code, pack] of Object.entries(raw)) {
     const clean = cleanPack(pack, code);
     if (clean) result[code] = clean;
+    if (Object.keys(result).length === MAX_PACKS) break;
   }
   return result;
 }

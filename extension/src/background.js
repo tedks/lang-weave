@@ -41,13 +41,14 @@ async function context() {
   const settings = { ...saved, newSitesEnabled: newSitesDefault(saved) };
   const level = resolveLevel(saved).effective;
   const pack = saved.language === 'es' ? null : packs[saved.language];
-  const words = pack ? packWords(pack, level) : wordsForLevel(level);
+  const allWords = pack ? packWords(pack, 2) : wordsForLevel(2);
+  const words = level <= 1 ? (pack ? packWords(pack, 1) : wordsForLevel(1)) : allWords;
   const scope = pack ? `${saved.language}:${pack.version}` : 'es';
   const hasKey = !!data.apiKey;
   const paused = false; // retained in the page config protocol; pause is settings.enabled
   const { origins = [] } = await chrome.permissions.getAll();
   const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, scope, chrome.runtime.getManifest().version, hasKey, origins]));
-  return { settings, level, revision, hasKey, paused, origins, stage: 0, language: saved.language, scope, words };
+  return { settings, level, revision, hasKey, paused, origins, stage: 0, language: saved.language, scope, words, allWords };
 }
 
 const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
@@ -138,6 +139,27 @@ async function addLanguage(msg) {
   return { ok: true, language: code };
 }
 
+async function removeLanguage(msg) {
+  const code = languageCode(msg.code);
+  if (!code) throw new Error('Choose a generated language to remove');
+  await locked(async () => {
+    const current = await store.get(['settings', PACKS_KEY]);
+    const packs = cleanPacks(current[PACKS_KEY]);
+    const pack = packs[code];
+    if (!pack) throw new Error('This language is not available');
+    delete packs[code];
+    const settings = cleanSettings(current.settings);
+    if (settings.language === code) settings.language = 'es';
+    await store.set({ [PACKS_KEY]: packs, settings });
+    const all = await store.get(null);
+    const prefix = `lang:${code}:${pack.version}:`;
+    const keys = Object.keys(all).filter((key) => key.startsWith(prefix));
+    if (keys.length) await store.remove(keys);
+  });
+  await broadcast();
+  return { ok: true };
+}
+
 // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
 async function save(msg) {
   await locked(async () => {
@@ -153,7 +175,10 @@ async function save(msg) {
       else merged.siteOverrides[msg.siteOverride.host] = msg.siteOverride.enabled;
     }
     const next = cleanSettings(merged);
-    if (next.language !== 'es' && !cleanPacks((await store.get(PACKS_KEY))[PACKS_KEY])[next.language]) throw new Error('Choose a generated language pack');
+    if (next.language !== 'es' && !cleanPacks((await store.get(PACKS_KEY))[PACKS_KEY])[next.language]) {
+      if (msg.settings && Object.hasOwn(msg.settings, 'language')) throw new Error('Choose a generated language pack');
+      next.language = 'es';
+    }
     const patch = { settings: next };
     if (typeof msg.apiKey === 'string') {
       if (msg.apiKey.length > 500) throw new Error('Key is too long');
@@ -168,24 +193,23 @@ async function save(msg) {
 async function status() {
   const config = await context();
   const data = await store.get(['apiKey', 'modelStatus', PACKS_KEY]);
-  return { config: { ...config, words: undefined }, words: config.words.length,
+  return { config: { ...config, words: undefined, allWords: undefined }, words: config.words.length,
     languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
     pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
-    review: await reviewStatus(),
+    review: await reviewStatus(config),
     update: await checkUpdate() };
 }
 
-async function reviewState() {
-  const ctx = await context();
+async function reviewState(ctx) {
+  ctx ||= await context();
   const scoped = scopedStorage(chromeStorage, ctx.scope);
   const { [REVIEW_KEY]: raw } = await scoped.get([REVIEW_KEY]);
-  const allWords = ctx.language === 'es' ? wordsForLevel(2) : packWords(cleanPacks((await store.get(PACKS_KEY))[PACKS_KEY])[ctx.language], 2);
-  return { state: cleanReview(raw, allWords), words: ctx.words, scoped, scope: ctx.scope };
+  return { state: cleanReview(raw, ctx.allWords), words: ctx.words, scoped, scope: ctx.scope, language: ctx.language };
 }
 
-async function reviewStatus() {
-  const { state, words } = await reviewState();
-  return { ...reviewCounts(state, words, Date.now()), language: languageName((await context()).language) };
+async function reviewStatus(ctx) {
+  const { state, words, language } = await reviewState(ctx);
+  return { ...reviewCounts(state, words, Date.now()), language: languageName(language) };
 }
 
 async function reviewIntroduce() {
@@ -199,10 +223,10 @@ async function reviewIntroduce() {
 
 async function reviewNext() {
   return locked(async () => {
-    const { state, words, scoped } = await reviewState();
+    const { state, words, scoped, language } = await reviewState();
     const card = nextReview(state, words, Date.now());
     await scoped.set({ [REVIEW_KEY]: state });
-    return { card, ...reviewCounts(state, words, Date.now()) };
+    return { card, ...reviewCounts(state, words, Date.now()), language: languageName(language) };
   });
 }
 
@@ -263,12 +287,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     status, clearCache,
     save: () => save(msg),
     addLanguage: () => addLanguage(msg),
+    removeLanguage: () => removeLanguage(msg),
     reviewStatus, reviewIntroduce, reviewNext,
     reviewReveal: () => reviewReveal(msg),
     reviewRate: () => reviewRate(msg),
   };
   const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate'];
-  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'reviewStatus'].includes(msg.type)) &&
+  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
       !(page && ['config', 'swaps', 'event'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));

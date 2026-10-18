@@ -1,5 +1,6 @@
 // Preferences, stored under chrome.storage.local["settings"]. The Gemini key is stored apart from these, so
 // the config pages get never carries it.
+import { languageCode } from './languages.js';
 export const DEFAULT_SETTINGS = {
   enabled: true,
   model: 'gemini-3.5-flash-lite', // on free keys 3.8 Flash mostly answered 503 or timed out (QA, 2026-10-15)
@@ -15,7 +16,7 @@ export function cleanSettings(s = {}) {
   if (typeof s.newSitesEnabled === 'boolean') d.newSitesEnabled = s.newSitesEnabled;
   if (['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(s.model)) d.model = s.model;
   if (Number.isInteger(s.levelOverride) && s.levelOverride >= 0 && s.levelOverride <= 4) d.levelOverride = s.levelOverride;
-  if (typeof s.language === 'string' && (s.language === 'es' || /^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?$/.test(s.language))) d.language = s.language;
+  if (typeof s.language === 'string' && (s.language === 'es' || languageCode(s.language) === s.language)) d.language = s.language;
   for (const [host, enabled] of Object.entries(s.siteOverrides || {})) {
     if (/^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(host) && typeof enabled === 'boolean') d.siteOverrides[host] = enabled;
   }

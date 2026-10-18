@@ -29,7 +29,7 @@ export function normalizeFr(s) {
 const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
 const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
-const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').replace(/\s+/g, ' ').trim();
+const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').toLocaleLowerCase(language).replace(/\s+/g, ' ').trim();
 // An omitted accent here spells a different Spanish word, not a harmless typo.
 const AMBIGUOUS_FOLDS = new Set(['si', 'el', 'tu', 'mi', 'te', 'se', 'de', 'mas', 'aun', 'como', 'cuando', 'donde', 'que', 'quien']);
 
@@ -58,9 +58,9 @@ function indexFor(level, sharedWords, language = 'es') {
   return result;
 }
 
-export function matchCase(fr, original) {
+export function matchCase(fr, original, language = 'es') {
   if (/^\p{Lu}/u.test(original) && !/^\p{Lu}{2}/u.test(original)) {
-    return fr.charAt(0).toUpperCase() + fr.slice(1);
+    return fr.charAt(0).toLocaleUpperCase(language) + fr.slice(1);
   }
   return fr;
 }
@@ -139,7 +139,7 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es') {
     if (bare !== exactFr(hit.canon) && !/^the\s/i.test(o) && idx.exact.has(bare)) hit = idx.exact.get(bare);
     out.push({
       o,
-      f: language === 'es' ? matchCase(hit.canon, o) : hit.canon,
+      f: language === 'es' ? matchCase(hit.canon, o) : matchCase(hit.canon, o, language),
       g: hit.en,
       h: hit.hint,
       ctx: typeof s.ctx === 'string' ? s.ctx.trim() : '',
