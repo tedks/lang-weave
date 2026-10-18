@@ -21,3 +21,15 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-18T19:29:47-00:00
+  who: Ted Smith
+  what: commented
+  comment: '2026-10-18 policy fix-delta council follow-up: three provider seats CLEAN
+    on 42b5bc6..a97cf1d. Heavy same-day churn can evict the oldest expired renewal
+    ticket from the bounded 20-entry list, leaving that offscreen span English if
+    it appears later. An already-active same-owner, same-word ticket may be shared
+    by spans in one document; content finalizes all matching spans after one saved
+    acknowledgement. The 1-10 daily setting keeps live tickets below 20; the extra
+    live clipping is defensive. Consider a cap boundary test if increasing that setting,
+    and a post-ack duplicate-renewal test if modifying renewal. Current behavior fails
+    closed without extra budget or cross-document ticket access. See docs/GRADUAL-REVIEW.md.'
