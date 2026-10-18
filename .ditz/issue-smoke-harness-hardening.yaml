@@ -1,0 +1,27 @@
+id: smoke-harness-hardening
+title: Harden nonblocking smoke/version-check council nits
+desc: 'PR #6 fix-delta council converged CLEAN at source head 71cf974 after the copied-e2e
+  boundary and HTTP/HTTPS owned-proxy proof were repaired. Remaining nonblocking nits:
+  the broad committed-ref scan in tests/check_version_bump.py uses git() text decoding
+  that can raise UnicodeDecodeError on a future binary extension asset, while current
+  tracked files are text and exact-head gates pass; the working-tree scan walks ignored
+  developer directories before filtering; the literal e2e/ tripwire can yield false
+  positives and cannot establish arbitrary dynamic references. The current classifier
+  fails closed for new e2e files and copied harness references, so no known shipped-runtime
+  bypass remains. The smoke proof''s fresh-worker marker and CONNECT/cleanup assertions
+  could be simplified or strengthened without changing the release claim. Defer these
+  to a separately bounded harness cleanup if a concrete need arises. No runtime, installer,
+  version, pin or fleet action is authorized by this issue.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T20:00:39-00:00
+references: []
+log_events:
+- time: 2026-10-18T20:00:39-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
