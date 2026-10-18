@@ -1,0 +1,23 @@
+id: generic-language
+title: Generalize extension languages and rename repository to lang-weave
+desc: 'User-authorized lane: generalize standalone extension to target-language selection
+  with bounded generated experimental packs, Spanish default/migration, independent
+  per-language caches/reading/reviews, and rename exact GitHub repo tedks/spanish-weave
+  to tedks/lang-weave. Preserve installed extension path/ID and key/progress. English
+  source reading only; no adaptive-density/in-band SRS implementation yet. Lead owns
+  generic-language worktree and companion dotfiles lang-weave-integration worktree;
+  full gates/council then gated merges/targeted rollout. Private root package GENERIC-LANE.local.md
+  names authority/acceptance/stop conditions.'
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:20:32-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:20:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
