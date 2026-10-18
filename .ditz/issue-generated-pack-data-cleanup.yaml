@@ -1,0 +1,31 @@
+id: generated-pack-data-cleanup
+title: Audit generated-pack deletion of caches and orphan history
+desc: 'Council follow-up for Lang Weave PR #3: removeLanguage deletes the selected
+  generated pack and keys with its exact language/version scope, preserving Spanish
+  and other languages. It leaves bounded revision-keyed model decision cache entries,
+  which contain short source fragments, until normal cache pruning or explicit Clear
+  cache. An invalid or pre-release pack code that cleanPacks drops can leave an unreachable
+  scoped history. Neither entry is used after a switch; current tests verify active
+  history deletion.
+
+  Follow-up: decide whether Remove language should also erase all corresponding cache
+  entries and invalid/orphan histories, and add a bounded safe migration/cleanup with
+  tests if needed. Keep the stable installed extension path and other languages''
+  histories intact.
+
+  Rationale for deferring: the cache keys are bounded and stale by revision; orphan
+  code shapes concern unreleased builds. Broad deletion now risks removing unrelated
+  state without a precise ownership map. This is nonblocking for PR #3.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:45:55-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:45:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
