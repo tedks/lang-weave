@@ -1,6 +1,6 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, swapWord, SWAP_CLASS } from './text.js';
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -29,6 +29,7 @@ const CHURN_WINDOW_MS = 60000;
 let churn = new WeakMap(); // element -> { text, asks: [ms], paints: [ms], live }
 const TIP_DELAY_MS = 700; // a beat to recall the word before the meaning appears
 let tipTimer = null;
+let cue = null;
 // After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
 // no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
 let orphaned = false;
@@ -40,6 +41,7 @@ function orphan() {
   observer?.disconnect(); observer = null;
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null; clearInterval(navTimer); hideTip();
+  closeCue();
   pending.clear(); inflight.clear();
 }
 const send = (msg) => {
@@ -76,9 +78,64 @@ function hideTip() {
   clearTimeout(tipTimer); tipTimer = null;
   for (const el of document.querySelectorAll(`.${SWAP_CLASS}.fw-tip`)) el.classList.remove('fw-tip');
 }
+function closeCue() { cue?.remove(); cue = null; }
+
+async function openCue(span) {
+  closeCue(); hideTip();
+  const gen = generation;
+  const revision = config.revision;
+  const panel = document.createElement('div');
+  panel.className = 'fw-recall';
+  panel.setAttribute('role', 'group');
+  panel.setAttribute('aria-label', 'Inline recall');
+  const rect = span.getBoundingClientRect();
+  panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 300))}px`;
+  panel.style.top = `${Math.max(8, Math.min(rect.bottom + 6, innerHeight - 180))}px`;
+  const prompt = document.createElement('div');
+  prompt.textContent = `${span.getAttribute('data-en')} → [?]`;
+  const status = document.createElement('div');
+  status.className = 'fw-recall-status';
+  const buttons = document.createElement('div');
+  const button = (label, fn) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.addEventListener('click', (e) => { e.stopPropagation(); void fn(); });
+    buttons.append(b); return b;
+  };
+  const dismiss = button('Dismiss', closeCue);
+  panel.append(prompt, status, buttons);
+  document.documentElement.append(panel); cue = panel;
+  let ticket;
+  try {
+    const started = await send({ type: 'inlineBegin', word: swapWord(span), revision });
+    if (!started?.ticket) throw new Error(started?.error || 'Cue unavailable');
+    if (gen !== generation || !on() || !span.isConnected || cue !== panel) { closeCue(); return; }
+    ticket = started.ticket;
+  } catch { if (cue === panel) closeCue(); return; }
+  const revealButton = button('Reveal answer', async () => {
+    revealButton.disabled = true;
+    try {
+      const r = await send({ type: 'inlineReveal', ticket, revision });
+      if (!r?.answer) throw new Error(r?.error || 'Cue expired');
+      if (gen !== generation || cue !== panel || !on()) { closeCue(); return; }
+      status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
+      revealButton.remove();
+      for (const [label, rating] of [['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
+        button(label, async () => {
+          for (const b of buttons.querySelectorAll('button')) b.disabled = true;
+          try {
+            const result = await send({ type: 'inlineRate', ticket, rating, revision });
+            if (!result?.ok) throw new Error(result?.error || 'Cue expired');
+            if (cue === panel) closeCue();
+          } catch { if (cue === panel) status.textContent = 'Cue expired. Dismiss and try again.'; }
+        });
+      }
+    } catch { if (cue === panel) status.textContent = 'Cue expired. Dismiss and try again.'; }
+  });
+  dismiss.focus();
+}
 function armTip(e) {
   const span = swapFor(e);
-  if (!span || !on() || span.classList.contains('fw-tip')) return;
+  if (!span || !on() || isPractice(span) || span.classList.contains('fw-tip')) return;
   hideTip();
   tipTimer = setTimeout(() => {
     tipTimer = null;
@@ -212,6 +269,7 @@ function stop() {
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null;
   pending.clear(); inflight.clear(); memo.clear(); failures.clear(); hideTip();
+  closeCue();
   churn = new WeakMap();
   for (const el of tracked) { revert(el); keys.delete(el); }
   tracked.clear(); visibleWords.clear();
@@ -227,6 +285,7 @@ function reveal(e) {
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip();
+  if (isPractice(span)) { void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
   observer?.takeRecords();
 }

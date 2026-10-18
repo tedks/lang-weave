@@ -11,8 +11,8 @@ export const PRIMARY_TIMEOUT_MS = 8000;
 export const timeoutFor = (m, models, timeoutMs) =>
   models.length > 1 && m === models[0] ? Math.min(timeoutMs || 20000, PRIMARY_TIMEOUT_MS) : timeoutMs;
 
-export async function requestSwaps({ apiKey, model, level, batch, words, language, shownToday, fetchImpl, timeoutMs, cooldown = new Map(), now = Date.now }) {
-  const body = buildRequest({ system: buildSystemPrompt(level, words, shownToday, language), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
+export async function requestSwaps({ apiKey, model, level, batch, words, language, density = 'normal', shownToday, fetchImpl, timeoutMs, cooldown = new Map(), now = Date.now }) {
+  const body = buildRequest({ system: buildSystemPrompt(level, words, shownToday, language, density), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
   const candidates = [model];
   if (FALLBACK_MODEL[model]) candidates.push(FALLBACK_MODEL[model]);
   const models = candidates.filter((m) => !(cooldown.get(m) > now()));
@@ -28,7 +28,7 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
       const results = {};
       for (const { id, text } of batch) {
         if (!byId.has(id)) throw new Error('Incomplete model response');
-        results[id] = capSwaps(level, validateSwaps(level, byId.get(id), words, language), text, words);
+        results[id] = capSwaps(level, validateSwaps(level, byId.get(id), words, language), text, words, density);
       }
       return { results, model: m, errors };
     } catch (e) {

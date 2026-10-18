@@ -33,6 +33,10 @@ async function refresh() {
   const { effective } = resolveLevel(s);
   $('levelInfo').textContent = `L${effective}`;
   $('levelOverride').value = String(s.levelOverride || 0);
+  $('gradual').checked = s.gradual;
+  $('newWordsPerDay').value = String(s.newWordsPerDay);
+  $('density').value = s.density;
+  $('inlineRecall').checked = s.inlineRecall;
   $('language').replaceChildren();
   for (const item of status.languages) {
     const option = document.createElement('option');
@@ -97,6 +101,10 @@ for (const [id, label] of Object.entries(MODELS)) {
 $('enabled').addEventListener('change', (e) => run(() => save({ settings: { enabled: e.target.checked } })));
 $('newSitesEnabled').addEventListener('change', (e) => run(() => save({ settings: { newSitesEnabled: e.target.value === 'true' } })));
 $('levelOverride').addEventListener('change', (e) => run(() => save({ settings: { levelOverride: Number(e.target.value) || 0 } })));
+$('gradual').addEventListener('change', (e) => run(() => save({ settings: { gradual: e.target.checked } })));
+$('newWordsPerDay').addEventListener('change', (e) => run(() => save({ settings: { newWordsPerDay: Number(e.target.value) } })));
+$('density').addEventListener('change', (e) => run(() => save({ settings: { density: e.target.value } })));
+$('inlineRecall').addEventListener('change', (e) => run(() => save({ settings: { inlineRecall: e.target.checked } })));
 $('language').addEventListener('change', (e) => run(() => save({ settings: { language: e.target.value } })));
 $('addLanguage').addEventListener('click', () => run(async () => {
   const button = $('addLanguage');

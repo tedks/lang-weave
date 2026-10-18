@@ -7,7 +7,9 @@ import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } fro
 import { hashKey } from './hash.js';
 import { queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
-import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview } from './review.js';
+import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
+  beginInline, revealInline, finishInline } from './review.js';
+import { policyWords, commitLearning } from './learning.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
 
@@ -68,11 +70,21 @@ async function swaps(msg, sender) {
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
   const results = await cache.getMany(items.map((i) => i.key));
   const misses = items.filter((i) => !(i.key in results));
-  if (!misses.length) {
+  const deliver = async (raw, model) => locked(async () => {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url)
-      ? { results } : { results: {}, stale: true };
-  }
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
+    if (!ctx.settings.gradual) {
+      if (model) await cache.setMany(raw);
+      return { results: raw };
+    }
+    const { state, scoped } = await reviewState();
+    const before = JSON.stringify(state.learning);
+    const output = commitLearning(state, raw, ctx.settings);
+    if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });
+    if (model) await cache.setMany(raw);
+    return { results: output };
+  });
+  if (!misses.length) return deliver(results);
   try {
     const fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
@@ -96,16 +108,17 @@ async function swaps(msg, sender) {
         });
         return response;
       };
+      const { state } = await reviewState();
       return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
-        words: ctx.words.map((w) => ({ ...w, status: 'active' })), fetchImpl,
+        density: ctx.settings.density, words: policyWords(ctx.words, state, ctx.settings), fetchImpl,
         shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
     });
-    return await locked(async () => {
-      if (!fresh || (await context()).revision !== ctx.revision) return { results: {}, stale: true };
-      await cache.setMany(fresh.results);
+    if (!fresh) return { results: {}, stale: true };
+    const delivered = await deliver({ ...results, ...fresh.results }, true);
+    if (!delivered.stale) {
       await store.set({ modelStatus: { at: Date.now(), error: '', model: fresh.model } });
-      return { results: { ...results, ...fresh.results } };
-    });
+    }
+    return delivered;
   } catch (e) {
     if (e?.stale) return { results: {}, stale: true };
     const latest = await context();
@@ -282,6 +295,45 @@ async function reviewRate(msg) {
   });
 }
 
+async function reviewKnown(msg) {
+  return locked(async () => {
+    const { state, words, scoped } = await reviewState();
+    const ok = state.current && words.some(({ fr }) => fr === state.current.word) &&
+      markFamiliar(state, msg.ticket, Date.now());
+    if (!ok) return { error: 'Reveal the current due card before marking it familiar.' };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return { ok: true };
+  });
+}
+
+async function inlineAction(msg, sender) {
+  return locked(async () => {
+    const ctx = await context();
+    if (!ctx.settings.gradual || !ctx.settings.inlineRecall || msg.revision !== ctx.revision ||
+        !activeOn(ctx, sender.url) || sender.documentLifecycle && sender.documentLifecycle !== 'active')
+      return { error: 'Inline recall is no longer available here.' };
+    const { state, words, scoped } = await reviewState();
+    const now = Date.now();
+    if (msg.type === 'inlineBegin') {
+      const word = words.find((w) => w.fr === msg.word);
+      const result = word && beginInline(state, word.fr, sender, ctx.revision, now);
+      if (!result) return { error: 'This word is not due here.' };
+      await scoped.set({ [REVIEW_KEY]: state });
+      return result;
+    }
+    if (msg.type === 'inlineReveal') {
+      const answer = revealInline(state, words, msg.ticket, sender, ctx.revision, now);
+      if (!answer) return { error: 'This recall cue is stale.' };
+      await scoped.set({ [REVIEW_KEY]: state });
+      return { answer };
+    }
+    const result = finishInline(state, msg.ticket, sender, ctx.revision, now, msg.rating);
+    if (!result) return { error: 'Reveal the current cue before rating it.' };
+    await scoped.set({ [REVIEW_KEY]: state });
+    return { ok: true, ...result };
+  });
+}
+
 // A git update can replace this folder on disk, but Chrome keeps
 // running the loaded copy. Compare the manifest on disk with the running one and reload from disk by ourselves,
 // once per disk version, after any model call in flight and pending storage writes. If the running copy still
@@ -322,11 +374,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     reviewStatus: () => reviewStatus(), reviewIntroduce, reviewNext,
     reviewReveal: () => reviewReveal(msg),
     reviewRate: () => reviewRate(msg),
+    reviewKnown: () => reviewKnown(msg),
+    inlineBegin: () => inlineAction(msg, sender),
+    inlineReveal: () => inlineAction(msg, sender),
+    inlineRate: () => inlineAction(msg, sender),
   };
-  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate'];
+  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown'];
   if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
-      !(page && ['config', 'swaps', 'event'].includes(msg.type))) return false;
+      !(page && ['config', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });

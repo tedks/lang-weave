@@ -1,4 +1,5 @@
 // Browser-local recall state. The caller serializes read/modify/write and owns storage.
+import { cleanLearning } from './learning.js';
 export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
 const RATINGS = new Set(['hard', 'medium', 'easy']);
@@ -12,20 +13,33 @@ export function cleanReview(raw, words) {
     if (card && Number.isSafeInteger(card.due) && card.due >= 0 &&
         Number.isSafeInteger(card.interval) && card.interval >= 0 && card.interval <= 365 &&
         Number.isSafeInteger(card.reviews) && card.reviews >= 0 && card.reviews <= 10000) {
-      cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews };
+      cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews,
+        ...(card.familiar === true ? { familiar: true } : {}),
+        ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
+        ...(typeof card.introducedDay === 'string' && /^\d{4}-\d\d-\d\d$/.test(card.introducedDay) ? { introducedDay: card.introducedDay } : {}) };
     }
   }
   const current = raw?.version === 1 ? raw.current : null;
   const valid = current && Object.hasOwn(cards, current.word) &&
     typeof current.ticket === 'string' && /^[0-9a-f-]{36}$/.test(current.ticket) &&
     typeof current.revealed === 'boolean';
+  const inline = raw?.version === 1 ? raw.inline : null;
+  const validInline = inline && Object.hasOwn(cards, inline.word) &&
+    typeof inline.ticket === 'string' && /^[0-9a-f-]{36}$/.test(inline.ticket) &&
+    typeof inline.documentId === 'string' && inline.documentId.length <= 100 &&
+    Number.isSafeInteger(inline.tabId) && Number.isSafeInteger(inline.frameId) &&
+    typeof inline.revision === 'string' && inline.revision.length <= 100 &&
+    typeof inline.revealed === 'boolean';
   return { version: 1, cards, current: valid
-    ? { word: current.word, ticket: current.ticket, revealed: current.revealed } : null };
+    ? { word: current.word, ticket: current.ticket, revealed: current.revealed } : null,
+    learning: cleanLearning(raw?.learning), inline: validInline ? { word: inline.word, ticket: inline.ticket,
+      documentId: inline.documentId, tabId: inline.tabId, frameId: inline.frameId,
+      revision: inline.revision, revealed: inline.revealed } : null };
 }
 
 export function reviewCounts(state, words, now) {
   return {
-    due: words.filter(({ fr }) => state.cards[fr]?.due <= now).length,
+    due: words.filter(({ fr }) => state.cards[fr]?.due <= now && !state.cards[fr]?.familiar).length,
     new: words.filter(({ fr }) => !Object.hasOwn(state.cards, fr)).length,
   };
 }
@@ -38,9 +52,9 @@ export function introduce(state, words, now, count = 5) {
 
 export function nextReview(state, words, now, ticket = () => crypto.randomUUID()) {
   const active = state.current && words.find(({ fr }) => fr === state.current.word);
-  if (!active || state.cards[active.fr]?.due > now) state.current = null;
+  if (!active || state.cards[active.fr]?.due > now || state.cards[active.fr]?.familiar) state.current = null;
   if (!state.current) {
-    const due = words.filter(({ fr }) => state.cards[fr]?.due <= now)
+    const due = words.filter(({ fr }) => state.cards[fr]?.due <= now && !state.cards[fr]?.familiar)
       .sort((a, b) => state.cards[a.fr].due - state.cards[b.fr].due);
     if (!due.length) return null;
     state.current = { word: due[0].fr, ticket: ticket(), revealed: false };
@@ -50,7 +64,8 @@ export function nextReview(state, words, now, ticket = () => crypto.randomUUID()
 }
 
 export function revealReview(state, words, ticket, now) {
-  if (!state.current || state.current.ticket !== ticket || state.cards[state.current.word]?.due > now) return null;
+  if (!state.current || state.current.ticket !== ticket || state.cards[state.current.word]?.due > now ||
+      state.cards[state.current.word]?.familiar) return null;
   const word = words.find(({ fr }) => fr === state.current.word);
   if (!word) return null;
   state.current.revealed = true;
@@ -61,12 +76,68 @@ export function rateReview(state, ticket, rating, now) {
   const current = state.current;
   if (!RATINGS.has(rating) || !current || current.ticket !== ticket || !current.revealed) return null;
   const card = state.cards[current.word];
-  if (!card || card.due > now) return null;
+  if (!card || card.due > now || card.familiar) return null;
+  const result = scheduleCard(card, rating, now);
+  state.current = null;
+  return result;
+}
+
+function scheduleCard(card, rating, now) {
   const interval = rating === 'hard' ? 1 : rating === 'medium'
     ? Math.max(3, card.interval * 2) : Math.max(7, card.interval * 3);
   card.interval = Math.min(365, interval);
   card.due = now + card.interval * DAY_MS;
   card.reviews = Math.min(10000, card.reviews + 1);
-  state.current = null;
+  card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
+  if (card.easyStreak >= 3) card.familiar = true;
   return { due: card.due, interval: card.interval };
+}
+
+export function markFamiliar(state, ticket, now) {
+  const current = state.current;
+  if (!current || current.ticket !== ticket || !current.revealed || state.cards[current.word]?.due > now ||
+      state.cards[current.word]?.familiar) return false;
+  state.cards[current.word].familiar = true;
+  state.current = null;
+  return true;
+}
+
+export function beginInline(state, word, sender, revision, now, ticket = () => crypto.randomUUID()) {
+  const card = state.cards[word];
+  if (!card || card.familiar || card.due > now || !sender.documentId ||
+      !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId)) return null;
+  state.inline = { word, ticket: ticket(), documentId: sender.documentId,
+    tabId: sender.tab.id, frameId: sender.frameId, revision, revealed: false };
+  return { ticket: state.inline.ticket };
+}
+
+export function matchesInline(state, ticket, sender, revision) {
+  const active = state.inline;
+  return !!active && active.ticket === ticket && active.revision === revision &&
+    active.documentId === sender.documentId && active.tabId === sender.tab?.id &&
+    active.frameId === sender.frameId;
+}
+
+export function revealInline(state, words, ticket, sender, revision, now) {
+  if (!matchesInline(state, ticket, sender, revision) || state.cards[state.inline.word]?.due > now ||
+      state.cards[state.inline.word]?.familiar) return null;
+  const word = words.find((w) => w.fr === state.inline.word);
+  if (!word) return null;
+  state.inline.revealed = true;
+  return { fr: word.fr, en: word.en, hint: word.hint };
+}
+
+export function finishInline(state, ticket, sender, revision, now, rating) {
+  if (!matchesInline(state, ticket, sender, revision) || !state.inline.revealed ||
+      state.cards[state.inline.word]?.due > now || state.cards[state.inline.word]?.familiar) return null;
+  const card = state.cards[state.inline.word];
+  if (rating === 'known') {
+    card.familiar = true;
+    state.inline = null;
+    return { familiar: true };
+  }
+  if (!RATINGS.has(rating)) return null;
+  const result = scheduleCard(card, rating, now);
+  state.inline = null;
+  return result;
 }

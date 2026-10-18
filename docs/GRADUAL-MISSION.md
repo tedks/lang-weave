@@ -2,7 +2,7 @@
 
 ## Current state
 
-State: started on `gradual-learning`, stacked on the published `generic-language` checkpoint `63f3522`. The lane owns implementation, local gates, review, and a draft PR based on `generic-language`; root owns merge, cutover, and fleet acceptance. Source issue: `gradual-inband-learning` (dependency on the lower language lane). No source code has yet changed.
+State: implementation checkpoint on `gradual-learning`, stacked on published `generic-language` checkpoint `63f3522`. Draft PR #4 targets `generic-language`. Root owns merge, cutover, and fleet acceptance. Source issue: `gradual-inband-learning` depends on the lower language lane. This is a handoff checkpoint, not a review-ready head.
 
 ## Intent and scope
 
@@ -29,3 +29,4 @@ Evidence: source tests, worker tests, real isolated Chromium with synthetic Gemi
 ## Record
 
 - 2026-10-18: worktree and branch verified at `63f3522`; global/repo instructions, doctrine, stacked-PR workflow and published language API read. Interface coordination opened directly with lower Lead. No deviation.
+- 2026-10-18: opt-in controls, deterministic density ceiling, worker-serialized daily introductions, due-first selection, familiar marking, inline document-bound reveal/rating, and isolated Chromium synthetic-Gemini flow implemented. Targeted Bun review/learning tests 10/10 and Chromium gradual smoke passed after latest source edits. Full Bun 101/101 passed before the final familiar-queue guard (targeted tests reran after). Python gate was 83/85 at the inherited lower checkpoint: version files and Lang Weave manifest expectation disagreed; lower Lead reports those fixed and Python 85/85 on its later tree. Rebase, version 0.6.0, exact-head full gates, mutation checks, full council and fixpoint remain open.

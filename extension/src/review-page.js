@@ -79,6 +79,11 @@ for (const button of document.querySelectorAll('[data-rating]')) {
     await load();
   }));
 }
+$('known').addEventListener('click', () => run(async () => {
+  if (!card || $('solution').hidden) return;
+  await send('reviewKnown', { ticket: card.ticket });
+  await load();
+}));
 void run(load);
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !(changes.settings || changes.languagePacks)) return;
