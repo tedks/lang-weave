@@ -2,30 +2,45 @@
 
 ## Current state
 
-State: visible generic Lead owns this branch and the installer compatibility
-branch. Source draft PR #3 targets `main`; installer draft PR #200 remains at
-`9507a25` with its old pin. Reviewed source `4efb3af` passed 101 Bun tests (1263
-assertions), 85 Python tests, version/block/diff checks and real Chromium with
-synthetic Gemini. The prior fix delta through `9ed09c2` passed three-seat
-convergence. The lower branch rotates a persisted epoch on effective settings
-and pack changes and permission events, so a round trip cannot revive an old
-page revision. A second repair guards primary and fallback network dispatch
-after asynchronous storage reads; held quota, key, review and cache reads plus
-a held counter write test site-off or permission revocation with zero sends,
-and a permitted case sends once. Mutation checks made
-the pre-dispatch guard and the post-counter guard fail red before restoration.
-The latest review found and repaired an update-check lock inversion; its
-held-read regression also failed red under the old order. Native and Anthropic
-reviews of the `5fb9f2d..80947e6` repair delta and the final
-`80947e6..4efb3af` polish delta are CLEAN; Google was quota unavailable.
-Next: run exact-head gates after this record/test cleanup, then publish the
-immutable lower SHA to the upper Lead and CTO. The upper gradual-learning
-branch owns inline recall ticket checks against this opaque revision and is
-holding rebase. A separate 0.4 privacy
-backport candidate is being prepared for CTO review. Neither source nor
-installer has been merged or released. The CTO owns bottom/top merge, GitHub
-rename timing, installer pin and fleet release. This record belongs to the
-language Lead; other mission records have separate owners.
+State: the visible generic Lead's source and installer implementation missions are
+accepted and merged. The predecessor's transferred checkpoints were clean/pushed
+source `5ad04de` and installer `9507a25`; this Lead audited that handoff,
+completed the remaining regression and consent-dispatch repairs, and kept the
+source and installer worktrees separately owned. Source PR #3 merged normally as
+`31b1cc3f68770015543d6c88edf4681a8c4c0acf` in the renamed
+`tedks/lang-weave` repository. Its merged tree matches the fully gated source
+code checkpoint `e005d7f73d72bb187bcc90b4eeb39b37747a7bd0`: 101 Bun tests,
+85 Python tests, version/block checks and real Chromium MV3 with synthetic
+Gemini. OpenAI and Anthropic fix-delta council seats were CLEAN; Google was
+quota unavailable. The root CTO performed the merge and rename.
+
+Installer PR #200 merged normally as `c2243c18ce8fd646b4e2f551ad8e7aefb236dcbd`
+from exact gated installer head `7123f4a412f02e3cab0eb25f0b82368300598f2b`.
+The pin uses the measured archive digest for the merged source commit and keeps
+the historical `spanish-weave/extension` installed path. Eighteen installer
+tests, 186 integration checks, syntax/diff checks, isolated actual-archive
+install/status and staged Chromium passed. The actual renamed archive of 0.4.0
+also passed an isolated 0.5.0-to-0.4.0 rollback test. OpenAI and Anthropic
+fix-delta seats were CLEAN; two presentation nits are tracked separately.
+Acceptance evidence is recorded on PR #3 and PR #200. The CTO verified
+0.5 payload installation and `--status` on framework0, drynwyn, splinter1
+and tower0 at those exact merges; a real Chromium MV3 smoke using synthetic
+Gemini passed from framework0's staged installed path. The stable installation
+paths, browser profile data, backups and unrelated tower0 files were preserved.
+This is file-staging evidence: browser reload, per-profile activation and live
+Gemini remain unverified. splinter0.local was unreachable by DNS and was not
+mutated; its existing follow-up remains open. The CTO posted the rollout
+receipt on PR #200 and owns any remaining host work.
+
+A separate legacy 0.4 consent hotfix candidate remains coherent and local at
+`0c9c681`, without a public branch or PR. Its final head passed focused tests
+only; full gates were last run on an earlier checkpoint, so it is not a
+verified release candidate. The separate 0.4 release path is redundant after
+the verified 0.5 rollout; preserve the candidate/evidence without publishing it.
+The upper gradual-learning work is separately owned. Next bounded action for
+this lane: preserve the private handoff and scratch inventory, then remain
+idle for the CTO's receipt. No additional release, product phase or branch
+deletion is authorized.
 
 ## Intent and boundaries
 
@@ -101,9 +116,9 @@ No live Gemini request is part of development verification.
 
 ## Authority and stop conditions
 
-This lane may edit its source and dotfiles feature branches, make reviewed
-setup repairs, create PRs, rename the specifically authorized repository, and
-perform targeted fleet rollout. Stop for secrets, spending, a changed product
-ruling, an unsafe state that cannot be preserved, or an outward act beyond
-this named repository and fleet workflow. Record deviations and exact evidence
-here as work advances.
+The source and installer implementation missions are merged, and the CTO
+owns rollout and any remaining host work. This lane now owns only preservation:
+tracker accuracy, this mission record, the private handoff and the local
+unpublished hotfix candidate. No new product phase, deployment, merge or
+branch deletion is authorized. Record exact evidence and keep browser
+activation distinct from installed files.
