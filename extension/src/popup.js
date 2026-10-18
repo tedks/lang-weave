@@ -35,8 +35,10 @@ async function refresh() {
   $('levelOverride').value = String(s.levelOverride || 0);
   $('gradual').checked = s.gradual;
   $('newWordsPerDay').value = String(s.newWordsPerDay);
+  $('newWordsPerDay').disabled = !s.gradual;
   $('density').value = s.density;
   $('inlineRecall').checked = s.inlineRecall;
+  $('inlineRecall').disabled = !s.gradual;
   $('language').replaceChildren();
   for (const item of status.languages) {
     const option = document.createElement('option');

@@ -31,7 +31,7 @@
   pointer-events: none;
   z-index: 2147483647;
 }
-.fw-word[title="Open inline recall"] { text-decoration-style: dashed; }
+.fw-word.fw-practice { text-decoration-style: dashed; }
 .fw-recall {
   position: fixed; z-index: 2147483647; width: min(292px, calc(100vw - 16px));
   padding: 9px; border: 1px solid #52606a; border-radius: 7px;
@@ -39,4 +39,8 @@
   box-shadow: 0 5px 18px #0005;
 }
 .fw-recall-status { margin: 5px 0; }
-.fw-recall button { margin: 3px 3px 0 0; padding: 3px 6px; font: inherit; cursor: pointer; }
+.fw-recall button {
+  margin: 3px 3px 0 0; padding: 3px 6px; border: 1px solid #9aa5af; border-radius: 3px;
+  color: #fff; background: #36404a; font: inherit; cursor: pointer;
+}
+.fw-recall button:disabled { cursor: default; opacity: .6; }

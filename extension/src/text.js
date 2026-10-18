@@ -12,9 +12,11 @@ const spanGroups = new WeakMap();
 // Spans this extension made -> their learning word ('' if none). Kept out of the DOM, so a page can neither read the
 // word list from attributes nor pass off its own span as a swap.
 const owned = new WeakMap();
+const sourceEnglish = new WeakMap();
 const practice = new WeakSet();
 export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
+export const swapEnglish = (span) => sourceEnglish.get(span) || '';
 export const isPractice = (span) => practice.has(span);
 
 // Returns { text, map, segs, raw }:
@@ -155,8 +157,10 @@ function wrap(place, swap) {
   span.textContent = swap.practice ? `${mid.data} → [?]` : swap.f;
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');
+  sourceEnglish.set(span, mid.data);
   if (swap.practice) {
     practice.add(span);
+    span.classList.add('fw-practice');
     span.setAttribute('title', 'Open inline recall');
   }
   const group = splitGroups.get(node) || { node, pieces: new Set() };

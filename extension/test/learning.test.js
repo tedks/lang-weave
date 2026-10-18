@@ -43,6 +43,10 @@ test('only committed contextual new swaps spend the local-day allowance; rollbac
   expect(cleanLearning({ day: '2024-02-29', count: 2 })).toEqual({ day: '2024-02-29', count: 2 });
   expect(cleanLearning({ day: '9999-99-99', count: 2 })).toEqual({ day: '', count: 2 });
   expect(cleanLearning({ day: '2025-02-29', count: 2 })).toEqual({ day: '', count: 2 });
+  const cleaned = cleanReview({ version: 1, cards: { libro: {
+    due: now, interval: 0, reviews: 0, introducedDay: '9999-99-99',
+  } } }, words);
+  expect(cleaned.cards.libro.introducedDay).toBeUndefined();
 });
 
 test('due contextual result can cue recall; reveal and one rating require same document and revision', () => {
@@ -78,7 +82,7 @@ test('familiarity follows explicit marking or three Easy recalls, never exposure
     const at = now + i * 30 * 86400000;
     const card = nextReview(state, [words[2]], at, () => `ticket-${i}`);
     expect(revealReview(state, [words[2]], card.ticket, at)?.fr).toBe('libro');
-    expect(rateReview(state, card.ticket, 'easy', at)).toBeTruthy();
+    expect(rateReview(state, card.ticket, 'easy', at, true)).toBeTruthy();
   }
   expect(state.cards.libro.familiar).toBe(true);
   const another = cleanReview(null, words);

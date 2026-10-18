@@ -98,6 +98,23 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect(recovered.en).toBe('if');
     expect(recovered.ticket).not.toBe('invalid');
     expect(data[REVIEW_KEY].cards).toEqual(cardsBeforeSwitch);
+
+    // Existing standalone review keeps scheduling after three Easy ratings
+    // unless the reader opted into gradual learning.
+    data.settings.levelOverride = 1;
+    data[REVIEW_KEY].cards.y = { due: now, interval: 21, reviews: 2, easyStreak: 2 };
+    data[REVIEW_KEY].current = null;
+    const ordinary = (await dispatch({ type: 'reviewNext' }, review)).card;
+    expect(ordinary.en).toBe('and');
+    await dispatch({ type: 'reviewReveal', ticket: ordinary.ticket }, review);
+    expect((await dispatch({ type: 'reviewRate', ticket: ordinary.ticket, rating: 'easy' }, review)).ok).toBe(true);
+    expect(data[REVIEW_KEY].cards.y.familiar).toBeUndefined();
+    data.settings.gradual = true;
+    data[REVIEW_KEY].cards.y.due = now;
+    const opted = (await dispatch({ type: 'reviewNext' }, review)).card;
+    await dispatch({ type: 'reviewReveal', ticket: opted.ticket }, review);
+    expect((await dispatch({ type: 'reviewRate', ticket: opted.ticket, rating: 'easy' }, review)).ok).toBe(true);
+    expect(data[REVIEW_KEY].cards.y.familiar).toBe(true);
   } finally {
     Object.assign(globalThis, saved);
   }

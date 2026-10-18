@@ -40,7 +40,8 @@ try {
       globalThis.calls.push(...passages.map((p) => p.text));
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages:
         passages.map(({ id, text }) => ({ id, swaps: text.includes('the idea')
-          ? [{ o: 'the idea', f: 'la idea', g: 'the idea', h: '', ctx: '' }] : [] })) }) }] } }] }),
+          ? [{ o: 'the idea', f: 'la idea', g: 'the idea', h: '', ctx: '' }]
+          : text.includes('the question') ? [{ o: 'the question', f: 'la pregunta', g: 'the question', h: '', ctx: '' }] : [] })) }) }] } }] }),
       { headers: { 'Content-Type': 'application/json' } });
     };
   });
@@ -76,9 +77,11 @@ try {
     span.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   });
   assert.equal(await page.locator('.fw-recall').count(), 0); // page script cannot open a ticket
+  await due.evaluate((span) => span.setAttribute('data-en', 'forged cue'));
   await due.click();
   await page.locator('.fw-recall').waitFor();
   assert.match(await page.locator('.fw-recall').textContent(), /the idea → \[\?\]/);
+  await due.evaluate((span) => span.setAttribute('data-en', 'the idea'));
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
   await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
     .find((button) => button.textContent === 'Reveal answer').click());
@@ -131,10 +134,40 @@ try {
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(rated.cards['la idea'].reviews, 1);
   assert.equal(rated.cards['la idea'].interval, 7);
+  await page.waitForFunction(() => {
+    const span = document.querySelector('#reading .fw-word');
+    return span && span.textContent === 'la idea' && span.getAttribute('title') !== 'Open inline recall';
+  }); // a rated cue is repainted under the now-active policy
   const review = await browser.newPage();
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#counts').getByText(/0 due/).waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
+
+  // The current page has exhausted its one-word allowance. A cached empty
+  // decision for the same text must be reconsidered after local-day rollover.
+  await page.evaluate(() => {
+    const p = document.createElement('p'); p.id = 'question';
+    p.textContent = 'We discussed the question with friends every week.';
+    document.querySelector('main').append(p);
+  });
+  const questionRequested = await worker.evaluate(async () => {
+    for (let i = 0; i < 100; i++) {
+      if (globalThis.calls.some((text) => text.includes('the question'))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return false;
+  });
+  assert.equal(questionRequested, true);
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('#question .fw-word').count(), 0);
+  await worker.evaluate(async () => {
+    const { recallReview } = await chrome.storage.local.get('recallReview');
+    recallReview.learning.day = '2000-01-01';
+    await chrome.storage.local.set({ recallReview });
+  });
+  await page.locator('#question').evaluate((p) => { p.textContent += ' '; }); // same normalized passage
+  await page.locator('#question .fw-word').waitFor();
+  assert.equal(await page.locator('#question .fw-word').textContent(), 'la pregunta');
 
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);

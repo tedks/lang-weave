@@ -4,7 +4,7 @@ import { localDay } from './events.js';
 export const DENSITIES = ['light', 'normal', 'heavy'];
 const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)', 'in', 'the', 'a']);
 
-function validDay(value) {
+export function validDay(value) {
   const match = typeof value === 'string' && /^(\d{4})-(\d\d)-(\d\d)$/.exec(value);
   if (!match) return false;
   const date = new Date(0);

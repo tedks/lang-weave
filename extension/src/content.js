@@ -1,6 +1,6 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, SWAP_CLASS } from './text.js';
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -92,17 +92,25 @@ async function openCue(span) {
   panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 300))}px`;
   panel.style.top = `${Math.max(8, Math.min(rect.bottom + 6, innerHeight - 180))}px`;
   const prompt = document.createElement('div');
-  prompt.textContent = `${span.getAttribute('data-en')} → [?]`;
+  prompt.textContent = `${swapEnglish(span)} → [?]`;
   const status = document.createElement('div');
   status.className = 'fw-recall-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
   const buttons = document.createElement('div');
   const button = (label, fn) => {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
     b.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void fn(); });
     buttons.append(b); return b;
   };
-  const dismiss = button('Dismiss', closeCue);
+  const dismiss = button('Dismiss', () => { closeCue(); if (span.isConnected) span.focus(); });
   panel.append(prompt, status, buttons);
+  panel.addEventListener('keydown', (e) => {
+    if (e.isTrusted && e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation(); closeCue();
+      if (span.isConnected) span.focus();
+    }
+  });
   document.documentElement.append(panel); cue = panel;
   const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
@@ -111,7 +119,11 @@ async function openCue(span) {
     if (!started?.ticket) throw new Error(started?.error || 'Cue unavailable');
     if (!liveCue()) { closeCue(); return; }
     ticket = started.ticket;
-  } catch { if (cue === panel) closeCue(); return; }
+  } catch {
+    if (!liveCue()) closeCue();
+    else status.textContent = 'Cue unavailable. Dismiss and try again.';
+    return;
+  }
   const revealButton = button('Reveal answer', async () => {
     if (!liveCue()) { closeCue(); return; }
     revealButton.disabled = true;
@@ -121,21 +133,24 @@ async function openCue(span) {
       if (!liveCue()) { closeCue(); return; }
       status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
       revealButton.remove();
+      let firstRating;
       for (const [label, rating] of [['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
-        button(label, async () => {
+        const rated = button(label, async () => {
           if (!liveCue()) { closeCue(); return; }
           for (const b of buttons.querySelectorAll('button')) b.disabled = true;
           try {
             const result = await send({ type: 'inlineRate', ticket, rating, revision });
             if (!result?.ok) throw new Error(result?.error || 'Cue expired');
-            if (cue === panel) closeCue();
+            if (cue === panel) update(config, true); // repaint the now-rated card under current policy
           } catch {
             if (!liveCue()) { closeCue(); return; }
             for (const b of buttons.querySelectorAll('button')) b.disabled = false;
             status.textContent = 'Rating was not saved. Try again or dismiss.';
           }
         });
+        firstRating ||= rated;
       }
+      firstRating?.focus();
     } catch {
       if (!liveCue()) { closeCue(); return; }
       revealButton.disabled = false;
@@ -161,7 +176,7 @@ function disarmTip(e) {
 }
 function seenVisible() {
   if (document.visibilityState === 'hidden') return;
-  for (const span of visibleWords) if (span.isConnected) record(span, 'seen');
+  for (const span of visibleWords) if (span.isConnected && !isPractice(span)) record(span, 'seen');
 }
 function paint(el, key) {
   if (!on() || keys.get(el) !== key || !readable(el, location.href)) return;
@@ -191,7 +206,10 @@ function consider(el) {
   const text = flatten(el).text;
   const key = `${config.revision}:${hashKey(text)}`;
   keys.set(el, key);
-  if (memo.has(key)) { paint(el, key); return; }
+  // Gradual choices depend on a changing daily allowance and review cards.
+  // Revisit the worker on a same-text rerender; its policy-keyed cache avoids
+  // another model call when those inputs have not changed.
+  if (!config.settings.gradual && memo.has(key)) { paint(el, key); return; }
   if (busy(el, 'asks', text)) return;
   let p = pending.get(key);
   if (!p) { p = { text, els: new Set() }; pending.set(key, p); }
@@ -227,6 +245,7 @@ async function flush() {
     failures.delete(i.key);
     memo.set(i.key, swaps);
     if (p) for (const el of p.els) paint(el, i.key);
+    if (config.settings.gradual) memo.delete(i.key);
   }
   if (result?.stale) { try { update(await send({ type: 'config' })); } catch { /* reloaded or gone */ } return; }
   if ([...pending.keys()].some((k) => !inflight.has(k))) timer = setTimeout(flush, 50);
@@ -315,7 +334,13 @@ document.addEventListener('visibilitychange', seenVisible);
 window.addEventListener('online', () => { void send({ type: 'config' }).then((c) => update(c, true)).catch(() => {}); });
 // SPA navigation can reuse DOM nodes without changing their text.
 let page = location.href;
+let day = localDay();
 const navTimer = setInterval(() => {
-  if (page !== location.href) { page = location.href; if (config) update(config, true); }
+  const today = localDay();
+  if (page !== location.href || config?.settings.gradual && day !== today) {
+    page = location.href;
+    if (config) update(config, true);
+  }
+  day = today;
 }, 1000);
 void send({ type: 'config' }).then(update).catch(() => {});

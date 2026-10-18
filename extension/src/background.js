@@ -78,6 +78,12 @@ async function swaps(msg, sender) {
   const now = Date.now();
   const day = localDay(new Date(now));
   const candidates = policyWords(ctx.words, state, ctx.settings, now, day);
+  if (ctx.settings.gradual && !candidates.length) return locked(async () => {
+    const latest = await context();
+    return latest.revision === ctx.revision && activeOn(latest, sender.url)
+      ? { results: Object.fromEntries(items.map((i) => [i.key, []])) }
+      : { results: {}, stale: true };
+  });
   const policy = ctx.settings.gradual ? hashKey(JSON.stringify([day,
     remaining(state.learning, day, ctx.settings.newWordsPerDay),
     candidates.map(({ fr, status }) => [fr, status])])) : '';
@@ -86,16 +92,21 @@ async function swaps(msg, sender) {
   const results = Object.fromEntries(items.filter((i) => cacheKey(i.key) in cached)
     .map((i) => [i.key, cached[cacheKey(i.key)]]));
   const misses = items.filter((i) => !(i.key in results));
-  const deliver = async (raw, model) => locked(async () => {
+  if (!misses.length && !ctx.settings.gradual) {
+    const latest = await context();
+    return latest.revision === ctx.revision && activeOn(latest, sender.url)
+      ? { results } : { results: {}, stale: true };
+  }
+  const deliver = async (raw, freshRaw) => locked(async () => {
     const latest = await context();
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     if (!ctx.settings.gradual) {
-      if (model) await cache.setMany(raw);
+      if (freshRaw) await cache.setMany(freshRaw);
       return { results: raw };
     }
     // A failed cache write must not spend an introduction that the page will
     // receive only as an error. Cached raw swaps remain policy-filtered on read.
-    if (model) await cache.setMany(Object.fromEntries(Object.entries(raw)
+    if (freshRaw) await cache.setMany(Object.fromEntries(Object.entries(freshRaw)
       .map(([key, swaps]) => [cacheKey(key), swaps])));
     const { state, scoped } = await reviewState();
     const before = JSON.stringify(state.learning);
@@ -149,7 +160,7 @@ async function swaps(msg, sender) {
   }
   if (!fresh) return { results: {}, stale: true };
   try {
-    const delivered = await deliver({ ...results, ...fresh.results }, true);
+    const delivered = await deliver({ ...results, ...fresh.results }, fresh.results);
     if (!delivered.stale) {
       await saveModelStatus({ error: '', model: fresh.model });
     }
@@ -160,7 +171,12 @@ async function swaps(msg, sender) {
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     const error = e?.message || 'Model request failed';
     await saveModelStatus({ error });
-    return { results: {}, error, retryAfterMs: e?.retryAfterMs };
+    try {
+      const cached = await deliver(results);
+      return { ...cached, error, retryAfterMs: e?.retryAfterMs };
+    } catch (storageError) {
+      return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
+    }
   }
 }
 
@@ -321,9 +337,10 @@ async function reviewReveal(msg) {
 
 async function reviewRate(msg) {
   return locked(async () => {
-    const { state, words, scoped } = await reviewState();
+    const ctx = await context();
+    const { state, words, scoped } = await reviewState(ctx);
     const result = state.current && words.some(({ fr }) => fr === state.current.word)
-      ? rateReview(state, msg.ticket, msg.rating, Date.now()) : null;
+      ? rateReview(state, msg.ticket, msg.rating, Date.now(), ctx.settings.gradual) : null;
     if (!result) return { error: 'This rating is stale or the answer has not been revealed.' };
     await scoped.set({ [REVIEW_KEY]: state });
     return { ok: true, ...result };

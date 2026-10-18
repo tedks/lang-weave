@@ -1,5 +1,5 @@
 // Browser-local recall state. The caller serializes read/modify/write and owns storage.
-import { cleanLearning } from './learning.js';
+import { cleanLearning, validDay } from './learning.js';
 export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
 const RATINGS = new Set(['hard', 'medium', 'easy']);
@@ -16,7 +16,7 @@ export function cleanReview(raw, words) {
       cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews,
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
-        ...(typeof card.introducedDay === 'string' && /^\d{4}-\d\d-\d\d$/.test(card.introducedDay) ? { introducedDay: card.introducedDay } : {}) };
+        ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}) };
     }
   }
   const current = raw?.version === 1 ? raw.current : null;
@@ -72,24 +72,24 @@ export function revealReview(state, words, ticket, now) {
   return { fr: word.fr, en: word.en, hint: word.hint };
 }
 
-export function rateReview(state, ticket, rating, now) {
+export function rateReview(state, ticket, rating, now, autoFamiliar = false) {
   const current = state.current;
   if (!RATINGS.has(rating) || !current || current.ticket !== ticket || !current.revealed) return null;
   const card = state.cards[current.word];
   if (!card || card.due > now || card.familiar) return null;
-  const result = scheduleCard(card, rating, now);
+  const result = scheduleCard(card, rating, now, autoFamiliar);
   state.current = null;
   return result;
 }
 
-function scheduleCard(card, rating, now) {
+function scheduleCard(card, rating, now, autoFamiliar = false) {
   const interval = rating === 'hard' ? 1 : rating === 'medium'
     ? Math.max(3, card.interval * 2) : Math.max(7, card.interval * 3);
   card.interval = Math.min(365, interval);
   card.due = now + card.interval * DAY_MS;
   card.reviews = Math.min(10000, card.reviews + 1);
   card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
-  if (card.easyStreak >= 3) card.familiar = true;
+  if (autoFamiliar && card.easyStreak >= 3) card.familiar = true;
   return { due: card.due, interval: card.interval };
 }
 
@@ -137,7 +137,7 @@ export function finishInline(state, ticket, sender, revision, now, rating) {
     return { familiar: true };
   }
   if (!RATINGS.has(rating)) return null;
-  const result = scheduleCard(card, rating, now);
+  const result = scheduleCard(card, rating, now, true);
   state.inline = null;
   return result;
 }

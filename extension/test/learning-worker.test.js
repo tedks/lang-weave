@@ -149,5 +149,9 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const nextDay = await ask(excludedText, page, nextRevision);
     expect(Object.values(nextDay.results).flat().map((s) => s.status)).toEqual(['new']);
     expect(modelCalls).toBe(beforeNewDay + 1);
+    data.recallReview.cards = {}; // exhausted allowance with no retained candidate
+    const beforeEmpty = modelCalls;
+    expect(Object.values((await ask(excludedText, page, nextRevision)).results)).toEqual([[]]);
+    expect(modelCalls).toBe(beforeEmpty);
   } finally { Object.assign(globalThis, prior); }
 }, 30000);

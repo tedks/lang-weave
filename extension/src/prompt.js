@@ -38,9 +38,10 @@ const entry = ({ fr, en }) => `${fr} = ${en}`;
 
 export function buildSystemPrompt(level, sharedWords, shownToday = [], language = 'es', densityChoice = 'normal') {
   const lvl = level <= 1 ? 1 : 2;
-  const densityLine = densityChoice === 'light' ? 'Use at most one target word per two sentences.' :
-    densityChoice === 'heavy' ? 'Use up to three target words per sentence when each fits.' :
-    `Use up to ${lvl} target word${lvl === 1 ? '' : 's'} per sentence.`;
+  const noun = language === 'es' ? 'Spanish' : 'target';
+  const densityLine = densityChoice === 'light' ? `Use at most one ${noun} word per two sentences.` :
+    densityChoice === 'heavy' ? `Use up to three ${noun} words per sentence when each fits.` :
+    `Use up to ${lvl} ${noun} word${lvl === 1 ? '' : 's'} per sentence.`;
   if (language !== 'es') {
     const name = languageName(language);
     const listed = JSON.stringify((sharedWords || []).map(({ fr, en }) => ({ target: fr, english: en })));
@@ -84,7 +85,7 @@ Vocabulary (use only these words, exactly as listed, with their accents):
 ${vocabulary}
 
 Rules:
-- Density: ${density}.
+- Density: ${density}${densityChoice === 'normal' ? '.' : ''}
 - ${target}
 - Swap an English word or short phrase for its Spanish equivalent ONLY when it carries the same sense in context. "So" meaning therefore can be entonces; an intensifier like "so complicated" cannot. "Well" as a filler is not bien. Use para for purpose, not duration, cause or exchange. Do not confuse si (if) with sí (yes), el (the) with él (he), or más (more) with mas (but). Preserve ñ and all accents exactly.
 - Keep English word order readable. Use y for "and" except before a Spanish /i/ sound, and o for "or" except before a Spanish /o/ sound; skip the swap when e or u would be required but is not listed. Adjectives must agree with a Spanish noun's gender and number; skip if agreement would require an unlisted form. Do not use hay for an existential past tense or a personal form of "have". Skip ambiguous ser/estar or por/para choices.
