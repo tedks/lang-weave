@@ -105,6 +105,11 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const current = (await send({ type: 'inlineBegin', word: due, revision: restored }, page)).ticket;
     expect(current).toEqual(expect.any(String));
     expect((await send({ type: 'inlineReveal', ticket: current, revision: restored }, page)).answer.fr).toBe(due);
+    const beforeRating = structuredClone(data.recallReview);
+    writesFail = true;
+    expect((await send({ type: 'inlineRate', ticket: current, rating: 'easy', revision: restored }, page)).error).toMatch(/Storage failed/);
+    expect(data.recallReview).toEqual(beforeRating);
+    writesFail = false;
     const raced = await Promise.all([
       send({ type: 'inlineRate', ticket: current, rating: 'easy', revision: restored }, page),
       send({ type: 'inlineRate', ticket: current, rating: 'hard', revision: restored }, page),
