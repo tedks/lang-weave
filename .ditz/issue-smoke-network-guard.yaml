@@ -25,3 +25,17 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-18T19:41:20-00:00
+  who: Ted Smith
+  what: commented
+  comment: '2026-10-18 technical checkpoint: separate draft PR #5 from merged main
+    is clean/pushed at 3228c05198fe327809b0456c6a8001964c639bfa. The test-only browser
+    guard was added to extension/e2e/smoke.mjs, matching gradual.mjs; no extension
+    runtime, manifest, package or version changed. Exact-head isolated smoke and gradual
+    Chromium flows passed with synthetic Gemini and DNS/proxy launch blocking, as
+    did 85 Python tests, version 0.6.0 gate and diff/runtime-isolation checks. Light
+    independent Anthropic Opus review CLEAN. Merged PR #4''s earlier evidence was
+    corrected at https://github.com/tedks/lang-weave/pull/4#issuecomment-6254273123
+    : old smoke was synthetic but lacked browser-level blocking; new guarded results
+    belong to PR #5. PR #5 evidence: https://github.com/tedks/lang-weave/pull/5#issuecomment-6254288858
+    . Keep issue in progress for root acceptance/normal merge; root owns release integration.'
