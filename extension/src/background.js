@@ -132,7 +132,7 @@ async function addLanguage(msg) {
     if (packs[code] || Object.keys(packs).length >= MAX_PACKS) throw new Error('Languages changed while generating; try again');
     if (cleanSettings(current.settings).language !== selected) throw new Error('Selection changed while generating; try again');
     if (current.apiKey !== before.apiKey || cleanSettings(current.settings).model !== model) throw new Error('Model settings changed while generating; try again');
-    await store.set({ [PACKS_KEY]: { ...packs, [code]: pack },
+    await store.set({ epoch: crypto.randomUUID(), [PACKS_KEY]: { ...packs, [code]: pack },
       settings: cleanSettings({ ...current.settings, language: code }) });
   });
   await broadcast();
@@ -151,7 +151,7 @@ async function removeLanguage(msg) {
     if (settings.language !== code) throw new Error('The selected language changed; refresh and try again');
     delete packs[code];
     settings.language = 'es';
-    await store.set({ [PACKS_KEY]: packs, settings });
+    await store.set({ epoch: crypto.randomUUID(), [PACKS_KEY]: packs, settings });
     const all = await store.get(null);
     const prefix = `lang:${code}:${pack.version}:`;
     const keys = Object.keys(all).filter((key) => key.startsWith(prefix));
@@ -180,7 +180,8 @@ async function save(msg) {
       if (msg.settings && Object.hasOwn(msg.settings, 'language')) throw new Error('Choose a generated language pack');
       next.language = 'es';
     }
-    const patch = { settings: next };
+    // A settings round trip must not revive a result from its earlier revision.
+    const patch = { settings: next, epoch: crypto.randomUUID() };
     if (typeof msg.apiKey === 'string') {
       if (msg.apiKey.length > 500) throw new Error('Key is too long');
       patch.apiKey = msg.apiKey.trim();
@@ -322,7 +323,10 @@ function registerSites() {
   registrations = p.catch(() => {});
   return p;
 }
-const permissionsChanged = () => { void registerSites().then(() => broadcast('retry')).catch(() => {}); };
+const permissionsChanged = () => locked(async () => {
+  // The final origin list can equal an earlier one after a remove/regrant round trip.
+  await store.set({ epoch: crypto.randomUUID() });
+}).then(() => registerSites()).then(() => broadcast('retry')).catch(() => {});
 chrome.permissions.onAdded.addListener(permissionsChanged);
 chrome.permissions.onRemoved.addListener(permissionsChanged);
 

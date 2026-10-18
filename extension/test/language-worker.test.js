@@ -16,6 +16,9 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     languagePacks: { fr: cleanPack({ words: words('mot') }, 'fr'), ja: cleanPack({ words: words('語') }, 'ja') },
   };
   const handlers = [];
+  const permissionAdded = [];
+  const permissionRemoved = [];
+  let origins = ['<all_urls>'];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
@@ -31,7 +34,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
       getManifest: () => ({ version: '0.5.0' }), onMessage: on(handlers), onInstalled: on(), onStartup: on() },
     tabs: { query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
+    permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
@@ -62,6 +65,9 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect((await dispatch({ type: 'save', settings: { language: 'ja' } }, popup)).ok).toBe(true);
     expect((await dispatch({ type: 'reviewStatus' }, review)).new).toBe(12);
     expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
+    const spanishAgain = await dispatch({ type: 'config' }, page);
+    expect(spanishAgain.revision).not.toBe(first.revision);
+    expect(await dispatch({ type: 'event', word: 'no', event: 'seen', revision: first.revision }, page)).toEqual({ ok: false });
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(5);
     expect(data.recallReview).toEqual(spanish);
     expect(data.readingEvents[0].word).toBe('no');
@@ -116,9 +122,12 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     const pending = dispatch({ type: 'swaps', revision: staleFrench.revision, items: [{ key, text: passage }] }, page);
     await started;
     expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
+    expect((await dispatch({ type: 'save', settings: { language: 'fr' } }, popup)).ok).toBe(true);
+    expect((await dispatch({ type: 'config' }, page)).revision).not.toBe(staleFrench.revision);
     finishFetch();
     expect((await pending).stale).toBe(true);
     expect(data[`c:${key}`]).toBeUndefined();
+    expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
 
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');
@@ -157,12 +166,28 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(data.languagePacks.fr).toBeDefined();
     expect((await dispatch({ type: 'removeLanguage', code: 'tr' }, popup)).ok).toBe(true);
     expect(data.settings.language).toBe('es');
+
+    // A permission remove/regrant round trip must not revive an old page token.
+    const beforePermission = await dispatch({ type: 'config' }, page);
+    origins = [];
+    await Promise.all(permissionRemoved.map((notify) => notify()));
+    expect((await dispatch({ type: 'config' }, page)).revision).not.toBe(beforePermission.revision);
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+    const afterPermission = await dispatch({ type: 'config' }, page);
+    expect(afterPermission.revision).not.toBe(beforePermission.revision);
+    expect(await dispatch({ type: 'event', word: 'no', event: 'seen', revision: beforePermission.revision }, page)).toEqual({ ok: false });
+    expect((await dispatch({ type: 'swaps', revision: beforePermission.revision,
+      items: [{ key: `${beforePermission.revision}:${hashKey(passage)}`, text: passage }] }, page)).stale).toBe(true);
     globalThis.fetch = async () => { throw new Error('Unexpected model request'); };
 
     // A suspended MV3 worker is reconstructed from storage without resetting selection or histories.
     handlers.length = 0;
     await import('../src/background.js?language-restarted');
-    expect((await dispatch({ type: 'config' }, page)).language).toBe('es');
+    const restarted = await dispatch({ type: 'config' }, page);
+    expect(restarted.language).toBe('es');
+    expect(restarted.revision).toBe(afterPermission.revision);
+    expect(await dispatch({ type: 'event', word: 'no', event: 'seen', revision: beforePermission.revision }, page)).toEqual({ ok: false });
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(5);
     expect(data['lang:fr:' + data.languagePacks.fr.version + ':recallReview'].cards.mot0).toBeDefined();
   } finally { Object.assign(globalThis, saved); }
