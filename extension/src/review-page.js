@@ -1,6 +1,8 @@
 const $ = (id) => document.getElementById(id);
 let card = null;
 let busy = false;
+let loadGeneration = 0;
+let refreshQueued = false;
 
 async function send(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, ...fields });
@@ -22,7 +24,10 @@ function showAnswer(answer) {
 }
 
 async function load() {
+  const generation = ++loadGeneration;
   const response = await send('reviewNext');
+  if (generation !== loadGeneration) return;
+  $('language').textContent = `Reviewing ${response.language}`;
   card = response.card;
   counts(response);
   $('question').hidden = !card;
@@ -34,7 +39,11 @@ async function load() {
     : 'You are caught up. Come back when a card is due.';
   if (!card) return;
   $('prompt').textContent = card.en;
-  if (card.revealed) showAnswer((await send('reviewReveal', { ticket: card.ticket })).answer);
+  if (card.revealed) {
+    const { answer } = await send('reviewReveal', { ticket: card.ticket });
+    if (generation !== loadGeneration) return;
+    showAnswer(answer);
+  }
 }
 
 async function run(action) {
@@ -47,12 +56,16 @@ async function run(action) {
   finally {
     busy = false;
     for (const button of document.querySelectorAll('button')) button.disabled = false;
+    if (refreshQueued) { refreshQueued = false; void run(load); }
   }
 }
 
 $('reveal').addEventListener('click', () => run(async () => {
   if (!card) return;
-  showAnswer((await send('reviewReveal', { ticket: card.ticket })).answer);
+  const generation = loadGeneration;
+  const { answer } = await send('reviewReveal', { ticket: card.ticket });
+  if (generation !== loadGeneration) return;
+  showAnswer(answer);
 }));
 $('introduce').addEventListener('click', () => run(async () => {
   await send('reviewIntroduce');
@@ -67,3 +80,9 @@ for (const button of document.querySelectorAll('[data-rating]')) {
   }));
 }
 void run(load);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !(changes.settings || changes.languagePacks)) return;
+  loadGeneration++;
+  if (busy) refreshQueued = true;
+  else void run(load);
+});

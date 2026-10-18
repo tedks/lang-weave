@@ -591,7 +591,7 @@ class Setup(Home):
 
     def test_spanish_extension_is_independent_of_legacy_native_host(self):
         manifest = json.loads((ROOT / 'extension' / 'manifest.json').read_text())
-        self.assertEqual(manifest['name'], 'Spanish Weave')
+        self.assertEqual(manifest['name'], 'Lang Weave')
         self.assertNotIn('key', manifest)
         self.assertNotIn('nativeMessaging', manifest['permissions'])
         # The inherited CLI still registers its historical French extension ID, never this browser fork.

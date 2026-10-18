@@ -28,10 +28,11 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
       const results = {};
       for (const { id, text } of batch) {
         if (!byId.has(id)) throw new Error('Incomplete model response');
-        results[id] = capSwaps(level, validateSwaps(level, byId.get(id), words), text, words);
+        results[id] = capSwaps(level, validateSwaps(level, byId.get(id), words, language), text, words);
       }
       return { results, model: m, errors };
     } catch (e) {
+      if (e?.stale) throw e;
       const timeout = e?.name === 'TimeoutError';
       const wait = e?.retryAfterMs || COOLDOWN_MS[timeout ? 'timeout' : e?.status];
       if (wait) cooldown.set(m, now() + wait);

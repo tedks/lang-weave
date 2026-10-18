@@ -33,10 +33,19 @@ async function refresh() {
   const { effective } = resolveLevel(s);
   $('levelInfo').textContent = `L${effective}`;
   $('levelOverride').value = String(s.levelOverride || 0);
+  $('language').replaceChildren();
+  for (const item of status.languages) {
+    const option = document.createElement('option');
+    option.value = item.code;
+    option.textContent = `${item.name}${item.experimental ? ' · experimental' : ''}`;
+    $('language').append(option);
+  }
+  $('language').value = c.language;
+  $('removeLanguage').hidden = c.language === 'es';
   $('model').value = s.model;
   $('apiKey').value = '';
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
-  $('wordInfo').textContent = `${status.words} Spanish words`;
+  $('wordInfo').textContent = `${status.words} ${status.languages.find((item) => item.code === c.language)?.name || c.language} words`;
   $('reviewInfo').textContent = `${status.review.due} due`;
   $('operation').textContent = !s.enabled ? 'Off'
     : !c.hasKey ? 'Add a Gemini key to start'
@@ -88,6 +97,18 @@ for (const [id, label] of Object.entries(MODELS)) {
 $('enabled').addEventListener('change', (e) => run(() => save({ settings: { enabled: e.target.checked } })));
 $('newSitesEnabled').addEventListener('change', (e) => run(() => save({ settings: { newSitesEnabled: e.target.value === 'true' } })));
 $('levelOverride').addEventListener('change', (e) => run(() => save({ settings: { levelOverride: Number(e.target.value) || 0 } })));
+$('language').addEventListener('change', (e) => run(() => save({ settings: { language: e.target.value } })));
+$('addLanguage').addEventListener('click', () => run(async () => {
+  const button = $('addLanguage');
+  button.disabled = true;
+  $('operation').textContent = 'Generating experimental vocabulary…';
+  try { await send({ type: 'addLanguage', code: $('newLanguage').value.trim() }); await refresh(); }
+  finally { button.disabled = false; }
+}));
+$('removeLanguage').addEventListener('click', () => run(async () => {
+  await send({ type: 'removeLanguage', code: status.config.language });
+  await refresh();
+}));
 $('model').addEventListener('change', (e) => run(() => save({ settings: { model: e.target.value } })));
 $('apiKey').addEventListener('change', (e) => run(() => save({ apiKey: e.target.value })));
 $('siteEnabled').addEventListener('change', (e) => run(async () => {

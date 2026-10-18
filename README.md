@@ -1,6 +1,6 @@
-# Spanish Weave
+# Lang Weave
 
-Learn Spanish through the English you already read. This Chrome extension replaces a few words in web pages with Spanish, with a meaning and pronunciation hint on hover. Click a word, or press Enter while it is focused, to flip it back to English.
+Learn a language through the English you already read. This Chrome extension replaces a few words in web pages with your selected target language, with a meaning and pronunciation hint on hover. Click a word, or press Enter while it is focused, to flip it back to English. Spanish is the bundled default.
 
 > The build passed **ahora**, **pero** the old cache still needs work.
 > ahora = now; pero = but
@@ -9,13 +9,13 @@ A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-
 
 ## Install in Chrome
 
-1. Clone this fork: `git clone https://github.com/tedks/spanish-weave.git`.
+1. Clone this fork: `git clone https://github.com/tedks/lang-weave.git`.
 2. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the repository's `extension` folder. No build or dependency installation is needed to use it.
-3. Open the Spanish Weave toolbar popup and paste your own [Gemini API key](https://aistudio.google.com/apikey). The key is stored in your browser profile and never sent to web pages.
+3. Open the Lang Weave toolbar popup and paste your own [Gemini API key](https://aistudio.google.com/apikey). The key is stored in your browser profile and never sent to web pages.
 4. X/Twitter is included in the extension's site permissions. For another site, open its page and turn on the site's checkbox in the popup, accepting Chrome's permission prompt. Alternatively, choose **Allow all websites**. Refresh an already-open page if needed.
-5. Choose **Beginner** (30 words) or **Expanded** (147 words). These control vocabulary and replacement density, not a measured language proficiency level.
+5. Spanish works immediately with **Beginner** (30 words) or **Expanded** (147 words). You can also enter another target's language code and explicitly generate a local experimental vocabulary pack. Select any available target from the language dropdown. Generated packs have separate progress and reviews; their quality is not certified. **Remove this generated language** frees a slot and deletes that pack's local reading and review progress.
 
-In this checkout, the unpacked extension directory is `extension/` in whichever worktree contains the accepted branch. Keep that directory in place after loading it. Separate extension IDs keep Spanish Weave and French Weave side by side without sharing settings or progress.
+In this checkout, the unpacked extension directory is `extension/` in whichever worktree contains the accepted branch. Keep that directory in place after loading it. Existing fleet installations stay at `${XDG_DATA_HOME:-$HOME/.local/share}/spanish-weave/extension`; this historical path preserves the unpacked Chrome extension ID and existing browser progress after the product rename. Lang Weave and the inherited French companion do not share browser storage.
 
 ## Controls and privacy
 
@@ -25,9 +25,9 @@ Readable text from enabled, permitted sites is sent to Google's Gemini API with 
 
 [Google's API terms](https://ai.google.dev/gemini-api/terms) distinguish unpaid and paid services; review the terms for your account and region before enabling the extension on private reading. The extension limits itself to 1,000 model calls per local day, which is a request cap rather than a spending limit. Provider quotas and pricing still apply. Its default model is Gemini 3.5 Flash-Lite, with Gemini 3.8 Flash available in the popup.
 
-Settings, cached replacement choices, and up to 500 local word events (seen/peek/flip, with a date) stay in this extension's browser storage. Events contain no URLs or reading passages and are never sent to the inherited French companion. Cached choices do contain short English fragments; removing the extension clears its local storage. No Duolingo login, account sync or tab takeover occurs.
+Settings, cached replacement choices, and up to 500 local word events per target (seen/peek/flip, with a date) stay in this extension's browser storage. Events contain no URLs or reading passages and are never sent to the inherited French companion. Cached choices do contain short English fragments; removing the extension clears its local storage. Up to five generated packs are stored locally. No Duolingo login, account sync or tab takeover occurs.
 
-The bundled vocabulary and sound hints are a starter set, not a reviewed curriculum. Spanish accents and ñ are preserved. A model chooses meanings in context and deterministic validation rejects unlisted words and mismatched glosses, but a model can still make a contextual or grammatical mistake. This is mixed-language reading, not full-sentence translation.
+The bundled Spanish vocabulary and sound hints are a starter set, not a reviewed curriculum. Spanish accents and ñ are preserved. Generated target forms are matched exactly; a model chooses meanings in context and deterministic validation rejects unlisted words and mismatched glosses, but a model can still make a contextual or grammatical mistake. This is mixed-language reading, not full-sentence translation.
 
 ## Development
 

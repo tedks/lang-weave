@@ -1,14 +1,14 @@
-# Spanish Weave
+# Lang Weave
 
 ## Intent
 
-Learn Spanish through small, contextual replacements in English web reading. The Chrome extension is the product. It must load unpacked and work with a user-supplied Gemini key, without a terminal plugin or native host.
+Learn a selected target language through small, contextual replacements in English web reading. Spanish is the bundled default. The Chrome extension is the product. It must load unpacked and work with a user-supplied Gemini key, without a terminal plugin or native host.
 
 ## Assumptions and boundaries
 
-English source passages; neutral Spanish with accents and approximate pronunciation hints; beginner and expanded vocabulary levels. This is mixed-language reading, not a grammatical translation of a full sentence. Level controls vocabulary and density, not a CEFR certification. A model chooses a suitable sense; deterministic validation rejects unlisted words and mismatched glosses. Skip Spanish diacritic folding where it conflates distinct words such as si/sí or el/él; ñ is a distinct letter.
+English source passages; neutral Spanish with accents and approximate pronunciation hints in the bundled pack; beginner and expanded vocabulary levels. Other targets use explicitly generated, bounded, locally persisted experimental vocabulary. This is mixed-language reading, not a grammatical translation of a full sentence. Level controls vocabulary and density, not a CEFR certification. A model chooses a suitable sense; deterministic validation rejects unlisted words and mismatched glosses. Spanish-specific diacritic and article handling remains specific to Spanish; other targets require exact listed forms.
 
-Keep sensitive sites off by default and preserve exclusions for forms, editable text, code and high-stakes topics. Page text goes to Gemini only on enabled, permitted sites with a configured key. Browser storage is independent of French Weave. Do not install a browser extension or use the user's credentials as part of development verification.
+Keep sensitive sites off by default and preserve exclusions for forms, editable text, code and high-stakes topics. Page text goes to Gemini only on enabled, permitted sites with a configured key. Browser storage is independent of French Weave. Language histories and asynchronous results are isolated by target and pack version. Keep the historical unpacked installation path so Chrome retains its extension identity and Spanish progress. Do not install a browser extension or use the user's credentials as part of development verification.
 
 ## Acceptance
 

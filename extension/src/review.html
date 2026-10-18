@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Spanish Weave · Review</title>
+<title>Lang Weave · Review</title>
 <style>
   * { box-sizing: border-box; }
   body { max-width: 640px; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.5 system-ui, sans-serif; color: #182027; background: #faf9f5; }
@@ -20,12 +20,13 @@
 </head>
 <body>
 <h1>Recall practice</h1>
-<p class="muted">Think of the Spanish for the English prompt, then reveal and rate your recall. Reading sightings do not count as reviews.</p>
+<p class="muted">Think of the selected language for the English prompt, then reveal and rate your recall. Reading sightings do not count as reviews.</p>
+<p id="language" class="muted"></p>
 <p id="counts" class="muted" role="status"></p>
 <main class="card">
   <p id="empty">Loading your review queue…</p>
   <div id="question" hidden>
-    <div class="muted">Say this in Spanish:</div>
+    <div class="muted">Say this in the selected language:</div>
     <p id="prompt"></p>
     <button id="reveal">Reveal answer</button>
     <div id="solution" hidden>

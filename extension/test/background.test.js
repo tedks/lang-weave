@@ -63,17 +63,18 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
     diskVersion = '0.3.0'; // reloaded: the running copy matches the disk again
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('');
     expect(badges.at(-1)).toBe('');
+    const revision = (await dispatch({ type: 'config' }, page)).revision;
 
     // 0338f19 regression: concurrent events from a page each did their own storage read-modify-write, and all but
     // one were lost. All three must reach the queue.
     const replies = await Promise.all([
-      dispatch({ type: 'event', word: 'y', event: 'seen' }, page),
-      dispatch({ type: 'event', word: 'muy', event: 'flip' }, page),
-      dispatch({ type: 'event', word: 'pero', event: 'peek' }, page),
+      dispatch({ type: 'event', word: 'y', event: 'seen', revision }, page),
+      dispatch({ type: 'event', word: 'muy', event: 'flip', revision }, page),
+      dispatch({ type: 'event', word: 'pero', event: 'peek', revision }, page),
     ]);
     expect(replies).toEqual([{ ok: true }, { ok: true }, { ok: true }]);
     expect(data[PENDING_KEY].map((e) => `${e.word}:${e.kind}`).sort()).toEqual(['muy:flip', 'pero:peek', 'y:seen']);
-    expect(await dispatch({ type: 'event', word: 'y', event: 'seen' }, page)).toEqual({ ok: true });
+    expect(await dispatch({ type: 'event', word: 'y', event: 'seen', revision }, page)).toEqual({ ok: true });
     expect(data[PENDING_KEY]).toHaveLength(3); // one sighting per word per local day
     expect(data[PENDING_KEY].every((e) => e.day && !JSON.stringify(e).includes('example.com'))).toBe(true);
     expect(held).toHaveLength(0); // local events have no host flush timer

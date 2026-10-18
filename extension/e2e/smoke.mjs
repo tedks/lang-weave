@@ -31,11 +31,20 @@ try {
       if (!String(url).startsWith('https://generativelanguage.googleapis.com/')) return originalFetch(url, init);
       if (init.headers['x-goog-api-key'] !== 'synthetic-smoke-key') throw new Error('Unexpected test key');
       const body = JSON.parse(init.body);
-      if (!body.systemInstruction.parts[0].text.includes('Spanish Weave')) throw new Error('Non-Spanish prompt');
+      if (!body.contents[0].parts[0].text.startsWith('Passages:')) {
+        const code = JSON.parse(body.contents[0].parts[0].text).targetLanguage;
+        const first = code === 'fr' ? 'et' : 'そして';
+        const words = Array.from({ length: 24 }, (_, i) => ({ fr: i ? `${code}${i}` : first,
+          en: i ? `gloss ${i}` : 'and', hint: `hint ${i}`, level: i < 12 ? 1 : 2 }));
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ words }) }] } }] }),
+          { headers: { 'Content-Type': 'application/json' } });
+      }
       const items = JSON.parse(body.contents[0].parts[0].text.replace(/^Passages:\n/, ''));
+      const prompt = body.systemInstruction.parts[0].text;
+      const target = prompt.includes('French (fr)') ? 'et' : prompt.includes('Japanese (ja)') ? 'そして' : 'y';
       globalThis.smokeCalls.push(...items.map((item) => item.text));
       const passages = items.map(({ id, text }) => ({ id, swaps: text.includes(' and ')
-        ? [{ o: 'and', f: 'y', g: 'and', h: 'ee', ctx: '' }] : [] }));
+        ? [{ o: 'and', f: target, g: 'and', h: '', ctx: '' }] : [] }));
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
@@ -78,7 +87,7 @@ try {
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
   await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent.includes('Spanish words'));
-  assert.equal(await popup.locator('h1').textContent(), 'Spanish Weave');
+  assert.equal(await popup.locator('h1').textContent(), 'Lang Weave');
   assert.equal(await popup.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
   assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
   assert.equal(await popup.locator('#reviewInfo').textContent(), '0 due');
@@ -102,9 +111,32 @@ try {
   assert.equal(savedReview.cards.y.interval, 1);
   assert.equal(savedReview.cards.y.reviews, 1);
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length); // review never calls Gemini
+  await popup.getByText('Add a language').click();
+  await popup.locator('#newLanguage').fill('fr');
+  await popup.locator('#addLanguage').click();
+  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '12 French words');
+  await review.locator('#language').getByText('Reviewing French').waitFor();
+  await review.locator('#counts').getByText('0 due · 12 available to add').waitFor();
+  await page.locator('#reading .fw-word').getByText('et').waitFor();
+  await review.locator('#introduce').click();
+  await review.locator('#prompt').getByText('and').waitFor();
+  const frenchState = await worker.evaluate(() => chrome.storage.local.get(null));
+  assert.equal(frenchState.recallReview.cards.y.reviews, 1);
+  assert.ok(Object.keys(frenchState).some((key) => key.startsWith('lang:fr:') && key.endsWith(':recallReview')));
+  await popup.locator('#newLanguage').fill('ja');
+  await popup.locator('#addLanguage').click();
+  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '12 Japanese words');
+  await page.locator('#reading .fw-word').getByText('そして').waitFor();
+  await popup.locator('#removeLanguage').click();
+  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '30 Spanish words');
+  assert.equal(await popup.locator('#language option[value=ja]').count(), 0);
+  await page.locator('#reading .fw-word').getByText('y').waitFor();
+  await review.locator('#language').getByText('Reviewing Spanish').waitFor();
+  await review.locator('#counts').getByText('4 due · 25 available to add').waitFor();
+  const afterLanguages = await worker.evaluate(() => globalThis.smokeCalls.length);
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);
-  assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length);
+  assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), afterLanguages);
   await popup.locator('#levelOverride').selectOption('2');
   await popup.waitForFunction(() => document.querySelector('#wordInfo').textContent === '147 Spanish words');
   await popup.locator('#enabled').uncheck();
@@ -114,7 +146,7 @@ try {
   await page.locator('#reading .fw-word').waitFor();
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
-  console.log('PASS: real Chromium MV3 load; Spanish swaps, hover, click/keyboard, popup, local recall review, level switch, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
+  console.log('PASS: real Chromium MV3 load; Spanish migration, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
 } finally {
   if (context) await context.close();
   // Only the exact mkdtemp directory created above, after closing its browser.

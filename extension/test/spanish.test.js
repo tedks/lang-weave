@@ -39,7 +39,7 @@ test('Spanish articles stay with whole noun phrases and never double English det
 
 test('fork identity and permissions cannot collide with or contact the French companion', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-  expect(manifest.name).toBe('Spanish Weave');
+  expect(manifest.name).toBe('Lang Weave');
   expect(manifest.key).toBeUndefined();
   expect(manifest.permissions).not.toContain('nativeMessaging');
   expect(manifest.background.service_worker).toBe('src/background.js');
