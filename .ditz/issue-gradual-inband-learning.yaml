@@ -37,7 +37,12 @@ log_events:
   who: Ted Smith
   what: blocked by introduction-visibility-budget
   comment: ""
+- time: 2026-10-18T07:00:47-00:00
+  who: Ted Smith
+  what: blocked by future-budget-date-recovery
+  comment: ""
 blocked_by:
 - generic-language
 - inline-new-word-delay
 - introduction-visibility-budget
+- future-budget-date-recovery
