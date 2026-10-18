@@ -1,0 +1,23 @@
+id: inline-cue-multitab
+title: Keep inline recall tickets independent across tabs
+desc: 'Gradual review state currently has one `inline` ticket per language scope.
+  Opening a due-word cue in tab B silently replaces tab A''s revealed ticket, so A''s
+  rating fails even though its document and revision remain valid. Give concurrent
+  documents bounded independent tickets or explicitly surface a superseded-cue state
+  before rating. Preserve document/frame/revision/site checks, single-use ratings,
+  worker serialization and bounded storage. Add paired two-tab worker and isolated
+  browser tests. This is a follow-up to PR #4 council nit N8; do not weaken consent
+  or allow a page to create arbitrary review mutations.'
+type: bugfix
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:16:53-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:16:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
