@@ -1,0 +1,36 @@
+id: generated-pack-quality-policy
+title: Define generated-pack quality and regeneration policy
+desc: 'Generated vocabulary packs are intentionally experimental. The council noted
+  duplicate English glosses can yield ambiguous review prompts, some scripts have
+  unusual capitalization, and a successful model generation is deliberately discarded
+  if selection, key or model settings changed while it was in flight. The current
+  safety behavior preserves the selected pack and histories, but generation may spend
+  a model call without installing a pack.
+
+  Options: (A) keep the current bounded experimental policy and explain the limitation;
+  (B) add stricter gloss and script-specific quality checks before selection; (C)
+  provide an explicit regeneration/preview workflow with an intentional replacement
+  of pack-version-scoped progress.
+
+  Recommendation: A for the initial release, then design C with representative language
+  fixtures. Do not silently replace a pack or reuse prior-version progress.
+
+  Decision owner: Ted (product quality and regeneration ruling), coordinated by the
+  CTO.
+
+  Blocks: future claims of broad language quality or an automatic regeneration feature.
+  It does not block the current experimental-pack technical gate unless the product
+  ruling changes that acceptance criterion.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:45:50-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:45:50-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
