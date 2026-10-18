@@ -37,10 +37,12 @@ A separate legacy 0.4 consent hotfix candidate remains coherent and local at
 only; full gates were last run on an earlier checkpoint, so it is not a
 verified release candidate. The separate 0.4 release path is redundant after
 the verified 0.5 rollout; preserve the candidate/evidence without publishing it.
-The upper gradual-learning work is separately owned. Next bounded action for
-this lane: preserve the private handoff and scratch inventory, then remain
-idle for the CTO's receipt. No additional release, product phase or branch
-deletion is authorized.
+The upper gradual-learning work is separately owned. Source and installer
+integration issues are closed fixed; the splinter0 host follow-up and product
+questions remain open with their named owners. The private handoff and scratch
+inventory are preserved and remote-verified. This lane is IDLE for the CTO's
+receipt. No additional release, product phase or branch deletion is
+authorized.
 
 ## Intent and boundaries
 
