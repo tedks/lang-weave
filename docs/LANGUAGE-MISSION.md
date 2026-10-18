@@ -3,19 +3,21 @@
 ## Current state
 
 State: visible generic Lead owns this branch and the installer compatibility
-branch. Cold-start audit verified the source branch clean and pushed at
-`5ad04dee82b65951e38831447ff4312c1f90b59f` (draft PR #3, base `main`)
-and the installer branch clean and pushed at `9507a2502a6a1eb058cea306382338e4b1ed028a`
-(draft PR #200). The source head is a council-fix checkpoint, not CLEAN or
-accepted. The prior fully gated source head was `e357bf9`; the inherited
-checkpoint had only focused 6/6 Bun tests and a diff check. Regression tests
-now cover invalid stored packs, removal/history isolation, concurrent adds,
-stale swaps, and review-tab refresh races. The focused 2/2 Bun run passed
-with 68 assertions; invalid-pack and removal-history tests each failed when
-their respective guards were removed, then passed after restoration. Chromium
-smoke passed with synthetic model responses. Next: commit this checkpoint,
-run all local gates on its exact head, then review the fix delta from
-`e357bf9` to convergence. The separate gradual-learning branch
+branch. Cold-start audit verified the source branch at `5ad04de` and installer
+branch at `9507a25`; both were clean and pushed. Source draft PR #3 targets
+`main`, and installer draft PR #200 retains its old pin. Source repair
+`4208190` was pushed and fully gated: 101 Bun tests, 85 Python tests, the
+version and block checks, diff check, and real Chromium smoke with synthetic
+Gemini. Invalid-pack and removal-history tests each failed when their guard
+was removed, then passed after restoration. The first fix-delta council round
+found no Critical issues. OpenAI and Anthropic reported CLEAN; Google flagged
+a content-script dependency leak and Turkish event casing. Follow-up code
+checkpoint `f79ab44` moves language-code validation into a lightweight module,
+fixes locale-aware event matching, rejects stale popup removal requests and
+tightens review dispatch. The focused 10/10 Bun tests pass; the Turkish test
+failed before its fix. Next: run all local gates on the final head and review
+only the new fix delta until CLEAN. Neither source nor installer has been
+merged or released. The separate gradual-learning branch
 owns density/adaptive/in-band work and is holding rebase until this branch has
 a CLEAN, gated head. The CTO owns bottom/top merge, GitHub rename timing,
 installer pin and fleet release. The installer PR still carries its old pin.
