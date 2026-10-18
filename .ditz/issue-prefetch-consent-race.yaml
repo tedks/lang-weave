@@ -1,0 +1,25 @@
+id: prefetch-consent-race
+title: Prevent page-text fetch after access is revoked during preparation
+desc: 'Blocking lower-PR integration risk reported by gradual lane and confirmed by
+  CTO static inspection: swaps checks revision before awaited quota/key/review reads,
+  then fetchImpl awaits countCall before underlying fetch. Site-off, global-off, permission
+  revocation or language/settings change can commit in those gaps and page text can
+  still be sent; rejecting the eventual response does not undo disclosure. Lower owns
+  assessment/repair of fetch-boundary authorization. Acceptance: deterministic gated
+  async tests revoke access in each prefetch await gap and prove zero underlying Gemini
+  sends (paired allowed-send positive), cover fallback/retry paths, mutation-red guard
+  removal, exact-head gates and convergence. Requests already dispatched cannot be
+  unsent; document that boundary honestly. No live Gemini or personal text needed.'
+type: bugfix
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:52:41-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:52:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
