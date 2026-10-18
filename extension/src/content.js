@@ -104,23 +104,26 @@ async function openCue(span) {
   const dismiss = button('Dismiss', closeCue);
   panel.append(prompt, status, buttons);
   document.documentElement.append(panel); cue = panel;
+  const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
   try {
     const started = await send({ type: 'inlineBegin', word: swapWord(span), revision });
     if (!started?.ticket) throw new Error(started?.error || 'Cue unavailable');
-    if (gen !== generation || !on() || !span.isConnected || cue !== panel) { closeCue(); return; }
+    if (!liveCue()) { closeCue(); return; }
     ticket = started.ticket;
   } catch { if (cue === panel) closeCue(); return; }
   const revealButton = button('Reveal answer', async () => {
+    if (!liveCue()) { closeCue(); return; }
     revealButton.disabled = true;
     try {
       const r = await send({ type: 'inlineReveal', ticket, revision });
       if (!r?.answer) throw new Error(r?.error || 'Cue expired');
-      if (gen !== generation || cue !== panel || !on()) { closeCue(); return; }
+      if (!liveCue()) { closeCue(); return; }
       status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
       revealButton.remove();
       for (const [label, rating] of [['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
         button(label, async () => {
+          if (!liveCue()) { closeCue(); return; }
           for (const b of buttons.querySelectorAll('button')) b.disabled = true;
           try {
             const result = await send({ type: 'inlineRate', ticket, rating, revision });

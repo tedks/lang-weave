@@ -72,6 +72,22 @@ try {
   assert.equal(await page.locator('.fw-recall').count(), 0);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
   await due.click();
+  await page.locator('.fw-recall').waitFor();
+  await due.evaluate((span) => span.remove());
+  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await page.locator('.fw-recall').waitFor({ state: 'detached', timeout: 2000 });
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
+  await page.reload();
+  await due.waitFor();
+  await due.click();
+  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await due.evaluate((span) => span.remove());
+  await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await page.locator('.fw-recall').waitFor({ state: 'detached', timeout: 2000 });
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
+  await page.reload();
+  await due.waitFor();
+  await due.click();
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
   await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
   await page.locator('.fw-recall').waitFor({ state: 'detached' });
@@ -110,7 +126,7 @@ try {
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   assert.equal(await worker.evaluate(() => chrome.storage.local.get('settings').then((x) => x.settings.language)), 'fr');
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
-  console.log('PASS: Chromium MV3 gradual introduction, persisted budget, due inline reveal/rate, review interoperability, exclusions, off/site restoration and language isolation; Gemini synthetic.');
+  console.log('PASS: Chromium MV3 gradual introduction, persisted budget, due inline reveal/rate, detached-cue rejection, review interoperability, exclusions, off/site restoration and language isolation; Gemini synthetic.');
 } finally {
   if (browser) await browser.close();
   await rm(scratch, { recursive: true, force: true });
