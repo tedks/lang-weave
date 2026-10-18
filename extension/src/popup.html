@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Spanish Weave</title>
+<title>Lang Weave</title>
 <style>
   * { box-sizing: border-box; }
   body { width: 300px; margin: 0; padding: 12px 14px; font: 13px/1.4 system-ui, sans-serif; color: #111; background: #fff; }
@@ -29,10 +29,10 @@
 </style>
 </head>
 <body>
-  <div class="row"><h1>Spanish Weave</h1><label>On <input type="checkbox" id="enabled"></label></div>
+  <div class="row"><h1>Lang Weave</h1><label>On <input type="checkbox" id="enabled"></label></div>
   <div id="operation" class="small" role="status"></div>
   <div id="update" class="small" hidden>Update <span id="updateVersion"></span> didn't load by itself: click the
-    reload arrow on Spanish Weave in the extensions page. <button id="openExtensions">Open extensions page</button></div>
+    reload arrow on Lang Weave in the extensions page. <button id="openExtensions">Open extensions page</button></div>
   <section>
     <label class="row"><span id="siteName">This site</span><input type="checkbox" id="siteEnabled" aria-label="On for this site"></label>
     <label class="row"><span>Other sites</span><select id="newSitesEnabled"><option value="true">On by default</option><option value="false">Only sites I turn on</option></select></label>
@@ -41,6 +41,12 @@
     <details><summary>Site exceptions</summary><div id="siteList" class="small"></div></details>
   </section>
   <section>
+    <label class="row"><span>Learning</span><select id="language" aria-label="Learning language"></select></label>
+    <details><summary>Add a language</summary>
+      <p class="small">Generated vocabulary is experimental. Add your Gemini key below first. Use a language code such as fr or ja.</p>
+      <label class="row"><span>Language code</span><input id="newLanguage" maxlength="20" placeholder="fr" autocomplete="off"></label>
+      <button id="addLanguage">Generate vocabulary</button>
+    </details>
     <div class="row"><span>Level</span><span id="levelInfo" class="small"></span></div>
     <label class="row"><span>Reading level</span>
       <select id="levelOverride">

@@ -22,6 +22,8 @@ function showAnswer(answer) {
 }
 
 async function load() {
+  const status = await send('reviewStatus');
+  $('language').textContent = `Reviewing ${status.language}`;
   const response = await send('reviewNext');
   card = response.card;
   counts(response);

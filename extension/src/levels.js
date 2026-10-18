@@ -33,14 +33,14 @@ export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/
 const AMBIGUOUS_FOLDS = new Set(['si', 'el', 'tu', 'mi', 'te', 'se', 'de', 'mas', 'aun', 'como', 'cuando', 'donde', 'que', 'quien']);
 
 const indexCache = new Map();
-function indexFor(level, sharedWords) {
+function indexFor(level, sharedWords, language = 'es') {
   const lvl = level <= 1 ? 1 : 2;
   if (!sharedWords && indexCache.has(lvl)) return indexCache.get(lvl);
   const idx = new Map();
   for (const w of sharedWords || wordsForLevel(lvl)) {
     const full = exactFr(w.fr);
     idx.set(full, { canon: w.fr, en: w.en, hint: w.hint, word: w.fr, status: w.status });
-    const stripped = full.replace(ARTICLE_RE, '');
+    const stripped = language === 'es' ? full.replace(ARTICLE_RE, '') : full;
     if (stripped !== full && !idx.has(stripped)) {
       // Accept a bare noun ("problema" for "problem") and keep the accents from the list.
       const canon = w.fr.replace(ARTICLE_RE, '');
@@ -119,22 +119,22 @@ export function glossMatches(original, en, { inflections = true } = {}) {
 // Fail closed: keep only swaps whose Spanish is on the supplied or bundled vocabulary list
 // and whose English matches that word's gloss.
 // Canonicalizes accents, fills gloss and hint from the list, matches capitalization of the original.
-export function validateSwaps(level, swaps, sharedWords) {
+export function validateSwaps(level, swaps, sharedWords, language = 'es') {
   if (!Array.isArray(swaps)) return [];
-  const idx = indexFor(level, sharedWords);
+  const idx = indexFor(level, sharedWords, language);
   const out = [];
   for (const s of swaps) {
     if (!s || typeof s.o !== 'string' || typeof s.f !== 'string') continue;
     const o = s.o.trim();
     if (!o || !s.f.trim()) continue;
     const exact = exactFr(s.f);
-    let hit = idx.exact.get(exact) || (!AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
+    let hit = idx.exact.get(exact) || (language === 'es' && !AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
-    if (!hit || !glossMatches(o, hit.en, { inflections: !ARTICLE_RE.test(hit.word) })) continue;
+    if (!hit || !glossMatches(o, hit.en, { inflections: language === 'es' && !ARTICLE_RE.test(hit.word) })) continue;
     // "my problem" -> "my el problema", "the answer" -> "the la respuesta": when the English article (or a
     // possessive) stays outside the swap, use the bare noun.
-    const bare = exactFr(hit.canon).replace(DEFINITE_RE, '');
+    const bare = language === 'es' ? exactFr(hit.canon).replace(DEFINITE_RE, '') : exactFr(hit.canon);
     if (bare !== exactFr(hit.canon) && !/^the\s/i.test(o) && idx.exact.has(bare)) hit = idx.exact.get(bare);
     out.push({
       o,

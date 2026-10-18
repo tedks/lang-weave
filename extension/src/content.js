@@ -42,7 +42,7 @@ function orphan() {
   pending.clear(); inflight.clear();
 }
 const send = (msg) => {
-  if (!alive()) { orphan(); return Promise.reject(new Error('Spanish Weave was reloaded')); }
+  if (!alive()) { orphan(); return Promise.reject(new Error('Lang Weave was reloaded')); }
   try {
     return chrome.runtime.sendMessage(msg).catch((e) => { if (!alive()) orphan(); throw e; });
   } catch (e) {
@@ -61,11 +61,12 @@ const swapFor = (e) => {
 function record(span, event) {
   const word = swapWord(span);
   if (!word || !on()) return;
-  const id = localDay() + ':' + event + ':' + word;
+  const revision = config.revision;
+  const id = revision + ':' + localDay() + ':' + event + ':' + word;
   const daily = event === 'seen' || event === 'peek';
   if (daily && seen.has(id)) return;
   if (daily) seen.add(id);
-  void send({ type: 'event', word, event }).then((r) => {
+  void send({ type: 'event', word, event, revision }).then((r) => {
     if (!r?.ok && daily) seen.delete(id);
   }).catch(() => { if (daily) seen.delete(id); });
 }

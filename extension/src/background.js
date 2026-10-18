@@ -8,6 +8,8 @@ import { hashKey } from './hash.js';
 import { queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview } from './review.js';
+import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
+import { scopedStorage } from './scope.js';
 
 const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
@@ -32,15 +34,20 @@ const ready = (async () => {
 // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
 async function context() {
   await ready;
-  const data = await store.get(['settings', 'apiKey', 'epoch']);
+  const data = await store.get(['settings', 'apiKey', 'epoch', PACKS_KEY]);
   const saved = cleanSettings(data.settings);
+  const packs = cleanPacks(data[PACKS_KEY]);
+  if (saved.language !== 'es' && !packs[saved.language]) saved.language = 'es';
   const settings = { ...saved, newSitesEnabled: newSitesDefault(saved) };
   const level = resolveLevel(saved).effective;
+  const pack = saved.language === 'es' ? null : packs[saved.language];
+  const words = pack ? packWords(pack, level) : wordsForLevel(level);
+  const scope = pack ? `${saved.language}:${pack.version}` : 'es';
   const hasKey = !!data.apiKey;
   const paused = false; // retained in the page config protocol; pause is settings.enabled
   const { origins = [] } = await chrome.permissions.getAll();
-  const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, chrome.runtime.getManifest().version, hasKey, origins]));
-  return { settings, level, revision, hasKey, paused, origins, stage: 0 };
+  const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, scope, chrome.runtime.getManifest().version, hasKey, origins]));
+  return { settings, level, revision, hasKey, paused, origins, stage: 0, language: saved.language, scope, words };
 }
 
 const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
@@ -63,12 +70,12 @@ async function swaps(msg, sender) {
   try {
     const fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
-      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; Spanish resumes tomorrow`);
+      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; try again tomorrow`);
       const { apiKey } = await store.get('apiKey');
       const fetchImpl = async (...args) => { await countCall(chromeStorage); return fetch(...args); };
-      return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level,
-        words: wordsForLevel(ctx.level).map((w) => ({ ...w, status: 'active' })), fetchImpl,
-        shownToday: await shownToday(chromeStorage), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
+      return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
+        words: ctx.words.map((w) => ({ ...w, status: 'active' })), fetchImpl,
+        shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
     });
     return await locked(async () => {
       if (!fresh || (await context()).revision !== ctx.revision) return { results: {}, stale: true };
@@ -85,12 +92,14 @@ async function swaps(msg, sender) {
 
 // Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
 async function record(msg, sender) {
-  const ctx = await context();
-  if (!activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
-  const word = wordsForLevel(ctx.level).find((w) => exactFr(w.fr) === exactFr(msg.word));
-  if (!word) return { ok: false };
-  await locked(() => queueEvents(chromeStorage, [{ word: word.fr, kind: msg.event }]));
-  return { ok: true };
+  return locked(async () => {
+    const ctx = await context();
+    if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
+    const word = ctx.words.find((w) => exactFr(w.fr) === exactFr(msg.word));
+    if (!word) return { ok: false };
+    await queueEvents(scopedStorage(chromeStorage, ctx.scope), [{ word: word.fr, kind: msg.event }]);
+    return { ok: true };
+  });
 }
 
 async function clearCache() {
@@ -100,6 +109,32 @@ async function clearCache() {
   });
   await broadcast('retry');
   return { ok: true, removed };
+}
+
+async function addLanguage(msg) {
+  const code = languageCode(msg.code);
+  if (!code) throw new Error('Enter a valid target-language code such as fr or ja');
+  const before = await store.get(['settings', 'apiKey', PACKS_KEY]);
+  const selected = cleanSettings(before.settings).language;
+  if (!before.apiKey) throw new Error('Add your Gemini key first');
+  if (cleanPacks(before[PACKS_KEY])[code]) throw new Error('This language is already available');
+  if (Object.keys(cleanPacks(before[PACKS_KEY])).length >= MAX_PACKS) throw new Error(`Maximum of ${MAX_PACKS} generated languages reached`);
+  const model = cleanSettings(before.settings).model;
+  const pack = await modelCall(async () => {
+    if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error('Daily model limit reached; try again tomorrow');
+    return generatePack({ code, apiKey: before.apiKey, model,
+      fetchImpl: async (...args) => { await countCall(chromeStorage); return fetch(...args); } });
+  });
+  await locked(async () => {
+    const current = await store.get(['settings', PACKS_KEY]);
+    const packs = cleanPacks(current[PACKS_KEY]);
+    if (packs[code] || Object.keys(packs).length >= MAX_PACKS) throw new Error('Languages changed while generating; try again');
+    if (cleanSettings(current.settings).language !== selected) throw new Error('Selection changed while generating; try again');
+    await store.set({ [PACKS_KEY]: { ...packs, [code]: pack },
+      settings: cleanSettings({ ...current.settings, language: code }) });
+  });
+  await broadcast();
+  return { ok: true, language: code };
 }
 
 // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
@@ -112,7 +147,9 @@ async function save(msg) {
       if (msg.siteOverride.enabled === null) delete merged.siteOverrides[msg.siteOverride.host];
       else merged.siteOverrides[msg.siteOverride.host] = msg.siteOverride.enabled;
     }
-    const patch = { settings: cleanSettings(merged) };
+    const next = cleanSettings(merged);
+    if (next.language !== 'es' && !cleanPacks((await store.get(PACKS_KEY))[PACKS_KEY])[next.language]) throw new Error('Choose a generated language pack');
+    const patch = { settings: next };
     if (typeof msg.apiKey === 'string') {
       if (msg.apiKey.length > 500) throw new Error('Key is too long');
       patch.apiKey = msg.apiKey.trim();
@@ -125,59 +162,62 @@ async function save(msg) {
 
 async function status() {
   const config = await context();
-  const data = await store.get(['apiKey', 'modelStatus']);
-  return { config, words: wordsForLevel(config.level).length,
+  const data = await store.get(['apiKey', 'modelStatus', PACKS_KEY]);
+  return { config: { ...config, words: undefined }, words: config.words.length,
+    languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
     pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
     review: await reviewStatus(),
     update: await checkUpdate() };
 }
 
 async function reviewState() {
-  const { settings, [REVIEW_KEY]: raw } = await store.get(['settings', REVIEW_KEY]);
-  const words = wordsForLevel(resolveLevel(cleanSettings(settings)).effective);
-  return { state: cleanReview(raw, wordsForLevel(2)), words };
+  const ctx = await context();
+  const scoped = scopedStorage(chromeStorage, ctx.scope);
+  const { [REVIEW_KEY]: raw } = await scoped.get([REVIEW_KEY]);
+  const allWords = ctx.language === 'es' ? wordsForLevel(2) : packWords(cleanPacks((await store.get(PACKS_KEY))[PACKS_KEY])[ctx.language], 2);
+  return { state: cleanReview(raw, allWords), words: ctx.words, scoped, scope: ctx.scope };
 }
 
 async function reviewStatus() {
   const { state, words } = await reviewState();
-  return reviewCounts(state, words, Date.now());
+  return { ...reviewCounts(state, words, Date.now()), language: languageName((await context()).language) };
 }
 
 async function reviewIntroduce() {
   return locked(async () => {
-    const { state, words } = await reviewState();
+    const { state, words, scoped } = await reviewState();
     const added = introduce(state, words, Date.now());
-    if (added) await store.set({ [REVIEW_KEY]: state });
+    if (added) await scoped.set({ [REVIEW_KEY]: state });
     return { added, ...reviewCounts(state, words, Date.now()) };
   });
 }
 
 async function reviewNext() {
   return locked(async () => {
-    const { state, words } = await reviewState();
+    const { state, words, scoped } = await reviewState();
     const card = nextReview(state, words, Date.now());
-    await store.set({ [REVIEW_KEY]: state });
+    await scoped.set({ [REVIEW_KEY]: state });
     return { card, ...reviewCounts(state, words, Date.now()) };
   });
 }
 
 async function reviewReveal(msg) {
   return locked(async () => {
-    const { state, words } = await reviewState();
+    const { state, words, scoped } = await reviewState();
     const answer = revealReview(state, words, msg.ticket, Date.now());
     if (!answer) return { error: 'This review card is no longer available. Reload the queue.' };
-    await store.set({ [REVIEW_KEY]: state });
+    await scoped.set({ [REVIEW_KEY]: state });
     return { answer };
   });
 }
 
 async function reviewRate(msg) {
   return locked(async () => {
-    const { state, words } = await reviewState();
+    const { state, words, scoped } = await reviewState();
     const result = state.current && words.some(({ fr }) => fr === state.current.word)
       ? rateReview(state, msg.ticket, msg.rating, Date.now()) : null;
     if (!result) return { error: 'This rating is stale or the answer has not been revealed.' };
-    await store.set({ [REVIEW_KEY]: state });
+    await scoped.set({ [REVIEW_KEY]: state });
     return { ok: true, ...result };
   });
 }
@@ -217,12 +257,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     event: () => record(msg, sender),
     status, clearCache,
     save: () => save(msg),
+    addLanguage: () => addLanguage(msg),
     reviewStatus, reviewIntroduce, reviewNext,
     reviewReveal: () => reviewReveal(msg),
     reviewRate: () => reviewRate(msg),
   };
   const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate'];
-  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'reviewStatus'].includes(msg.type)) &&
+  if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'reviewStatus'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
       !(page && ['config', 'swaps', 'event'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));

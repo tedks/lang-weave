@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Spanish Weave",
-  "version": "0.4.0",
-  "description": "Learn Spanish through the English you already read: contextual words, hover hints and click-to-English.",
+  "name": "Lang Weave",
+  "version": "0.5.0",
+  "description": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
   "permissions": [
     "storage",
     "alarms",
@@ -48,6 +48,6 @@
   ],
   "action": {
     "default_popup": "src/popup.html",
-    "default_title": "Spanish Weave"
+    "default_title": "Lang Weave"
   }
 }
