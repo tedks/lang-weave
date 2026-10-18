@@ -1,0 +1,23 @@
+id: gradual-inband-learning
+title: Add gradual learning and in-band spaced repetition above generic languages
+desc: 'User-authorized fresh lane stacked on generic-language PR: opt-in gradual learning
+  pool and local-day new-word budget, independent bounded translation density, due-word
+  priority and familiar-word suppression, optional inline English-cue/reveal/Hard-Medium-Easy
+  recall. Exposure is not mastery. Per-language/pack state and worker-owned serialized
+  context-bound tickets; preserve standalone reviews/privacy/key/legacy installed
+  path. Branch gradual-learning, PR base generic-language; lower interface contract
+  coordinated directly. Root CTO owns stack merges/final fleet acceptance. Full local
+  gates, real isolated Chromium synthetic Gemini, council to fixpoint before landing.'
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T06:26:17-00:00
+references: []
+log_events:
+- time: 2026-10-18T06:26:17-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
