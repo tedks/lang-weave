@@ -1,0 +1,24 @@
+id: inline-cue-polish
+title: Polish inline cue label fallback and concurrent panel dismissal
+desc: 'PR #4 fourth fix-delta council reached CLEAN in OpenAI and Anthropic available
+  seats, with two minor nonblocking nits: (1) finished-span aria label uses validated
+  swap.g without fallback; current validated swap contract always provides g, but
+  a future caller without g would render undefined. Add a defensive answer.en fallback
+  if the input contract broadens. (2) Escape during an in-flight rating, followed
+  by opening a sibling cue, can leave a harmless Cue unavailable panel after the saved
+  rating wins; Dismiss clears it. Add a deterministic held-rating UI test and close
+  that stale panel without stealing focus. Preserve worker ticket/revision guards
+  and no-new-model-call rating behavior. No product default change.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T07:31:04-00:00
+references: []
+log_events:
+- time: 2026-10-18T07:31:04-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
