@@ -24,5 +24,13 @@ log_events:
   who: Ted Smith
   what: blocks gradual-inband-learning
   comment: ""
+- time: 2026-10-18T18:58:32-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Ted explicitly approved recommendation 1 on 2026-10-18: automatic inline
+    quizzes for newly introduced words start no earlier than the next local day; manual
+    standalone review remains immediately available. Decision resolved. Implementation
+    and new tests/review remain tracked by gradual-inband-learning; this is not feature
+    acceptance or permission to merge.'
 blocks:
 - gradual-inband-learning
