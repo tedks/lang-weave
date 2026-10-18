@@ -47,6 +47,7 @@ try {
   });
   const html = `<!doctype html><html lang="en"><body><main>
     <p id="reading">We discussed the idea with friends every week.</p>
+    <p id="reading2">We discussed the idea with neighbors every week.</p>
     <p id="health">The doctor explained the idea behind my medication.</p>
     <form><p>Private form text and the idea stay here.</p><input value="private"></form>
     <p contenteditable="true">Editable the idea stays here.</p>
@@ -67,7 +68,9 @@ try {
   await page.goto('https://reading.example/two');
   const due = page.locator('#reading .fw-word');
   await due.waitFor();
+  await page.locator('#reading2 .fw-word').waitFor();
   assert.equal(await due.getAttribute('title'), 'Open inline recall');
+  assert.equal(await page.locator('#reading2 .fw-word').getAttribute('title'), 'Open inline recall');
   assert.equal(await due.textContent(), 'the idea → [?]');
   assert.equal(await due.getAttribute('data-fr'), null);
   assert.equal(await due.getAttribute('data-tip'), null);
@@ -141,6 +144,9 @@ try {
     return span && span.textContent === 'la idea' && span.getAttribute('title') !== 'Open inline recall';
   }); // only the rated span changes, without re-requesting the whole page
   assert.equal(await due.getAttribute('data-en'), 'the idea');
+  assert.equal(await due.evaluate((span) => document.activeElement === span), true);
+  assert.equal(await page.locator('#reading2 .fw-word').getAttribute('title'), null);
+  assert.equal(await page.locator('#reading2 .fw-word').textContent(), 'la idea');
   await page.waitForTimeout(750); // catches an unintended content flush after a full-page refresh
   assert.equal((await worker.evaluate(() => globalThis.calls)).length, callsBeforeRating);
   const review = await browser.newPage();

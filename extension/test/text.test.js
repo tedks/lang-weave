@@ -232,3 +232,24 @@ test('a saved practice rating changes only its span and restores trusted source 
     expect(el.textContent).toBe('We discussed the idea with friends.');
   } finally { el.remove(); }
 });
+
+test('rated practice keeps the validated bare and capitalized display forms', () => {
+  for (const { source, original, display, card } of [
+    { source: 'We discussed my world today.', original: 'my world', display: 'mundo', card: 'el mundo' },
+    { source: 'The idea matters to us.', original: 'The idea', display: 'La idea', card: 'la idea' },
+  ]) {
+    const el = tweet(`<span>${source}</span>`);
+    document.body.append(el);
+    try {
+      expect(applySwaps(el, [S({ o: original, f: display, word: card, practice: true })])).toBe(1);
+      const span = el.querySelector('.fw-word');
+      expect(finishPractice(span, { fr: card, en: original, hint: '' })).toBe(true);
+      expect(span.textContent).toBe(display);
+      expect(span.getAttribute('data-fr')).toBe(display);
+      expect(toggle(span)).toBe(true);
+      expect(span.textContent).toBe(original);
+      revert(el);
+      expect(el.textContent).toBe(source);
+    } finally { el.remove(); }
+  }
+});

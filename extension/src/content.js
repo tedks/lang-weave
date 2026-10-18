@@ -145,8 +145,14 @@ async function openCue(span) {
             if (!result?.ok) throw new Error(result?.error || 'Cue expired');
             if (cue === panel) {
               closeCue();
-              if (gen === generation && on() && span.isConnected &&
-                  finishPractice(span, answer, result.familiar)) observer?.takeRecords();
+              if (gen === generation && on() && span.isConnected) {
+                const word = swapWord(span);
+                for (const related of document.querySelectorAll(`.${SWAP_CLASS}.fw-practice`)) {
+                  if (isPractice(related) && swapWord(related) === word) finishPractice(related, answer, result.familiar);
+                }
+                observer?.takeRecords();
+                if (span.isConnected) span.focus();
+              }
             }
           } catch {
             if (!liveCue()) { closeCue(); return; }
