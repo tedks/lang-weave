@@ -9,12 +9,14 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
   let writesFail = false;
+  let cacheWritesFail = false;
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
       async get(keys) { await tick(); const pick = typeof keys === 'string' ? [keys] : keys || Object.keys(data);
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]]))); },
       async set(values) { await tick(); if (writesFail && 'recallReview' in values) throw new Error('Storage failed');
+        if (cacheWritesFail && Object.keys(values).some((key) => key.startsWith('c:'))) throw new Error('Cache storage failed');
         Object.assign(data, structuredClone(values)); },
       async remove(keys) { for (const key of keys) delete data[key]; },
     } },
@@ -27,9 +29,11 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
   let modelCalls = 0;
+  let modelFails = false;
   globalThis.fetch = async (url, init) => {
     if (String(url).endsWith('manifest.json')) return { ok: true, json: async () => ({ version: '0.5.0' }) };
     modelCalls++;
+    if (modelFails) throw new Error('Synthetic model failure');
     const batch = JSON.parse(JSON.parse(init.body).contents[0].parts[0].text.replace(/^Passages:\n/, ''));
     const passages = batch.map(({ id, text }) => ({ id, swaps: [
       ...(text.includes('the idea') ? [{ o: 'the idea', f: 'la idea', ctx: '' }] : []),
@@ -44,6 +48,8 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
   const other = { ...page, tab: { id: 8 }, documentId: 'doc-2' };
   const ask = (text, sender, revision) => send({ type: 'swaps', revision,
     items: [{ key: `${revision}:${hashKey(text)}`, text }] }, sender);
+  const askBatch = (texts, sender, revision) => send({ type: 'swaps', revision,
+    items: texts.map((text) => ({ key: `${revision}:${hashKey(text)}`, text })) }, sender);
   try {
     await import('../src/background.js?learning-worker');
     const revision = (await send({ type: 'config' }, page)).revision;
@@ -58,6 +64,15 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     expect((await ask('I explained the idea to my friends today.', page, revision)).results).toBeDefined();
     expect(data.recallReview.learning.count).toBe(1);
     const due = Object.keys(data.recallReview.cards)[0];
+    const includedText = due === 'la idea' ? 'I explained the idea to my friends today.' : 'I answered the question for my class today.';
+    const excludedText = due === 'la idea' ? 'I answered the question for my class today.' : 'I explained the idea to my friends today.';
+    modelFails = true;
+    const mixed = await askBatch([includedText, excludedText, 'This passage has no matching word at all today.'], page, revision);
+    expect(mixed.error).toMatch(/Synthetic model failure/);
+    expect(mixed.results[`${revision}:${hashKey(includedText)}`].map((s) => s.word)).toEqual([due]);
+    expect(mixed.results[`${revision}:${hashKey(excludedText)}`]).toEqual([]);
+    expect(data.recallReview.learning.count).toBe(1);
+    modelFails = false;
     expect(await send({ type: 'inlineBegin', word: due, revision }, { ...page, url: 'https://mail.google.com/' }))
       .toMatchObject({ error: expect.any(String) });
     expect(await send({ type: 'inlineBegin', word: due, revision }, page)).toMatchObject({ ticket: expect.any(String) });
@@ -76,11 +91,18 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     await send({ type: 'save', settings: { enabled: false } }, popup);
     expect((await send({ type: 'inlineBegin', word: due, revision }, page)).error).toMatch(/no longer/);
     const old = structuredClone(data.recallReview);
-    writesFail = true;
     await send({ type: 'save', settings: { enabled: true, newWordsPerDay: 2 } }, popup);
     const resumed = (await send({ type: 'config' }, page)).revision;
-    const failed = await ask('I answered the question for my class today.', page, resumed);
+    cacheWritesFail = true;
+    const cacheFailed = await ask(excludedText, page, resumed);
+    expect(cacheFailed.error).toMatch(/Cache storage failed/);
+    expect(cacheFailed.results).toEqual({});
+    expect(data.recallReview).toEqual(old);
+    cacheWritesFail = false;
+    writesFail = true;
+    const failed = await ask(excludedText, page, resumed);
     expect(failed.error).toMatch(/Storage failed/);
+    expect(failed.results).toEqual({});
     expect(data.recallReview).toEqual(old);
   } finally { Object.assign(globalThis, prior); }
 }, 30000);

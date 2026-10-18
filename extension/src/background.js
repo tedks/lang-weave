@@ -77,16 +77,19 @@ async function swaps(msg, sender) {
       if (model) await cache.setMany(raw);
       return { results: raw };
     }
+    // A failed cache write must not spend an introduction that the page will
+    // receive only as an error. Cached raw swaps remain policy-filtered on read.
+    if (model) await cache.setMany(raw);
     const { state, scoped } = await reviewState();
     const before = JSON.stringify(state.learning);
     const output = commitLearning(state, raw, ctx.settings);
     if (JSON.stringify(state.learning) !== before) await scoped.set({ [REVIEW_KEY]: state });
-    if (model) await cache.setMany(raw);
     return { results: output };
   });
   if (!misses.length) return deliver(results);
+  let fresh;
   try {
-    const fresh = await modelCall(async () => {
+    fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
       if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; try again tomorrow`);
       const { apiKey } = await store.get('apiKey');
@@ -113,7 +116,20 @@ async function swaps(msg, sender) {
         density: ctx.settings.density, words: policyWords(ctx.words, state, ctx.settings), fetchImpl,
         shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
     });
-    if (!fresh) return { results: {}, stale: true };
+  } catch (e) {
+    const error = e?.message || 'Model request failed';
+    await store.set({ modelStatus: { at: Date.now(), error } });
+    try {
+      // Cache entries are raw validated swaps. They still need the current gradual
+      // quota and cards, even when another item in this batch failed at the model.
+      const delivered = await deliver(results);
+      return { ...delivered, error, retryAfterMs: e?.retryAfterMs };
+    } catch (storageError) {
+      return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
+    }
+  }
+  if (!fresh) return { results: {}, stale: true };
+  try {
     const delivered = await deliver({ ...results, ...fresh.results }, true);
     if (!delivered.stale) {
       await store.set({ modelStatus: { at: Date.now(), error: '', model: fresh.model } });
@@ -125,7 +141,7 @@ async function swaps(msg, sender) {
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
     const error = e?.message || 'Model request failed';
     await store.set({ modelStatus: { at: Date.now(), error } });
-    return { results, error, retryAfterMs: e?.retryAfterMs };
+    return { results: {}, error, retryAfterMs: e?.retryAfterMs };
   }
 }
 
