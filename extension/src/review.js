@@ -17,7 +17,8 @@ export function cleanReview(raw, words, now = Date.now()) {
       cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews,
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
-        ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}) };
+        ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}),
+        ...(validDay(card.introGateDay) ? { introGateDay: card.introGateDay } : {}) };
       const receipt = card.introReceipt;
       if (typeof receipt?.ticket === 'string' && /^[0-9a-f-]{36}$/.test(receipt.ticket) &&
           typeof receipt.ownerKey === 'string' && /^[0-9a-f]{16}$/.test(receipt.ownerKey) &&
@@ -53,7 +54,8 @@ export function reviewCounts(state, words, now) {
 
 export function introduce(state, words, now, count = 5) {
   const fresh = words.filter(({ fr }) => !Object.hasOwn(state.cards, fr)).slice(0, count);
-  for (const { fr } of fresh) state.cards[fr] = { due: now, interval: 0, reviews: 0 };
+  for (const { fr } of fresh) state.cards[fr] = { due: now, interval: 0, reviews: 0,
+    introducedDay: localDay(new Date(now)) };
   return fresh.length;
 }
 
@@ -111,7 +113,7 @@ export function markFamiliar(state, ticket, now) {
 
 export function beginInline(state, word, sender, revision, now, ticket = () => crypto.randomUUID()) {
   const card = state.cards[word];
-  if (!card || card.familiar || card.due > now || card.introducedDay >= localDay(new Date(now)) || !sender.documentId ||
+  if (!card || card.familiar || card.due > now || (card.introGateDay || card.introducedDay) >= localDay(new Date(now)) || !sender.documentId ||
       !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId)) return null;
   state.inline = { word, ticket: ticket(), documentId: sender.documentId,
     tabId: sender.tab.id, frameId: sender.frameId, revision, revealed: false };

@@ -4,7 +4,11 @@ import { hashKey } from './hash.js';
 
 export const DENSITIES = ['light', 'normal', 'heavy'];
 export const RESERVATION_MS = 30 * 1000;
+const RENEW_GRACE_MS = 24 * 60 * 60 * 1000;
+const MAX_PENDING = 20;
 const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)', 'in', 'the', 'a']);
+export const introductionOwner = (ticket, sender, revision) =>
+  hashKey(JSON.stringify([ticket, sender.documentId, sender.tab?.id, sender.frameId, revision]));
 
 export function validDay(value) {
   const match = typeof value === 'string' && /^(\d{4})-(\d\d)-(\d\d)$/.exec(value);
@@ -22,10 +26,9 @@ export function cleanLearning(raw, now = Date.now()) {
   const pending = Array.isArray(raw?.pending) ? raw.pending.filter((p) => p &&
     typeof p.word === 'string' && p.word.length <= 100 &&
     typeof p.ticket === 'string' && /^[0-9a-f-]{36}$/.test(p.ticket) &&
-    validDay(p.day) && Number.isSafeInteger(p.until) && p.until >= 0 && p.until <= latest &&
+    validDay(p.day) && Number.isSafeInteger(p.until) && p.until > now - RENEW_GRACE_MS && p.until <= latest &&
     typeof p.revision === 'string' && p.revision.length <= 100 &&
-    typeof p.documentId === 'string' && p.documentId.length <= 100 &&
-    Number.isSafeInteger(p.tabId) && Number.isSafeInteger(p.frameId)).slice(0, 10) : [];
+    typeof p.ownerKey === 'string' && /^[0-9a-f]{16}$/.test(p.ownerKey)).slice(-MAX_PENDING) : [];
   return { day, count, pending };
 }
 
@@ -73,11 +76,16 @@ export function policyWords(words, state, settings, now = Date.now(), day = loca
 
 export function commitLearning(state, results, settings, sender, revision, now = Date.now(), day = localDay(new Date(now)), ticket = () => crypto.randomUUID()) {
   if (!settings.gradual) return results;
-  state.learning.pending = activeReservations(state.learning, day, now, revision);
+  // Keep a bounded set of expired tickets so a visible span can renew after
+  // another delivery. Only live tickets count against the daily allowance.
+  const recent = state.learning.pending.filter((p) => p.day === day && p.revision === revision &&
+    p.until > now - RENEW_GRACE_MS);
+  const live = recent.filter((p) => p.until > now);
+  state.learning.pending = [...recent.filter((p) => p.until <= now).slice(-(MAX_PENDING - live.length)), ...live];
   const left = remaining(state.learning, day, settings.newWordsPerDay, now, revision);
   let added = 0;
   const batch = new Map();
-  const reserved = new Set(state.learning.pending.map((p) => p.word));
+  const reserved = new Set(activeReservations(state.learning, day, now, revision).map((p) => p.word));
   const output = {};
   for (const [key, swaps] of Object.entries(results)) {
     output[key] = [];
@@ -89,14 +97,16 @@ export function commitLearning(state, results, settings, sender, revision, now =
         output[key].push({ ...swap, status: 'known' });
       } else if (card) {
         output[key].push({ ...swap, status: card.due <= now ? 'due' : 'active',
-          ...(card.due <= now && settings.inlineRecall && (!card.introducedDay || card.introducedDay < day)
+          ...(card.due <= now && settings.inlineRecall && (!(card.introGateDay || card.introducedDay) ||
+            (card.introGateDay || card.introducedDay) < day)
             ? { practice: true } : {}) });
       } else if (typeof swap.word === 'string' && !reserved.has(swap.word) && (batch.has(swap.word) || added < left) &&
           sender?.documentId && Number.isSafeInteger(sender.tab?.id) && Number.isSafeInteger(sender.frameId)) {
         let reservation = batch.get(swap.word);
         if (!reservation) {
-          reservation = { word: swap.word, ticket: ticket(), day, until: now + RESERVATION_MS,
-            revision, documentId: sender.documentId, tabId: sender.tab.id, frameId: sender.frameId };
+          const id = ticket();
+          reservation = { word: swap.word, ticket: id, day, until: now + RESERVATION_MS,
+            revision, ownerKey: introductionOwner(id, sender, revision) };
           batch.set(swap.word, reservation);
           state.learning.pending.push(reservation);
           added++;
@@ -105,20 +115,24 @@ export function commitLearning(state, results, settings, sender, revision, now =
       }
     }
   }
+  if (state.learning.pending.length > MAX_PENDING) {
+    const current = state.learning.pending.filter((p) => p.until > now);
+    state.learning.pending = [...state.learning.pending.filter((p) => p.until <= now)
+      .slice(-(MAX_PENDING - current.length)), ...current];
+  }
   return output;
 }
 
 export function acknowledgeIntroduction(state, word, ticket, sender, revision, budget, now = Date.now(), day = localDay(new Date(now))) {
   const card = state.cards[word];
-  const ownerKey = hashKey(JSON.stringify([ticket, sender.documentId, sender.tab?.id, sender.frameId, revision]));
+  const ownerKey = introductionOwner(ticket, sender, revision);
   if (card?.introReceipt?.ticket === ticket) return card.introReceipt.until > now &&
     card.introReceipt.ownerKey === ownerKey; // bounded, document-bound replay after a worker restart
   const p = state.learning.pending.find((item) => item.word === word && item.ticket === ticket);
-  if (!p || p.until <= now || p.day !== day || p.revision !== revision ||
-      p.documentId !== sender.documentId || p.tabId !== sender.tab?.id || p.frameId !== sender.frameId ||
+  if (!p || p.until <= now || p.day !== day || p.revision !== revision || p.ownerKey !== ownerKey ||
       card || state.learning.day > day || (state.learning.day === day && state.learning.count >= budget)) return false;
   state.cards[word] = { due: now, interval: 0, reviews: 0, introducedDay: day,
-    introReceipt: { ticket, ownerKey, until: p.until } };
+    introReceipt: { ticket, ownerKey, until: now + RESERVATION_MS } };
   state.learning = { day, count: (state.learning.day === day ? state.learning.count : 0) + 1,
     pending: state.learning.pending.filter((item) => item.ticket !== ticket) };
   return true;
@@ -127,6 +141,6 @@ export function acknowledgeIntroduction(state, word, ticket, sender, revision, b
 export function releaseIntroduction(state, ticket, sender, revision) {
   const before = state.learning.pending.length;
   state.learning.pending = state.learning.pending.filter((p) => !(p.ticket === ticket && p.revision === revision &&
-    p.documentId === sender.documentId && p.tabId === sender.tab?.id && p.frameId === sender.frameId));
+    p.ownerKey === introductionOwner(ticket, sender, revision)));
   return state.learning.pending.length !== before;
 }

@@ -174,6 +174,8 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const beforeEmpty = modelCalls;
     expect(Object.values((await ask(excludedText, page, nextRevision)).results)).toEqual([[]]);
     expect(modelCalls).toBe(beforeEmpty);
+    data.recallReview.cards['la idea'] = { due: Date.now(), interval: 0, reviews: 1,
+      introducedDay: '2099-01-01' };
     const preserved = structuredClone(data.recallReview.cards);
     data.recallReview.learning = { day: '2099-01-01', count: 1, pending: [] };
     const warning = await send({ type: 'status' }, popup);
@@ -194,7 +196,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     expect((await send({ type: 'recoverBudget', confirm: true, day: '2099-01-01', scope: 'es' }, popup)).ok)
       .toBe(true);
     expect(data.recallReview.learning.count).toBe(0);
-    expect(data.recallReview.cards).toEqual(preserved);
+    expect(data.recallReview.cards['la idea']).toMatchObject({ ...preserved['la idea'], introGateDay: localDay() });
     expect((await send({ type: 'status' }, popup)).budgetWarning).toBe('');
     data.recallReview.cards = {};
     data.recallReview.learning = { day: localDay(), count: 0, pending: [] };
@@ -215,9 +217,11 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     data.recallReview.cards = {};
     data.recallReview.learning = { day: localDay(), count: 0, pending: [] };
     const staleHold = Object.values((await ask(includedText, page, nextRevision)).results).flat()[0];
-    data.recallReview.learning.pending[0].until = 0;
+    data.recallReview.learning.pending[0].until = Date.now() - 1000;
     expect((await send({ type: 'introAck', word: staleHold.word, ticket: staleHold.introTicket,
       revision: nextRevision }, page)).ok).toBe(false);
+    await ask('A separate paragraph without either target word is delivered.', other, nextRevision);
+    expect(data.recallReview.learning.pending.some((p) => p.ticket === staleHold.introTicket)).toBe(true);
     const beforeRenew = modelCalls;
     expect((await send({ type: 'introRenew', word: staleHold.word, ticket: staleHold.introTicket,
       revision: nextRevision }, other)).ok).toBe(false);

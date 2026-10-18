@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { cleanReview, beginInline, revealInline, finishInline, nextReview, revealReview, rateReview, markFamiliar } from '../src/review.js';
+import { cleanReview, introduce, beginInline, revealInline, finishInline, nextReview, revealReview, rateReview, markFamiliar } from '../src/review.js';
 import { cleanLearning, remaining, policyWords, commitLearning, acknowledgeIntroduction,
   releaseIntroduction, futureBudgetDay } from '../src/learning.js';
 import { capSwaps } from '../src/levels.js';
@@ -38,11 +38,18 @@ test('reservations bound concurrent introductions and only visible acknowledgeme
   expect(result.one[0].introTicket).toBe(result.two[0].introTicket);
   expect(state.learning.count).toBe(0);
   expect(Object.keys(state.cards)).toHaveLength(0);
+  expect(state.learning.pending[0].ownerKey).toMatch(/^[0-9a-f]{16}$/);
+  expect(state.learning.pending[0].documentId).toBeUndefined();
+  expect(state.learning.pending[0].tabId).toBeUndefined();
+  expect(state.learning.pending[0].frameId).toBeUndefined();
   expect(cleanLearning({ pending: [{ ...state.learning.pending[0], until: now + 86400000 }] }, now).pending).toEqual([]);
+  expect(cleanLearning({ pending: [{ ...state.learning.pending[0], until: now - 86400001 }] }, now).pending).toEqual([]);
   const restarted = cleanReview(structuredClone(state), words, now);
   expect(restarted.learning.pending).toEqual(state.learning.pending);
   expect(acknowledgeIntroduction(restarted, 'libro', result.one[0].introTicket, sender, revision, 2, now, day)).toBe(true);
   expect(cleanReview(structuredClone(restarted), words, now).cards.libro.introReceipt.ticket).toBe(result.one[0].introTicket);
+  expect(cleanReview(structuredClone(restarted), words, now + 29_000).cards.libro.introReceipt.ticket)
+    .toBe(result.one[0].introTicket);
   expect(cleanReview(structuredClone(restarted), words, now + 6 * 60 * 1000).cards.libro.introReceipt).toBeUndefined();
   expect(remaining(state.learning, day, 2, now, revision)).toBe(0);
   expect(policyWords(words, state, settings, now, day, revision).some((w) => w.fr === 'libro')).toBe(false);
@@ -83,6 +90,11 @@ test('same-day inline cue waits for next local day; standalone review is immedia
   expect(beginInline(state, 'libro', sender, revision, now)).toBeNull();
   expect(nextReview(state, [words[2]], now)?.en).toBe('book');
   expect(beginInline(state, 'libro', sender, revision, now + 86400000)).toHaveProperty('ticket');
+  const manual = cleanReview(null, words);
+  expect(introduce(manual, [words[3]], now, 1)).toBe(1);
+  expect(nextReview(manual, [words[3]], now)?.en).toBe('house');
+  expect(beginInline(manual, 'casa', sender, revision, now)).toBeNull();
+  expect(beginInline(manual, 'casa', sender, revision, now + 86400000)).toHaveProperty('ticket');
 });
 
 test('expired and old-day reservations cannot be acknowledged or block fresh slots', () => {
@@ -98,6 +110,46 @@ test('expired and old-day reservations cannot be acknowledged or block fresh slo
   expect(state.learning.pending).toHaveLength(1);
   expect(state.learning.pending[0].word).toBe('casa');
   expect(state.learning.count).toBe(0);
+});
+
+test('an unrelated delivery preserves an expired hold long enough for a visible renewal', () => {
+  const state = cleanReview(null, words);
+  const first = commitLearning(state, { one: [swap('libro')] }, settings, sender, revision, now, day);
+  const ticket = first.one[0].introTicket;
+  state.learning.pending[0].until = now - 1;
+  const restarted = cleanReview(structuredClone(state), words, now);
+  commitLearning(restarted, { unrelated: [] }, settings, sender, revision, now, day);
+  expect(restarted.learning.pending.some((p) => p.ticket === ticket)).toBe(true);
+  expect(acknowledgeIntroduction(restarted, 'libro', ticket, sender, revision, 2, now, day)).toBe(false);
+  const renewed = commitLearning(restarted, { renew: [swap('libro')] }, settings, sender, revision, now, day);
+  expect(renewed.renew[0].introTicket).not.toBe(ticket);
+  expect(acknowledgeIntroduction(restarted, 'libro', renewed.renew[0].introTicket,
+    sender, revision, 2, now, day)).toBe(true);
+});
+
+test('a near-expiry acknowledgement keeps a full retry receipt after its saved write', () => {
+  const state = cleanReview(null, words);
+  const held = commitLearning(state, { one: [swap('libro')] }, settings, sender, revision, now, day);
+  const ticket = held.one[0].introTicket;
+  expect(acknowledgeIntroduction(state, 'libro', ticket, sender, revision, 2, now + 29_000, day)).toBe(true);
+  const restarted = cleanReview(structuredClone(state), words, now + 58_000);
+  expect(acknowledgeIntroduction(restarted, 'libro', ticket, sender, revision, 2,
+    now + 58_000, day)).toBe(true);
+  expect(restarted.learning.count).toBe(1);
+});
+
+test('recovered future introduction history waits one local day before inline recall', () => {
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 0, reviews: 0,
+    introducedDay: '2099-01-01', introGateDay: day };
+  const restarted = cleanReview(structuredClone(state), words, now);
+  expect(restarted.cards.libro.introducedDay).toBe('2099-01-01');
+  expect(commitLearning(restarted, { one: [swap('libro')] }, settings, sender, revision, now, day)
+    .one[0].practice).toBeUndefined();
+  expect(beginInline(restarted, 'libro', sender, revision, now)).toBeNull();
+  expect(commitLearning(restarted, { one: [swap('libro')] }, settings, sender, revision,
+    now + 86400000, '2026-10-19').one[0].practice).toBe(true);
+  expect(beginInline(restarted, 'libro', sender, revision, now + 86400000)).toHaveProperty('ticket');
 });
 
 test('acknowledgement rechecks the persisted count even when a reservation exists', () => {

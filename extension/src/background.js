@@ -9,7 +9,8 @@ import { localDay, queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
   beginInline, revealInline, finishInline } from './review.js';
-import { policyWords, remaining, commitLearning, acknowledgeIntroduction, releaseIntroduction, futureBudgetDay } from './learning.js';
+import { policyWords, remaining, commitLearning, acknowledgeIntroduction, releaseIntroduction,
+  futureBudgetDay, introductionOwner } from './learning.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
 
@@ -196,8 +197,7 @@ async function introduction(msg, sender) {
     }
     if (msg.type === 'introRenew') {
       const old = state.learning.pending.find((p) => p.word === word.fr && p.ticket === msg.ticket &&
-        p.documentId === sender.documentId && p.tabId === sender.tab.id && p.frameId === sender.frameId &&
-        p.revision === ctx.revision);
+        p.ownerKey === introductionOwner(msg.ticket, sender, ctx.revision) && p.revision === ctx.revision);
       if (!old) return { ok: false, stale: true };
       const before = JSON.stringify(state.learning);
       const renewed = commitLearning(state, { renew: [{ word: word.fr }] }, ctx.settings, sender, ctx.revision);
@@ -336,6 +336,9 @@ async function recoverBudget(msg) {
     const today = localDay();
     if (!futureBudgetDay(state.learning, today) || msg.day !== state.learning.day || msg.scope !== ctx.scope)
       return false;
+    // Keep the historical date while allowing due inline recall from the next
+    // local day after an explicitly confirmed clock recovery.
+    for (const card of Object.values(state.cards)) if (card.introducedDay > today) card.introGateDay = today;
     state.learning = { day: today, count: 0, pending: [] };
     await scoped.set({ [REVIEW_KEY]: state });
     return true;

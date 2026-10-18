@@ -244,7 +244,7 @@ try {
   assert.equal(beforeVisible.cards['la pregunta'], undefined);
   await worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
-    recallReview.learning.pending[0].until = 0; // emulate a reader returning after the bounded hold expires
+    recallReview.learning.pending[0].until = Date.now() - 1000; // recently expired, still eligible for renewal
     await chrome.storage.local.set({ recallReview });
   });
   await reserved.scrollIntoViewIfNeeded();
