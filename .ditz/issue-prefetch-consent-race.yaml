@@ -27,5 +27,15 @@ log_events:
   who: Ted Smith
   what: blocks generic-language
   comment: ""
+- time: 2026-10-18T06:53:40-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Legacy impact: CTO inspected accepted source30d10a5 (0.4.0) and confirmed
+    the same prefetch await gaps. This is static evidence of exposure risk, not evidence
+    that an unwanted real request occurred. Lower Lead should prepare a minimal backport
+    candidate/evidence so a privacy repair can ship without waiting for the adaptive-learning
+    feature; root coordinates any hotfix PR, source-base rebases and fleet pin, with
+    no premature rename. Already-dispatched requests cannot be retracted; test revocation-before-underlying-send
+    precisely.'
 blocks:
 - generic-language
