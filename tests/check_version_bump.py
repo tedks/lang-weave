@@ -24,9 +24,11 @@ VERSIONED = (PLUGIN, '.claude-plugin/marketplace.json', 'extension/manifest.json
 # Installed runtime roots. Some developer-only files under these roots are
 # copied by setup but never loaded by the plugin or unpacked extension.
 SHIPPED = ('.claude-plugin/', 'scripts/', 'hooks/', 'commands/', 'skills/', 'agents/', 'data/', 'extension/')
-# Developer-only tools do not need an installed runtime version bump.
-NOT_SHIPPED = ('extension/test/', 'extension/e2e/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
+# Developer-only tools do not need an installed runtime version bump. Only
+# these two known harness entry points are exempt; new e2e files fail closed.
+NOT_SHIPPED = ('extension/test/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
                'extension/bun.lockb')
+E2E_HARNESSES = ('extension/e2e/smoke.mjs', 'extension/e2e/gradual.mjs')
 ZERO = re.compile(r'^0+$')  # GitHub's "before" SHA for a new branch
 
 
@@ -65,7 +67,23 @@ def versions(repo, ref=None):
 
 
 def shipped(path):
-    return path.startswith(SHIPPED) and not path.startswith(NOT_SHIPPED)
+    return path.startswith(SHIPPED) and not path.startswith(NOT_SHIPPED) and path not in E2E_HARNESSES
+
+
+def e2e_runtime_references(repo, ref=None):
+    """Conservatively reject e2e path references anywhere in installed runtime files."""
+    root = Path(repo) / 'extension'
+    def runtime(path):
+        return path.startswith('extension/') and not path.startswith(
+            ('extension/e2e/', 'extension/test/', 'extension/node_modules/')) and path not in (
+            'extension/package.json', 'extension/bun.lock', 'extension/bun.lockb')
+    if ref is None:
+        return [str(path.relative_to(repo)) for path in root.rglob('*')
+                if path.is_file() and runtime(str(path.relative_to(repo)))
+                and 'e2e/' in path.read_text(errors='replace')]
+    listed = git(repo, 'ls-tree', '-r', '--name-only', ref, '--', 'extension').stdout.splitlines()
+    return [path for path in listed
+            if runtime(path) and 'e2e/' in git(repo, 'show', f'{ref}:{path}').stdout]
 
 
 def key(version):
@@ -81,6 +99,11 @@ def check(repo, base=None, head=None):
     if len(set(found.values())) > 1:
         problems.append('Versions disagree; set them all to the same value:\n' +
                         '\n'.join(f'  {path}: {version}' for path, version in found.items()))
+    references = e2e_runtime_references(repo, head)
+    if references:
+        problems.append('Runtime files reference developer-only extension/e2e/; remove that dependency or '
+                        'reclassify e2e as shipped before excluding its changes from a version bump: ' +
+                        ', '.join(references[:8]))
     if not base or ZERO.match(base):
         notes.append('No base to compare with: skipped the version-bump check.')
         return problems, notes
@@ -88,7 +111,9 @@ def check(repo, base=None, head=None):
         notes.append(f'Base {base} is not in this clone (fetch more history): skipped the version-bump check.')
         return problems, notes
     merge_base = git(repo, 'merge-base', base, head or 'HEAD').stdout.strip()
-    diff = ['diff', '--name-only', merge_base] + ([head] if head else [])
+    # A move out of a runtime path is a shipped deletion even when its new
+    # path is developer-only. List both sides instead of a detected rename.
+    diff = ['diff', '--no-renames', '--name-only', merge_base] + ([head] if head else [])
     changed = [p for p in git(repo, *diff).stdout.splitlines() if shipped(p)]
     if not changed:
         notes.append('No shipped files changed: no version bump needed.')

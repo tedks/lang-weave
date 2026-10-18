@@ -1,6 +1,8 @@
 // Real MV3 Chromium, synthetic pages and Gemini only. No API key, account or paid calls.
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,19 +14,44 @@ if (!isAbsolute(source)) throw new Error('SPANISH_WEAVE_TEST_EXTENSION must be a
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-smoke-'));
 const extension = join(scratch, 'extension');
 let context;
+const originHits = [];
+const proxyHits = [];
+const origin = createServer((request, response) => {
+  originHits.push(request.url);
+  response.writeHead(200, { 'Content-Type': 'text/plain' });
+  response.end('owned probe works');
+});
+// The proxy is an owned sink: even a failed network assertion cannot forward
+// a request or contact Gemini. The resolver rule below backs it up.
+const proxy = createServer((request, response) => {
+  proxyHits.push(request.url);
+  response.destroy();
+});
+proxy.on('connect', (request, socket) => {
+  proxyHits.push(request.url);
+  socket.destroy();
+});
+async function listen(server) {
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  return server.address().port;
+}
 try {
+  const originPort = await listen(origin);
+  const proxyPort = await listen(proxy);
   await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
   const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
   manifest.host_permissions.push(...manifest.optional_host_permissions);
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
+  const launchArgs = [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
+    '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND, MAP probe.weave.test 127.0.0.1',
+    `--proxy-server=127.0.0.1:${proxyPort}`];
   context = await chromium.launchPersistentContext(join(scratch, 'profile'), {
     channel: 'chromium', headless: true,
     // An MV3 worker restart loses the synthetic fetch. Block real Gemini
     // dispatch at the browser level even if that happens during this flow.
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
-      '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
-      '--proxy-server=127.0.0.1:9'],
+    args: launchArgs,
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
@@ -150,9 +177,41 @@ try {
   await page.locator('#reading .fw-word').waitFor();
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
-  console.log('PASS: real Chromium MV3 load; Spanish migration, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration. Gemini mocked; no live model validation.');
+  // A fresh browser/profile starts an MV3 worker without the synthetic fetch.
+  // Probe its browser-level network denial, which also survives worker restarts.
+  await context.close();
+  context = await chromium.launchPersistentContext(join(scratch, 'fresh-profile'), {
+    channel: 'chromium', headless: true, args: launchArgs,
+  });
+  const freshWorker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  assert.equal(await freshWorker.evaluate(() => 'smokeCalls' in globalThis), false);
+  // The owned origin is a positive control; a non-loopback hostname must
+  // fail through the local rejecting proxy, with no request reaching origin.
+  const probe = await freshWorker.evaluate(async (port) => {
+    const working = await fetch(`http://127.0.0.1:${port}/working`);
+    const positive = await working.text();
+    let denied = false;
+    try { await fetch(`http://probe.weave.test:${port}/blocked`); } catch { denied = true; }
+    let httpsDenied = false;
+    try { await fetch(`https://probe.weave.test:${port}/blocked`); } catch { httpsDenied = true; }
+    return { positive, denied, httpsDenied };
+  }, originPort);
+  assert.equal(probe.positive, 'owned probe works');
+  assert.equal(probe.denied, true);
+  assert.equal(probe.httpsDenied, true);
+  assert.ok(originHits.includes('/working'));
+  assert.equal(originHits.some((url) => url.includes('/blocked')), false);
+  assert.ok(proxyHits.some((url) => url.includes('probe.weave.test')));
+  assert.ok(proxyHits.includes(`probe.weave.test:${originPort}`)); // HTTPS CONNECT reached only the owned sink
+  console.log('PASS: real Chromium MV3 load; Spanish migration, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration; unmocked worker HTTP/HTTPS proxy denial with owned positive control. Gemini mocked; no live model validation.');
 } finally {
-  if (context) await context.close();
-  // Only the exact mkdtemp directory created above, after closing its browser.
-  await rm(scratch, { recursive: true, force: true });
+  try {
+    if (context) await context.close();
+  } finally {
+    const servers = [origin, proxy].filter((server) => server.listening);
+    for (const server of servers) server.closeAllConnections();
+    await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve))));
+    // Only the exact mkdtemp directory created above, after closing its browser.
+    await rm(scratch, { recursive: true, force: true });
+  }
 }
