@@ -10,8 +10,9 @@ synthetic Gemini. The prior fix delta through `9ed09c2` passed three-seat
 convergence. The lower branch rotates a persisted epoch on effective settings
 and pack changes and permission events, so a round trip cannot revive an old
 page revision. A second repair guards primary and fallback network dispatch
-after asynchronous storage reads; held site-off and permission-revocation
-tests prove zero sends, and a permitted case sends once. Mutation checks made
+after asynchronous storage reads; held quota, key, review and cache reads plus
+a held counter write test site-off or permission revocation with zero sends,
+and a permitted case sends once. Mutation checks made
 the pre-dispatch guard and the post-counter guard fail red before restoration.
 The latest review found and repaired an update-check lock inversion; its
 held-read regression also failed red under the old order. Native and Anthropic

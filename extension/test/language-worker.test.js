@@ -22,6 +22,9 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let blockSeenRead = false;
   let seenReadStarted;
   let releaseSeenRead;
+  let blockPrefetchRead = '';
+  let prefetchReadStarted;
+  let releasePrefetchRead;
   let blockCacheRead = false;
   let cacheReadStarted;
   let releaseCacheRead;
@@ -38,6 +41,12 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     storage: { local: {
       async setAccessLevel() {},
       async get(keys) {
+        if (blockPrefetchRead && (keys === blockPrefetchRead ||
+            (Array.isArray(keys) && keys.includes(blockPrefetchRead)))) {
+          blockPrefetchRead = '';
+          prefetchReadStarted();
+          await new Promise((resolve) => { releasePrefetchRead = resolve; });
+        }
         if (blockCacheRead && Array.isArray(keys) && keys.some((key) => key.startsWith('c:'))) {
           blockCacheRead = false;
           cacheReadStarted();
@@ -184,6 +193,22 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect((await siteOffPending).stale).toBe(true);
     expect(modelFetches).toBe(0);
     expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+
+    // The quota and key reads also yield before model dispatch. Either gap must
+    // honor a site-off that commits before the held read resumes.
+    for (const storageKey of ['modelCalls', 'apiKey']) {
+      const beforeRead = await dispatch({ type: 'config' }, page);
+      const readHeld = new Promise((resolve) => { prefetchReadStarted = resolve; });
+      blockPrefetchRead = storageKey;
+      const heldSwap = dispatch({ type: 'swaps', revision: beforeRead.revision,
+        items: [{ key: `${beforeRead.revision}:${hashKey(passage)}`, text: passage }] }, page);
+      await readHeld;
+      expect((await dispatch({ type: 'save', settings: { enabled: false } }, popup)).ok).toBe(true);
+      releasePrefetchRead();
+      expect((await heldSwap).stale).toBe(true);
+      expect(modelFetches).toBe(0);
+      expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+    }
 
     // The same held read must not disclose text after an origin permission is revoked.
     const beforeRevocation = await dispatch({ type: 'config' }, page);
