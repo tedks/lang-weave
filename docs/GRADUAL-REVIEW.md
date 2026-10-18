@@ -1,6 +1,10 @@
 # Gradual lane review triage
 
-Review scope: pre-rebase review, full integration review on pushed `7b8ae6c` against main `31b1cc3`, four integration fix-delta rounds ending with `d9840a4..4beec5d`, and the approved policy continuation. The integration delta converged CLEAN in OpenAI and Anthropic seats; Google was quota-limited then. Policy full rounds found repairable issues; two subsequent policy fix-delta rounds converged CLEAN in OpenAI, Anthropic and Google seats through source head `a97cf1d`. That source tree passed frozen install, 118 Bun/1504 assertions, 85 Python, version/block/diff and both isolated Chromium synthetic flows. CTO acceptance remains separate. No feature acceptance or merge is claimed.
+Review scope: pre-rebase review, full integration review on pushed `7b8ae6c` against main `31b1cc3`, four integration fix-delta rounds ending with `d9840a4..4beec5d`, and the approved policy continuation. The integration delta converged CLEAN in OpenAI and Anthropic seats; Google was quota-limited then. Policy full rounds found repairable issues; two subsequent policy fix-delta rounds converged CLEAN in OpenAI, Anthropic and Google seats through source head `a97cf1d`. Tested PR head `8e94cbb` passed frozen install, 118 Bun/1504 assertions, 85 Python, version/block/diff and two isolated Chromium synthetic flows. The CTO accepted the runtime and normally merged PR #4 at `43fee1c`, with an identical tree. Root owns release integration.
+
+## Post-merge Chromium evidence correction
+
+The earlier PR evidence described both Chromium flows as fail-closed at the browser network layer. That overstated the test harness: `e2e/gradual.mjs` had Gemini DNS blocking and an unreachable proxy, while `e2e/smoke.mjs` used only a synthetic worker `fetch` and lacked those launch guards. Its prior runs verified the synthetic flow, but did not prove that an MV3 worker restart could not reach the live endpoint. The separate `smoke-network-guard` branch adds the same browser launch guards to smoke; both flows pass there. It also teaches the version checker that `extension/e2e/` is developer-only: setup may copy the files, but neither the manifest nor extension source loads them. No extension runtime or version changes. New guarded flow results belong to that branch, not retroactively to the PR #4 gate record.
 
 ## Approved policy continuation
 
@@ -52,7 +56,9 @@ Other first fix-delta nits: under heavy churn, the twenty-ticket cap can evict t
 
 Seats: OpenAI Sol native, Anthropic Opus and Google via ask-agent. All three were **CLEAN**, with no new Critical or Important findings. A targeted worker test proves a lost renewal reply returns the same live replacement ticket on retry, and removing that guard in an isolated source copy makes the assertion fail red. The same-owner lookup requires the old ticket first, then a live ticket for the same word, day and revision with a fingerprint computed for the requesting document. Multiple spans for one word in a document can share one ticket already; the content script finalizes all matching spans after the one saved acknowledgement. The twenty-ticket trim now has explicit nonnegative indices. At most ten live tickets are reachable through the 1–10 daily setting; excess-live clipping is defensive fail-closed behavior. The council's remaining nits on heavy churn, cap boundary tests, and post-ack duplicate renewal are recorded in `gradual-policy-polish`; they do not authorize extra budget or reveal across documents. Source head `a97cf1d` passed all final local gates; the handoff documentation checkpoint changes no source.
 
-## Critical and Important
+## Historical pre-approval Critical and Important
+
+The product-choice rows below record decisions pending during the earlier integration review. Ted later approved all three recommendations, the policy continuation implemented them, and PR #4 was accepted and merged. Phrases such as “no default approved” and “block feature acceptance” in this historical table are superseded; the current behavior is described above.
 
 | Finding | Location | Severity | Disposition |
 | --- | --- | --- | --- |
@@ -103,7 +109,9 @@ Seats: OpenAI Sol native, Anthropic Opus and Google via ask-agent. All three wer
 | Missing gloss fallback for a future nonvalidated caller; rare concurrent panel can remain dismissible with “Cue unavailable” (fourth fix-delta Claude) | `extension/src/text.js:38`, `extension/src/content.js:120` | Nit, future hardening | Filed `inline-cue-polish`; current validated swaps always contain `g`, and no unsaved rating or unsafe mutation occurs in the panel race. |
 | Mission and review headers lagged a pushed head during each council round (second/third fix-delta Claude) | `docs/GRADUAL-MISSION.md:3`, `docs/GRADUAL-REVIEW.md:3` | Nit, record | Updated for source-gated `4beec5d` and the final fourth-round outcome. |
 
-## Integration checks
+## Historical integration checks
+
+These bullets record the earlier integration checkpoint. Its then-pending product rulings and then-empty Google seat were superseded by the approved policy work and three-seat policy fix-delta convergence documented above.
 
 - The upper branch now inherits lower's opaque, monotonic revision and serialized final fetch guard; duplicate upper epoch writes were removed. Upper inline ticket tests retain off/on and permission round trips.
 - Primary and fallback model dispatch use the lower serialized final guard after upper policy reads; cached delivery checks the current revision and site access. Lower's held prefetch-race tests remain in the merged base.

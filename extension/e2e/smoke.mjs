@@ -20,7 +20,11 @@ try {
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   context = await chromium.launchPersistentContext(join(scratch, 'profile'), {
     channel: 'chromium', headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+    // An MV3 worker restart loses the synthetic fetch. Block real Gemini
+    // dispatch at the browser level even if that happens during this flow.
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
+      '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
+      '--proxy-server=127.0.0.1:9'],
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
