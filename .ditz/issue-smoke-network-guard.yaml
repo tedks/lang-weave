@@ -1,0 +1,23 @@
+id: smoke-network-guard
+title: Guard synthetic Chromium smoke against live Gemini fallback
+desc: 'Post-merge PR #4 audit: extension/e2e/smoke.mjs installed only a synthetic
+  worker fetch, but lacked the browser-level DNS/proxy guard used by gradual.mjs.
+  A restarted MV3 worker could lose that mock. In a separate test/docs-only PR from
+  merged main, add fail-closed Chromium launch flags, verify smoke and gradual flows,
+  correct the earlier claim that both prior flows were network blocked, and preserve
+  the PR #4 runtime release boundary. The test-only e2e path is not loaded by the
+  unpacked extension, so the version checker should exclude it without changing runtime
+  or version. Root owns review acceptance, merge and release integration.'
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-18T19:38:22-00:00
+references: []
+log_events:
+- time: 2026-10-18T19:38:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
