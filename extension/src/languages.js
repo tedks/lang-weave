@@ -1,24 +1,15 @@
 // Generated vocabulary is untrusted, profile-local data. Spanish is bundled and never needs generation.
 import { buildRequest, API_BASE } from './gemini.js';
 import { hashKey } from './hash.js';
-import { languageName } from './language-name.js';
-export { languageName } from './language-name.js';
+import { languageCode, languageName } from './language-name.js';
+export { languageCode, languageName } from './language-name.js';
 
 export const PACKS_KEY = 'languagePacks';
 export const MAX_PACKS = 5;
 const MAX_RESPONSE = 48000;
 const FIELD = /^[^\p{Cc}<>\[\]{}\r\n]{1,80}$/u;
-const CODE = /^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?$/;
 const validField = (s, joiners = false) => typeof s === 'string' && FIELD.test(s) &&
   s.trim() === s && !/\p{Cf}/u.test(joiners ? s.replace(/[\u200c\u200d]/g, '') : s);
-
-export function languageCode(input) {
-  if (typeof input !== 'string' || input.length > 20) return null;
-  try {
-    const code = Intl.getCanonicalLocales(input.trim())[0];
-    return code && CODE.test(code) && !['en', 'es'].includes(code.split('-')[0]) ? code : null;
-  } catch { return null; }
-}
 
 export function cleanPack(raw, code) {
   if (languageCode(code) !== code || !raw || !Array.isArray(raw.words) || raw.words.length < 20 || raw.words.length > 80) return null;

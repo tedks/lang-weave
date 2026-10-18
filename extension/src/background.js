@@ -3,7 +3,7 @@
 import { createCache, chromeStorage } from './cache.js';
 import { requestSwaps } from './engine.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
-import { resolveLevel, exactFr, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
+import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
 import { queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
@@ -96,7 +96,7 @@ async function record(msg, sender) {
   return locked(async () => {
     const ctx = await context();
     if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
-    const word = ctx.words.find((w) => exactFr(w.fr) === exactFr(msg.word));
+    const word = ctx.words.find((w) => exactTarget(w.fr, ctx.language) === exactTarget(msg.word, ctx.language));
     if (!word) return { ok: false };
     await queueEvents(scopedStorage(chromeStorage, ctx.scope), [{ word: word.fr, kind: msg.event }]);
     return { ok: true };
@@ -147,9 +147,10 @@ async function removeLanguage(msg) {
     const packs = cleanPacks(current[PACKS_KEY]);
     const pack = packs[code];
     if (!pack) throw new Error('This language is not available');
-    delete packs[code];
     const settings = cleanSettings(current.settings);
-    if (settings.language === code) settings.language = 'es';
+    if (settings.language !== code) throw new Error('The selected language changed; refresh and try again');
+    delete packs[code];
+    settings.language = 'es';
     await store.set({ [PACKS_KEY]: packs, settings });
     const all = await store.get(null);
     const prefix = `lang:${code}:${pack.version}:`;
@@ -288,7 +289,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     save: () => save(msg),
     addLanguage: () => addLanguage(msg),
     removeLanguage: () => removeLanguage(msg),
-    reviewStatus, reviewIntroduce, reviewNext,
+    reviewStatus: () => reviewStatus(), reviewIntroduce, reviewNext,
     reviewReveal: () => reviewReveal(msg),
     reviewRate: () => reviewRate(msg),
   };

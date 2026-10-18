@@ -146,6 +146,17 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(data.settings.language).toBe(addResults.find((result) => result.ok).language);
     expect(data.recallReview).toEqual(spanish);
     expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
+
+    // Turkish casing can add a dotted capital I to a word stored with lowercase i.
+    data.languagePacks.tr = cleanPack({ words: words('istanbul') }, 'tr');
+    expect((await dispatch({ type: 'save', settings: { language: 'tr' } }, popup)).ok).toBe(true);
+    const turkish = await dispatch({ type: 'config' }, page);
+    expect(await dispatch({ type: 'event', word: 'İstanbul0', event: 'seen', revision: turkish.revision }, page)).toEqual({ ok: true });
+    expect(data[`lang:tr:${data.languagePacks.tr.version}:readingEvents`][0].word).toBe('istanbul0');
+    expect((await dispatch({ type: 'removeLanguage', code: 'fr' }, popup)).error).toMatch(/selected/);
+    expect(data.languagePacks.fr).toBeDefined();
+    expect((await dispatch({ type: 'removeLanguage', code: 'tr' }, popup)).ok).toBe(true);
+    expect(data.settings.language).toBe('es');
     globalThis.fetch = async () => { throw new Error('Unexpected model request'); };
 
     // A suspended MV3 worker is reconstructed from storage without resetting selection or histories.

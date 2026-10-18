@@ -1,6 +1,6 @@
 // Preferences, stored under chrome.storage.local["settings"]. The Gemini key is stored apart from these, so
 // the config pages get never carries it.
-import { languageCode } from './languages.js';
+import { languageCode } from './language-name.js';
 export const DEFAULT_SETTINGS = {
   enabled: true,
   model: 'gemini-3.5-flash-lite', // on free keys 3.8 Flash mostly answered 503 or timed out (QA, 2026-10-15)
