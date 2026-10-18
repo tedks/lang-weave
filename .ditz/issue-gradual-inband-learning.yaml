@@ -52,6 +52,17 @@ log_events:
     and PR comment https://github.com/tedks/lang-weave/pull/4#issuecomment-6247179683
     . Three core open product rulings remain blocking; this is not feature acceptance,
     merge or deployment.'
+- time: 2026-10-18T18:58:33-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Ted approved all three recommendations on 2026-10-18: next-local-day automatic
+    inline quizzes/manual immediate; introduction budget consumed on first visible
+    occurrence; warning and user-confirmed recovery for budget dates over seven local
+    days ahead, preserving review history. The decision issues are resolved, not implementation.
+    Resume the existing gradual-learning lane from clean pushed 4a5135b, PR4/base
+    main. Implement bounded policy delta, paired/mutation tests, full exact-head local
+    gates and available-provider fix-delta council to CLEAN before root acceptance/normal
+    merge/fleet cutover. Prior technical gates do not verify this new delta.'
 blocked_by:
 - generic-language
 - inline-new-word-delay
