@@ -63,6 +63,21 @@ log_events:
     main. Implement bounded policy delta, paired/mutation tests, full exact-head local
     gates and available-provider fix-delta council to CLEAN before root acceptance/normal
     merge/fleet cutover. Prior technical gates do not verify this new delta.'
+- time: 2026-10-18T19:33:04-00:00
+  who: Ted Smith
+  what: commented
+  comment: '2026-10-18 technical policy handoff: draft PR #4 based on main is clean/pushed
+    at 8e94cbbf8e628582c37d805de4a6b5d19ee91a51. Ted''s approved next-local-day inline
+    delay, first-visible worker-acknowledged introduction budget, and >7-local-day
+    confirmed recovery are implemented. OpenAI Sol native, Anthropic Opus and Google
+    policy fix-delta councils converged CLEAN in two rounds through a97cf1d; final
+    commits are documentation only. Exact final-head gates: frozen Bun install; 118
+    Bun/1504 assertions; 85 Python; version 0.5.0->0.6.0 against origin/main; generated
+    blocks; diff; isolated Chromium smoke and gradual flows with synthetic Gemini
+    and fail-closed network. A worker retry mutation failed red. Triage/residuals
+    in docs/GRADUAL-REVIEW.md and gradual-policy-polish. PR evidence: https://github.com/tedks/lang-weave/pull/4#issuecomment-6254206810
+    . Keep this implementation issue in progress for CTO acceptance/normal merge/fleet
+    cutover; no feature acceptance or deployment claimed.'
 blocked_by:
 - generic-language
 - inline-new-word-delay
