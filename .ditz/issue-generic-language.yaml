@@ -88,6 +88,20 @@ log_events:
     no public push/PR. Separate release path is redundant if 0.5 rollout succeeds.
     Generated-language product questions remain open. Keep this integration issue
     in progress until fleet outcome is recorded; no new product phase from this lane.'
+- time: 2026-10-18T07:25:51-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO rollout receipt: source PR #3 normal merge 31b1cc3 (tested e005d7f),
+    exact rename to tedks/lang-weave, and installer PR #200 normal merge c2243c1 (tested
+    7123f4a). Targeted Lang Weave 0.5 payload install and --status VERIFIED on framework0,
+    drynwyn, splinter1 and tower0; actual framework0 installed-path Chromium MV3 smoke
+    PASS with synthetic Gemini. These are file-staging/runtime smoke checks, not evidence
+    of Chrome profile reload or activation; no live Gemini, profile edit or personal
+    browser restart. splinter0.local DNS unreachable and not mutated; dotfiles follow-up
+    spanish-weave-splinter0-rollout stays open. Source/installer implementation and
+    four-host integration are complete subject to private preservation receipt; the
+    upper gradual-learning lane is separate. Legacy 0.4 hotfix candidate remains local/unpublished
+    and unverified at final head; no extra release phase.'
 blocks:
 - gradual-inband-learning
 blocked_by:
