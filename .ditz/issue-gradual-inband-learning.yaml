@@ -41,6 +41,17 @@ log_events:
   who: Ted Smith
   what: blocked by future-budget-date-recovery
   comment: ""
+- time: 2026-10-18T07:33:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Technical checkpoint: draft PR #4 now bases main and is clean/pushed at
+    bf6f2f3abd5b08db33df0a55003ec988e0c41b97. Exact-head frozen install, 109 Bun/1394
+    assertions, 85 Python, version/block/diff and isolated synthetic Chromium smoke+gradual
+    pass. Available OpenAI and Anthropic fix-delta council reached CLEAN on the last
+    two rounds; Google quota seat empty. Full deduplicated triage is docs/GRADUAL-REVIEW.md
+    and PR comment https://github.com/tedks/lang-weave/pull/4#issuecomment-6247179683
+    . Three core open product rulings remain blocking; this is not feature acceptance,
+    merge or deployment.'
 blocked_by:
 - generic-language
 - inline-new-word-delay
