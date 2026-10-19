@@ -1,0 +1,21 @@
+id: visible-word-highlights
+title: Make translated-word highlights visible on light and dark pages
+desc: The default translated-word cue is a gray 1px dotted underline that is too subtle,
+  especially on dark pages. Strengthen it without changing text color, layout, learning
+  behavior, permissions, or network behavior. Preserve practice distinction, hover/context,
+  link decoration, keyboard and forced-colors behavior. Verify with a mutation-sensitive
+  test, synthetic Chromium light/dark computed and visual evidence, local gates, and
+  council review.
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-19T00:51:34-00:00
+references: []
+log_events:
+- time: 2026-10-19T00:51:34-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
