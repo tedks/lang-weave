@@ -23,3 +23,15 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-19T01:04:30-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Source fix delivered in ready PR #7 at 8982e07f7107863f04b0f096508b2d7f778fcb95.
+    Default translated-word cue is solid 2px currentColor; active/shaky remain blue,
+    practice dashed, keyboard focus explicit. Original CSS failed the new Chromium
+    regression. Exact-head frozen install, 118 Bun, 91 Python, version/blocks/diff
+    and guarded smoke/gradual/highlight browser flows passed. OpenAI and Anthropic
+    council convergence CLEAN; Google seat unavailable due to quota. Root CTO owns
+    acceptance, normal merge and rollout, so issue remains in_progress until that
+    decision. Synthetic screenshots live in docs/artifacts/; no live Gemini or personal
+    browser state used.'
