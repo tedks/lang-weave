@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lang Weave",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
   "permissions": [
     "storage",
