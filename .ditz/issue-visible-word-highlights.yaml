@@ -35,3 +35,19 @@ log_events:
     acceptance, normal merge and rollout, so issue remains in_progress until that
     decision. Synthetic screenshots live in docs/artifacts/; no live Gemini or personal
     browser state used.'
+- time: 2026-10-19T01:08:50-00:00
+  who: Ted Smith
+  what: commented
+  comment: Root accepted reviewed/gated8982e07 after full delta/synthetic screenshots
+    and independent91Python/version/diff/highlightChromium PASS. SourcePR7 normally
+    merged8cc33e24165844d32a73289b6095419de5893829 with identical tested tree; root
+    acceptance https://github.com/tedks/lang-weave/pull/7#issuecomment-6257475778
+    . Dotfiles pinPR203 normally merged5f17600 from tested e19f03a, actual archive
+    digest measured and installer/installed-artifact gates passed. Targeted0.6.1 install/status
+    verified framework0,drynwyn,splinter1,tower0,homes-imac at unchanged paths, retained0.6
+    backups, no profile/key/restart/live Gemini. Framework0 actual live-installed
+    path Chromium smoke passed and status reverified after browser test. splinter0
+    still DNS-unreachable and separately tracked; personal Chrome reload/activation
+    remains unverified, not inferred from file staging. Nonblocking highlight-harness-precision
+    remains filed. Lane%777 IDLE/no new phase directive delivered/submitted; no exit
+    or branch deletion requested.
