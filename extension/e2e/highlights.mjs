@@ -9,10 +9,13 @@ import { chromium } from 'playwright';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-highlights-'));
 const extension = join(scratch, 'extension');
-const screenshots = join(root, '..', 'docs', 'artifacts');
+const screenshots = process.argv.includes('--save-screenshots')
+  ? join(root, '..', 'docs', 'artifacts') : join(scratch, 'screenshots');
 function contrast(foreground, background) {
   const luminance = (color) => {
-    const channels = color.match(/[\d.]+/g).slice(0, 3).map((value) => Number(value) / 255)
+    const values = color.match(/[\d.]+/g).map(Number);
+    assert.equal(values[3] ?? 1, 1, 'underline color must be opaque');
+    const channels = values.slice(0, 3).map((value) => value / 255)
       .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
     return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   };
