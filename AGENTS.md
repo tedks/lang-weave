@@ -14,6 +14,7 @@ Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (M
 
 No Nix flake or Bazel configuration. The extension loads directly from `extension/`.
 Run `bun install --frozen-lockfile` and `bun test` inside `extension/`.
+For highlight styling changes, run `npm run test:highlights` inside `extension/` for real Chromium light/dark CSS checks.
 Run `python3 -m unittest discover -s tests` from the root for inherited Python tooling.
 Keep Chrome runtime verification separate from mocked model verification; never imply a live Gemini check without one.
 

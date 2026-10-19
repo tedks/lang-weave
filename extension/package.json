@@ -1,12 +1,13 @@
 {
   "name": "lang-weave",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
   "scripts": {
     "test": "bun test",
-    "test:browser": "node e2e/smoke.mjs"
+    "test:browser": "node e2e/smoke.mjs",
+    "test:highlights": "node e2e/highlights.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.14.5",
