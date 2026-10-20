@@ -1,0 +1,25 @@
+id: upstream-selective-integration
+title: Integrate selected upstream improvements without regressing Lang Weave
+desc: 'Ted authorizes selective upstream integration after accepted grouped audit
+  against FrenchWeave756e32c and LangWeave8cc33e2. No blanket merge. Serial reviewable
+  source changes: safety/semantic guards first, curated larger Spanish curriculum,
+  persistent/scrubbed quota diagnostics, clipping-resistant gloss retaining current
+  delay/highlights. Preserve language history, consent/revision checks, visible-introduction/review
+  accounting and stable fleet path. Skip providers/native host/telemetry/unmeasured
+  cache or concurrency redesign. Root owns source acceptance/normal merges; fleet
+  release is separately coordinated. Initial upstream-safety-guards Lead owns bounded
+  source implementation/tests/council/evidence, not later phases. Distinguish started/verified/accepted/merged/deployed.
+  No live Gemini or personal credential/profile access authorized.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-20T22:10:14-00:00
+references: []
+log_events:
+- time: 2026-10-20T22:10:14-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
