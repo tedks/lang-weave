@@ -137,6 +137,9 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
     if (!hit || !glossMatches(o, hit.en, { inflections: language === 'es' && !ARTICLE_RE.test(hit.word) })) continue;
+    // A definite Spanish noun cannot replace the whole indefinite English phrase.
+    // The bare-noun fallback below would otherwise drop "a/an" from the sentence.
+    if (language === 'es' && DEFINITE_RE.test(hit.word) && /^(?:a|an)\s/i.test(o)) continue;
     // "my problem" -> "my el problema", "the answer" -> "the la respuesta": when the English article (or a
     // possessive) stays outside the swap, use the bare noun.
     const bare = language === 'es' ? exactFr(hit.canon).replace(DEFINITE_RE, '') : exactFr(hit.canon);

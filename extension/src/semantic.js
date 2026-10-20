@@ -75,9 +75,20 @@ const FIXED = [
   'find out', 'finds out', 'finding out', 'found out', 'depend on', 'depends on',
   'depending on', 'in mind',
 ];
+// The listed head nouns can be ordinary words elsewhere, but not a partial swap
+// inside these common compounds. Match regular plural heads as well.
+const NOUN_COMPOUNDS = [
+  'movie theater', 'movie theatre', 'window frame', 'door handle', 'garden path',
+  'book review', 'computer program', 'page number', 'kitchen table',
+  'bathroom door', 'office chair', 'box office', 'gift card', 'lunch break',
+  'night shift', 'keyboard shortcut', 'star rating', 'bike lane', 'shoe store',
+];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));
 const fixedTokens = FIXED.map((phrase) => tokens(phrase).map((t) => t.value));
+const compoundTokens = NOUN_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value));
+const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
+  ? `${word.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/u.test(word) ? `${word}es` : `${word}s`;
 const FUNCTION_WORDS = new Set(['and', 'or', 'but', 'with', 'for', 'in', 'on', 'at', 'to', 'of', 'from',
   'by', 'as', 'is', 'are', 'was', 'were', 'has', 'have', 'had', 'will', 'would', 'can', 'could',
   'not', 'also', 'too', 'then', 'now', 'here', 'there', 'when', 'if', 'because', 'since',
@@ -102,9 +113,11 @@ export function sourceIssue(text, from, to, original) {
   const o = ts.slice(first, last + 1).map((t) => t.value).join(' ');
   if (nameToken(ts[first], text) || (first === last && nameToken(prev, text) &&
     /^\s*$/u.test(text.slice(prev.end, from)) && !FUNCTION_WORDS.has(o))) return 'name';
-  for (const phrase of fixedTokens) {
+  for (const phrase of [...fixedTokens, ...compoundTokens]) {
     for (let at = 0; at + phrase.length <= ts.length; at++) {
-      if (!phrase.every((word, n) => ts[at + n].value === word)) continue;
+      if (!phrase.every((word, n) => ts[at + n].value === word ||
+        (compoundTokens.includes(phrase) && n === phrase.length - 1 &&
+          ts[at + n].value === regularPlural(word)))) continue;
       const end = at + phrase.length - 1;
       if (first <= end && at <= last && !(first <= at && last >= end)) return 'phrase';
     }

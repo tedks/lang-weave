@@ -74,8 +74,12 @@ try {
       const prompt = body.systemInstruction.parts[0].text;
       const target = prompt.includes('French (fr)') ? 'et' : prompt.includes('Japanese (ja)') ? 'そして' : 'y';
       globalThis.smokeCalls.push(...items.map((item) => item.text));
-      const passages = items.map(({ id, text }) => ({ id, swaps: text.includes(' and ')
-        ? [{ o: 'and', f: target, g: 'and', h: '', ctx: '' }] : [] }));
+      const passages = items.map(({ id, text }) => ({ id,
+        swaps: target === 'y' && prompt.includes('la ventana = the window') &&
+          text.includes('The window stands beside the cat')
+          ? [{ o: 'The window', f: 'la ventana', g: 'the window', h: '', ctx: 'The window stands' },
+            { o: 'the cat', f: 'el gato', g: 'the cat', h: '', ctx: 'beside the cat and' }]
+          : text.includes(' and ') ? [{ o: 'and', f: target, g: 'and', h: '', ctx: '' }] : [] }));
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
@@ -181,7 +185,15 @@ try {
   assert.equal(await mail.locator('.fw-word').count(), 0);
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), afterLanguages);
   await popup.locator('#levelOverride').selectOption('2');
-  await popup.waitForFunction(() => document.querySelector('#wordInfo').textContent === '147 Spanish words');
+  await popup.waitForFunction(() => document.querySelector('#wordInfo').textContent === '226 Spanish words');
+  await page.evaluate(() => { const p = document.createElement('p'); p.id = 'curriculum';
+    p.textContent = 'The window stands beside the cat and the book.';
+    document.querySelector('main').append(p); });
+  await page.waitForFunction(() => [...document.querySelectorAll('#curriculum .fw-word')]
+    .map((node) => node.textContent).join('|') === 'La ventana|el gato');
+  const retained = await worker.evaluate(() => chrome.storage.local.get('recallReview'));
+  assert.equal(retained.recallReview.cards.y.reviews, 1);
+  assert.equal(retained.recallReview.cards.y.interval, 1);
   await popup.locator('#enabled').uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
   assert.equal(await page.locator('#reading').textContent(), 'We read books and enjoy quiet evenings every week.');
@@ -215,7 +227,7 @@ try {
   assert.equal(originHits.some((url) => url.includes('/blocked')), false);
   assert.ok(proxyHits.some((url) => url.includes('probe.weave.test')));
   assert.ok(proxyHits.includes(`probe.weave.test:${originPort}`)); // HTTPS CONNECT reached only the owned sink
-  console.log('PASS: real Chromium MV3 load; Spanish migration, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration; unmocked worker HTTP/HTTPS proxy denial with owned positive control. Gemini mocked; no live model validation.');
+  console.log('PASS: real Chromium MV3 load; Spanish migration, new la ventana and pre-existing el gato at Expanded with review history, generated French/Japanese packs, language switching and isolated recall, hover, popup, local events, privacy exclusions, pause/resume and site-off restoration; unmocked worker HTTP/HTTPS proxy denial with owned positive control. Gemini mocked; no live model validation.');
 } finally {
   try {
     if (context) await context.close();
