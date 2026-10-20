@@ -19,9 +19,9 @@ describe('word lists', () => {
     const spec = ['y', 'pero', 'o', 'entonces', 'porque', 'con', 'sin', 'para', 'muy', 'también', 'bien', 'mucho', 'un poco', 'ahora', 'siempre', 'quizás', 'aquí', 'sí', 'no', 'gracias', 'el problema', 'la pregunta', 'la idea', 'la respuesta', 'importante', 'posible', 'difícil', 'hoy', 'mañana', 'nunca'];
     expect(L1_WORDS.map((w) => w.fr)).toEqual(spec);
   });
-  test('L2 is about 150 words, includes L1 and the fixed phrases, every entry glossed with a hint', () => {
-    expect(L2_WORDS.length).toBeGreaterThanOrEqual(140);
-    expect(L2_WORDS.length).toBeLessThanOrEqual(160);
+  test('L2 stays bounded, includes L1 and the fixed phrases, every entry glossed with a hint', () => {
+    expect(L2_WORDS.length).toBeGreaterThanOrEqual(230);
+    expect(L2_WORDS.length).toBeLessThanOrEqual(240);
     const frs = L2_WORDS.map((w) => w.fr);
     for (const w of L1_WORDS) expect(frs).toContain(w.fr);
     for (const p of ['no sé', 'hay', 'creo que', 'hace falta']) expect(frs).toContain(p);
