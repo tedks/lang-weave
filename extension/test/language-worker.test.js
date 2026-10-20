@@ -37,6 +37,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let releaseModelStatusSet;
   let blockTitleAfterModelStatus = false;
   let blockCounterSet = false;
+  let failCounterSetOnce = false;
   let counterSetStarted;
   let releaseCounterSet;
   let blockTitleAfterCounter = false;
@@ -101,6 +102,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
           blockCounterSet = false;
           counterSetStarted();
           await new Promise((resolve) => { releaseCounterSet = resolve; });
+        }
+        if (failCounterSetOnce && Object.hasOwn(value, 'modelCalls')) {
+          failCounterSetOnce = false;
+          throw new Error('Private storage failure text');
         }
         if (failEpochOnce && Object.keys(value).length === 1 && Object.hasOwn(value, 'epoch')) {
           failEpochOnce = false;
@@ -801,6 +806,21 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect((await lateSuccess).stale).toBe(true);
     expect(data.modelStatus).toBeNull();
     expect(data.quotaState.cooldowns).toEqual({});
+
+    // A failed local call-count write must stop before either the primary or
+    // fallback fetch, and the error returned to the page is fixed local copy.
+    expect((await dispatch({ type: 'save', settings: { model: 'gemini-3.8-flash' } }, popup)).ok).toBe(true);
+    const beforeFailedCount = await dispatch({ type: 'config' }, page);
+    const failedCountKey = `${beforeFailedCount.revision}:${hashKey(lateText)}`;
+    let failedCountFetches = 0;
+    globalThis.fetch = async () => { failedCountFetches++; throw new Error('Unexpected dispatch'); };
+    failCounterSetOnce = true;
+    const failedCount = await dispatch({ type: 'swaps', revision: beforeFailedCount.revision,
+      items: [{ key: failedCountKey, text: lateText }] }, page);
+    expect(failedCount.error).toBe('Local reading storage failed');
+    expect(failedCountFetches).toBe(0);
+    expect(JSON.stringify(data.modelStatus)).not.toContain('Private storage failure text');
+    expect((await dispatch({ type: 'save', settings: { model: 'gemini-3.5-flash-lite' } }, popup)).ok).toBe(true);
 
     // A normal settings change rotates page revision but must keep the key's
     // operational cooldown, which is scoped to a separate random epoch.

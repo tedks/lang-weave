@@ -149,13 +149,13 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const resumed = (await send({ type: 'config' }, page)).revision;
     cacheWritesFail = true;
     const cacheFailed = await ask(excludedText, page, resumed);
-    expect(cacheFailed.error).toBe('Model request failed');
+    expect(cacheFailed.error).toBe('Local reading storage failed');
     expect(cacheFailed.results).toEqual({});
     expect(data.recallReview).toEqual(old);
     cacheWritesFail = false;
     writesFail = true;
     const failed = await ask(excludedText, page, resumed);
-    expect(failed.error).toBe('Model request failed');
+    expect(failed.error).toBe('Local reading storage failed');
     expect(failed.results).toEqual({});
     expect(data.recallReview).toEqual(old);
     writesFail = false;

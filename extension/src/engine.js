@@ -21,7 +21,7 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
     const error = new Error('Model cooling down; retry later');
     error.category = candidates.some((m) => cooldownKinds.get(m) === 'daily') ? 'daily_quota'
       : candidates.some((m) => cooldownKinds.get(m) === 'overloaded') ? 'overloaded'
-      : candidates.some((m) => cooldown.get(m) && cooldown.get(m) > now()) ? 'rate_limit' : 'request_failed';
+      : candidates.some((m) => cooldownKinds.get(m) === 'short') ? 'rate_limit' : 'request_failed';
     error.retryAfterMs = Math.max(1000, Math.min(...candidates.map((m) => cooldown.get(m))) - now());
     throw error;
   }
@@ -36,11 +36,13 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
       return { results, model: m, errors };
     } catch (e) {
       if (e?.stale) throw e;
+      if (e?.category === 'storage_failed') throw e; // no fallback after failed local call accounting
       const timeout = e?.name === 'TimeoutError';
       const category = e?.category || (timeout ? 'request_failed' : e?.status === 429 ? 'rate_limit' : e?.status === 503 ? 'overloaded' : 'request_failed');
       const wait = e?.retryAfterMs || COOLDOWN_MS[timeout ? 'timeout' : e?.status];
       if (wait) cooldown.set(m, now() + wait);
-      cooldownKinds.set(m, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded' : 'short');
+      cooldownKinds.set(m, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
+        : category === 'rate_limit' ? 'short' : 'transient');
       errors.push({ model: m, category, retryAfterMs: wait, retryGuidanceMs: e?.retryGuidanceMs });
       if (onFailure) await onFailure(m, category, wait, now());
     }

@@ -5,7 +5,8 @@ export const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const MAX_SHORT_COOLDOWN_MS = 60 * 60 * 1000;
 export const MAX_RETRY_MS = 24 * 60 * 60 * 1000;
 export const MODEL_IDS = new Set(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
-export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'request_failed', 'local_budget', 'ok']);
+export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'request_failed', 'storage_failed', 'local_budget', 'ok']);
+const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
 
 const finite = (n) => Number.isFinite(n) && n >= 0;
 const boundedRetry = (n) => finite(n) && n > 0 ? Math.min(n, MAX_RETRY_MS) : undefined;
@@ -33,7 +34,10 @@ export function parseRetryAfter(value, now = Date.now()) {
 
 export async function readBoundedBody(response, maxBytes = 16384) {
   const size = Number(response.headers?.get?.('content-length'));
-  if (Number.isFinite(size) && size > maxBytes) return '';
+  if (Number.isFinite(size) && size > maxBytes) {
+    try { await response.body?.cancel?.(); } catch { /* parsing an error is optional */ }
+    return '';
+  }
   if (response.body?.getReader) {
     const reader = response.body.getReader();
     const chunks = [];
@@ -70,9 +74,9 @@ export function classifyProviderFailure({ status, body, retryAfter, now = Date.n
     .filter((v) => typeof v === 'string' && v.length <= 128).map((v) => v.toLowerCase());
   const structured = [...codes, ...details.flatMap((d) => d && typeof d === 'object' ? [d.reason] : [])]
     .filter((v) => typeof v === 'string' && v.length <= 128).map((v) => v.toLowerCase());
-  const dailyCode = codes.includes('quota_exceeded');
+  const dailyCode = structured.includes('quota_exceeded');
   const dailyDimension = dimensions.some((v) => v === 'generate_requests_per_day_per_project_per_model_freetier' ||
-    v.includes('requestsperday') || v === 'rpd');
+    v.includes('perday') || v === 'rpd');
   const daily = status === 429 && (dailyCode || dailyDimension);
   const short = structured.some((v) => v === 'rate_limit_exceeded' || v === 'too_many_requests');
   const category = daily && !short ? 'daily_quota' : short || status === 429 ? 'rate_limit'
@@ -83,7 +87,8 @@ export function classifyProviderFailure({ status, body, retryAfter, now = Date.n
   if (category === 'daily_quota') retryAfterMs = boundedRetry(providerRetry ?? headerRetry) ?? DAILY_COOLDOWN_MS;
   else if (category === 'rate_limit' || category === 'overloaded') retryAfterMs =
     Math.min(providerRetry ?? headerRetry ?? (category === 'overloaded' ? 30000 : 60000), MAX_SHORT_COOLDOWN_MS);
-  return { category, retryAfterMs, retryGuidanceMs: boundedRetry(providerRetry ?? headerRetry) };
+  const guidance = boundedRetry(providerRetry ?? headerRetry);
+  return { category, retryAfterMs, retryGuidanceMs: guidance && guidance <= retryAfterMs ? guidance : undefined };
 }
 
 export function cleanQuotaState(value, keyEpoch, now = Date.now()) {
@@ -91,15 +96,13 @@ export function cleanQuotaState(value, keyEpoch, now = Date.now()) {
   if (!value || value.keyEpoch !== out.keyEpoch || !value.cooldowns || typeof value.cooldowns !== 'object') return out;
   for (const model of MODEL_IDS) {
     const entry = value.cooldowns[model];
-    if (!entry || !['daily', 'short', 'overloaded'].includes(entry.kind) || !finite(entry.until)) continue;
-    let until = entry.until;
-    if (until > now + MAX_RETRY_MS) {
-      const durationCap = entry.kind === 'daily' ? MAX_RETRY_MS : MAX_SHORT_COOLDOWN_MS;
-      if (!finite(entry.setAt) || !finite(entry.durationMs) || now >= entry.setAt || entry.durationMs > durationCap) continue;
-      until = Math.min(now + entry.durationMs, now + durationCap); // bounded recovery from a backward wall-clock jump
-    }
-    if (until <= now) continue;
-    out.cooldowns[model] = { until, kind: entry.kind };
+    if (!entry || !['daily', 'short', 'overloaded', 'transient'].includes(entry.kind) || !finite(entry.until)) continue;
+    const cap = entry.kind === 'daily' ? MAX_RETRY_MS : MAX_SHORT_COOLDOWN_MS;
+    // A large rollback cannot be timed against wall-clock storage. Drop the
+    // stale block and let the next provider reply establish a fresh bound.
+    if (finite(entry.setAt) && now + CLOCK_ROLLBACK_TOLERANCE_MS < entry.setAt) continue;
+    if (entry.until <= now || entry.until > now + cap + CLOCK_ROLLBACK_TOLERANCE_MS) continue;
+    out.cooldowns[model] = { until: entry.until, kind: entry.kind };
   }
   return out;
 }
@@ -118,9 +121,12 @@ export function statusLabel(status, now = Date.now()) {
   if (!safe || safe.category === 'ok') return '';
   if (safe.category === 'local_budget') return 'Daily local model-call budget reached.';
   const guided = Number.isFinite(now) && safe.retryAt > now && safe.retryAt <= now + MAX_RETRY_MS;
-  const retry = guided ? ` Retry after ${new Date(safe.retryAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : '';
+  const retry = guided ? ` Retry after ${new Date(safe.retryAt).toLocaleString([], {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })}.` : '';
   if (safe.category === 'daily_quota') return `Daily model quota reached.${retry || ' Try again later.'}`;
   if (safe.category === 'rate_limit') return `Model rate limit reached.${retry || ' Try again shortly.'}`;
   if (safe.category === 'overloaded') return `Model service is busy.${retry || ' Try again shortly.'}`;
+  if (safe.category === 'storage_failed') return 'Local reading storage failed. Try again.';
   return 'Model request failed. Try again later.';
 }

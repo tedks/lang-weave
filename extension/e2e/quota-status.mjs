@@ -92,6 +92,9 @@ try {
     .length < 2000);
   assert.doesNotMatch(JSON.stringify({ modelStatus: stored.modelStatus, quotaState: stored.quotaState }),
     /synthetic-quota-key|secret page text|reading\.example/);
+  const firstStatusAt = stored.modelStatus.at;
+  const guidedRetryAt = stored.modelStatus.retryAt;
+  assert.ok(guidedRetryAt > firstStatusAt);
   assert.equal(modelSinkHits().length, 0);
   await browser.close();
   browser = null;
@@ -104,12 +107,18 @@ try {
   assert.equal(await worker.evaluate(() => 'syntheticCalls' in globalThis), false);
   const second = await browser.newPage();
   await second.goto('https://reading.example/second');
-  await second.waitForTimeout(800);
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const observed = await worker.evaluate(() => chrome.storage.local.get('modelStatus'));
+    if (observed.modelStatus?.at > firstStatusAt) break;
+    if (attempt === 79) throw new Error('Restarted worker did not process the second page');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   assert.equal(await second.locator('.fw-word').count(), 0);
   assert.equal(modelSinkHits().length, 0, 'persisted cooldown should stop dispatch after worker restart');
   const restartedPopup = await browser.newPage();
   await restartedPopup.goto(`chrome-extension://${id}/src/popup.html`);
   await restartedPopup.waitForFunction(() => /daily|quota/i.test(document.querySelector('#operation')?.textContent || ''));
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('modelStatus'))).modelStatus.retryAt, guidedRetryAt);
   const review = await browser.newPage();
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#counts').getByText(/available to add/).waitFor();
