@@ -29,3 +29,17 @@ log_events:
     such as ''til and ''n. Include these in measured tuning; current finite guard
     remains fail-closed where uncertain. Closed quotes beginning with ''cause/''tis
     are fixed in PR #8 and are not deferred.'
+- time: 2026-10-20T22:34:48-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #8 final council identified an irreducible local apostrophe ambiguity:
+    after an unclosed English elision, lowercase plural possessives (for example,
+    kids'' toys) can be over-protected as quote endings; a real closed quote ending
+    in a capitalized s-word followed by another word (for example, ''cause I love
+    Paris'' today) can be under-protected because it resembles a name possessive.
+    The 0.6.2 patch protects the tested ordinary closed quotes ending in lowercase
+    words and leaves clear capitalized-name possessives readable. Measure these ambiguous
+    forms on synthetic or consented fixtures before changing the rule; include a full
+    expected-range test for the later independent quote after the kids'' case. Both
+    provider reviewers called the remaining ambiguity a follow-up nit after the final
+    fix delta was CLEAN.'
