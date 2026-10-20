@@ -41,11 +41,12 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
       const timeout = e?.name === 'TimeoutError';
       const category = e?.category || (timeout ? 'request_failed' : e?.status === 429 ? 'rate_limit' : e?.status === 503 ? 'overloaded' : 'request_failed');
       const wait = e?.retryAfterMs || COOLDOWN_MS[timeout ? 'timeout' : e?.status];
-      if (wait) cooldown.set(m, now() + wait);
+      const startedAt = now();
+      if (wait) cooldown.set(m, startedAt + wait);
       cooldownKinds.set(m, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
         : category === 'rate_limit' ? 'short' : 'transient');
-      errors.push({ model: m, category, retryAfterMs: wait, retryGuidanceMs: e?.retryGuidanceMs });
-      if (onFailure) await onFailure(m, category, wait, now());
+      errors.push({ model: m, category, retryAt: e?.retryGuidanceMs ? startedAt + e.retryGuidanceMs : undefined });
+      if (onFailure) await onFailure(m, category, wait, startedAt);
     }
   }
   const categories = errors.map((e) => e.category);
@@ -54,9 +55,13 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
   const error = new Error(category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
     ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy' : 'Model request failed');
   error.category = category;
-  const guidance = errors.find((e) => e.category === category && e.retryGuidanceMs)?.retryGuidanceMs;
-  if (guidance) error.retryGuidanceMs = guidance;
   const until = candidates.map((m) => cooldown.get(m) || 0).filter((t) => t > now());
-  if (until.length === candidates.length) error.retryAfterMs = Math.max(1000, Math.min(...until) - now());
+  if (until.length === candidates.length) {
+    const earliest = Math.min(...until);
+    error.retryAfterMs = Math.max(1000, earliest - now());
+    // A retry time is useful only when its model is the next one available.
+    error.retryAt = errors.find((e) => e.category === category && e.retryAt &&
+      Math.abs(e.retryAt - earliest) <= 1000)?.retryAt;
+  }
   throw error;
 }

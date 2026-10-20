@@ -220,7 +220,7 @@ async function swaps(msg, sender) {
       ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
       : category === 'local_budget' ? 'Daily local model-call budget reached'
       : category === 'storage_failed' ? 'Local reading storage failed' : 'Model request failed';
-    await saveModelStatus({ category, retryAt: Number.isFinite(e?.retryGuidanceMs) ? Date.now() + e.retryGuidanceMs : undefined,
+    await saveModelStatus({ category, retryAt: e?.retryAt,
       coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
     try {
       // Cache entries are raw validated swaps. They still need the current gradual

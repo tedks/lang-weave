@@ -115,6 +115,26 @@ describe('engine', () => {
     await requestSwaps(args);
     expect(models).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite']);
   });
+  test('fallback delay cannot move provider guidance beyond the earliest actual cooldown', async () => {
+    for (const fallbackDaily of [true, false]) {
+      let clock = 1000;
+      const cooldown = new Map();
+      const fetchImpl = async (url) => {
+        if (url.includes('gemini-3.8-flash:')) return { ok: false, status: 429,
+          text: async () => '{"error":{"status":"quota_exceeded","details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"3600s"}]}}' };
+        clock = 5000; // fallback took four seconds after the primary response
+        return { ok: false, status: 429,
+          text: async () => fallbackDaily ? '{"error":{"status":"quota_exceeded"}}' : '{"error":{"status":"rate_limit_exceeded"}}' };
+      };
+      const args = { apiKey: 'K', model: 'gemini-3.8-flash', level: 1, batch: [], fetchImpl, cooldown, now: () => clock };
+      const first = await requestSwaps(args).catch((e) => e);
+      expect(cooldown.get('gemini-3.8-flash')).toBe(3601000);
+      expect(first.retryAt).toBe(fallbackDaily ? 3601000 : undefined);
+      const repeat = await requestSwaps(args).catch((e) => e);
+      expect(repeat.coolingDown).toBe(true);
+      expect(repeat.retryAfterMs).toBe(fallbackDaily ? 3596000 : 60000);
+    }
+  });
   test('caps density per sentence, one use per word, learning words kept before known filler', async () => {
     const words = [
       { fr: 'grande', en: 'big', hint: 'grahn', status: 'active' },
