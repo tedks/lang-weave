@@ -50,6 +50,8 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
   expect(one('We opened a window before dinner.', 'window', 'la ventana'))
     .toMatchObject({ f: 'ventana', g: 'window', h: 'ben-TAH-nah' });
   expect(one('The kitchen smelled of soup.', 'The kitchen', 'la cocina')?.f).toBe('La cocina');
+  expect(one('I sat at the table near the kitchen.', 'the kitchen', 'la cocina')?.f).toBe('la cocina');
+  expect(one('I need a little water.', 'a little', 'un poco')?.f).toBe('un poco');
   expect(one('The photo is beside the book.', 'The photo', 'la foto')?.f).toBe('La foto');
   expect(one('The river runs near the town.', 'The river', 'el rio')?.f).toBe('El río');
   expect(one('We read the book near the window.', 'the book', 'el libro')?.f).toBe('el libro');
