@@ -24,3 +24,15 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-20T23:28:05-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Source implementation ready for root acceptance at 4df73c50594208475f09f0670784ed36e664c66c
+    (PR #9): 79 curated additions, 226 Expanded total; original 30 Beginner/147 Expanded
+    hash-pinned unchanged. Full local exact-head gates pass: frozen Bun install, 129
+    Bun tests, 91 Python tests, 0.7.0 version, 35 blocks, diff, synthetic MV3 smoke
+    and gradual, Chromium highlights. Full OpenAI/Anthropic council and fix deltas
+    CLEAN; Google unavailable due quota. Prompt 6987/7174 chars vs 4997/5184 baseline;
+    no live Gemini/native-speaker claim. Residual compound risk and minor hints tracked
+    in spanish-compound-placement and spanish-curriculum-polish. Root retains acceptance/normal
+    merge.'
