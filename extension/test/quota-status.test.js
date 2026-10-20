@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { classifyProviderFailure, cleanQuotaState, parseRetryAfter, readBoundedBody, safeModelStatus, statusLabel } from '../src/quota-status.js';
+import { classifyProviderFailure, cleanQuotaState, parseRetryAfter, readBoundedBody, retainedRetryAt, safeModelStatus, statusLabel } from '../src/quota-status.js';
 
 describe('quota status', () => {
   test('classifies nested daily quota dimension, and rejects bare or conflicting short-window 429s', () => {
@@ -65,5 +65,9 @@ describe('quota status', () => {
     expect(statusLabel({ category: 'rate_limit', retryAt: 60000 }, 0)).toMatch(/^Model rate limit reached\. Retry after /);
     expect(statusLabel({ category: 'storage_failed' })).toBe('Local reading storage failed. Try again.');
     expect(statusLabel({ category: 'daily_quota', retryAt: 90000000 }, 0)).toBe('Daily model quota reached. Try again later.');
+    const prior = { category: 'rate_limit', retryAt: 3600000 };
+    expect(retainedRetryAt(prior, 'rate_limit', 60000, 3540000)).toBe(3600000);
+    expect(retainedRetryAt(prior, 'rate_limit', 60000, 60000)).toBeUndefined();
+    expect(retainedRetryAt(prior, 'daily_quota', 60000, 3540000)).toBeUndefined();
   });
 });

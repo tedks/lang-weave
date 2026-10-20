@@ -2,7 +2,7 @@
 // Keys stay here; pages only get a config without them.
 import { createCache, chromeStorage } from './cache.js';
 import { requestSwaps } from './engine.js';
-import { cleanQuotaState, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY, MODEL_IDS } from './quota-status.js';
+import { cleanQuotaState, retainedRetryAt, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY, MODEL_IDS } from './quota-status.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
@@ -36,8 +36,8 @@ async function saveModelStatus(status, epoch) {
       const current = await store.get(['keyEpoch', STATUS_KEY]);
       if ((current.keyEpoch || '') !== epoch) return;
       const previous = safeModelStatus(current[STATUS_KEY]);
-      const retryAt = status.retryAt ?? (previous?.category === status.category &&
-        previous.retryAt > Date.now() && previous.retryAt <= Date.now() + 86400000 ? previous.retryAt : undefined);
+      const retryAt = status.retryAt ?? (status.coolingDown ? retainedRetryAt(previous,
+        status.category, Date.now(), status.retryAfterMs) : undefined);
       await store.set({ [STATUS_KEY]: safeModelStatus({ at: Date.now(), ...status, retryAt }) });
     });
   } catch { /* diagnostic only */ }
@@ -220,7 +220,8 @@ async function swaps(msg, sender) {
       ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
       : category === 'local_budget' ? 'Daily local model-call budget reached'
       : category === 'storage_failed' ? 'Local reading storage failed' : 'Model request failed';
-    await saveModelStatus({ category, retryAt: Number.isFinite(e?.retryGuidanceMs) ? Date.now() + e.retryGuidanceMs : undefined }, requestEpoch);
+    await saveModelStatus({ category, retryAt: Number.isFinite(e?.retryGuidanceMs) ? Date.now() + e.retryGuidanceMs : undefined,
+      coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
     try {
       // Cache entries are raw validated swaps. They still need the current gradual
       // quota and cards, even when another item in this batch failed at the model.

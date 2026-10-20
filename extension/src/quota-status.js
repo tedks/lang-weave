@@ -116,6 +116,15 @@ export function safeModelStatus(value) {
   return out;
 }
 
+export function retainedRetryAt(previous, category, now, remainingMs) {
+  const safe = safeModelStatus(previous);
+  if (!safe || safe.category !== category || !finite(remainingMs) || remainingMs <= 0 ||
+      !finite(now) || !finite(safe.retryAt) || safe.retryAt <= now) return undefined;
+  // A changed fallback outcome can make another model retry much sooner.
+  // Only retain guidance when it still describes this same fast-fail wait.
+  return Math.abs(safe.retryAt - now - remainingMs) <= 1000 ? safe.retryAt : undefined;
+}
+
 export function statusLabel(status, now = Date.now()) {
   const safe = safeModelStatus(status);
   if (!safe || safe.category === 'ok') return '';

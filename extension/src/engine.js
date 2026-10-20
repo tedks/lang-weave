@@ -23,6 +23,7 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
       : candidates.some((m) => cooldownKinds.get(m) === 'overloaded') ? 'overloaded'
       : candidates.some((m) => cooldownKinds.get(m) === 'short') ? 'rate_limit' : 'request_failed';
     error.retryAfterMs = Math.max(1000, Math.min(...candidates.map((m) => cooldown.get(m))) - now());
+    error.coolingDown = true;
     throw error;
   }
   for (const m of models) {
