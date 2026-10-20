@@ -55,3 +55,17 @@ log_events:
     profile/key inspection, merge, release or fleet deployment. Follow-up nits filed
     as upstream-safety-delivery-followup; apostrophe limitations remain explicit in
     upstream-safety-tuning. Keep in progress until root accepts and normally merges.'
+- time: 2026-10-20T22:59:15-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Cached site-off acceptance-repair checkpoint for PR #8 at immutable pushed
+    7860a5c2c6cd2cda25810a34a48c247b77780d5d. The non-gradual all-cache final title
+    check now shares the settings lock with popup save. Nonempty cached swaps are
+    suppressed after committed site-off; a save queued during final title lookup waits
+    for the already-allowed reply. Removing the lock in an isolated copy fails the
+    queued-save test. Callsite scan found no other unlocked final stillSafe check.
+    Delta council and small convergence CLEAN with OpenAI and Anthropic; Google quota
+    seat empty. Exact-head frozen Bun install, 124 Bun/1,654 assertions, 91 Python,
+    version 0.6.2/35 blocks/diff, guarded Chromium smoke/gradual/highlights passed.
+    No live Gemini, merge, release or deployment. Keep issue in progress pending root
+    acceptance and normal merge.'
