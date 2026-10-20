@@ -31,6 +31,7 @@ describe('semantic source protections', () => {
     expect(kept('She called it ‘and now without ending it.', 'now', 'ahora')).toEqual([]);
     expect(kept("She called it 'and now ' today.", 'now', 'ahora')).toEqual([]);
     expect(kept("We heard 'tis and agreed.", 'and', 'y')).toHaveLength(1);
+    expect(kept("We studied 'cause and effect' today.", 'and', 'y')).toEqual([]);
   });
 
   test('ALL CAPS and name-like anchors stay English, ordinary words and OK survive', () => {

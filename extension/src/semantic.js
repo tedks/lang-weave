@@ -23,15 +23,15 @@ export function quotedRanges(text) {
       const end = close < s.length ? close + 1 : (s.slice(0, i).trim() ? sentenceEnd(s, i + 1) : s.length);
       ranges.push([i, end]);
       i = end - 1;
-    } else if (SINGLE[ch] && (i === 0 || BEFORE_SINGLE.test(s[i - 1])) && LETTER.test(s[i + 1] || '') &&
-      !(ch === "'" && ELISION.test(s.slice(i + 1)))) {
+    } else if (SINGLE[ch] && (i === 0 || BEFORE_SINGLE.test(s[i - 1])) && LETTER.test(s[i + 1] || '')) {
+      const elision = ch === "'" && ELISION.test(s.slice(i + 1));
       let close = i + 1;
       while (close < s.length && s[close] !== '\n' &&
         !(SINGLE[ch].includes(s[close]) && !WORDISH.test(s[close + 1] || ''))) close++;
       if (close < s.length && s[close] !== '\n') {
         ranges.push([i, close + 1]);
         i = close;
-      } else {
+      } else if (!elision) {
         const end = sentenceEnd(s, i + 1);
         ranges.push([i, end]);
         i = end - 1;

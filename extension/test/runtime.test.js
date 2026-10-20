@@ -132,7 +132,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const sameSpan = el.querySelector('.fw-word');
     const safeTitleCalls = modelCalls;
     win.document.title = 'Another ordinary reading title';
-    await wait(20);
+    await wait(1300);
     expect(el.querySelector('.fw-word')).toBe(sameSpan);
     expect(modelCalls).toBe(safeTitleCalls);
     expect(local[PENDING_KEY] || []).toHaveLength(0); // prefetch is not exposure
