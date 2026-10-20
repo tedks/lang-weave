@@ -74,6 +74,8 @@ const FIXED = [
   'never mind', 'look for', 'looks for', 'looking for', 'looked for',
   'find out', 'finds out', 'finding out', 'found out', 'depend on', 'depends on',
   'depending on', 'in mind',
+  // Common noun compounds stay intact in mixed-language reading.
+  'movie theater', 'window frame', 'door handle', 'garden path', 'book review',
 ];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));
