@@ -116,8 +116,8 @@ async function swaps(msg, sender) {
     .map((i) => [i.key, cached[cacheKey(i.key)]]));
   const misses = items.filter((i) => !(i.key in results));
   if (!misses.length && !ctx.settings.gradual) {
-    return await stillSafe()
-      ? { results } : { results: {}, stale: true };
+    return await locked(async () => await stillSafe()
+      ? { results } : { results: {}, stale: true });
   }
   const deliver = async (raw, freshRaw) => locked(async () => {
     if (!(await stillSafe())) return { results: {}, stale: true };

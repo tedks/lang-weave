@@ -525,6 +525,46 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     origins = ['<all_urls>'];
     await Promise.all(permissionAdded.map((notify) => notify()));
 
+    // A committed site-off must suppress a nonempty cached answer, even when
+    // cache I/O began while the page was allowed.
+    const allowedCacheRace = await dispatch({ type: 'config' }, page);
+    const cachedText = 'Owls and foxes explore quiet fields at sunrise.';
+    const cachedKey = `${allowedCacheRace.revision}:${hashKey(cachedText)}`;
+    const cachedSwaps = [{ o: 'and', f: 'y', ctx: 'Owls and foxes', g: 'and', h: '' }];
+    data[`c:${cachedKey}`] = { s: cachedSwaps, t: Date.now() };
+    const cachedReadHeld = new Promise((resolve) => { cacheReadStarted = resolve; });
+    blockCacheRead = true;
+    const offBeforeDelivery = dispatch({ type: 'swaps', revision: allowedCacheRace.revision,
+      items: [{ key: cachedKey, text: cachedText }], title: 'Ordinary reading' }, page);
+    await cachedReadHeld;
+    expect((await dispatch({ type: 'save', settings: { enabled: false } }, popup)).ok).toBe(true);
+    releaseCacheRead();
+    expect((await offBeforeDelivery).stale).toBe(true);
+    expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+    const allowedCachedAgain = await dispatch({ type: 'config' }, page);
+    const cachedAgainKey = `${allowedCachedAgain.revision}:${hashKey(cachedText)}`;
+    data[`c:${cachedAgainKey}`] = { s: cachedSwaps, t: Date.now() };
+
+    // This second ordering checks the lock itself: a save queued during the
+    // cached delivery's live-title lookup commits after the allowed reply.
+    const cachedTitleHeld = new Promise((resolve) => { titleLookupStarted = resolve; });
+    blockTitleAfterCacheRead = true;
+    const cachedBeforeOff = dispatch({ type: 'swaps', revision: allowedCachedAgain.revision,
+      items: [{ key: cachedAgainKey, text: cachedText }], title: 'Ordinary reading' }, page);
+    await cachedTitleHeld;
+    const queuedCachedOff = dispatch({ type: 'save', settings: { enabled: false } }, popup);
+    expect(await Promise.race([queuedCachedOff.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 20))])).toBe(false);
+    expect(data.settings.enabled).toBe(true);
+    releaseTitleLookup();
+    expect((await cachedBeforeOff).results[cachedAgainKey]).toEqual(cachedSwaps);
+    expect((await queuedCachedOff).ok).toBe(true);
+    expect(data.settings.enabled).toBe(false);
+    expect((await dispatch({ type: 'swaps', revision: allowedCachedAgain.revision,
+      items: [{ key: cachedAgainKey, text: cachedText }], title: 'Ordinary reading' }, page)).stale).toBe(true);
+    expect(heldPrimaryFetches).toBe(1);
+    expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
+
     // The fresh-result cache write also yields after the first delivery check.
     // A revoke there must not return the newly generated result to the page.
     const beforeCacheWrite = await dispatch({ type: 'config' }, page);
