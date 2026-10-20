@@ -26,3 +26,16 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-20T22:36:01-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Source-ready checkpoint for PR #8 at ba5feae23627567df0e2f9d59d0c40fb53509f2f.
+    Selective 0.6.2 local sensitive-title/high-stakes and placement-aware semantic
+    guards are pushed. Final frozen Bun install, 124 Bun / 1,617 assertions, 91 Python,
+    version/35-block/diff checks, and isolated synthetic Chromium smoke/gradual/highlights
+    all passed at this exact head. Council fix-delta on code head 5203e99 was CLEAN
+    with native OpenAI and foreign Anthropic; Google seat was quota-unavailable; final
+    delta was documentation-only and inspected inline. PR is ready for root acceptance
+    and normal merge. No live Gemini, real profile/key inspection, release, or fleet
+    deployment. Remaining apostrophe ambiguity and conservative tuning are filed in
+    upstream-safety-tuning. Keep this issue in progress until root accepts and merges.'
