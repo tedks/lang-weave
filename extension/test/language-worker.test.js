@@ -19,6 +19,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   const permissionAdded = [];
   const permissionRemoved = [];
   let origins = ['<all_urls>'];
+  let tabTitle = 'Ordinary reading';
   let blockSeenRead = false;
   let seenReadStarted;
   let releaseSeenRead;
@@ -78,7 +79,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     runtime: { id: 'lang-test', getURL: (path) => `chrome-extension://lang-test/${path}`,
       getManifest: () => ({ version: '0.5.0' }), reload: async () => { reloadCalls++; },
       onMessage: on(handlers), onInstalled: on(), onStartup: on() },
-    tabs: { query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async (id) => ({ id, title: tabTitle }), query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => { registrationCalls++; },
@@ -238,6 +239,49 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
       items: [{ key: allowedKey, text: passage }] }, page)).results[allowedKey]).toEqual([]);
     expect(modelFetches).toBe(1);
 
+    // A neutral passage on a sensitive tab cannot reuse a cached answer or
+    // leave for Gemini. A frame's own sensitive title also vetoes a safe tab.
+    tabTitle = 'Bank robbery investigation';
+    expect((await dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: allowedKey, text: passage }], title: 'Ordinary frame' },
+      { ...page, frameId: 2 })).results[allowedKey]).toEqual([]);
+    const otherText = 'We read books and share stories every afternoon.';
+    const otherKey = `${allowed.revision}:${hashKey(otherText)}`;
+    expect((await dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: otherKey, text: otherText }], title: 'Ordinary frame' }, page)).results[otherKey]).toEqual([]);
+    expect(modelFetches).toBe(1);
+    tabTitle = 'Ordinary reading';
+    expect((await dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: otherKey, text: otherText }], title: 'Hospital update' },
+      { ...page, frameId: 2 })).results[otherKey]).toEqual([]);
+    expect(modelFetches).toBe(1);
+
+    // A title can change while cache I/O is held; the cached result must not
+    // escape after the guard's first check.
+    const titleCacheStarted = new Promise((resolve) => { cacheReadStarted = resolve; });
+    blockCacheRead = true;
+    const titleCachePending = dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: allowedKey, text: passage }], title: 'Ordinary reading' }, page);
+    await titleCacheStarted;
+    tabTitle = 'Court order';
+    releaseCacheRead();
+    expect((await titleCachePending).stale).toBe(true);
+    expect(modelFetches).toBe(1);
+    tabTitle = 'Ordinary reading';
+
+    // The review/prefetch await and the final counter write are also dispatch
+    // boundaries. Neither may leak after a title transition.
+    const titleReadStarted = new Promise((resolve) => { seenReadStarted = resolve; });
+    blockSeenRead = true;
+    const titleReadPending = dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: otherKey, text: otherText }], title: 'Ordinary reading' }, page);
+    await titleReadStarted;
+    tabTitle = 'Crime rates today';
+    releaseSeenRead();
+    expect((await titleReadPending).stale).toBe(true);
+    expect(modelFetches).toBe(1);
+    tabTitle = 'Ordinary reading';
+
     // A cached answer must also be dropped when the site turns off during storage I/O.
     const cacheStarted = new Promise((resolve) => { cacheReadStarted = resolve; });
     blockCacheRead = true;
@@ -254,6 +298,25 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect((await dispatch({ type: 'save', settings: { model: 'gemini-3.8-flash' } }, popup)).ok).toBe(true);
     const beforeFallback = await dispatch({ type: 'config' }, page);
     const fallbackKey = `${beforeFallback.revision}:${hashKey(passage)}`;
+    let titlePrimaryStarted;
+    const startedTitlePrimary = new Promise((resolve) => { titlePrimaryStarted = resolve; });
+    let finishTitlePrimary;
+    const titleModels = [];
+    globalThis.fetch = async (url, init) => {
+      titleModels.push(url);
+      expect(JSON.stringify(init)).not.toContain('Court order'); // title stays local
+      if (!url.includes('gemini-3.8-flash')) throw new Error('Title change disclosed page text to fallback');
+      titlePrimaryStarted();
+      return new Promise((resolve) => { finishTitlePrimary = resolve; });
+    };
+    const titleFallbackPending = dispatch({ type: 'swaps', revision: beforeFallback.revision,
+      items: [{ key: fallbackKey, text: passage }], title: 'Ordinary reading' }, page);
+    await startedTitlePrimary;
+    tabTitle = 'Court order';
+    finishTitlePrimary({ ok: false, status: 400, text: async () => '', headers: { get: () => null } });
+    expect((await titleFallbackPending).stale).toBe(true);
+    expect(titleModels).toHaveLength(1);
+    tabTitle = 'Ordinary reading';
     let primaryStarted;
     const startedPrimary = new Promise((resolve) => { primaryStarted = resolve; });
     let finishPrimary;
@@ -291,6 +354,19 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     await revokeDuringCount;
     origins = ['<all_urls>'];
     await Promise.all(permissionAdded.map((notify) => notify()));
+
+    const beforeTitleCount = await dispatch({ type: 'config' }, page);
+    const titleCounterStarted = new Promise((resolve) => { counterSetStarted = resolve; });
+    blockCounterSet = true;
+    const titleCounterPending = dispatch({ type: 'swaps', revision: beforeTitleCount.revision,
+      items: [{ key: `${beforeTitleCount.revision}:${hashKey(passage)}`, text: passage }],
+      title: 'Ordinary reading' }, page);
+    await titleCounterStarted;
+    tabTitle = 'Bank robbery';
+    releaseCounterSet();
+    expect((await titleCounterPending).stale).toBe(true);
+    expect(counterFetches).toBe(0);
+    tabTitle = 'Ordinary reading';
 
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');

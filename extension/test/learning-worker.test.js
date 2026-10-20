@@ -27,7 +27,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     } },
     runtime: { id: 'fw-test', getURL: (p) => `chrome-extension://fw-test/${p}`,
       getManifest: () => ({ version: '0.5.0' }), onMessage: on(listeners), onInstalled: on(), onStartup: on() },
-    tabs: { query: async () => [], sendMessage: async () => {} }, action: { setBadgeText: async () => {} },
+    tabs: { get: async () => ({ id: 7, title: 'Ordinary reading' }), query: async () => [], sendMessage: async () => {} }, action: { setBadgeText: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},

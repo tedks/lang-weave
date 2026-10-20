@@ -6,6 +6,7 @@ import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swap
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
+import { isZeroFrench } from './levels.js';
 import { localDay } from './events.js';
 import { languageName } from './language-name.js';
 
@@ -58,7 +59,8 @@ const send = (msg) => {
     return Promise.reject(e);
   }
 };
-const on = () => !orphaned && config?.hasKey && !config.paused && siteEnabled(config.settings, location.href) && hasSiteAccess(location.href, config.origins);
+const on = () => !orphaned && config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
+  siteEnabled(config.settings, location.href) && hasSiteAccess(location.href, config.origins);
 const targets = () => selector(location.href);
 // Only real user input on spans this extension made; pages can't forge flips, peeks or seen events.
 const swapFor = (e) => {
@@ -265,7 +267,7 @@ function paint(el, key, placedTickets = new Set()) {
   if (!on() || keys.get(el) !== key || !readable(el, location.href)) return;
   const swaps = memo.get(key);
   if (!swaps?.length || busy(el, 'paints')) return;
-  applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); });
+  applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); }, config.language);
   for (const span of el.querySelectorAll(`.${SWAP_CLASS}`)) if (isSwap(span)) visible.observe(span);
   observer?.takeRecords();
 }
@@ -308,7 +310,7 @@ async function flush() {
   if (!items.length) return;
   for (const i of items) inflight.add(i.key);
   let result;
-  try { result = await send({ type: 'swaps', revision: config.revision, items }); }
+  try { result = await send({ type: 'swaps', revision: config.revision, items, title: document.title }); }
   catch { result = { error: 'Extension unavailable' }; }
   if (gen !== generation || !on()) return;
   if (config.settings.gradual && document.visibilityState === 'hidden') {
@@ -355,6 +357,11 @@ function track(root) {
   }
 }
 function mutations(records) {
+  if (pageTitle !== document.title) {
+    pageTitle = document.title;
+    if (config) update(config, true);
+    return;
+  }
   const changed = new Set();
   for (const r of records) {
     for (const n of r.addedNodes || []) if (n.nodeType === 1) track(n);
@@ -444,11 +451,13 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('online', () => { void send({ type: 'config' }).then((c) => update(c, true)).catch(() => {}); });
 // SPA navigation can reuse DOM nodes without changing their text.
 let page = location.href;
+let pageTitle = document.title;
 let day = localDay();
 const navTimer = setInterval(() => {
   const today = localDay();
-  if (page !== location.href || config?.settings.gradual && day !== today) {
+  if (page !== location.href || pageTitle !== document.title || config?.settings.gradual && day !== today) {
     page = location.href;
+    pageTitle = document.title;
     if (config) update(config, true);
   }
   day = today;

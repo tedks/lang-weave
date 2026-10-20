@@ -160,13 +160,13 @@ describe('applySwaps', () => {
     expect(el.textContent).toBe('one\n\ntwo et three');
   });
   test('overlapping swaps: first wins', () => {
-    const el = tweet('<span>not because of that, honestly</span>');
+    const el = tweet('<span>not because it rained, honestly</span>');
     const n = applySwaps(el, [
-      S({ o: 'because', f: 'parce que', ctx: 'not because of' }),
-      S({ o: 'because of', f: 'parce que', ctx: 'because of that' }),
+      S({ o: 'because', f: 'parce que', ctx: 'not because it' }),
+      S({ o: 'because it', f: 'parce que', ctx: 'because it rained' }),
     ]);
     expect(n).toBe(1);
-    expect(el.textContent).toBe('not parce que of that, honestly');
+    expect(el.textContent).toBe('not parce que it rained, honestly');
   });
   test('missing or ambiguous anchors are dropped, nothing else changes', () => {
     const el = tweet('<span>cats and dogs and birds</span>');

@@ -67,7 +67,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
         sendMessage: (msg) => dispatch(msg, page()).then((r) => { pageReplies.push(JSON.stringify(r ?? null)); return r; }),
         sendNativeMessage: async () => { nativeCalls++; throw new Error('native host must never be called'); },
       },
-      tabs: { query: async () => [{ id: 1, url: win.location.href }], sendMessage: async (_id, msg) => { toPages.push(JSON.stringify(msg)); for (const fn of contentListeners) fn(msg); } },
+      tabs: { get: async () => ({ id: 1, title: win.document.title }), query: async () => [{ id: 1, url: win.location.href }], sendMessage: async (_id, msg) => { toPages.push(JSON.stringify(msg)); for (const fn of contentListeners) fn(msg); } },
       alarms: { create: async () => {}, onAlarm: listener([]) },
       permissions: { getAll: async () => ({ origins }), onAdded: listener(originEvents.added), onRemoved: listener(originEvents.removed) },
       scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {}, unregisterContentScripts: async () => {}, registerContentScripts: async () => {} },
@@ -118,6 +118,17 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const el = win.document.querySelector('#reading');
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
     expect(win.document.querySelectorAll('.fw-word').length).toBe(1);
+    // A SPA can change only its title. Existing swaps disappear, a late reply
+    // cannot repaint them, and returning to a safe title permits reading.
+    const safeCalls = modelCalls;
+    win.document.title = 'Hospital medication update';
+    await wait(20);
+    expect(el.querySelector('.fw-word')).toBeNull();
+    expect(el.textContent).toBe('I enjoy cats and dogs every single day.');
+    expect(modelCalls).toBe(safeCalls);
+    win.document.title = 'Ordinary reading';
+    await wait(1300); // interval fallback also covers sites whose title mutation is not reported
+    expect(el.querySelector('.fw-word')?.textContent).toBe('y');
     expect(local[PENDING_KEY] || []).toHaveLength(0); // prefetch is not exposure
     const visibility = io.findLast((o) => !o.options.rootMargin);
     const span = el.querySelector('.fw-word');

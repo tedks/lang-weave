@@ -1,5 +1,7 @@
 // DOM side of a swap: flatten a tweet's text, locate the model's anchor, wrap one text-node slice.
 // Pure DOM functions (use node.ownerDocument), so they run under happy-dom in tests.
+import { sentenceStart, sourceIssue } from './semantic.js';
+export { quotedRanges, sentenceStart } from './semantic.js';
 
 const SKIP_TAGS = new Set(['A', 'CODE', 'PRE', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'SCRIPT', 'STYLE', 'KBD', 'SAMP']);
 const WORD_CHAR = /[\p{L}\p{N}_]/u;
@@ -226,18 +228,22 @@ function wrap(place, swap) {
 }
 
 // Applies validated swaps [{o, f, g, h, ctx}] to root. Returns the number placed.
-export function applySwaps(root, swaps, onPlaced = () => {}) {
+export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
   const flat = flatten(root);
   const placed = [];
   const used = [];
   for (const swap of swaps) {
     const m = locate(flat, swap.o, swap.ctx);
     if (!m) continue;
+    if (sourceIssue(flat.text, m.start, m.end, swap.o)) continue;
     if (used.some((u) => m.start < u.end && u.start < m.end)) continue;
     const place = toNode(flat, m, swap.o);
     if (!place) continue;
     used.push(m);
-    placed.push({ place, swap });
+    // I is capitalized everywhere in English; capitalize its target only at this located sentence start.
+    const display = /^I(?!\p{L})/u.test(swap.o) && sentenceStart(flat.text, m.start)
+      ? { ...swap, f: swap.f.charAt(0).toLocaleUpperCase(language) + swap.f.slice(1) } : swap;
+    placed.push({ place, swap: display });
   }
   // Later positions first, so earlier offsets in the same text node stay valid.
   placed.sort((a, b) => b.place.seg - a.place.seg || b.place.offset - a.place.offset);

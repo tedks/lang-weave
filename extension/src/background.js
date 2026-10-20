@@ -61,6 +61,17 @@ async function context() {
 
 const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
 
+// The tab title is local-only safety context. Refresh it after every asynchronous
+// boundary that could precede cache delivery or a primary/fallback fetch.
+async function safePageTitle(msg, sender) {
+  if (isZeroFrench(msg.title || '') || isZeroFrench(sender.tab?.title || '')) return false;
+  if (!Number.isSafeInteger(sender.tab?.id)) return false;
+  try {
+    const tab = await chrome.tabs.get(sender.tab.id);
+    return typeof tab?.title === 'string' && !isZeroFrench(tab.title);
+  } catch { return false; } // a closed/inaccessible tab cannot authorize disclosure
+}
+
 async function broadcast(type = 'config') {
   const config = await context();
   const tabs = await chrome.tabs.query({});
@@ -73,6 +84,7 @@ async function swaps(msg, sender) {
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
   const items = msg.items.filter((i) => i && typeof i.text === 'string' && i.text.length <= 2000 &&
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
+  if (!(await safePageTitle(msg, sender))) return { results: Object.fromEntries(items.map((i) => [i.key, []])) };
   // Raw model decisions depend on which words are eligible now. A stable page
   // revision alone would keep yesterday's empty decision after quota resets.
   const { state } = ctx.settings.gradual ? await reviewState() : { state: null };
@@ -81,7 +93,7 @@ async function swaps(msg, sender) {
   const candidates = policyWords(ctx.words, state, ctx.settings, now, day, ctx.revision);
   if (ctx.settings.gradual && !candidates.length) return locked(async () => {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url)
+    return latest.revision === ctx.revision && activeOn(latest, sender.url) && await safePageTitle(msg, sender)
       ? { results: Object.fromEntries(items.map((i) => [i.key, []])) }
       : { results: {}, stale: true };
   });
@@ -90,17 +102,18 @@ async function swaps(msg, sender) {
     candidates.map(({ fr, status }) => [fr, status])])) : '';
   const cacheKey = (key) => policy ? `${key}:gradual:${policy}` : key;
   const cached = await cache.getMany(items.map((i) => cacheKey(i.key)));
+  if (!(await safePageTitle(msg, sender))) return { results: {}, stale: true };
   const results = Object.fromEntries(items.filter((i) => cacheKey(i.key) in cached)
     .map((i) => [i.key, cached[cacheKey(i.key)]]));
   const misses = items.filter((i) => !(i.key in results));
   if (!misses.length && !ctx.settings.gradual) {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url)
+    return latest.revision === ctx.revision && activeOn(latest, sender.url) && await safePageTitle(msg, sender)
       ? { results } : { results: {}, stale: true };
   }
   const deliver = async (raw, freshRaw) => locked(async () => {
     const latest = await context();
-    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) || !(await safePageTitle(msg, sender))) return { results: {}, stale: true };
     if (!ctx.settings.gradual) {
       if (freshRaw) await cache.setMany(freshRaw);
       return { results: raw };
@@ -127,13 +140,13 @@ async function swaps(msg, sender) {
         // the same lock as settings writes, and check again after counting the model call.
         const { response } = await locked(async () => {
           const current = await context();
-          if (current.revision !== ctx.revision || !activeOn(current, sender.url)) {
+          if (current.revision !== ctx.revision || !activeOn(current, sender.url) || !(await safePageTitle(msg, sender))) {
             throw Object.assign(new Error('Page context changed before model request'), { stale: true });
           }
           // Counting can yield to a browser permission change; keep the second check.
           await countCall(chromeStorage);
           const final = await context();
-          if (final.revision !== ctx.revision || !activeOn(final, sender.url)) {
+          if (final.revision !== ctx.revision || !activeOn(final, sender.url) || !(await safePageTitle(msg, sender))) {
             throw Object.assign(new Error('Page context changed before model request'), { stale: true });
           }
           return { response: fetch(...args) };

@@ -84,7 +84,7 @@ describe('validateSwaps', () => {
   });
   test('matches capitalization of the original', () => {
     expect(validateSwaps(1, [{ o: 'And', f: 'y' }])[0].f).toBe('Y');
-    expect(validateSwaps(1, [{ o: 'AND', f: 'y' }])[0].f).toBe('y');
+    expect(validateSwaps(1, [{ o: 'AND', f: 'y' }])).toEqual([]);
     expect(validateSwaps(1, [{ o: 'Because', f: 'porque' }])[0].f).toBe('Porque');
     expect(matchCase("la idea", 'The idea')).toBe("La idea");
   });
@@ -115,6 +115,15 @@ describe('guards', () => {
     expect(isZeroFrench('call 911 in an emergency')).toBe(true);
     expect(isZeroFrench('shipped the new onboarding flow today')).toBe(false);
     expect(isZeroFrench('the taxi was late again')).toBe(false);
+    for (const title of ['Bank robbery investigation', 'The best index funds to buy',
+      'Stocks and dividends', 'Teen driver injured in crash on Route 9',
+      'He was arrested after a bar fight', 'ETF retirement plan', 'récent cancer diagnosis',
+      "The bank's account was frozen", 'A bank’s account was frozen'])
+      expect(isZeroFrench(title)).toBe(true);
+    for (const title of ['A report about a river bank', 'Funding open source projects',
+      'The app crash report', 'A taxi driver is late', 'Ira reads a guide',
+      'prédoctorate studies', 'robberyish fiction', 'Investigating old records'])
+      expect(isZeroFrench(title)).toBe(false);
   });
 });
 
