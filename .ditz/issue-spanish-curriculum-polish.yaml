@@ -1,0 +1,22 @@
+id: spanish-curriculum-polish
+title: Review Spanish hints and finite compound matcher polish
+desc: 'Council minor follow-ups from PR #9: independently review the learner approximation
+  for restaurante /au/ and other sound hints; consider precomputing finite compound
+  tokens instead of rebuilding an array/scanning includes per sourceIssue call; document
+  that regularPlural handles only regular heads if the list grows. Current 19 compounds
+  have only -s heads, the runtime cost is negligible, and none of these is a Critical/Important
+  regression. Keep separate from first-slice acceptance and avoid claiming certified
+  pronunciation QA.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-20T23:23:16-00:00
+references: []
+log_events:
+- time: 2026-10-20T23:23:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
