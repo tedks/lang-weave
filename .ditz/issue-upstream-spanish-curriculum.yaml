@@ -11,8 +11,8 @@ type: feature
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-20T22:10:15-00:00
 references: []
 log_events:
@@ -48,3 +48,9 @@ log_events:
     corrected MV3 smoke, gradual and highlights all pass. PR #9 remains ready/open/unmerged;
     replacement comment records exact SHA and commands. Root acceptance/merge still
     pending.'
+- time: 2026-10-20T23:36:13-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Accepted tested bf311c3 and normal merged PR9 as34a30e1; tree identical.
+    Original30/147 preserved,79 additions,total226; final browser evidence repaired
+    and root reverified. Fleet unchanged.
