@@ -34,7 +34,7 @@ test('Spanish articles stay with whole noun phrases and never double English det
   expect(validateSwaps(2, [{ o: 'so', f: 'entonces' }])[0]?.f).toBe('entonces');
   expect(validateSwaps(2, [{ o: 'and', f: 'et' }])).toEqual([]);
   expect(L1_WORDS).toHaveLength(30);
-  expect(L2_WORDS).toHaveLength(147);
+  expect(L2_WORDS).toHaveLength(248);
 });
 
 test('fork identity and permissions cannot collide with or contact the French companion', () => {
