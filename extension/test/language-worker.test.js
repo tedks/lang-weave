@@ -35,6 +35,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let blockModelStatusSet = false;
   let modelStatusSetStarted;
   let releaseModelStatusSet;
+  let blockTitleAfterModelStatus = false;
   let blockCounterSet = false;
   let counterSetStarted;
   let releaseCounterSet;
@@ -78,6 +79,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]])));
       },
       async set(value) {
+        if (blockTitleAfterModelStatus && value.modelStatus?.error === '') {
+          blockTitleAfterModelStatus = false;
+          holdNextTitle = true;
+        }
         if (blockModelStatusSet && value.modelStatus?.error === '') {
           blockModelStatusSet = false;
           modelStatusSetStarted();
@@ -592,6 +597,25 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     releaseModelStatusSet();
     expect((await pendingAllowedStatusSet).results[responseKey]).toEqual([]);
     expect(statusFetches).toBe(2);
+
+    // A popup site-off cannot commit through the final title lookup after
+    // model-status persistence; delivery and the save share the storage lock.
+    const beforeFinalTitle = await dispatch({ type: 'config' }, page);
+    responseKey = `${beforeFinalTitle.revision}:${hashKey(otherText)}`;
+    const finalTitleHeld = new Promise((resolve) => { titleLookupStarted = resolve; });
+    blockTitleAfterModelStatus = true;
+    const pendingFinalTitle = dispatch({ type: 'swaps', revision: beforeFinalTitle.revision,
+      items: [{ key: responseKey, text: otherText }], title: 'Ordinary reading' }, page);
+    await finalTitleHeld;
+    const offDuringTitle = dispatch({ type: 'save', settings: { enabled: false } }, popup);
+    expect(await Promise.race([offDuringTitle.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 20))])).toBe(false);
+    expect(data.settings.enabled).toBe(true);
+    releaseTitleLookup();
+    expect((await pendingFinalTitle).results[responseKey]).toEqual([]);
+    expect((await offDuringTitle).ok).toBe(true);
+    expect(data.settings.enabled).toBe(false);
+    expect((await dispatch({ type: 'save', settings: { enabled: true } }, popup)).ok).toBe(true);
 
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');

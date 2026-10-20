@@ -183,7 +183,8 @@ async function swaps(msg, sender) {
     const delivered = await deliver({ ...results, ...fresh.results }, fresh.results);
     if (!delivered.stale) {
       await saveModelStatus({ error: '', model: fresh.model });
-      if (!(await stillSafe())) return { results: {}, stale: true };
+      // A popup save must not commit between this last context read and title lookup.
+      return locked(async () => await stillSafe() ? delivered : { results: {}, stale: true });
     }
     return delivered;
   } catch (e) {
