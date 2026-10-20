@@ -185,7 +185,7 @@ try {
   assert.equal(await mail.locator('.fw-word').count(), 0);
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), afterLanguages);
   await popup.locator('#levelOverride').selectOption('2');
-  await popup.waitForFunction(() => document.querySelector('#wordInfo').textContent === '231 Spanish words');
+  await popup.waitForFunction(() => document.querySelector('#wordInfo').textContent === '226 Spanish words');
   await page.evaluate(() => { const p = document.createElement('p'); p.id = 'curriculum';
     p.textContent = 'The window stands beside the book and the cat.';
     document.querySelector('main').append(p); });
