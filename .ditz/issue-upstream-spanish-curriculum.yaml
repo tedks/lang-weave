@@ -1,0 +1,22 @@
+id: upstream-spanish-curriculum
+title: Curate upstream Spanish vocabulary into the browser curriculum
+desc: Queued selective integration candidate after initial safety work. Audited upstream
+  offers1047 Spanish entries but local browser ships30/147 words independently of
+  CSV. Curate a defensible reviewed subset in bounded levels rather than raw prompt
+  dump; preserve existing word identifiers/es history/cards, visibility accounting
+  and generated pack isolation. Require linguistic QA and prompt-size/density plus
+  upgrade-continuity evidence; do not claim certified curriculum/native-speaker review
+  without it. No editing lane assigned yet; root to issue bounded package before implementation.
+type: feature
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-20T22:10:15-00:00
+references: []
+log_events:
+- time: 2026-10-20T22:10:15-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
