@@ -2,7 +2,7 @@
 
 ## Current state
 
-STARTED on `upstream-quota-diagnostics` from merged 0.7.0 baseline. Scope: bounded provider cooldown and allowlisted failure status in the standalone extension; no provider, consent, learning, or local budget expansion. Root retains merge and fleet decisions. This document is the public mission record and excludes private coordination data.
+IN VERIFICATION on `upstream-quota-diagnostics` from merged 0.7.0 baseline. Draft PR #10 contains a bounded provider cooldown and allowlisted failure status in the standalone extension; no provider, consent, learning, or local budget expansion. Root retains merge and fleet decisions. This document is the public mission record and excludes private coordination data.
 
 ## Assumptions and failure modes before edits
 
@@ -22,7 +22,19 @@ Compare local behavior to frozen upstream evidence, use current official Google 
 - [Google Gemini rate limits](https://ai.google.dev/gemini-api/docs/rate-limits): RPM, input TPM and RPD are separate dimensions; limits apply per project, vary with model/tier, and RPD resets at midnight Pacific. No fixed provider request cap is assumed here.
 - [Google API errors](https://ai.google.dev/gemini-api/docs/api-errors): `quota_exceeded` is a daily 429; `rate_limit_exceeded` and `too_many_requests` describe short-window 429s. Bare 429 needs conservative treatment.
 - [Google troubleshooting](https://ai.google.dev/gemini-api/docs/troubleshooting): transient 429/503 responses warrant bounded backoff. This does not justify an unbounded client block or repeated immediate dispatch.
+- [HTTP Semantics, RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): `Retry-After` can be integer seconds or an HTTP date. The parser accepts those bounded forms; a narrowly tolerated fractional seconds form is treated as guidance only when finite.
+- [Google RPC `RetryInfo`](https://docs.cloud.google.com/storage/docs/reference/rpc/google.rpc#retryinfo): its `retry_delay` is a suggested minimum wait. The extension accepts the typed `google.rpc.RetryInfo` detail with a bounded seconds duration.
+
+## Adaptation and limits
+
+- A structured `quota_exceeded` code or a recognized per-day quota dimension on HTTP 429 gets a per-model daily cooldown. Bare 429, a conflicting short-window code, and 503 use short cooldowns. A daily response without valid retry guidance gets a **24-hour local conservative fallback**, bounded from receipt; this is not a claim about the provider's reset hour. Valid provider guidance is honored up to 24 hours for daily and one hour for short limits. No historical provider cap or Pacific-day arithmetic enters runtime.
+- The cooldown is persisted for at most the two configured models with finite deadlines and duration metadata. A random `keyEpoch`, independent of key content, rotates only when a key is replaced or removed. Ordinary settings changes keep the cooldown. Stale old-key responses cannot write the replacement key's state. Malformed or old state and forward/backward clock anomalies are pruned or bounded before dispatch.
+- `modelStatus` stores only an allowlisted category, time, optional configured model and optional provider-guided retry time. Popup text is fixed local copy; it renders a retry clock only for validated guidance. Old raw statuses are ignored. Expired cooldown status, stale transient failure and recovered local budget do not appear as current errors. The existing update badge retains its priority.
+- Provider error bodies are read at most 16 KiB; raw bodies and exception strings are never stored or returned to pages. The local 1,000-call protective budget is unchanged. Call accounting must save before a network dispatch; cooldown persistence failure prevents the next fallback dispatch. Local review is independent of model cooldown.
 
 ## Evidence log
 
 - Baseline inspection: local `callGemini` reads raw HTTP body with a regex for `retryDelay`; `requestSwaps` holds model cooldown only in worker memory; `background` saves raw exception text as `modelStatus.error`; popup renders that text. Existing site, title, fallback, cache and local-review guards already exist. The status badge is reserved for disk update (`NEW`).
+- The assumptions and acceptance plan were committed and draft PR #10 opened before runtime edits. Versioned surfaces move together from 0.7.0 to 0.7.1 for the runtime delta.
+- Focused tests cover daily versus short classification, nested quota dimensions, malformed/oversized bodies, retry bounds and header forms, old-key late failure and success, settings freshness, expired popup status, backward clock, fallback persistence failure and status redaction. In an isolated mutation copy, removing nested daily classification failed its positive test; removing the persisted cooldown key-epoch guard failed the late old-key race test. The source worktree was restored after each mutation.
+- Preliminary full gates: frozen Bun install passed; 135 Bun tests / 2,755 assertions and 91 Python tests passed before the final status freshness test additions. Version alignment to 0.7.1, 35 blocks and diff check passed. Guarded Chromium smoke, gradual learning, light/dark highlights, and the new quota/status profile-restart flow passed. The latter uses a synthetic 429 and replacement-key success plus an owned network sink and positive control; it is real MV3/browser/storage behavior, not live Gemini validation. Exact final-head gates and council convergence remain pending.

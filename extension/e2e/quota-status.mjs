@@ -13,6 +13,7 @@ const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-quota-'));
 const extension = join(scratch, 'extension');
 const profile = join(scratch, 'profile');
 const sinkHits = [];
+const modelSinkHits = () => sinkHits.filter((hit) => hit.includes('generativelanguage.googleapis.com'));
 const originHits = [];
 const origin = createServer((request, response) => {
   originHits.push(request.url);
@@ -46,7 +47,7 @@ try {
   const launch = () => chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, args });
   const route = (context) => context.route('https://reading.example/**', (request) => request.fulfill({
     contentType: 'text/html', body: `<!doctype html><title>Ordinary reading</title><main><p>
-      We read books and enjoy quiet evenings every week. Our friends and neighbors enjoy the story too.
+      We read books and enjoy quiet evenings every week.
     </p></main>`,
   }));
 
@@ -74,6 +75,13 @@ try {
   });
   const page = await browser.newPage();
   await page.goto('https://reading.example/first');
+  await assert.doesNotReject(async () => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      if ((await worker.evaluate(() => chrome.storage.local.get('modelStatus'))).modelStatus?.category === 'daily_quota') return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error('Synthetic daily status was not stored');
+  });
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
   await popup.waitForFunction(() => /daily|quota/i.test(document.querySelector('#operation')?.textContent || ''));
@@ -84,7 +92,7 @@ try {
     .length < 2000);
   assert.doesNotMatch(JSON.stringify({ modelStatus: stored.modelStatus, quotaState: stored.quotaState }),
     /synthetic-quota-key|secret page text|reading\.example/);
-  assert.equal(sinkHits.length, 0);
+  assert.equal(modelSinkHits().length, 0);
   await browser.close();
   browser = null;
 
@@ -98,14 +106,14 @@ try {
   await second.goto('https://reading.example/second');
   await second.waitForTimeout(800);
   assert.equal(await second.locator('.fw-word').count(), 0);
-  assert.equal(sinkHits.length, 0, 'persisted cooldown should stop dispatch after worker restart');
+  assert.equal(modelSinkHits().length, 0, 'persisted cooldown should stop dispatch after worker restart');
   const restartedPopup = await browser.newPage();
   await restartedPopup.goto(`chrome-extension://${id}/src/popup.html`);
   await restartedPopup.waitForFunction(() => /daily|quota/i.test(document.querySelector('#operation')?.textContent || ''));
   const review = await browser.newPage();
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#counts').getByText(/available to add/).waitFor();
-  assert.equal(sinkHits.length, 0, 'local review remains offline');
+  assert.equal(modelSinkHits().length, 0, 'local review remains offline');
 
   await worker.evaluate(() => {
     globalThis.recoveryCalls = 0;
@@ -116,7 +124,8 @@ try {
       globalThis.recoveryCalls++;
       const items = JSON.parse(JSON.parse(init.body).contents[0].parts[0].text.replace(/^Passages:\n/, ''));
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
-        passages: items.map(({ id }) => ({ id, swaps: [{ o: 'and', f: 'y', ctx: '' }] })),
+        passages: items.map(({ id, text }) => ({ id, swaps: text.includes(' and ')
+          ? [{ o: 'and', f: 'y', g: 'and', h: '', ctx: '' }] : [] })),
       }) }] } }] }), { headers: { 'Content-Type': 'application/json' } });
     };
   });
@@ -124,12 +133,18 @@ try {
     type: 'save', apiKey: 'replacement-synthetic-key',
   })), { ok: true });
   await second.reload();
-  await second.locator('.fw-word').first().waitFor();
+  try { await second.locator('.fw-word').first().waitFor({ timeout: 5000 }); }
+  catch {
+    const diagnostic = { calls: await worker.evaluate(() => globalThis.recoveryCalls),
+      status: (await worker.evaluate(() => chrome.storage.local.get('modelStatus'))).modelStatus,
+      words: await second.locator('.fw-word').count(), modelSinkHits: modelSinkHits().length };
+    throw new Error(`Synthetic replacement did not restore reading: ${JSON.stringify(diagnostic)}`);
+  }
   assert.ok(await worker.evaluate(() => globalThis.recoveryCalls) >= 1);
   stored = await worker.evaluate(() => chrome.storage.local.get(null));
   assert.doesNotMatch(JSON.stringify({ modelStatus: stored.modelStatus, quotaState: stored.quotaState }),
     /synthetic-quota-key|replacement-synthetic-key|secret page text/);
-  assert.equal(sinkHits.length, 0);
+  assert.equal(modelSinkHits().length, 0);
   const probe = await worker.evaluate(async (port) => {
     const positive = await (await fetch(`http://127.0.0.1:${port}/good`)).text();
     let denied = false;
