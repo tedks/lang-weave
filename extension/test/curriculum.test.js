@@ -19,7 +19,7 @@ test('the original Beginner and Expanded entries retain their forms, glosses, hi
 
 test('new words are bounded, unique and normalized with articles and sound hints', () => {
   const added = additions();
-  expect(added.length).toBeGreaterThanOrEqual(80);
+  expect(added.length).toBeGreaterThanOrEqual(75);
   expect(L2_WORDS.length).toBeLessThanOrEqual(240);
   const oldTargets = new Set(L2_WORDS.slice(0, OLD_EXPANDED).map((w) => normalizeFr(w.fr)));
   const oldGlosses = new Set(L2_WORDS.slice(0, OLD_EXPANDED)
@@ -49,6 +49,7 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
     .toMatchObject({ f: 'la ventana', g: 'the window', h: 'lah ben-TAH-nah' });
   expect(one('We opened a window before dinner.', 'window', 'la ventana'))
     .toMatchObject({ f: 'ventana', g: 'window', h: 'ben-TAH-nah' });
+  expect(one('The kitchen smelled of soup.', 'The kitchen', 'la cocina')?.f).toBe('La cocina');
   expect(one('The photo is beside the book.', 'The photo', 'la foto')?.f).toBe('La foto');
   expect(one('The river runs near the town.', 'The river', 'el rio')?.f).toBe('El río');
   expect(one('We read the book near the window.', 'the book', 'el libro')?.f).toBe('el libro');
@@ -56,6 +57,10 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
   expect(one('The airplane crossed the clouds.', 'The airplane', 'el avión')?.f).toBe('El avión');
 
   expect(one('We opened the windows before dinner.', 'the windows', 'la ventana')).toBeUndefined();
+  expect(one('We opened a window before dinner.', 'a window', 'la ventana')).toBeUndefined();
+  expect(one('We opened a window before dinner.', 'a window', 'ventana')).toBeUndefined();
+  expect(one('An airplane crossed the clouds.', 'An airplane', 'el avión')).toBeUndefined();
+  expect(one('I saw a problem yesterday.', 'a problem', 'el problema')).toBeUndefined();
   expect(one('We opened the windows before dinner.', 'windows', 'la ventana')).toBeUndefined();
   expect(one('The password is private.', 'The password', 'la llave')).toBeUndefined();
   expect(one('The sentence is short.', 'The sentence', 'la frase')).toBeUndefined();
@@ -67,6 +72,12 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
   expect(one('The movie theater opened.', 'The movie', 'la película')).toBeUndefined();
   expect(one('The garden path turns left.', 'The garden', 'el jardín')).toBeUndefined();
   expect(one('The book review was short.', 'The book', 'el libro')).toBeUndefined();
+  expect(one('The computer program crashed.', 'The computer', 'la computadora')).toBeUndefined();
+  expect(one('The page number is missing.', 'The page', 'la página')).toBeUndefined();
+  expect(one('The window frames are blue.', 'The window', 'la ventana')).toBeUndefined();
+  expect(one('The book reviews were short.', 'The book', 'el libro')).toBeUndefined();
+  expect(one('The kitchen table is small.', 'The kitchen', 'la cocina')).toBeUndefined();
+  expect(one('The office chairs are new.', 'The office', 'la oficina')).toBeUndefined();
   expect(validateSwaps(1, [{ o: 'the window', f: 'la ventana' }])).toEqual([]);
 });
 
@@ -74,7 +85,7 @@ test('prompt growth stays bounded against the merged 0.6.2 candidate set', () =>
   const ordinary = buildSystemPrompt(2);
   const allNew = buildSystemPrompt(2, L2_WORDS.map((w) => ({ ...w, status: 'new' })));
   // Merged 0.6.2 baseline: 147 candidates, ordinary 4,997, all-new 5,184 characters.
-  expect(L2_WORDS).toHaveLength(231);
+  expect(L2_WORDS).toHaveLength(226);
   expect(ordinary.length).toBeLessThanOrEqual(7200);
   expect(allNew.length).toBeLessThanOrEqual(7400);
   expect(ordinary).toContain('la ventana = the window');

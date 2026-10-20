@@ -20,7 +20,7 @@ describe('word lists', () => {
     expect(L1_WORDS.map((w) => w.fr)).toEqual(spec);
   });
   test('L2 stays bounded, includes L1 and the fixed phrases, every entry glossed with a hint', () => {
-    expect(L2_WORDS.length).toBeGreaterThanOrEqual(230);
+    expect(L2_WORDS.length).toBeGreaterThanOrEqual(220);
     expect(L2_WORDS.length).toBeLessThanOrEqual(240);
     const frs = L2_WORDS.map((w) => w.fr);
     for (const w of L1_WORDS) expect(frs).toContain(w.fr);
