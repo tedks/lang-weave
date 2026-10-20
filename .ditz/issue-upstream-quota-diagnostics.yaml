@@ -1,0 +1,20 @@
+id: upstream-quota-diagnostics
+title: Adapt persisted daily quota handling and scrubbed diagnostics
+desc: 'Queued selective integration candidate: classify minute/day429 correctly, persist
+  appropriate cooldown across MV3 restart, scrub keys/raw errors, preserve per-key
+  freshness and consent/fallback guards. Verify current official provider reset/quota
+  facts before implementation rather than importing historical upstream caps. No provider
+  chain/new spend/keys. No editing lane assigned; root will issue bounded package.'
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-20T22:10:15-00:00
+references: []
+log_events:
+- time: 2026-10-20T22:10:15-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
