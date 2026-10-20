@@ -1,0 +1,26 @@
+id: upstream-safety-delivery-followup
+title: Measure gradual delivery reservations after consent revocation
+desc: 'Follow-up nits from PR #8 consent-race council. If permission changes during
+  the awaited gradual review-state write, final delivery now returns stale, but a
+  pending introduction reservation may already have been persisted. Check whether
+  revision scoping makes it inert and how long it can affect the new-word budget;
+  add a held reviewState/scoped.set test with a mutation-red check. Also strengthen
+  the final site-off held-title test''s timing signal, and assess the unavoidable
+  event-delivery interval between a browser permission change and its onRemoved callback
+  using isolated synthetic Chromium. Preserve the existing primary/fallback prefetch
+  and cached-display privacy guards. This does not block PR #8 because its final local
+  permission and title checks are exercised and the council fix delta was CLEAN. No
+  live Gemini or profile data is needed.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-20T22:48:49-00:00
+references: []
+log_events:
+- time: 2026-10-20T22:48:49-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
