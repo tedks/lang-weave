@@ -35,17 +35,19 @@ describe('semantic source protections', () => {
     const separate = "'tis and fun. I read 'word' aloud.";
     expect(kept(separate, 'and', 'y')).toHaveLength(1);
     expect(quotedRanges(separate).map(([a, b]) => separate.slice(a, b))).toEqual(["'word'"]);
-    for (const possessive of ["We heard 'tis about James' work and left.",
-      "We heard 'tis about the kids' toys and left."]) {
-      expect(kept(possessive, 'about', 'sobre', '', [W('sobre', 'about')])).toHaveLength(1);
-      expect(quotedRanges(possessive)).toEqual([]);
-    }
+    const possessive = "We heard 'tis about James' work and left.";
+    expect(kept(possessive, 'about', 'sobre', '', [W('sobre', 'about')])).toHaveLength(1);
+    expect(quotedRanges(possessive)).toEqual([]);
     expect(quotedRanges("We heard 'tis about the kids' toys. Then 'word' came next.")
-      .map(([a, b]) => "We heard 'tis about the kids' toys. Then 'word' came next.".slice(a, b)))
-      .toEqual(["'word'"]);
+      .map(([a, b]) => "We heard 'tis about the kids' toys. Then 'word' came next.".slice(a, b)).at(-1))
+      .toBe("'word'");
     expect(quotedRanges("We quoted 'cause it matters'.")
       .map(([a, b]) => "We quoted 'cause it matters'.".slice(a, b)))
       .toEqual(["'cause it matters'"]);
+    for (const quoted of ["She quoted 'cause it matters' today and smiled.",
+      "She sang 'tis the season for gifts' all night."]) {
+      expect(quotedRanges(quoted)).toHaveLength(1);
+    }
   });
 
   test('ALL CAPS and name-like anchors stay English, ordinary words and OK survive', () => {

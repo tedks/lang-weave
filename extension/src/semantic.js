@@ -5,6 +5,7 @@ const BEFORE_SINGLE = /[\s([{“"«„—–\-/]/u;
 const LETTER = /\p{L}/u;
 const WORDISH = /[\p{L}\p{N}]/u;
 const ELISION = /^(?:tis|twas|cause|em|round|bout)\b/iu;
+const PROPER_POSSESSIVE = /(?:^|[^\p{L}])\p{Lu}[\p{L}]*[sS]$/u;
 
 function sentenceEnd(text, from) {
   const end = /[.!?…](?=[\s"”»’']|$)|\n/u.exec(text.slice(from));
@@ -33,8 +34,8 @@ export function quotedRanges(text) {
           nextQuote = true;
           break;
         }
-        // A plural or proper-name possessive after an elision is not its closing quote.
-        if (elision && s[close] === "'" && /s/iu.test(s[close - 1] || '') &&
+        // A clear name possessive is not a close; lowercase s-words are ambiguous, so protect the quote.
+        if (elision && s[close] === "'" && PROPER_POSSESSIVE.test(s.slice(0, close)) &&
           /^\s+\p{L}/u.test(s.slice(close + 1))) {
           close++;
           continue;
