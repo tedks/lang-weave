@@ -25,7 +25,7 @@ test('popup pause gates Gemini immediately and resume rejects stale requests wit
       sendNativeMessage: async () => { nativeCalls++; throw new Error('native host must never be called'); },
     },
     action: { setBadgeText: async () => {} },
-    tabs: { query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async () => ({ id: 1, title: 'Ordinary reading' }), query: async () => [], sendMessage: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},

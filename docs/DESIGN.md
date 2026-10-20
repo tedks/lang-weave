@@ -10,6 +10,8 @@ English source passages; neutral Spanish with accents and approximate pronunciat
 
 Keep sensitive sites off by default and preserve exclusions for forms, editable text, code and high-stakes topics. Page text goes to Gemini only on enabled, permitted sites with a configured key. Browser storage is independent of French Weave. Language histories and asynchronous results are isolated by target and pack version. Keep the historical unpacked installation path so Chrome retains its extension identity and Spanish progress. Do not install a browser extension or use the user's credentials as part of development verification.
 
+Content scripts target the top frame. Non-top-frame swap requests fail closed because the worker cannot refresh that frame's title at each asynchronous dispatch boundary. The local title and high-stakes checks are finite conservative guards; ambiguous text stays English.
+
 ## Acceptance
 
 Spanish identity, bundled vocabulary, model instructions and interaction labels; no French companion dependency; unpacked installation instructions; automated regression gates, browser smoke evidence and council review to fixpoint before merge. Report mocked and real-service evidence distinctly.

@@ -35,7 +35,7 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
       sendNativeMessage: async () => { throw new Error('native host must never be called'); },
     },
     action: { setBadgeText: async ({ text }) => { badges.push(text); } },
-    tabs: { query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async () => ({ id: 1, title: 'Ordinary reading' }), query: async () => [], sendMessage: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},

@@ -112,6 +112,18 @@ try {
   assert.ok(calls.every((text) => !/doctor|Private form|Editable secrets|private code/.test(text)));
   const events = await worker.evaluate(() => chrome.storage.local.get('readingEvents').then((s) => s.readingEvents || []));
   assert.ok(events.some((e) => e.word === 'y' && e.kind === 'flip'));
+  const callsBeforeTitle = await worker.evaluate(() => globalThis.smokeCalls.length);
+  await page.evaluate(() => { document.title = 'Bank robbery investigation';
+    const p = document.createElement('p'); p.id = 'title-neutral';
+    p.textContent = 'We read books and enjoy quiet evenings every week.';
+    document.querySelector('main').append(p); });
+  await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
+  await page.waitForTimeout(800);
+  assert.equal(await page.locator('#title-neutral .fw-word').count(), 0);
+  assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), callsBeforeTitle);
+  await page.evaluate(() => { document.title = 'Spanish smoke fixture'; });
+  await page.locator('#reading .fw-word').waitFor();
+  await page.locator('#title-neutral .fw-word').waitFor();
   const mail = await context.newPage();
   await mail.goto('https://mail.google.com/mail/u/0/');
   // The popup's resolved configuration confirms the real site gate, then allow discovery/debounce to settle.
