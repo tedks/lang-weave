@@ -69,3 +69,15 @@ log_events:
     version 0.6.2/35 blocks/diff, guarded Chromium smoke/gradual/highlights passed.
     No live Gemini, merge, release or deployment. Keep issue in progress pending root
     acceptance and normal merge.'
+- time: 2026-10-20T23:01:56-00:00
+  who: Ted Smith
+  what: commented
+  comment: Root accepted immutable7860a5c after inspecting repaired cached-only lock
+    and paired nonempty-cache save orderings. Independent root7focusedBun/240assertions,91Python/version/diff/guardedChromium
+    smoke PASS. Accepted exact-head124Bun1654assertions/full gates and OpenAI-native+Anthropic
+    CLEAN convergence, Google empty quota. PR8 normal merged e0d7871548a26ae36b09060bd9d3bd8714460a31,
+    verified expected parents and tree-identical tested source. Earlier acceptance
+    holds are resolved; apostrophe/reservation/event-delivery limits remain explicit
+    tracked followups. Source merged0.6.2 is not fleet deployment; installed release
+    stays0.6.1. Root is starting separate curated Spanish curriculum mission; this
+    lane IDLE.
