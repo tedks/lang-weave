@@ -32,6 +32,12 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let blockCounterSet = false;
   let counterSetStarted;
   let releaseCounterSet;
+  let blockTitleAfterCounter = false;
+  let blockTitleAfterCacheRead = false;
+  let titleReadsUntilHold = 0;
+  let holdNextTitle = false;
+  let titleLookupStarted;
+  let releaseTitleLookup;
   let failEpochOnce = false;
   let registrationCalls = 0;
   let reloadCalls = 0;
@@ -53,6 +59,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
           cacheReadStarted();
           await new Promise((resolve) => { releaseCacheRead = resolve; });
         }
+        if (blockTitleAfterCacheRead && Array.isArray(keys) && keys.some((key) => key.startsWith('c:'))) {
+          blockTitleAfterCacheRead = false;
+          titleReadsUntilHold = 2; // post-cache title check, then final cached-delivery title check
+        }
         if (blockSeenRead && Array.isArray(keys) && keys.includes('seenSent')) {
           blockSeenRead = false;
           seenReadStarted();
@@ -62,6 +72,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]])));
       },
       async set(value) {
+        if (blockTitleAfterCounter && Object.hasOwn(value, 'modelCalls')) {
+          blockTitleAfterCounter = false;
+          holdNextTitle = true;
+        }
         if (blockCounterSet && Object.hasOwn(value, 'modelCalls')) {
           blockCounterSet = false;
           counterSetStarted();
@@ -79,7 +93,14 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     runtime: { id: 'lang-test', getURL: (path) => `chrome-extension://lang-test/${path}`,
       getManifest: () => ({ version: '0.5.0' }), reload: async () => { reloadCalls++; },
       onMessage: on(handlers), onInstalled: on(), onStartup: on() },
-    tabs: { get: async (id) => ({ id, title: tabTitle }), query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async (id) => {
+      if (holdNextTitle || (titleReadsUntilHold > 0 && --titleReadsUntilHold === 0)) {
+        holdNextTitle = false;
+        titleLookupStarted();
+        await new Promise((resolve) => { releaseTitleLookup = resolve; });
+      }
+      return { id, title: tabTitle };
+    }, query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => { registrationCalls++; },
@@ -321,6 +342,53 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect((await titleFallbackPending).stale).toBe(true);
     expect(titleModels).toHaveLength(1);
     tabTitle = 'Ordinary reading';
+
+    // Permission loss during the final live-title lookup must block fallback.
+    // The primary is allowed to fail; its response has already been sent.
+    const beforeHeldFallback = await dispatch({ type: 'config' }, page);
+    const heldFallbackKey = `${beforeHeldFallback.revision}:${hashKey(passage)}`;
+    const heldFallbackUrls = [];
+    globalThis.fetch = async (url) => {
+      heldFallbackUrls.push(url);
+      if (!url.includes('gemini-3.8-flash')) throw new Error('Revoked origin disclosed fallback text');
+      blockTitleAfterCounter = true;
+      return { ok: false, status: 400, text: async () => '', headers: { get: () => null } };
+    };
+    const heldFallbackStarted = new Promise((resolve) => { titleLookupStarted = resolve; });
+    const heldFallback = dispatch({ type: 'swaps', revision: beforeHeldFallback.revision,
+      items: [{ key: heldFallbackKey, text: passage }], title: 'Ordinary reading' }, page);
+    await heldFallbackStarted;
+    origins = [];
+    const fallbackRevocation = Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseTitleLookup();
+    expect((await heldFallback).stale).toBe(true);
+    expect(heldFallbackUrls).toHaveLength(1);
+    await fallbackRevocation;
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+
+    // With permission held throughout that lookup, both primary and fallback send.
+    const allowedFallback = await dispatch({ type: 'config' }, page);
+    const allowedFallbackKey = `${allowedFallback.revision}:${hashKey(passage)}`;
+    const allowedFallbackUrls = [];
+    globalThis.fetch = async (url) => {
+      allowedFallbackUrls.push(url);
+      if (url.includes('gemini-3.8-flash')) {
+        blockTitleAfterCounter = true;
+        return { ok: false, status: 400, text: async () => '', headers: { get: () => null } };
+      }
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: {
+        parts: [{ text: JSON.stringify({ passages: [{ id: allowedFallbackKey, swaps: [] }] }) }],
+      } }] }) };
+    };
+    const allowedFallbackStarted = new Promise((resolve) => { titleLookupStarted = resolve; });
+    const allowedFallbackPending = dispatch({ type: 'swaps', revision: allowedFallback.revision,
+      items: [{ key: allowedFallbackKey, text: passage }], title: 'Ordinary reading' }, page);
+    await allowedFallbackStarted;
+    releaseTitleLookup();
+    expect((await allowedFallbackPending).results[allowedFallbackKey]).toEqual([]);
+    expect(allowedFallbackUrls).toHaveLength(2);
+
     let primaryStarted;
     const startedPrimary = new Promise((resolve) => { primaryStarted = resolve; });
     let finishPrimary;
@@ -331,8 +399,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
       primaryStarted();
       return new Promise((resolve) => { finishPrimary = resolve; });
     };
-    const fallbackPending = dispatch({ type: 'swaps', revision: beforeFallback.revision,
-      items: [{ key: fallbackKey, text: passage }] }, page);
+    const beforeSiteOffFallback = await dispatch({ type: 'config' }, page);
+    const siteOffFallbackKey = `${beforeSiteOffFallback.revision}:${hashKey(otherText)}`;
+    const fallbackPending = dispatch({ type: 'swaps', revision: beforeSiteOffFallback.revision,
+      items: [{ key: siteOffFallbackKey, text: otherText }] }, page);
     await startedPrimary;
     expect((await dispatch({ type: 'save', settings: { enabled: false } }, popup)).ok).toBe(true);
     finishPrimary({ ok: false, status: 503, text: async () => '', headers: { get: () => null } });
@@ -371,6 +441,68 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect((await titleCounterPending).stale).toBe(true);
     expect(counterFetches).toBe(0);
     tabTitle = 'Ordinary reading';
+
+    // The final tabs.get yields after the last context() snapshot. A revoked
+    // origin at that point must prevent a primary send as well.
+    const beforeHeldPrimary = await dispatch({ type: 'config' }, page);
+    const heldPrimaryKey = `${beforeHeldPrimary.revision}:${hashKey(passage)}`;
+    let heldPrimaryFetches = 0;
+    globalThis.fetch = async () => { heldPrimaryFetches++; throw new Error('Revoked origin disclosed primary text'); };
+    const heldPrimaryStarted = new Promise((resolve) => { titleLookupStarted = resolve; });
+    blockTitleAfterCounter = true;
+    const heldPrimary = dispatch({ type: 'swaps', revision: beforeHeldPrimary.revision,
+      items: [{ key: heldPrimaryKey, text: passage }], title: 'Ordinary reading' }, page);
+    await heldPrimaryStarted;
+    origins = [];
+    const primaryRevocation = Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseTitleLookup();
+    expect((await heldPrimary).stale).toBe(true);
+    expect(heldPrimaryFetches).toBe(0);
+    await primaryRevocation;
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+
+    const allowedPrimary = await dispatch({ type: 'config' }, page);
+    const allowedPrimaryKey = `${allowedPrimary.revision}:${hashKey(passage)}`;
+    globalThis.fetch = async () => {
+      heldPrimaryFetches++;
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: {
+        parts: [{ text: JSON.stringify({ passages: [{ id: allowedPrimaryKey, swaps: [] }] }) }],
+      } }] }) };
+    };
+    const allowedPrimaryStarted = new Promise((resolve) => { titleLookupStarted = resolve; });
+    blockTitleAfterCounter = true;
+    const allowedPrimaryPending = dispatch({ type: 'swaps', revision: allowedPrimary.revision,
+      items: [{ key: allowedPrimaryKey, text: passage }], title: 'Ordinary reading' }, page);
+    await allowedPrimaryStarted;
+    releaseTitleLookup();
+    expect((await allowedPrimaryPending).results[allowedPrimaryKey]).toEqual([]);
+    expect(heldPrimaryFetches).toBe(1);
+
+    const allowedCachedStarted = new Promise((resolve) => { titleLookupStarted = resolve; });
+    blockTitleAfterCacheRead = true;
+    const allowedCached = dispatch({ type: 'swaps', revision: allowedPrimary.revision,
+      items: [{ key: allowedPrimaryKey, text: passage }], title: 'Ordinary reading' }, page);
+    await allowedCachedStarted;
+    releaseTitleLookup();
+    expect((await allowedCached).results[allowedPrimaryKey]).toEqual([]);
+    expect(heldPrimaryFetches).toBe(1);
+
+    // A cached result must also stay hidden if permission is revoked while
+    // its final live-title check is held after the consent snapshot.
+    const heldCachedStarted = new Promise((resolve) => { titleLookupStarted = resolve; });
+    blockTitleAfterCacheRead = true;
+    const heldCached = dispatch({ type: 'swaps', revision: allowedPrimary.revision,
+      items: [{ key: allowedPrimaryKey, text: passage }], title: 'Ordinary reading' }, page);
+    await heldCachedStarted;
+    origins = [];
+    const cacheRevocation = Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseTitleLookup();
+    expect((await heldCached).stale).toBe(true);
+    expect(heldPrimaryFetches).toBe(1);
+    await cacheRevocation;
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
 
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');

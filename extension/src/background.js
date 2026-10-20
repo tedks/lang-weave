@@ -18,6 +18,7 @@ const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
 const ALARM = 'updates';
 const cooldown = new Map(); // model -> rate-limit cooldown end; worker memory is enough
+let permissionGeneration = 0; // permission events can arrive while the storage lock is held
 
 const serial = () => {
   let chain = Promise.resolve();
@@ -83,6 +84,7 @@ async function broadcast(type = 'config') {
 
 async function swaps(msg, sender) {
   const ctx = await context();
+  const consentGeneration = permissionGeneration;
   if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url)) return { results: {}, stale: true };
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
   const items = msg.items.filter((i) => i && typeof i.text === 'string' && i.text.length <= 2000 &&
@@ -96,7 +98,8 @@ async function swaps(msg, sender) {
   const candidates = policyWords(ctx.words, state, ctx.settings, now, day, ctx.revision);
   if (ctx.settings.gradual && !candidates.length) return locked(async () => {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url) && await safePageTitle(msg, sender)
+    return latest.revision === ctx.revision && activeOn(latest, sender.url) && await safePageTitle(msg, sender) &&
+      permissionGeneration === consentGeneration
       ? { results: Object.fromEntries(items.map((i) => [i.key, []])) }
       : { results: {}, stale: true };
   });
@@ -111,12 +114,14 @@ async function swaps(msg, sender) {
   const misses = items.filter((i) => !(i.key in results));
   if (!misses.length && !ctx.settings.gradual) {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url) && await safePageTitle(msg, sender)
+    return latest.revision === ctx.revision && activeOn(latest, sender.url) && await safePageTitle(msg, sender) &&
+      permissionGeneration === consentGeneration
       ? { results } : { results: {}, stale: true };
   }
   const deliver = async (raw, freshRaw) => locked(async () => {
     const latest = await context();
-    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) || !(await safePageTitle(msg, sender))) return { results: {}, stale: true };
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) || !(await safePageTitle(msg, sender)) ||
+        permissionGeneration !== consentGeneration) return { results: {}, stale: true };
     if (!ctx.settings.gradual) {
       if (freshRaw) await cache.setMany(freshRaw);
       return { results: raw };
@@ -149,7 +154,8 @@ async function swaps(msg, sender) {
           // Counting can yield to a browser permission change; keep the second check.
           await countCall(chromeStorage);
           const final = await context();
-          if (final.revision !== ctx.revision || !activeOn(final, sender.url) || !(await safePageTitle(msg, sender))) {
+          if (final.revision !== ctx.revision || !activeOn(final, sender.url) || !(await safePageTitle(msg, sender)) ||
+              permissionGeneration !== consentGeneration) {
             throw Object.assign(new Error('Page context changed before model request'), { stale: true });
           }
           return { response: fetch(...args) };
@@ -539,10 +545,14 @@ function registerSites() {
   registrations = p.catch(() => {});
   return p;
 }
-const permissionsChanged = () => locked(async () => {
-  // The final origin list can equal an earlier one after a remove/regrant round trip.
-  await store.set({ epoch: crypto.randomUUID() });
-}).catch(() => {}).then(() => registerSites()).then(() => broadcast('retry')).catch(() => {});
+const permissionsChanged = () => {
+  // The event is observable before its epoch write can acquire a held dispatch lock.
+  permissionGeneration++;
+  return locked(async () => {
+    // The final origin list can equal an earlier one after a remove/regrant round trip.
+    await store.set({ epoch: crypto.randomUUID() });
+  }).catch(() => {}).then(() => registerSites()).then(() => broadcast('retry')).catch(() => {});
+};
 chrome.permissions.onAdded.addListener(permissionsChanged);
 chrome.permissions.onRemoved.addListener(permissionsChanged);
 
