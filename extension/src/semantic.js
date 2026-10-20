@@ -26,8 +26,20 @@ export function quotedRanges(text) {
     } else if (SINGLE[ch] && (i === 0 || BEFORE_SINGLE.test(s[i - 1])) && LETTER.test(s[i + 1] || '')) {
       const elision = ch === "'" && ELISION.test(s.slice(i + 1));
       let close = i + 1;
-      while (close < s.length && s[close] !== '\n' &&
-        !(SINGLE[ch].includes(s[close]) && !WORDISH.test(s[close + 1] || ''))) close++;
+      let nextQuote = false;
+      while (close < s.length && s[close] !== '\n') {
+        if (elision && s[close] === "'" && BEFORE_SINGLE.test(s[close - 1] || '') &&
+          LETTER.test(s[close + 1] || '')) {
+          nextQuote = true;
+          break;
+        }
+        if (SINGLE[ch].includes(s[close]) && !WORDISH.test(s[close + 1] || '')) break;
+        close++;
+      }
+      if (nextQuote) {
+        i = close - 1;
+        continue;
+      }
       if (close < s.length && s[close] !== '\n') {
         ranges.push([i, close + 1]);
         i = close;

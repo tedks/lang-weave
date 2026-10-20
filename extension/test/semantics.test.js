@@ -32,6 +32,9 @@ describe('semantic source protections', () => {
     expect(kept("She called it 'and now ' today.", 'now', 'ahora')).toEqual([]);
     expect(kept("We heard 'tis and agreed.", 'and', 'y')).toHaveLength(1);
     expect(kept("We studied 'cause and effect' today.", 'and', 'y')).toEqual([]);
+    const separate = "'tis and fun. I read 'word' aloud.";
+    expect(kept(separate, 'and', 'y')).toHaveLength(1);
+    expect(quotedRanges(separate).map(([a, b]) => separate.slice(a, b))).toEqual(["'word'"]);
   });
 
   test('ALL CAPS and name-like anchors stay English, ordinary words and OK survive', () => {
