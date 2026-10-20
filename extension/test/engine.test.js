@@ -29,7 +29,7 @@ describe('gemini', () => {
     expect(out.get('a')[0].f).toBe('y');
   });
   test('HTTP error and bad JSON throw', async () => {
-    await expect(callGemini({ fetchImpl: async () => ({ ok: false, status: 503 }), apiKey: 'K', model: 'm', body: {} })).rejects.toThrow('HTTP 503');
+    await expect(callGemini({ fetchImpl: async () => ({ ok: false, status: 503 }), apiKey: 'K', model: 'm', body: {} })).rejects.toThrow('Model service is busy');
     expect(() => parseSwapsResponse('not json')).toThrow();
     expect(parseSwapsResponse('{"tweets":[{"id":"a"},{"id":5,"swaps":[]}]}').get('a')).toEqual([]);
   });
@@ -59,7 +59,7 @@ describe('engine', () => {
   test('throws when both models fail; Lite has no fallback', async () => {
     let n = 0;
     const fetchImpl = async () => { n++; return { ok: false, status: 429 }; };
-    await expect(requestSwaps({ apiKey: 'K', model: 'gemini-3.8-flash', level: 1, batch: [], fetchImpl })).rejects.toThrow('gemini-3.8-flash: HTTP 429; gemini-3.5-flash-lite: HTTP 429');
+    await expect(requestSwaps({ apiKey: 'K', model: 'gemini-3.8-flash', level: 1, batch: [], fetchImpl })).rejects.toThrow('Model rate limit reached');
     expect(n).toBe(2);
     n = 0;
     await expect(requestSwaps({ apiKey: 'K', model: 'gemini-3.5-flash-lite', level: 1, batch: [], fetchImpl })).rejects.toThrow();
@@ -73,7 +73,7 @@ describe('engine', () => {
     const fetchImpl = async (url) => {
       const m = url.split('/').pop().split(':')[0];
       models.push(m);
-      if (m === 'gemini-3.8-flash') return { ok: false, status: 429, text: async () => '{"error":{"details":[{"retryDelay":"36s"}]}}' };
+      if (m === 'gemini-3.8-flash') return { ok: false, status: 429, text: async () => '{"error":{"details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"36s"}]}}' };
       return geminiReply([{ id: 'a', swaps: [] }]);
     };
     const args = { apiKey: 'K', model: 'gemini-3.8-flash', level: 2, batch: [{ id: 'a', text: 'x' }], fetchImpl, cooldown, now };
@@ -84,12 +84,19 @@ describe('engine', () => {
     expect(models.slice(2)).toEqual(['gemini-3.5-flash-lite']);
     cooldown.set('gemini-3.5-flash-lite', 1000 + 5000);
     const error = await requestSwaps(args).catch((e) => e);
-    expect(error.message).toContain('rate limit');
+    expect(error.message).toContain('cooling down');
     expect(error.retryAfterMs).toBe(5000);
     expect(models).toHaveLength(3);
     clock = 1000 + 36001;
     await requestSwaps(args);
     expect(models.slice(3)).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+  });
+  test('does not dispatch fallback when cooldown persistence fails', async () => {
+    const models = [];
+    const fetchImpl = async (url) => { models.push(url.split('/').pop().split(':')[0]); return { ok: false, status: 429 }; };
+    await expect(requestSwaps({ apiKey: 'K', model: 'gemini-3.8-flash', level: 1, batch: [], fetchImpl,
+      onFailure: async () => { throw new Error('quota storage failed'); } })).rejects.toThrow('quota storage failed');
+    expect(models).toEqual(['gemini-3.8-flash']);
   });
   test('a daily-quota 429 (retry in hours) keeps that model off for the whole delay, not just 10 minutes', async () => {
     let clock = 0;
@@ -98,7 +105,7 @@ describe('engine', () => {
     const fetchImpl = async (url) => {
       const m = url.split('/').pop().split(':')[0];
       models.push(m);
-      if (m === 'gemini-3.8-flash') return { ok: false, status: 429, text: async () => '{"error":{"details":[{"retryDelay":"24281s"}]}}' };
+      if (m === 'gemini-3.8-flash') return { ok: false, status: 429, text: async () => '{"error":{"status":"quota_exceeded","details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"24281s"}]}}' };
       return geminiReply([{ id: 'a', swaps: [] }]);
     };
     const args = { apiKey: 'K', model: 'gemini-3.8-flash', level: 1, batch: [{ id: 'a', text: 'x' }], fetchImpl, cooldown, now: () => clock };
