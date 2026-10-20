@@ -21,3 +21,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-20T22:26:45-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Council convergence also noted unlisted abbreviation contexts (Jr, Sr,
+    Lt, Capt, Mt, vs and quote marks after Dr.) and conservative unmatched quote cases
+    such as ''til and ''n. Include these in measured tuning; current finite guard
+    remains fail-closed where uncertain. Closed quotes beginning with ''cause/''tis
+    are fixed in PR #8 and are not deferred.'
