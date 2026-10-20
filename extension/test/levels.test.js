@@ -118,11 +118,13 @@ describe('guards', () => {
     for (const title of ['Bank robbery investigation', 'The best index funds to buy',
       'Stocks and dividends', 'Teen driver injured in crash on Route 9',
       'He was arrested after a bar fight', 'ETF retirement plan', 'récent cancer diagnosis',
-      "The bank's account was frozen", 'A bank’s account was frozen'])
+      "The bank's account was frozen", 'A bank’s account was frozen',
+      'My checking account balance', 'Credit card payment due'])
       expect(isZeroFrench(title)).toBe(true);
     for (const title of ['A report about a river bank', 'Funding open source projects',
       'The app crash report', 'A taxi driver is late', 'Ira reads a guide',
-      'prédoctorate studies', 'robberyish fiction', 'Investigating old records'])
+      'prédoctorate studies', 'robberyish fiction', 'Investigating old records',
+      'The account of a trip', 'Credit goes to the team'])
       expect(isZeroFrench(title)).toBe(false);
   });
 });

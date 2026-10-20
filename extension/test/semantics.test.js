@@ -28,6 +28,9 @@ describe('semantic source protections', () => {
     expect(kept("It's Hartley’s 12\" screen and fine.", 'and', 'y')).toHaveLength(1);
     expect(kept('An unclosed “and now. Later and again.', 'and', 'y', '“and now')).toEqual([]);
     expect(kept('An unclosed “and now. Later and again.', 'and', 'y', 'Later and again')).toHaveLength(1);
+    expect(kept('She called it ‘and now without ending it.', 'now', 'ahora')).toEqual([]);
+    expect(kept("She called it 'and now ' today.", 'now', 'ahora')).toEqual([]);
+    expect(kept("We heard 'tis and agreed.", 'and', 'y')).toHaveLength(1);
   });
 
   test('ALL CAPS and name-like anchors stay English, ordinary words and OK survive', () => {
@@ -38,6 +41,8 @@ describe('semantic source protections', () => {
     expect(kept('We saw an app yesterday.', 'app', 'aplicación')).toHaveLength(1);
     expect(kept('We saw And yesterday.', 'And', 'y')).toEqual([]);
     expect(kept('And then we left.', 'And', 'y')).toHaveLength(1);
+    expect(kept('We met Dr. Now yesterday.', 'Now', 'ahora')).toEqual([]);
+    expect(kept('Now we can begin.', 'Now', 'ahora')).toHaveLength(1);
     const ok = [W('vale', 'okay')];
     expect(kept('OK, we agree.', 'OK', 'vale', '', ok)).toHaveLength(1);
     expect(kept('We said OK today.', 'OK', 'vale', '', ok)).toHaveLength(1);

@@ -64,6 +64,9 @@ const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.sett
 // The tab title is local-only safety context. Refresh it after every asynchronous
 // boundary that could precede cache delivery or a primary/fallback fetch.
 async function safePageTitle(msg, sender) {
+  // Content scripts are registered for the top frame only. Fail closed if a
+  // frame nevertheless reaches this handler: its live title is not tab.title.
+  if (sender.frameId && sender.frameId !== 0) return false;
   if (isZeroFrench(msg.title || '') || isZeroFrench(sender.tab?.title || '')) return false;
   if (!Number.isSafeInteger(sender.tab?.id)) return false;
   try {

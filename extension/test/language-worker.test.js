@@ -252,6 +252,9 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(modelFetches).toBe(1);
     tabTitle = 'Ordinary reading';
     expect((await dispatch({ type: 'swaps', revision: allowed.revision,
+      items: [{ key: otherKey, text: otherText }], title: 'Ordinary frame' },
+      { ...page, frameId: 2 })).results[otherKey]).toEqual([]);
+    expect((await dispatch({ type: 'swaps', revision: allowed.revision,
       items: [{ key: otherKey, text: otherText }], title: 'Hospital update' },
       { ...page, frameId: 2 })).results[otherKey]).toEqual([]);
     expect(modelFetches).toBe(1);

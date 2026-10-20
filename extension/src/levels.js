@@ -187,7 +187,7 @@ const highStakes = (source, flags = 'iu') => new RegExp(`(?<![\\p{L}\\p{N}_])(?:
 const ZERO_FRENCH = [
   highStakes('doctor|hospital|diagnos[\\p{L}]*|symptoms?|medication|meds|ibuprofen|tylenol|prescription|overdose|vaccine|cancer|surgery|pregnan[\\p{L}]*|therapist|antidepressants?|ssri|adderall|stimulants?|chemo'),
   highStakes('lawsuit|attorney|lawyer|sued|indict[\\p{L}]*|court order|legal advice|subpoena'),
-  highStakes('invest(?:s|ed|ing|ment|ments|or|ors)?|stock market|stocks|crypto|bitcoin|mortgage|loans?|taxes|salary|bank accounts?|financial advice|dividends?|401\\(?k\\)?|roth|(?:index|mutual|hedge|pension|retirement) funds?|funds to (?:buy|own)|retirement (?:savings|account|plan|income|age)'),
+  highStakes('invest(?:s|ed|ing|ment|ments|or|ors)?|stock market|stocks|crypto|bitcoin|mortgage|loans?|taxes|salary|bank accounts?|checking accounts?|savings accounts?|account balances?|credit cards?|debit cards?|financial advice|dividends?|401\\(?k\\)?|roth|(?:index|mutual|hedge|pension|retirement) funds?|funds to (?:buy|own)|retirement (?:savings|account|plan|income|age)'),
   highStakes('IRAs?|ETFs?', 'u'),
   highStakes('911|emergency|evacuat[\\p{L}]*|shooting|wildfire|earthquake|hurricane|tornado|active shooter'),
   highStakes('crimes?|criminals?|murder[\\p{L}]*|homicides?|arrest(?:ed|s)?|robber(?:y|ies)|assault(?:ed|s)?|stabb(?:ed|ing)|bar fight|(?:my|your|our|the) bank|bank[\u0027’]s account|banks? (?:froze|frozen|closed|fees?|accounts?)'),

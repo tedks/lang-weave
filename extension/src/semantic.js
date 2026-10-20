@@ -4,6 +4,7 @@ const SINGLE = { "'": "'", '‘': '’' };
 const BEFORE_SINGLE = /[\s([{“"«„—–\-/]/u;
 const LETTER = /\p{L}/u;
 const WORDISH = /[\p{L}\p{N}]/u;
+const ELISION = /^(?:tis|twas|cause|em|round|bout)\b/iu;
 
 function sentenceEnd(text, from) {
   const end = /[.!?…](?=[\s"”»’']|$)|\n/u.exec(text.slice(from));
@@ -22,13 +23,18 @@ export function quotedRanges(text) {
       const end = close < s.length ? close + 1 : (s.slice(0, i).trim() ? sentenceEnd(s, i + 1) : s.length);
       ranges.push([i, end]);
       i = end - 1;
-    } else if (SINGLE[ch] && (i === 0 || BEFORE_SINGLE.test(s[i - 1])) && LETTER.test(s[i + 1] || '')) {
+    } else if (SINGLE[ch] && (i === 0 || BEFORE_SINGLE.test(s[i - 1])) && LETTER.test(s[i + 1] || '') &&
+      !(ch === "'" && ELISION.test(s.slice(i + 1)))) {
       let close = i + 1;
       while (close < s.length && s[close] !== '\n' &&
-        !(SINGLE[ch].includes(s[close]) && !/\s/u.test(s[close - 1]) && !WORDISH.test(s[close + 1] || ''))) close++;
+        !(SINGLE[ch].includes(s[close]) && !WORDISH.test(s[close + 1] || ''))) close++;
       if (close < s.length && s[close] !== '\n') {
         ranges.push([i, close + 1]);
         i = close;
+      } else {
+        const end = sentenceEnd(s, i + 1);
+        ranges.push([i, end]);
+        i = end - 1;
       }
     }
   }
@@ -60,8 +66,9 @@ const HAS_PARTICIPLES = new Set(['been', 'got', 'gotten', 'had', 'done', 'gone',
   'come', 'taken', 'seen', 'made', 'happened', 'given']);
 const HAS_MODIFIERS = new Set(['finally', 'already', 'just', 'never', 'ever', 'really',
   'actually', 'not', 'still', 'also', 'now']);
+const abbreviationBefore = (text, index) => /\b(?:Mr|Mrs|Ms|Dr|Prof|St|Rev|Gen|Sen)\.\s*$/iu.test(text.slice(0, index));
 const nameToken = (t, text) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
-  !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start);
+  !/^O\.?K\.?$/u.test(t.raw) && (!sentenceStart(text, t.start) || abbreviationBefore(text, t.start));
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
 export function sourceIssue(text, from, to, original) {
