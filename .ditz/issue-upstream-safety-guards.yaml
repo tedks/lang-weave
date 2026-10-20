@@ -39,3 +39,19 @@ log_events:
     and normal merge. No live Gemini, real profile/key inspection, release, or fleet
     deployment. Remaining apostrophe ambiguity and conservative tuning are filed in
     upstream-safety-tuning. Keep this issue in progress until root accepts and merges.'
+- time: 2026-10-20T22:50:08-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Acceptance-repair source-ready checkpoint for PR #8 at ba2f43f1fd845c51ed405b6ea09df1e73d925d35,
+    pushed clean and ready. Root''s held-title permission-revoke gap at ba5feae was
+    reproduced red on fallback and repaired for primary/fallback fetch plus cached
+    delivery. The scoped council found and drove two further Important late-delivery/site-off
+    repairs; final code delta a086239..587ddc2 was CLEAN with OpenAI and Anthropic,
+    Google quota seat empty. Final documentation-only delta inspected inline. Exact-head
+    frozen Bun install, 124 Bun / 1,643 assertions, 91 Python, version/35-block/diff,
+    isolated synthetic Chromium smoke/gradual/highlights passed. Mutation-red confirmed
+    primary, fallback, cached result, fresh cache write, status write, and final settings-lock
+    order. Public mission doc no longer contains pane/session details. No live Gemini,
+    profile/key inspection, merge, release or fleet deployment. Follow-up nits filed
+    as upstream-safety-delivery-followup; apostrophe limitations remain explicit in
+    upstream-safety-tuning. Keep in progress until root accepts and normally merges.'
