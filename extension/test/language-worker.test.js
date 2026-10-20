@@ -29,6 +29,12 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let blockCacheRead = false;
   let cacheReadStarted;
   let releaseCacheRead;
+  let blockCacheWrite = false;
+  let cacheWriteStarted;
+  let releaseCacheWrite;
+  let blockModelStatusSet = false;
+  let modelStatusSetStarted;
+  let releaseModelStatusSet;
   let blockCounterSet = false;
   let counterSetStarted;
   let releaseCounterSet;
@@ -72,6 +78,16 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]])));
       },
       async set(value) {
+        if (blockModelStatusSet && value.modelStatus?.error === '') {
+          blockModelStatusSet = false;
+          modelStatusSetStarted();
+          await new Promise((resolve) => { releaseModelStatusSet = resolve; });
+        }
+        if (blockCacheWrite && Object.keys(value).some((key) => key.startsWith('c:'))) {
+          blockCacheWrite = false;
+          cacheWriteStarted();
+          await new Promise((resolve) => { releaseCacheWrite = resolve; });
+        }
         if (blockTitleAfterCounter && Object.hasOwn(value, 'modelCalls')) {
           blockTitleAfterCounter = false;
           holdNextTitle = true;
@@ -503,6 +519,79 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     await cacheRevocation;
     origins = ['<all_urls>'];
     await Promise.all(permissionAdded.map((notify) => notify()));
+
+    // The fresh-result cache write also yields after the first delivery check.
+    // A revoke there must not return the newly generated result to the page.
+    const beforeCacheWrite = await dispatch({ type: 'config' }, page);
+    const cacheWriteKey = `${beforeCacheWrite.revision}:${hashKey(otherText)}`;
+    let cacheWriteFetches = 0;
+    let responseKey = cacheWriteKey;
+    globalThis.fetch = async () => {
+      cacheWriteFetches++;
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: {
+        parts: [{ text: JSON.stringify({ passages: [{ id: responseKey, swaps: [] }] }) }],
+      } }] }) };
+    };
+    const cacheWriteHeld = new Promise((resolve) => { cacheWriteStarted = resolve; });
+    blockCacheWrite = true;
+    const pendingCacheWrite = dispatch({ type: 'swaps', revision: beforeCacheWrite.revision,
+      items: [{ key: cacheWriteKey, text: otherText }], title: 'Ordinary reading' }, page);
+    await cacheWriteHeld;
+    origins = [];
+    const cacheWriteRevocation = Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseCacheWrite();
+    expect((await pendingCacheWrite).stale).toBe(true);
+    expect(cacheWriteFetches).toBe(1);
+    await cacheWriteRevocation;
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+
+    const allowedCacheWrite = await dispatch({ type: 'config' }, page);
+    responseKey = `${allowedCacheWrite.revision}:${hashKey(otherText)}`;
+    const allowedCacheWriteHeld = new Promise((resolve) => { cacheWriteStarted = resolve; });
+    blockCacheWrite = true;
+    const pendingAllowedCacheWrite = dispatch({ type: 'swaps', revision: allowedCacheWrite.revision,
+      items: [{ key: responseKey, text: otherText }], title: 'Ordinary reading' }, page);
+    await allowedCacheWriteHeld;
+    releaseCacheWrite();
+    expect((await pendingAllowedCacheWrite).results[responseKey]).toEqual([]);
+    expect(cacheWriteFetches).toBe(2);
+
+    // Diagnostic status persistence yields after delivery too; it must not
+    // delay a result into a page whose origin was revoked in that interval.
+    const beforeStatusSet = await dispatch({ type: 'config' }, page);
+    responseKey = `${beforeStatusSet.revision}:${hashKey(passage)}`;
+    let statusFetches = 0;
+    globalThis.fetch = async () => {
+      statusFetches++;
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: {
+        parts: [{ text: JSON.stringify({ passages: [{ id: responseKey, swaps: [] }] }) }],
+      } }] }) };
+    };
+    const statusSetHeld = new Promise((resolve) => { modelStatusSetStarted = resolve; });
+    blockModelStatusSet = true;
+    const pendingStatusSet = dispatch({ type: 'swaps', revision: beforeStatusSet.revision,
+      items: [{ key: responseKey, text: passage }], title: 'Ordinary reading' }, page);
+    await statusSetHeld;
+    origins = [];
+    const statusRevocation = Promise.all(permissionRemoved.map((notify) => notify()));
+    releaseModelStatusSet();
+    expect((await pendingStatusSet).stale).toBe(true);
+    expect(statusFetches).toBe(1);
+    await statusRevocation;
+    origins = ['<all_urls>'];
+    await Promise.all(permissionAdded.map((notify) => notify()));
+
+    const allowedStatusSet = await dispatch({ type: 'config' }, page);
+    responseKey = `${allowedStatusSet.revision}:${hashKey(passage)}`;
+    const allowedStatusSetHeld = new Promise((resolve) => { modelStatusSetStarted = resolve; });
+    blockModelStatusSet = true;
+    const pendingAllowedStatusSet = dispatch({ type: 'swaps', revision: allowedStatusSet.revision,
+      items: [{ key: responseKey, text: passage }], title: 'Ordinary reading' }, page);
+    await allowedStatusSetHeld;
+    releaseModelStatusSet();
+    expect((await pendingAllowedStatusSet).results[responseKey]).toEqual([]);
+    expect(statusFetches).toBe(2);
 
     expect((await dispatch({ type: 'save', settings: { language: 'bad<script>' } }, popup)).error).toMatch(/Invalid/);
     expect(data.settings.language).toBe('es');
