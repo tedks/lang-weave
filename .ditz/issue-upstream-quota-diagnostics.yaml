@@ -28,3 +28,15 @@ log_events:
   comment: Started selective quota/status integration on the designated 0.7.0 feature
     branch. Public mission record documents assumptions, current gaps, provider sources,
     proof limits, and acceptance gates. Implementation and final evidence remain pending.
+- time: 2026-10-20T23:57:53-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #10 is ready for review at 566ca5c96a3c0b3d472acb5af2541e7804aad104.
+    Selective 0.7.1 quota/status adaptation, bounded cooldown, allowlisted UI; no
+    local budget/provider expansion. OpenAI and Anthropic council seats converged
+    CLEAN; Google seat unavailable. Exact-head gates passed: frozen Bun install, 136
+    Bun tests / 2,798 assertions, 91 Python tests, version check, 35 blocks, diff
+    check, guarded smoke/gradual/highlights/quota MV3 flows. Browser provider responses
+    were synthetic, not live Gemini. Display-only guidance polish is tracked separately
+    as quota-status-guidance-polish. Awaiting root review/merge; fleet remains outside
+    this mission.'
