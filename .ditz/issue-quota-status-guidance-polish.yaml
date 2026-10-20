@@ -1,0 +1,26 @@
+id: quota-status-guidance-polish
+title: Tighten optional retry-clock guidance for mixed model failures
+desc: 'Council nits after PR #10: when the primary has a daily cooldown without guidance
+  and the fallback has a guided short cooldown that ends first, the aggregate category
+  is daily and the accurate fallback retry clock is omitted. A slow status-storage
+  queue can also make a prior accurate retry clock disappear on fast-fail because
+  retention allows only one second of drift. Both are conservative display omissions,
+  not dispatch or privacy failures. Review whether to show the earliest model''s bounded
+  guidance independently of aggregate category, and tie retained guidance to a persisted
+  model deadline instead of elapsed callback timing. Add a background-path test for
+  the delayed-save case; the current guarded MV3 restart flow covers the ordinary
+  path. Keep status allowlisted and never promise a time later than the actual earliest
+  recovery.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-20T23:56:27-00:00
+references: []
+log_events:
+- time: 2026-10-20T23:56:27-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
