@@ -229,7 +229,8 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     // An unchanged, permitted page still makes exactly one model request.
     const allowed = await dispatch({ type: 'config' }, page);
     const allowedKey = `${allowed.revision}:${hashKey(passage)}`;
-    globalThis.fetch = async () => {
+    globalThis.fetch = async (_url, init) => {
+      expect(JSON.stringify(init)).not.toContain('Ordinary reading');
       modelFetches++;
       return { ok: true, status: 200, json: async () => ({ candidates: [{ content: {
         parts: [{ text: JSON.stringify({ passages: [{ id: allowedKey, swaps: [] }] }) }],

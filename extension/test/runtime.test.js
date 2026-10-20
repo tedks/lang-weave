@@ -129,6 +129,12 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     win.document.title = 'Ordinary reading';
     await wait(1300); // interval fallback also covers sites whose title mutation is not reported
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
+    const sameSpan = el.querySelector('.fw-word');
+    const safeTitleCalls = modelCalls;
+    win.document.title = 'Another ordinary reading title';
+    await wait(20);
+    expect(el.querySelector('.fw-word')).toBe(sameSpan);
+    expect(modelCalls).toBe(safeTitleCalls);
     expect(local[PENDING_KEY] || []).toHaveLength(0); // prefetch is not exposure
     const visibility = io.findLast((o) => !o.options.rootMargin);
     const span = el.querySelector('.fw-word');

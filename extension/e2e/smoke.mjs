@@ -123,6 +123,7 @@ try {
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), callsBeforeTitle);
   await page.evaluate(() => { document.title = 'Spanish smoke fixture'; });
   await page.locator('#reading .fw-word').waitFor();
+  await page.locator('#title-neutral .fw-word').waitFor();
   const mail = await context.newPage();
   await mail.goto('https://mail.google.com/mail/u/0/');
   // The popup's resolved configuration confirms the real site gate, then allow discovery/debounce to settle.

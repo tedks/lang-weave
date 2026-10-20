@@ -16,6 +16,7 @@ let near = null;
 let visible = null;
 let timer = null;
 let generation = 0;
+let titleSensitive = isZeroFrench(document.title);
 const memo = new Map();
 const keys = new WeakMap(); // element -> revision:text hash, kept off the DOM so pages can't read it
 const pending = new Map();
@@ -59,7 +60,7 @@ const send = (msg) => {
     return Promise.reject(e);
   }
 };
-const on = () => !orphaned && config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
+const on = () => !orphaned && window.top === window && config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
   siteEnabled(config.settings, location.href) && hasSiteAccess(location.href, config.origins);
 const targets = () => selector(location.href);
 // Only real user input on spans this extension made; pages can't forge flips, peeks or seen events.
@@ -357,8 +358,9 @@ function track(root) {
   }
 }
 function mutations(records) {
-  if (pageTitle !== document.title) {
-    pageTitle = document.title;
+  const sensitive = isZeroFrench(document.title);
+  if (titleSensitive !== sensitive) {
+    titleSensitive = sensitive;
     if (config) update(config, true);
     return;
   }
@@ -451,13 +453,13 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('online', () => { void send({ type: 'config' }).then((c) => update(c, true)).catch(() => {}); });
 // SPA navigation can reuse DOM nodes without changing their text.
 let page = location.href;
-let pageTitle = document.title;
 let day = localDay();
 const navTimer = setInterval(() => {
   const today = localDay();
-  if (page !== location.href || pageTitle !== document.title || config?.settings.gradual && day !== today) {
+  const sensitive = isZeroFrench(document.title);
+  if (page !== location.href || titleSensitive !== sensitive || config?.settings.gradual && day !== today) {
     page = location.href;
-    pageTitle = document.title;
+    titleSensitive = sensitive;
     if (config) update(config, true);
   }
   day = today;

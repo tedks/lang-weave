@@ -43,6 +43,7 @@ describe('semantic source protections', () => {
     expect(kept('And then we left.', 'And', 'y')).toHaveLength(1);
     expect(kept('We met Dr. Now yesterday.', 'Now', 'ahora')).toEqual([]);
     expect(kept('Now we can begin.', 'Now', 'ahora')).toHaveLength(1);
+    expect(kept('Dr. Smith said and left.', 'Smith', 'schmidt', '', [W('schmidt', 'Smith')], 'de')).toEqual([]);
     const ok = [W('vale', 'okay')];
     expect(kept('OK, we agree.', 'OK', 'vale', '', ok)).toHaveLength(1);
     expect(kept('We said OK today.', 'OK', 'vale', '', ok)).toHaveLength(1);
@@ -77,6 +78,7 @@ test('placement rechecks cached swaps and cases pronoun I at the located sentenc
     ['Well, I think this works.', 'Well, creo que this works.'],
     ['The first ended. I think this works.', 'The first ended. Creo que this works.'],
     ['A line ended!\nI think this works.', 'A line ended!\nCreo que this works.'],
+    ['For example, e.g. I think this works.', 'For example, e.g. creo que this works.'],
   ]) {
     const el = root(text);
     expect(applySwaps(el, [swap('I think', 'creo que')])).toBe(1);

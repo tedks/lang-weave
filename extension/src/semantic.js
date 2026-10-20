@@ -42,7 +42,9 @@ export function quotedRanges(text) {
 }
 
 export function sentenceStart(text, index) {
-  return /(?:^|[\n.!?…]["'”’)\]»]*)[\s"'“‘(\[«]*$/u.test(String(text).slice(0, index));
+  const before = String(text).slice(0, index);
+  if (/\b(?:Mr|Mrs|Ms|Dr|Prof|St|Rev|Gen|Sen|e\.g|i\.e)\.\s*$/iu.test(before)) return false;
+  return /(?:^|[\n.!?…]["'”’)\]»]*)[\s"'“‘(\[«]*$/u.test(before);
 }
 
 const ALL_CAPS = /\p{Lu}.*\p{Lu}/su;
@@ -66,9 +68,8 @@ const HAS_PARTICIPLES = new Set(['been', 'got', 'gotten', 'had', 'done', 'gone',
   'come', 'taken', 'seen', 'made', 'happened', 'given']);
 const HAS_MODIFIERS = new Set(['finally', 'already', 'just', 'never', 'ever', 'really',
   'actually', 'not', 'still', 'also', 'now']);
-const abbreviationBefore = (text, index) => /\b(?:Mr|Mrs|Ms|Dr|Prof|St|Rev|Gen|Sen)\.\s*$/iu.test(text.slice(0, index));
 const nameToken = (t, text) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
-  !/^O\.?K\.?$/u.test(t.raw) && (!sentenceStart(text, t.start) || abbreviationBefore(text, t.start));
+  !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start);
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
 export function sourceIssue(text, from, to, original) {
