@@ -36,3 +36,15 @@ log_events:
     no live Gemini/native-speaker claim. Residual compound risk and minor hints tracked
     in spanish-compound-placement and spanish-curriculum-polish. Root retains acceptance/normal
     merge.'
+- time: 2026-10-20T23:33:54-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Root acceptance audit found prior el libro retained-word evidence false:
+    el libro is newly appended. Repaired at bf311c395144ed5c3c3ad21ad8700303d15e81ad:
+    synthetic MV3 same passage displays new la ventana plus original-147 el gato,
+    with earlier y review unchanged; focused test pins membership and mission/PR explicitly
+    supersede prior wording. Proportional independent review CLEAN; exact-head frozen
+    Bun install, 129 Bun, 5 focused curriculum, 91 Python, version, 35 blocks, diff,
+    corrected MV3 smoke, gradual and highlights all pass. PR #9 remains ready/open/unmerged;
+    replacement comment records exact SHA and commands. Root acceptance/merge still
+    pending.'
