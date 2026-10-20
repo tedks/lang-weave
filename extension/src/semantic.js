@@ -33,6 +33,12 @@ export function quotedRanges(text) {
           nextQuote = true;
           break;
         }
+        // A plural or proper-name possessive after an elision is not its closing quote.
+        if (elision && s[close] === "'" && /s/iu.test(s[close - 1] || '') &&
+          /^\s+\p{L}/u.test(s.slice(close + 1))) {
+          close++;
+          continue;
+        }
         if (SINGLE[ch].includes(s[close]) && !WORDISH.test(s[close + 1] || '')) break;
         close++;
       }
