@@ -77,9 +77,12 @@ describe('quota status', () => {
     expect(cleanQuotaState({ keyEpoch: 'k', cooldowns: { 'gemini-3.5-flash-lite': short } },
       'k', start - 120000).cooldowns['gemini-3.5-flash-lite']).toEqual(short);
     expect(newCooldownEntry('short', 3600000, start, start - 300000)).toEqual(short);
+    expect(cleanQuotaState({ keyEpoch: 'k', cooldowns: { 'gemini-3.5-flash-lite': short } },
+      'k', start - 300000).cooldowns['gemini-3.5-flash-lite']).toEqual(short);
     expect(newCooldownEntry('short', 3600000, start, start - 300001)).toBeNull();
     expect(newCooldownEntry('short', 3600000, start, start + 3600000)).toBeNull();
     expect(newCooldownEntry('short', 999999999, start, start).durationMs).toBe(3600000);
+    expect(newCooldownEntry('short', Infinity, start, start)).toBeNull();
   });
 
   test('missing, inconsistent or oversized timing metadata cannot preserve a cooldown', () => {

@@ -124,8 +124,7 @@ export function newCooldownEntry(kind, wait, startedAt, now = Date.now()) {
   const until = startedAt + durationMs;
   // The error's clock sample anchors every field. A small in-flight rollback
   // retains the original deadline; a larger one cannot justify a saved wait.
-  if (!finite(until) || until <= now || startedAt > now + CLOCK_ROLLBACK_TOLERANCE_MS ||
-      until > now + cap + CLOCK_ROLLBACK_TOLERANCE_MS) return null;
+  if (!finite(until) || until <= now || startedAt > now + CLOCK_ROLLBACK_TOLERANCE_MS) return null;
   return { until, kind, setAt: startedAt, durationMs };
 }
 
