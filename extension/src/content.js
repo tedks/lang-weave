@@ -36,6 +36,15 @@ const CHURN_WINDOW_MS = 60000;
 let churn = new WeakMap(); // element -> { text, asks: [ms], paints: [ms], live }
 const TIP_DELAY_MS = 700; // a beat to recall the word before the meaning appears
 let tipTimer = null;
+let tipTarget = null;
+let tipBox = null;
+let tipHovered = false;
+let tipFocused = false;
+let focusedTip = null;
+let focusedAt = 0;
+let focusScrollUntil = 0;
+const TIP_GAP = 8;
+const FOCUS_SCROLL_MS = 250; // focus() may scroll its word just after focusin
 let cue = null;
 // After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
 // no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
@@ -81,10 +90,41 @@ function record(span, event) {
     if (!r?.ok && daily) seen.delete(id);
   }).catch(() => { if (daily) seen.delete(id); });
 }
+// Keep the box outside readable passages and clipping ancestors. It contains only validated swap display text.
+function showTip(span) {
+  const gloss = span.getAttribute('data-tip');
+  const word = span.getAttribute('data-fr');
+  if (!word || !gloss) return false;
+  const box = document.createElement('div');
+  box.className = 'fw-gloss fw-gloss-on';
+  box.setAttribute('aria-hidden', 'true'); // the word's existing label describes its meaning to screen readers
+  box.textContent = `${word} · ${gloss}`;
+  document.documentElement.append(box);
+  tipBox = box;
+  placeTip(span, box);
+  return true;
+}
+function placeTip(span, box) {
+  const rect = span.getBoundingClientRect();
+  const size = box.getBoundingClientRect();
+  const width = document.documentElement.clientWidth || window.innerWidth;
+  const height = document.documentElement.clientHeight || window.innerHeight;
+  const left = Math.max(TIP_GAP, Math.min(rect.left, width - size.width - TIP_GAP));
+  const above = rect.top - size.height - TIP_GAP;
+  const below = rect.bottom + TIP_GAP;
+  const top = above >= TIP_GAP ? above : Math.min(below, height - size.height - TIP_GAP);
+  box.style.setProperty('left', `${left}px`, 'important');
+  box.style.setProperty('top', `${Math.max(TIP_GAP, top)}px`, 'important');
+}
 // The gloss appears only after a short dwell; reaching it counts as a peek (the reader needed the meaning).
-function hideTip() {
+function hideTip(keepFocus = false) {
   clearTimeout(tipTimer); tipTimer = null;
-  for (const el of document.querySelectorAll(`.${SWAP_CLASS}.fw-tip`)) el.classList.remove('fw-tip');
+  tipTarget?.classList.remove('fw-tip');
+  tipTarget = null;
+  tipHovered = false;
+  tipFocused = false;
+  tipBox?.remove(); tipBox = null;
+  if (!keepFocus) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
 }
 function closeCue() { cue?.remove(); cue = null; }
 
@@ -180,20 +220,72 @@ async function openCue(span) {
   });
   dismiss.focus();
 }
-function armTip(e) {
-  const span = swapFor(e);
-  if (!span || !on() || isPractice(span) || introductionTicket(span) || span.classList.contains('fw-tip')) return;
-  hideTip();
+function tipEligible(span) {
+  return span?.isConnected && isSwap(span) && on() && alive() && !isPractice(span) &&
+    !introductionTicket(span) && !span.classList.contains('fw-en') && !!span.getAttribute('data-tip');
+}
+function startTip(span, peek, delay = TIP_DELAY_MS) {
+  const gen = generation;
   tipTimer = setTimeout(() => {
     tipTimer = null;
-    if (!span.isConnected || span.classList.contains('fw-en')) return;
+    if (tipTarget !== span || gen !== generation || !tipEligible(span)) {
+      hideTip(); return;
+    }
+    if (!showTip(span)) { hideTip(); return; }
     span.classList.add('fw-tip');
-    if (e.type === 'mouseover') record(span, 'peek'); // a page can focus a span from script, so focus never counts
-  }, TIP_DELAY_MS);
+    if (peek && tipHovered) record(span, 'peek'); // focus alone never counts
+  }, delay);
 }
-function disarmTip(e) {
+function restoreFocusedTip() {
+  const span = focusedTip;
+  if (!tipEligible(span)) { hideTip(); return; }
+  hideTip(true);
+  tipTarget = span;
+  tipFocused = true;
+  startTip(span, false, Math.max(0, TIP_DELAY_MS - (Date.now() - focusedAt)));
+}
+function armTip(e) {
   const span = swapFor(e);
-  if (span && !span.contains(e.relatedTarget)) hideTip();
+  if (!tipEligible(span)) return;
+  if (e.type === 'focusin') {
+    focusedTip = span;
+    focusedAt = Date.now();
+    focusScrollUntil = focusedAt + FOCUS_SCROLL_MS;
+    if (span === tipTarget) { tipFocused = true; return; } // preserve an active hover dwell and its peek
+  } else if (span === tipTarget) {
+    if (tipHovered) return;
+    if (tipFocused && tipBox) {
+      tipHovered = true;
+      // A visible focus gloss stays put; hovering still needs its own full dwell before a peek.
+      tipTimer = setTimeout(() => {
+        tipTimer = null;
+        if (tipTarget === span && tipHovered && tipEligible(span)) record(span, 'peek');
+      }, TIP_DELAY_MS);
+      return;
+    }
+  }
+  hideTip(true);
+  tipTarget = span;
+  tipHovered = e.type === 'mouseover';
+  tipFocused = focusedTip === span;
+  startTip(span, e.type === 'mouseover');
+}
+// Exported for a direct happy-dom regression: that DOM swallows listener exceptions.
+export function disarmTip(e) {
+  const span = swapFor(e);
+  if (!span || span.contains(e.relatedTarget)) return;
+  if (e.type === 'focusout' && span === focusedTip) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
+  if (span !== tipTarget) return;
+  if (e.type === 'mouseout') {
+    tipHovered = false;
+    // The pending reveal also serves focus; only a pending hover peek ends here.
+    if (tipBox || !tipFocused) { clearTimeout(tipTimer); tipTimer = null; }
+  }
+  else tipFocused = false;
+  if (!tipHovered && !tipFocused) {
+    if (e.type === 'mouseout' && focusedTip && focusedTip !== span) restoreFocusedTip();
+    else hideTip();
+  }
 }
 function introSpans(ticket) {
   return [...document.querySelectorAll(`span.${SWAP_CLASS}`)]
@@ -364,6 +456,8 @@ function mutations(records) {
     if (config) update(config, true);
     return;
   }
+  if (tipTarget && (!tipTarget.isConnected || !on() || isPractice(tipTarget) ||
+      introductionTicket(tipTarget) || tipTarget.classList.contains('fw-en'))) hideTip();
   const changed = new Set();
   for (const r of records) {
     for (const n of r.addedNodes || []) if (n.nodeType === 1) track(n);
@@ -373,6 +467,7 @@ function mutations(records) {
     else if (el) track(el);
   }
   for (const el of changed) {
+    if (tipTarget && el.contains(tipTarget)) hideTip();
     if (el.querySelector(`.${SWAP_CLASS}`)) revert(el);
     keys.delete(el);
     if (readable(el, location.href)) { near.unobserve(el); near.observe(el); }
@@ -445,8 +540,17 @@ document.addEventListener('mouseover', armTip, true);
 document.addEventListener('focusin', armTip, true);
 document.addEventListener('mouseout', disarmTip, true);
 document.addEventListener('focusout', disarmTip, true);
-window.addEventListener('scroll', hideTip, { passive: true, capture: true });
+window.addEventListener('scroll', () => {
+  if (focusedTip && document.activeElement === focusedTip && Date.now() <= focusScrollUntil && tipEligible(focusedTip)) {
+    if (tipTarget === focusedTip && tipBox) placeTip(focusedTip, tipBox);
+    else if (tipTarget !== focusedTip) restoreFocusedTip();
+    return;
+  }
+  hideTip();
+}, { passive: true, capture: true });
+window.addEventListener('resize', hideTip, { passive: true });
 document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') hideTip();
   if (document.visibilityState !== 'hidden' && pending.size && !timer) timer = setTimeout(flush, 0);
   seenVisible();
 });

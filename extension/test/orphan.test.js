@@ -48,6 +48,7 @@ test('an orphaned content script stays quiet and leaves the page as it is', asyn
     win.document.querySelector('main').append(p);
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await wait(800);
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('click', { bubbles: true })));
     await wait();
     expect(errors).toEqual([]);

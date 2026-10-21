@@ -51,6 +51,7 @@ try {
       <div class="sample"><span class="label">Practice</span><span class="fw-word fw-practice" id="practice" tabindex="0" role="button">word → [?]</span></div>
       <div class="sample"><span class="label">Link context</span><a href="#destination" id="link">linked <span class="fw-word" id="linked" tabindex="0" role="button">palabra</span></a></div>
       <div class="sample"><span class="label">Hover hint</span><span class="fw-word fw-tip" id="hover" data-tip="word · pronunciation" tabindex="0" role="button">palabra</span></div>
+      <div class="fw-gloss fw-gloss-on" aria-hidden="true">palabra = word · "pronunciation"</div>
       </body></html>` });
   });
   await mkdir(screenshots, { recursive: true });
@@ -69,7 +70,9 @@ try {
         ordinary: pick('ordinary'), plain: pick('plain'),
         active: pick('active'), practice: pick('practice'), linked: pick('linked'),
         link: pick('link'), hover: pick('hover'),
-        hint: getComputedStyle(document.getElementById('hover'), '::after').content };
+        gloss: (() => { const style = getComputedStyle(document.querySelector('.fw-gloss'));
+          return { display: style.display, visibility: style.visibility, position: style.position,
+            color: style.color, background: style.backgroundColor, pointerEvents: style.pointerEvents }; })() };
     });
     // A default cue must be conspicuous in the actual browser, and must use
     // the host's readable text color on either background without changing it.
@@ -109,7 +112,13 @@ try {
     assert.equal(css.practice.decorationColor, css.practice.color);
     assert.equal(css.linked.color, css.link.color);
     assert.match(css.link.line, /underline/); // host link decoration stays
-    assert.match(css.hint, /word · pronunciation/);
+    assert.equal(css.gloss.display, 'block');
+    assert.equal(css.gloss.visibility, 'visible');
+    assert.equal(css.gloss.position, 'fixed');
+    assert.equal(css.gloss.color, 'rgb(255, 255, 255)');
+    assert.equal(css.gloss.background, 'rgb(29, 31, 35)');
+    assert.ok(contrast(css.gloss.color, css.gloss.background) >= 7);
+    assert.equal(css.gloss.pointerEvents, 'none');
     await page.waitForTimeout(100); // let the content script finish observing the synthetic state changes
     await page.locator('#hover').evaluate((el) => el.classList.add('fw-tip'));
     await page.screenshot({ path: join(screenshots, `highlights-${theme}.png`) });
@@ -123,6 +132,12 @@ try {
     });
     assert.equal(forced.decorationColor, forced.color);
     assert.equal(forced.thickness, '2px');
+    const forcedGloss = await page.locator('.fw-gloss').evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor, border: style.borderTopColor };
+    });
+    assert.notEqual(forcedGloss.color, forcedGloss.background);
+    assert.equal(forcedGloss.border, forcedGloss.color);
     await page.close();
   }
   console.log('PASS: Chromium extension CSS is visible on synthetic light/dark pages; ordinary, active, practice, link, hover, keyboard focus and forced colors checked.');
