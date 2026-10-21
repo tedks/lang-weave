@@ -101,6 +101,10 @@ function showTip(span) {
   box.textContent = `${word} · ${gloss}`;
   document.documentElement.append(box);
   tipBox = box;
+  placeTip(span, box);
+  return true;
+}
+function placeTip(span, box) {
   const rect = span.getBoundingClientRect();
   const size = box.getBoundingClientRect();
   const width = document.documentElement.clientWidth || window.innerWidth;
@@ -111,7 +115,6 @@ function showTip(span) {
   const top = above >= TIP_GAP ? above : Math.min(below, height - size.height - TIP_GAP);
   box.style.setProperty('left', `${left}px`, 'important');
   box.style.setProperty('top', `${Math.max(TIP_GAP, top)}px`, 'important');
-  return true;
 }
 // The gloss appears only after a short dwell; reaching it counts as a peek (the reader needed the meaning).
 function hideTip(keepFocus = false) {
@@ -249,9 +252,17 @@ function armTip(e) {
     focusedAt = Date.now();
     focusScrollUntil = focusedAt + FOCUS_SCROLL_MS;
     if (span === tipTarget) { tipFocused = true; return; } // preserve an active hover dwell and its peek
-    if (tipTarget && tipHovered) return; // pointer box has priority until the pointer leaves
-  } else if (span === tipTarget && tipHovered) {
-    return;
+  } else if (span === tipTarget) {
+    if (tipHovered) return;
+    if (tipFocused && tipBox) {
+      tipHovered = true;
+      // A visible focus gloss stays put; hovering still needs its own full dwell before a peek.
+      tipTimer = setTimeout(() => {
+        tipTimer = null;
+        if (tipTarget === span && tipHovered && tipEligible(span)) record(span, 'peek');
+      }, TIP_DELAY_MS);
+      return;
+    }
   }
   hideTip(true);
   tipTarget = span;
@@ -259,12 +270,13 @@ function armTip(e) {
   tipFocused = focusedTip === span;
   startTip(span, e.type === 'mouseover');
 }
+// Exported for a direct happy-dom regression: that DOM swallows listener exceptions.
 export function disarmTip(e) {
   const span = swapFor(e);
   if (!span || span.contains(e.relatedTarget)) return;
   if (e.type === 'focusout' && span === focusedTip) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
   if (span !== tipTarget) return;
-  if (e.type === 'mouseout') tipHovered = false;
+  if (e.type === 'mouseout') { tipHovered = false; clearTimeout(tipTimer); tipTimer = null; }
   else tipFocused = false;
   if (!tipHovered && !tipFocused) {
     if (e.type === 'mouseout' && focusedTip && focusedTip !== span) restoreFocusedTip();
@@ -526,7 +538,8 @@ document.addEventListener('mouseout', disarmTip, true);
 document.addEventListener('focusout', disarmTip, true);
 window.addEventListener('scroll', () => {
   if (focusedTip && document.activeElement === focusedTip && Date.now() <= focusScrollUntil && tipEligible(focusedTip)) {
-    if (tipTarget !== focusedTip || tipBox) restoreFocusedTip();
+    if (tipTarget === focusedTip && tipBox) placeTip(focusedTip, tipBox);
+    else if (tipTarget !== focusedTip) restoreFocusedTip();
     return;
   }
   hideTip();
