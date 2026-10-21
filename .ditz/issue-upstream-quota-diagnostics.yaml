@@ -9,8 +9,8 @@ type: bugfix
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-20T22:10:15-00:00
 references: []
 log_events:
@@ -52,3 +52,9 @@ log_events:
     unavailable and seat empty. Exact-head gates passed: frozen Bun 139/2822, Python91,
     version0.7.1,35blocks,diff, guarded smoke/gradual/highlights/quota Chromium. Synthetic
     provider only; no live Gemini. Root re-review/merge pending; no fleet action.'
+- time: 2026-10-21T00:09:58-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Accepted replacement6c19fca with clock metadata repair and normal merged
+    PR10 asbf9cbb0; expected parents/tested tree identical. Root139Bun2822/91Python/version/35blocks/direct
+    rollback probe/guarded quota MV3 PASS; fleet unchanged.
