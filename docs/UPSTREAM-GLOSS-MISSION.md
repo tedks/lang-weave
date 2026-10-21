@@ -2,7 +2,7 @@
 
 ## Current state
 
-STARTED on `upstream-fixed-gloss` from merged 0.7.1 baseline. This lane owns a bounded 0.7.2 gloss placement repair, its tests and evidence, and a ready reviewable PR. Source acceptance, merge and fleet rollout belong to the parent controller. This public record contains no private coordination data.
+REVIEW REPAIR on `upstream-fixed-gloss` from merged 0.7.1 baseline. Draft PR #11 holds the bounded 0.7.2 gloss placement repair; first-round council findings are being repaired before readiness. Source acceptance, merge and fleet rollout belong to the parent controller. This public record contains no private coordination data.
 
 ## Context and assumptions before edits
 
@@ -31,3 +31,9 @@ Frozen upstream `b1a7a766c0626801f4fc04c0376b9b48a30480ff` supplies the page-lev
 ## Known layout limit
 
 Very long glosses are bounded to the viewport and can truncate at extreme lengths. A page that deliberately overrides the extension's high-specificity styles or transforms the document root may still interfere with placement; page DOM is not a security boundary. These limits do not affect ordinary clipping-container placement demonstrated above.
+
+## First council round and repair
+
+- Reviewed pushed `2fa65d8`: OpenAI native CLEAN with two pointer/focus overlap nits; Anthropic Opus found an Important ordinary-element `mouseout`/`focusout` null-target error and an Important non-diagnostic passage-leak assertion. Google was unavailable because its individual quota was exhausted; its seat remains empty.
+- The event guard is repaired; a focused DOM test now covers hover/focus overlap, focused-word restoration after another hover, ordinary-element leave events and focus-induced scroll. Temporary-copy mutations of the overlap, restoration, null guard and scroll repair each made the relevant assertion fail. The focused Chromium flow also proves an offscreen loaded target gains a delayed gloss after focus scroll.
+- The browser assertion now checks actual visible gloss text and a long synthetic hint against captured model passages after the observer's flush window. Highlight CSS checks now assert computed box colors, high contrast, forced-color border and pointer passthrough. The original self-confirming fixture-text assertion was removed.

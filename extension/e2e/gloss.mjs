@@ -77,6 +77,8 @@ try {
   const results = [];
   for (const theme of ['light', 'dark']) {
     const page = await browser.newPage();
+    const pageErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
     await page.goto(`https://reading.example/${theme}`);
     const word = page.locator('#clipped .fw-word');
     await word.waitFor(); // positive control: the target was actually painted by the production content script
@@ -150,12 +152,18 @@ try {
     await page.waitForFunction(() => !!document.querySelector('.fw-gloss-on'));
     const focusEvents = await worker.evaluate(() => chrome.storage.local.get('readingEvents').then((x) => x.readingEvents || []));
     assert.equal(focusEvents.filter((e) => e.kind === 'peek').length, after.filter((e) => e.kind === 'peek').length);
+    const edge = page.locator('#edge .fw-word');
+    await edge.hover();
+    await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left > 300);
+    assert.equal(await page.locator('.fw-gloss-on').count(), 1);
+    await page.mouse.move(400, 350);
+    await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left < 200);
+    assert.equal(await page.locator('.fw-gloss-on').count(), 1);
     await page.keyboard.press('Enter');
     assert.equal(await word.textContent(), 'and');
     await page.waitForFunction(() => !document.querySelector('.fw-gloss-on'));
     await page.keyboard.press('Space');
     assert.equal(await word.textContent(), 'y');
-    const edge = page.locator('#edge .fw-word');
     await page.mouse.move(400, 350);
     await edge.hover();
     await box.waitFor();
@@ -177,6 +185,11 @@ try {
     assert.ok(!long.html.includes('<img '), 'untrusted tip text must not become markup');
     assert.ok(long.rect.left >= 0 && long.rect.right <= long.viewport.width + 1);
     assert.ok(long.rect.top >= 0 && long.rect.bottom <= long.viewport.height + 1);
+    await page.waitForTimeout(500); // exceeds the 250 ms passage flush if the appended box were scanned
+    const scanned = await worker.evaluate(() => globalThis.glossCalls);
+    assert.ok(scanned.every((s) => !s.includes('y · and · "ee"') &&
+      !s.includes('a long but synthetic layout hint')),
+    'visible gloss text must never enter a model passage');
     await page.mouse.move(5, 5);
     await page.setViewportSize({ width: 620, height: 420 });
     await page.evaluate(() => { document.body.style.zoom = ''; });
@@ -195,6 +208,26 @@ try {
     await page.locator('#edge .fw-word').hover();
     await box.waitFor();
     await page.screenshot({ path: join(artifacts, `gloss-${theme}-forced.png`) });
+    const far = page.locator('#far .fw-word');
+    await page.evaluate(() => window.scrollTo(0, 1000)); // enter the content script's near viewport band
+    await far.waitFor();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.mouse.move(5, 5);
+    await far.focus(); // browser scrolls an offscreen keyboard target into view
+    assert.equal(await far.evaluate((el) => el === document.activeElement), true);
+    await page.waitForFunction(() => document.querySelector('#far .fw-word.fw-tip') &&
+      document.querySelector('.fw-gloss-on'), undefined, { timeout: 5000 });
+    const farRect = await box.evaluate((el) => el.getBoundingClientRect().toJSON());
+    const farWordRect = await far.evaluate((el) => el.getBoundingClientRect().toJSON());
+    assert.ok(farRect.top >= 0 && farRect.bottom <= 421);
+    assert.ok(Math.abs(farRect.left - farWordRect.left) < 120);
+    await far.evaluate((el) => el.blur());
+    await page.waitForFunction(() => !document.querySelector('.fw-gloss-on'));
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(100); // let the scroll cleanup run before the next hover
+    await page.mouse.move(5, 5);
+    await edge.hover();
+    await box.waitFor({ timeout: 5000 });
     if (theme === 'light') {
       await page.evaluate(() => { document.title = 'Bank robbery investigation'; });
       await page.waitForFunction(() => !document.querySelector('.fw-gloss, .fw-word'));
@@ -209,6 +242,7 @@ try {
       await popup.close();
     }
     results.push({ theme, timing: Math.round(timing.shown - timing.started), geometry });
+    assert.deepEqual(pageErrors, []);
     await page.close();
   }
   const guard = await worker.evaluate(async (port) => {
@@ -221,7 +255,6 @@ try {
   assert.equal(guard.denied, true);
   assert.ok(originHits.includes('/positive'));
   assert.ok(proxyHits.includes(`probe.weave.test:${originPort}`));
-  assert.ok((await worker.evaluate(() => globalThis.glossCalls)).every((s) => !s.includes('fw-gloss')));
   console.log(JSON.stringify({ result: 'PASS', results: results.map(({ theme, timing, geometry }) => ({ theme,
     delayMs: timing, target: geometry.target, box: geometry.box, clip: geometry.clip, style: geometry.style })) }));
 } finally {
