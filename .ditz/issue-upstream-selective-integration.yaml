@@ -63,3 +63,15 @@ log_events:
     Fresh bounded fixed-gloss lane launches next; preserves700ms delayed reveal/peek,
     stronger highlights and inline recall answer isolation. No live Gemini/profile
     action.
+- time: 2026-10-21T00:44:28-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'All four selected source phases accepted/normal merged: safety PR8, curriculum
+    PR9(total226), quota PR10, fixed delayed gloss PR11. Latest source0.7.2 maina0d939104756ad8b4e87dc8cb26313a53f61e944,
+    tree identical tested29f7c039945eae037079bb182a45e22eaf1a5f7e. Root focused production
+    Chromium704/702ms delayed/unclipped plus29focusedBun158/91Python/version/diff
+    PASS; available council CLEAN and exact-head full source gates accepted. Finite
+    semantic/linguistic/layout/polish limits remain filed, no wholesale upstream merge/live
+    provider claim. Fresh dotfiles pin-only release-preparation lane assigned; root
+    retains merge/targeted rollout. Installed fleet0.6.1 unchanged until reviewed
+    immutable installer cutover.'
