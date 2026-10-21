@@ -86,7 +86,7 @@ describe('quota status', () => {
 
   test('backward wall-clock movement never extends daily or short cooldown on repeated reads', () => {
     const rollback = { keyEpoch: 'k', cooldowns: {
-      'gemini-3.8-flash': { until: 200000000, kind: 'daily', setAt: 100000000, durationMs: 86400000 },
+      'gemini-3.8-flash': { until: 186400000, kind: 'daily', setAt: 100000000, durationMs: 86400000 },
       'gemini-3.5-flash-lite': { until: 103600000, kind: 'short', setAt: 100000000, durationMs: 3600000 },
     } };
     expect(cleanQuotaState(rollback, 'k', 0).cooldowns).toEqual({});
