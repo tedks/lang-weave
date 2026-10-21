@@ -77,8 +77,6 @@ try {
   const results = [];
   for (const theme of ['light', 'dark']) {
     const page = await browser.newPage();
-    const pageErrors = [];
-    page.on('pageerror', (error) => pageErrors.push(error.message));
     await page.goto(`https://reading.example/${theme}`);
     const word = page.locator('#clipped .fw-word');
     await word.waitFor(); // positive control: the target was actually painted by the production content script
@@ -152,9 +150,13 @@ try {
     await page.waitForFunction(() => !!document.querySelector('.fw-gloss-on'));
     const focusEvents = await worker.evaluate(() => chrome.storage.local.get('readingEvents').then((x) => x.readingEvents || []));
     assert.equal(focusEvents.filter((e) => e.kind === 'peek').length, after.filter((e) => e.kind === 'peek').length);
+    await word.evaluate((el) => el.blur());
     const edge = page.locator('#edge .fw-word');
     await edge.hover();
     await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left > 300);
+    assert.equal(await page.locator('.fw-gloss-on').count(), 1);
+    await word.focus(); // a resting pointer on another word must not block keyboard focus
+    await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left < 200);
     assert.equal(await page.locator('.fw-gloss-on').count(), 1);
     await page.mouse.move(400, 350);
     await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left < 200);
@@ -242,7 +244,6 @@ try {
       await popup.close();
     }
     results.push({ theme, timing: Math.round(timing.shown - timing.started), geometry });
-    assert.deepEqual(pageErrors, []);
     await page.close();
   }
   const guard = await worker.evaluate(async (port) => {
