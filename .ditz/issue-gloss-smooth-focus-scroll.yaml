@@ -1,0 +1,22 @@
+id: gloss-smooth-focus-scroll
+title: Handle long smooth focus scrolling for keyboard gloss
+desc: 'Council polish follow-up: a site with smooth scrolling that emits focus-induced
+  scroll events more than 250 ms after focusin may close the delayed gloss before
+  a keyboard reader sees it. Current bounded 250 ms grace handles ordinary focus scroll
+  and avoids a persistent overlay during user scroll; extending it without distinguishing
+  user scroll can retain stale placement. Investigate a narrow geometry/scroll-end
+  signal with isolated Chromium proof and preserve 700 ms reveal/peek accounting.
+  Deferred from the 0.7.2 selective gloss repair to avoid broad scroll machinery.'
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-21T00:33:54-00:00
+references: []
+log_events:
+- time: 2026-10-21T00:33:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
