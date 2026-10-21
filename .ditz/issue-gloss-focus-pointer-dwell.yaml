@@ -1,0 +1,22 @@
+id: gloss-focus-pointer-dwell
+title: Preserve focus dwell when pointer crosses a word
+desc: 'Council polish follow-up: when a keyboard-focused word is still within its
+  700 ms reveal dwell, a passing pointer restarts the timer from hover. Repeated passes
+  can defer the keyboard gloss. The 0.7.2 repair preserves the existing delay and
+  peek rules and closes the important early-mouseout stuck state. Investigate retaining
+  elapsed focus dwell while requiring a separate full 700 ms hover dwell for a peek;
+  add deterministic paired DOM and isolated Chromium checks before changing the timing.
+  Deferred to keep the selective upstream patch bounded.'
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-21T00:37:45-00:00
+references: []
+log_events:
+- time: 2026-10-21T00:37:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
