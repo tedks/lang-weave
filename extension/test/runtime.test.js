@@ -145,22 +145,33 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     // The gloss waits for a dwell; a passing pointer neither shows it nor records anything.
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await wait(100);
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
     await wait(700);
     expect(span.classList.contains('fw-tip')).toBe(false);
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     expect(local[PENDING_KEY]).toHaveLength(1);
     // Focus shows the gloss for keyboard readers but never records a peek, since a page can focus a span from script.
     span.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
     await wait(800);
     expect(span.classList.contains('fw-tip')).toBe(true);
+    expect(win.document.querySelector('div.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
+    expect(span.getAttribute('aria-label')).toBe('y: and · "ee". Show English');
+    expect(win.document.querySelector('div.fw-gloss-on')?.getAttribute('aria-hidden')).toBe('true');
     expect(local[PENDING_KEY]).toHaveLength(1);
     span.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
     expect(span.classList.contains('fw-tip')).toBe(false);
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await wait(800);
     expect(span.classList.contains('fw-tip')).toBe(true);
+    expect(win.document.querySelectorAll('div.fw-gloss-on')).toHaveLength(1);
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek']);
+    span.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
     span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
+    expect(win.document.querySelectorAll('div.fw-gloss-on')).toHaveLength(1); // keyboard focus now owns it
+    span.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await wait(800);
     expect(local[PENDING_KEY]).toHaveLength(2); // one peek per word per day
@@ -183,6 +194,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     span.dispatchEvent(user(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     await wait(20);
     expect(span.textContent).toBe('and');
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
     expect(await dispatch({ type: 'event', word: 'bonjour', event: 'seen' }, page())).toEqual({ ok: false }); // not a known word
     expect(await dispatch({ type: 'event', word: 'et', event: 'seen' }, page())).toEqual({ ok: false }); // foreign state cannot add French words
@@ -218,6 +230,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     await call({ type: 'save', siteOverride: { host: 'example.com', enabled: false } });
     expect(el.textContent).toBe('I enjoy cats and dogs every single day.');
     expect(el.querySelector('.fw-word')).toBeNull();
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     await call({ type: 'save', settings: { newSitesEnabled: false }, siteOverride: { host: 'example.com', enabled: true } });
     await wait(); expect(el.querySelector('.fw-word')).not.toBeNull();
 
@@ -279,6 +292,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     await wait(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(dynamic.querySelector('.fw-word')).toBeNull();
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     // Neither key ever reached the content-script side: not in broadcasts, not in replies to page requests.
     expect(toPages.length).toBeGreaterThan(5);
     expect(toPages.join('')).not.toContain('synthetic-');

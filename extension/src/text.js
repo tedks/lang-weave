@@ -50,7 +50,7 @@ export function finishIntroduction(span) {
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
   span.textContent = display.f;
-  span.setAttribute('aria-label', `${display.f}: ${display.g}. Show English`);
+  span.setAttribute('aria-label', `${display.f}: ${tipFor(display)}. Show English`);
   return true;
 }
 
@@ -69,7 +69,7 @@ export function finishPractice(span, answer, familiar = false) {
   span.setAttribute('data-fr', display.f);
   span.setAttribute('data-tip', tipFor(display));
   span.dataset.fwStatus = familiar ? 'known' : 'active';
-  span.setAttribute('aria-label', `${display.f}: ${display.g}. Show English`);
+  span.setAttribute('aria-label', `${display.f}: ${tipFor(display)}. Show English`);
   span.textContent = display.f;
   return true;
 }
@@ -208,7 +208,7 @@ function wrap(place, swap) {
   if (swap.status && !swap.practice && !swap.introTicket) span.dataset.fwStatus = swap.status;
   if (!swap.introTicket) { span.tabIndex = 0; span.setAttribute('role', 'button'); }
   span.setAttribute('aria-label', swap.practice ? `${swap.o}. Open inline recall` :
-    swap.introTicket ? mid.data : `${swap.f}: ${swap.g}. Show English`);
+    swap.introTicket ? mid.data : `${swap.f}: ${tipFor(swap)}. Show English`);
   span.textContent = swap.practice ? `${mid.data} → [?]` : swap.introTicket ? mid.data : swap.f;
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');

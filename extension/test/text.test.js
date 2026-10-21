@@ -108,7 +108,7 @@ describe('applySwaps', () => {
     const el = tweet('<span>cats and dogs and birds</span>');
     const n = applySwaps(el, [S({ o: 'and', f: 'et', ctx: 'dogs and birds' })]);
     expect(n).toBe(1);
-    expect(el.innerHTML).toBe('<span>cats and dogs <span class="fw-word" data-en="and" data-fr="et" data-tip="and · &quot;ay&quot;" data-fw-split="1" tabindex="0" role="button" aria-label="et: and. Show English">et</span> birds</span>');
+    expect(el.innerHTML).toBe('<span>cats and dogs <span class="fw-word" data-en="and" data-fr="et" data-tip="and · &quot;ay&quot;" data-fw-split="1" tabindex="0" role="button" aria-label="et: and · &quot;ay&quot;. Show English">et</span> birds</span>');
     expect(el.textContent).toBe('cats and dogs et birds');
   });
   test('two swaps in one text node, applied in any order', () => {
@@ -258,6 +258,11 @@ test('a saved practice rating changes only its span and restores trusted source 
   try {
     applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', practice: true })]);
     const span = el.querySelector('.fw-word');
+    expect(span.getAttribute('data-fr')).toBeNull();
+    expect(span.getAttribute('data-tip')).toBeNull();
+    expect(span.getAttribute('aria-label')).toBe('the idea. Open inline recall');
+    expect(span.getAttribute('title')).toBe('Open inline recall');
+    expect(el.textContent).not.toContain('la idea');
     span.setAttribute('data-en', 'forged');
     expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
     expect(span.textContent).toBe('la idea');
