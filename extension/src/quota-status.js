@@ -93,16 +93,23 @@ export function classifyProviderFailure({ status, body, retryAfter, now = Date.n
 
 export function cleanQuotaState(value, keyEpoch, now = Date.now()) {
   const out = { keyEpoch: typeof keyEpoch === 'string' ? keyEpoch.slice(0, 64) : '', cooldowns: {} };
-  if (!value || value.keyEpoch !== out.keyEpoch || !value.cooldowns || typeof value.cooldowns !== 'object') return out;
+  if (!finite(now) || !value || value.keyEpoch !== out.keyEpoch || !value.cooldowns ||
+      typeof value.cooldowns !== 'object') return out;
   for (const model of MODEL_IDS) {
     const entry = value.cooldowns[model];
     if (!entry || !['daily', 'short', 'overloaded', 'transient'].includes(entry.kind) || !finite(entry.until)) continue;
     const cap = entry.kind === 'daily' ? MAX_RETRY_MS : MAX_SHORT_COOLDOWN_MS;
+    // Every persisted entry needs its original timing evidence. A second model's
+    // read-modify-write must preserve it so rollback cannot revive the first.
+    if (!finite(entry.setAt) || !finite(entry.durationMs) || entry.durationMs <= 0 ||
+        entry.durationMs > cap || entry.until <= entry.setAt ||
+        entry.until > entry.setAt + entry.durationMs) continue;
     // A large rollback cannot be timed against wall-clock storage. Drop the
     // stale block and let the next provider reply establish a fresh bound.
-    if (finite(entry.setAt) && now + CLOCK_ROLLBACK_TOLERANCE_MS < entry.setAt) continue;
+    if (now + CLOCK_ROLLBACK_TOLERANCE_MS < entry.setAt) continue;
     if (entry.until <= now || entry.until > now + cap + CLOCK_ROLLBACK_TOLERANCE_MS) continue;
-    out.cooldowns[model] = { until: entry.until, kind: entry.kind };
+    out.cooldowns[model] = { until: entry.until, kind: entry.kind,
+      setAt: entry.setAt, durationMs: entry.durationMs };
   }
   return out;
 }

@@ -40,12 +40,48 @@ describe('quota status', () => {
 
   test('cleans persisted cooldown to configured models, current epoch and finite horizon', () => {
     const state = cleanQuotaState({ keyEpoch: 'new', cooldowns: {
-      'gemini-3.8-flash': { until: 5000, kind: 'daily' },
-      'not-a-model': { until: 5000, kind: 'daily' },
+      'gemini-3.8-flash': { until: 5000, kind: 'daily', setAt: 1000, durationMs: 4000 },
+      'not-a-model': { until: 5000, kind: 'daily', setAt: 1000, durationMs: 4000 },
       'gemini-3.5-flash-lite': { until: Infinity, kind: 'short' },
     } }, 'new', 1000);
-    expect(state).toEqual({ keyEpoch: 'new', cooldowns: { 'gemini-3.8-flash': { until: 5000, kind: 'daily' } } });
+    expect(state).toEqual({ keyEpoch: 'new', cooldowns: { 'gemini-3.8-flash':
+      { until: 5000, kind: 'daily', setAt: 1000, durationMs: 4000 } } });
     expect(cleanQuotaState({ keyEpoch: 'old', cooldowns: { 'gemini-3.8-flash': { until: 5000, kind: 'daily' } } }, 'new', 1000).cooldowns).toEqual({});
+  });
+
+  test('second model persistence retains first model clock metadata and original deadline', () => {
+    const start = 100000000;
+    const flash = { until: start + 3600000, kind: 'daily', setAt: start, durationMs: 3600000 };
+    const lite = { until: start + 60000, kind: 'short', setAt: start, durationMs: 60000 };
+    const raw = { keyEpoch: 'k', cooldowns: { 'gemini-3.8-flash': flash } };
+    const cleaned = cleanQuotaState(raw, 'k', start);
+    cleaned.cooldowns['gemini-3.5-flash-lite'] = lite; // persistCooldown's second read-modify-write
+    const persisted = structuredClone(cleaned);
+    expect(persisted.cooldowns['gemini-3.8-flash']).toEqual(flash);
+    expect(cleanQuotaState(persisted, 'k', start).cooldowns).toEqual(persisted.cooldowns);
+    expect(cleanQuotaState(persisted, 'k', start - 120000).cooldowns).toEqual(persisted.cooldowns);
+    expect(cleanQuotaState(persisted, 'k', start - 300000).cooldowns).toEqual(persisted.cooldowns);
+    expect(cleanQuotaState(persisted, 'k', start - 300001).cooldowns).toEqual({});
+    expect(cleanQuotaState(raw, 'k', start - 72000000).cooldowns).toEqual({});
+    expect(cleanQuotaState(persisted, 'k', start - 72000000).cooldowns).toEqual({});
+    expect(cleanQuotaState(persisted, 'k', start + 60001).cooldowns['gemini-3.8-flash']).toEqual(flash);
+    expect(cleanQuotaState(cleanQuotaState(persisted, 'k', start + 60001), 'k', start + 60002)
+      .cooldowns['gemini-3.8-flash']).toEqual(flash);
+    expect(cleanQuotaState(persisted, 'k', start + 3600000).cooldowns).toEqual({});
+  });
+
+  test('missing, inconsistent or oversized timing metadata cannot preserve a cooldown', () => {
+    const start = 100000000;
+    const entries = [
+      { until: start + 60000, kind: 'short' },
+      { until: start + 60000, kind: 'short', setAt: start, durationMs: Infinity },
+      { until: start + 60000, kind: 'short', setAt: start, durationMs: 3600001 },
+      { until: start + 60000, kind: 'short', setAt: start, durationMs: -1 },
+      { until: start + 60000, kind: 'short', setAt: start, durationMs: 30000 },
+      { until: start + 60000, kind: 'short', setAt: start + 360000, durationMs: 60000 },
+    ];
+    for (const entry of entries) expect(cleanQuotaState({ keyEpoch: 'k', cooldowns:
+      { 'gemini-3.5-flash-lite': entry } }, 'k', start).cooldowns).toEqual({});
   });
 
   test('backward wall-clock movement never extends daily or short cooldown on repeated reads', () => {
