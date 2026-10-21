@@ -87,6 +87,13 @@ try {
   assert.equal(await due.textContent(), 'the idea → [?]');
   assert.equal(await due.getAttribute('data-fr'), null);
   assert.equal(await due.getAttribute('data-tip'), null);
+  assert.doesNotMatch(await due.evaluate((el) => el.outerHTML), /la idea/);
+  await due.hover();
+  await page.waitForTimeout(800); // exceeds the production 700 ms delay: an ordinary gloss would be visible
+  assert.equal(await page.locator('.fw-gloss, .fw-gloss-on').count(), 0);
+  await due.focus();
+  await page.waitForTimeout(800);
+  assert.equal(await page.locator('.fw-gloss, .fw-gloss-on').count(), 0);
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea → [?] with friends every week.');
   await due.evaluate((span) => {
     span.click();
