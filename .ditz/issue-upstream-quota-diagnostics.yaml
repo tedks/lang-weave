@@ -40,3 +40,15 @@ log_events:
     were synthetic, not live Gemini. Display-only guidance polish is tracked separately
     as quota-status-guidance-polish. Awaiting root review/merge; fleet remains outside
     this mission.'
+- time: 2026-10-21T00:07:23-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Clock-metadata acceptance repair pushed as PR #10 replacement head 6c19fca2fd8f9b3390b2577290f5a5bfe3b3d220.
+    The reproduced multi-model 20-hour rollback gap is fixed: each cooldown retains
+    validated original setAt/durationMs through fallback persistence, and the writer
+    anchors deadline and metadata to the same failure-time sample. Paired raw/clean/persisted,
+    exact five-minute, malformed/expiry/cap tests pass; both targeted isolated mutations
+    fail. Repair council converged CLEAN in OpenAI and Anthropic seats; Google quota
+    unavailable and seat empty. Exact-head gates passed: frozen Bun 139/2822, Python91,
+    version0.7.1,35blocks,diff, guarded smoke/gradual/highlights/quota Chromium. Synthetic
+    provider only; no live Gemini. Root re-review/merge pending; no fleet action.'
