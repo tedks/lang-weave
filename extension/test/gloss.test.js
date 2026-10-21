@@ -51,6 +51,17 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     expect(() => content.disarmTip({ isTrusted: true, target: ordinary, type: 'focusout', relatedTarget: null })).not.toThrow();
 
     two.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
+    await wait(350);
+    two.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
+    two.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
+    await wait(350);
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
+    await wait(400);
+    expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('junto · and · "hoon-toh"');
+    expect(events.filter((e) => e.event === 'peek')).toHaveLength(0);
+    two.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
+
+    two.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
     await wait(750);
     expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('junto · and · "hoon-toh"');
     two.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
@@ -58,7 +69,25 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('junto · and · "hoon-toh"');
     expect(events.filter((e) => e.event === 'peek')).toHaveLength(0);
     two.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
+    await wait(550);
+    expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('junto · and · "hoon-toh"');
+    expect(events.filter((e) => e.event === 'peek')).toHaveLength(0);
+    two.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
+    await wait(750);
+    expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('junto · and · "hoon-toh"');
+    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['junto']);
     two.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
+
+    one.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
+    await wait(350);
+    one.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
+    one.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
+    await wait(200);
+    expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
+    await wait(210);
+    expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
+    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['junto']);
+    one.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
 
     one.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await wait(350);
@@ -67,7 +96,7 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     await wait(210); // 760 ms from hover, only 410 ms from focus
     expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
-    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['y']);
+    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['junto', 'y']);
     one.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
     expect(win.document.querySelector('.fw-gloss-on')?.textContent).toMatch(/^y ·/);
 
@@ -80,7 +109,7 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     await wait(20);
     expect(win.document.querySelectorAll('.fw-gloss-on')).toHaveLength(1);
     expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
-    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['y', 'junto']);
+    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['junto', 'y']);
     one.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
 
@@ -111,7 +140,7 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     one.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
     win.dispatchEvent(new win.Event('scroll')); // already shown: reposition without another 700 ms gap
     expect(win.document.querySelector('.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
-    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['y', 'junto']);
+    expect(events.filter((e) => e.event === 'peek').map((e) => e.word)).toEqual(['junto', 'y']);
     await wait(300);
     win.dispatchEvent(new win.Event('scroll')); // ordinary later scroll hides it
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
@@ -124,4 +153,4 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     await win.happyDOM.close();
     Object.assign(globalThis, previous);
   }
-}, 10000);
+}, 15000);

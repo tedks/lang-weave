@@ -276,7 +276,11 @@ export function disarmTip(e) {
   if (!span || span.contains(e.relatedTarget)) return;
   if (e.type === 'focusout' && span === focusedTip) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
   if (span !== tipTarget) return;
-  if (e.type === 'mouseout') { tipHovered = false; clearTimeout(tipTimer); tipTimer = null; }
+  if (e.type === 'mouseout') {
+    tipHovered = false;
+    // The pending reveal also serves focus; only a pending hover peek ends here.
+    if (tipBox || !tipFocused) { clearTimeout(tipTimer); tipTimer = null; }
+  }
   else tipFocused = false;
   if (!tipHovered && !tipFocused) {
     if (e.type === 'mouseout' && focusedTip && focusedTip !== span) restoreFocusedTip();

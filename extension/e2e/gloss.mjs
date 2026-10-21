@@ -159,6 +159,7 @@ try {
     await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left < 200);
     assert.equal(await page.locator('.fw-gloss-on').count(), 1);
     await page.mouse.move(400, 350);
+    // The focus-priority box persists after the pointer leaves the old target.
     await page.waitForFunction(() => document.querySelector('.fw-gloss-on')?.getBoundingClientRect().left < 200);
     assert.equal(await page.locator('.fw-gloss-on').count(), 1);
     await page.keyboard.press('Enter');
