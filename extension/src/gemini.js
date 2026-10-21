@@ -1,3 +1,4 @@
+import { classifyProviderFailure, readBoundedBody } from './quota-status.js';
 // Gemini generateContent call. No chrome APIs; fetch is injectable for tests.
 export const MODELS = {
   'gemini-3.5-flash-lite': 'Gemini 3.5 Flash-Lite',
@@ -28,14 +29,16 @@ export async function callGemini({ fetchImpl = globalThis.fetch, apiKey, model, 
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
-    const error = new Error(`HTTP ${res.status}`);
+    const detail = await readBoundedBody(res);
+    const failure = classifyProviderFailure({ status: res.status, body: detail,
+      retryAfter: res.headers?.get?.('retry-after') });
+    const error = new Error(failure.category === 'daily_quota' ? 'Daily model quota reached'
+      : failure.category === 'rate_limit' ? 'Model rate limit reached'
+      : failure.category === 'overloaded' ? 'Model service is busy' : 'Model request failed');
     error.status = res.status;
-    // 429 bodies carry RetryInfo ("retryDelay": "36s"); fall back to Retry-After. A free-tier daily quota says
-    // hours (gemini-3.8-flash allows 20 requests a day), so honor up to a day instead of retrying every 10 minutes.
-    let detail = '';
-    try { detail = await res.text(); } catch { /* status alone is enough */ }
-    const delay = Number(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(detail)?.[1] || res.headers?.get?.('retry-after'));
-    if (delay > 0) error.retryAfterMs = Math.min(delay, 86400) * 1000;
+    error.category = failure.category;
+    if (failure.retryAfterMs) error.retryAfterMs = failure.retryAfterMs;
+    if (failure.retryGuidanceMs) error.retryGuidanceMs = failure.retryGuidanceMs;
     throw error;
   }
   const data = await res.json();

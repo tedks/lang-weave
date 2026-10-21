@@ -11,15 +11,19 @@ export const PRIMARY_TIMEOUT_MS = 8000;
 export const timeoutFor = (m, models, timeoutMs) =>
   models.length > 1 && m === models[0] ? Math.min(timeoutMs || 20000, PRIMARY_TIMEOUT_MS) : timeoutMs;
 
-export async function requestSwaps({ apiKey, model, level, batch, words, language, density = 'normal', shownToday, fetchImpl, timeoutMs, cooldown = new Map(), now = Date.now }) {
+export async function requestSwaps({ apiKey, model, level, batch, words, language, density = 'normal', shownToday, fetchImpl, timeoutMs, cooldown = new Map(), cooldownKinds = new Map(), now = Date.now, onFailure }) {
   const body = buildRequest({ system: buildSystemPrompt(level, words, shownToday, language, density), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
   const candidates = [model];
   if (FALLBACK_MODEL[model]) candidates.push(FALLBACK_MODEL[model]);
   const models = candidates.filter((m) => !(cooldown.get(m) > now()));
   const errors = [];
   if (!models.length) {
-    const error = new Error('Model rate limit; retrying shortly');
+    const error = new Error('Model cooling down; retry later');
+    error.category = candidates.some((m) => cooldownKinds.get(m) === 'daily') ? 'daily_quota'
+      : candidates.some((m) => cooldownKinds.get(m) === 'overloaded') ? 'overloaded'
+      : candidates.some((m) => cooldownKinds.get(m) === 'short') ? 'rate_limit' : 'request_failed';
     error.retryAfterMs = Math.max(1000, Math.min(...candidates.map((m) => cooldown.get(m))) - now());
+    error.coolingDown = true;
     throw error;
   }
   for (const m of models) {
@@ -33,14 +37,31 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
       return { results, model: m, errors };
     } catch (e) {
       if (e?.stale) throw e;
+      if (e?.category === 'storage_failed') throw e; // no fallback after failed local call accounting
       const timeout = e?.name === 'TimeoutError';
+      const category = e?.category || (timeout ? 'request_failed' : e?.status === 429 ? 'rate_limit' : e?.status === 503 ? 'overloaded' : 'request_failed');
       const wait = e?.retryAfterMs || COOLDOWN_MS[timeout ? 'timeout' : e?.status];
-      if (wait) cooldown.set(m, now() + wait);
-      errors.push(`${m}: ${timeout ? 'timeout' : e?.message || e}`);
+      const startedAt = now();
+      if (wait) cooldown.set(m, startedAt + wait);
+      cooldownKinds.set(m, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
+        : category === 'rate_limit' ? 'short' : 'transient');
+      errors.push({ model: m, category, retryAt: e?.retryGuidanceMs ? startedAt + e.retryGuidanceMs : undefined });
+      if (onFailure) await onFailure(m, category, wait, startedAt);
     }
   }
-  const error = new Error(errors.join('; '));
+  const categories = errors.map((e) => e.category);
+  const category = categories.includes('daily_quota') ? 'daily_quota' : categories.includes('rate_limit') ? 'rate_limit'
+    : categories.includes('overloaded') ? 'overloaded' : 'request_failed';
+  const error = new Error(category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
+    ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy' : 'Model request failed');
+  error.category = category;
   const until = candidates.map((m) => cooldown.get(m) || 0).filter((t) => t > now());
-  if (until.length === candidates.length) error.retryAfterMs = Math.max(1000, Math.min(...until) - now());
+  if (until.length === candidates.length) {
+    const earliest = Math.min(...until);
+    error.retryAfterMs = Math.max(1000, earliest - now());
+    // A retry time is useful only when its model is the next one available.
+    error.retryAt = errors.find((e) => e.category === category && e.retryAt &&
+      Math.abs(e.retryAt - earliest) <= 1000)?.retryAt;
+  }
   throw error;
 }

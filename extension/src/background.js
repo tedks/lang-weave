@@ -2,6 +2,7 @@
 // Keys stay here; pages only get a config without them.
 import { createCache, chromeStorage } from './cache.js';
 import { requestSwaps } from './engine.js';
+import { cleanQuotaState, newCooldownEntry, retainedRetryAt, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY, MODEL_IDS } from './quota-status.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
@@ -17,7 +18,8 @@ import { scopedStorage } from './scope.js';
 const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
 const ALARM = 'updates';
-const cooldown = new Map(); // model -> rate-limit cooldown end; worker memory is enough
+const cooldown = new Map(); // hot copy; quotaState is the bounded restart-safe source
+const cooldownKinds = new Map();
 let permissionGeneration = 0; // permission events can arrive while the storage lock is held
 
 const serial = () => {
@@ -28,8 +30,32 @@ const modelCall = serial(); // one model call at a time
 const locked = serial(); // storage read-modify-writes one at a time, or concurrent ones drop data
 // When both queues are needed, enter modelCall before locked; reversing them can deadlock update reload.
 // Model status is diagnostic; failure to save it must not hide a valid reading result.
-async function saveModelStatus(status) {
-  try { await store.set({ modelStatus: { at: Date.now(), ...status } }); } catch { /* diagnostic only */ }
+async function saveModelStatus(status, epoch) {
+  try {
+    await locked(async () => {
+      const current = await store.get(['keyEpoch', STATUS_KEY]);
+      if ((current.keyEpoch || '') !== epoch) return;
+      const previous = safeModelStatus(current[STATUS_KEY]);
+      const retryAt = status.retryAt ?? (status.coolingDown ? retainedRetryAt(previous,
+        status.category, Date.now(), status.retryAfterMs) : undefined);
+      await store.set({ [STATUS_KEY]: safeModelStatus({ at: Date.now(), ...status, retryAt }) });
+    });
+  } catch { /* diagnostic only */ }
+}
+async function persistCooldown(model, category, wait, startedAt, epoch) {
+  if (!MODEL_IDS.has(model) || !Number.isFinite(wait) || wait <= 0) return;
+  await locked(async () => {
+    const current = await store.get(['keyEpoch', QUOTA_STATE_KEY]);
+    if ((current.keyEpoch || '') !== epoch) return;
+    const now = Date.now();
+    const state = cleanQuotaState(current[QUOTA_STATE_KEY], epoch, now);
+    const kind = category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
+      : category === 'rate_limit' ? 'short' : 'transient';
+    const entry = newCooldownEntry(kind, wait, startedAt, now);
+    if (!entry) return;
+    state.cooldowns[model] = entry;
+    await store.set({ [QUOTA_STATE_KEY]: state });
+  });
 }
 
 const ready = (async () => {
@@ -38,6 +64,8 @@ const ready = (async () => {
   const { settings } = await store.get('settings');
   if (settings?.apiKey) await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
   await store.set({ settings: cleanSettings(settings) });
+  const { keyEpoch } = await store.get('keyEpoch');
+  if (typeof keyEpoch !== 'string' || !keyEpoch) await store.set({ keyEpoch: crypto.randomUUID() });
 })();
 
 // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
@@ -138,11 +166,25 @@ async function swaps(msg, sender) {
   });
   if (!misses.length) return deliver(results);
   let fresh;
+  let requestEpoch = '';
   try {
     fresh = await modelCall(async () => {
       if ((await context()).revision !== ctx.revision) return null;
-      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error(`Daily limit of ${DAILY_MODEL_CALLS} model calls reached; try again tomorrow`);
-      const { apiKey } = await store.get('apiKey');
+      const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY]);
+      const { apiKey } = keyData;
+      const keyEpoch = keyData.keyEpoch || '';
+      requestEpoch = keyEpoch;
+      const persisted = cleanQuotaState(keyData[QUOTA_STATE_KEY], keyEpoch);
+      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) {
+        await saveModelStatus({ category: 'local_budget' }, requestEpoch);
+        throw Object.assign(new Error('Daily local model-call budget reached'), { category: 'local_budget' });
+      }
+      cooldown.clear();
+      cooldownKinds.clear();
+      for (const [model, entry] of Object.entries(persisted.cooldowns)) {
+        cooldown.set(model, entry.until);
+        cooldownKinds.set(model, entry.kind);
+      }
       const fetchImpl = async (...args) => {
         // Storage and review reads above can yield while a site is turned off. Dispatch under
         // the same lock as settings writes, and check again after counting the model call.
@@ -151,7 +193,8 @@ async function swaps(msg, sender) {
             throw Object.assign(new Error('Page context changed before model request'), { stale: true });
           }
           // Counting can yield to a browser permission change; keep the second check.
-          await countCall(chromeStorage);
+          try { await countCall(chromeStorage); }
+          catch { throw Object.assign(new Error('Local reading storage failed'), { category: 'storage_failed' }); }
           if (!(await stillSafe())) {
             throw Object.assign(new Error('Page context changed before model request'), { stale: true });
           }
@@ -160,29 +203,39 @@ async function swaps(msg, sender) {
         return response;
       };
       return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
-        density: ctx.settings.density, words: candidates, fetchImpl,
-        shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })) });
+        density: ctx.settings.density, words: candidates, fetchImpl, cooldownKinds,
+        shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })),
+        onFailure: async (model, category, wait, startedAt) => {
+          cooldownKinds.set(model, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
+            : category === 'rate_limit' ? 'short' : 'transient');
+          await persistCooldown(model, category, wait, startedAt, keyEpoch);
+        } });
     });
   } catch (e) {
     if (e?.stale) return { results: {}, stale: true };
     const latest = await context();
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
-    const error = e?.message || 'Model request failed';
-    await saveModelStatus({ error });
+    const category = e?.category || 'request_failed';
+    const error = category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
+      ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
+      : category === 'local_budget' ? 'Daily local model-call budget reached'
+      : category === 'storage_failed' ? 'Local reading storage failed' : 'Model request failed';
+    await saveModelStatus({ category, retryAt: e?.retryAt,
+      coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
     try {
       // Cache entries are raw validated swaps. They still need the current gradual
       // quota and cards, even when another item in this batch failed at the model.
       const delivered = await deliver(results);
       return { ...delivered, error, retryAfterMs: e?.retryAfterMs };
     } catch (storageError) {
-      return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
+      return { results: {}, error: 'Learning state could not be saved' };
     }
   }
   if (!fresh) return { results: {}, stale: true };
   try {
     const delivered = await deliver({ ...results, ...fresh.results }, fresh.results);
     if (!delivered.stale) {
-      await saveModelStatus({ error: '', model: fresh.model });
+      await saveModelStatus({ category: 'ok', model: fresh.model }, requestEpoch);
       // A popup save must not commit between this last context read and title lookup.
       return locked(async () => await stillSafe() ? delivered : { results: {}, stale: true });
     }
@@ -191,13 +244,14 @@ async function swaps(msg, sender) {
     if (e?.stale) return { results: {}, stale: true };
     const latest = await context();
     if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
-    const error = e?.message || 'Model request failed';
-    await saveModelStatus({ error });
+    const category = 'storage_failed';
+    const error = 'Local reading storage failed';
+    await saveModelStatus({ category }, requestEpoch);
     try {
       const cached = await deliver(results);
       return { ...cached, error, retryAfterMs: e?.retryAfterMs };
     } catch (storageError) {
-      return { results: {}, error: storageError?.message || 'Learning state could not be saved' };
+      return { results: {}, error: 'Learning state could not be saved' };
     }
   }
 }
@@ -337,6 +391,13 @@ async function save(msg) {
     if (JSON.stringify(next) !== JSON.stringify(cleanSettings(saved.settings)) ||
         (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey)) {
       patch.epoch = crypto.randomUUID();
+      if (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
+        patch.keyEpoch = crypto.randomUUID();
+        patch[QUOTA_STATE_KEY] = { keyEpoch: patch.keyEpoch, cooldowns: {} };
+        patch[STATUS_KEY] = null;
+        cooldown.clear();
+        cooldownKinds.clear();
+      }
       await store.set(patch);
     }
   });
@@ -346,11 +407,21 @@ async function save(msg) {
 
 async function status() {
   const config = await context();
-  const data = await store.get(['apiKey', 'modelStatus', PACKS_KEY]);
+  const data = await store.get(['apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY]);
   const { state } = await reviewState(config);
+  const quota = cleanQuotaState(data[QUOTA_STATE_KEY], data.keyEpoch);
+  let modelStatus = safeModelStatus(data[STATUS_KEY]);
+  if (modelStatus && ['daily_quota', 'rate_limit', 'overloaded'].includes(modelStatus.category)) {
+    const kind = modelStatus.category === 'daily_quota' ? 'daily'
+      : modelStatus.category === 'overloaded' ? 'overloaded' : 'short';
+    if (!Object.values(quota.cooldowns).some((entry) => entry.kind === kind)) modelStatus = null;
+  }
+  if (modelStatus?.category === 'local_budget' && await callsToday(chromeStorage) < DAILY_MODEL_CALLS) modelStatus = null;
+  if (['request_failed', 'storage_failed'].includes(modelStatus?.category) &&
+      (!Number.isFinite(modelStatus.at) || modelStatus.at > Date.now() || Date.now() - modelStatus.at > 3600000)) modelStatus = null;
   return { config: { ...config, words: undefined, allWords: undefined }, words: config.words.length,
     languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
-    pastedKey: !!data.apiKey, modelStatus: data.modelStatus || null,
+    pastedKey: !!data.apiKey, modelStatus,
     budgetWarning: futureBudgetDay(state.learning, localDay()),
     review: await reviewStatus(config),
     update: await checkUpdate() };

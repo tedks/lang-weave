@@ -37,6 +37,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   let releaseModelStatusSet;
   let blockTitleAfterModelStatus = false;
   let blockCounterSet = false;
+  let failCounterSetOnce = false;
   let counterSetStarted;
   let releaseCounterSet;
   let blockTitleAfterCounter = false;
@@ -79,11 +80,11 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]])));
       },
       async set(value) {
-        if (blockTitleAfterModelStatus && value.modelStatus?.error === '') {
+        if (blockTitleAfterModelStatus && value.modelStatus?.category === 'ok') {
           blockTitleAfterModelStatus = false;
           holdNextTitle = true;
         }
-        if (blockModelStatusSet && value.modelStatus?.error === '') {
+        if (blockModelStatusSet && value.modelStatus?.category === 'ok') {
           blockModelStatusSet = false;
           modelStatusSetStarted();
           await new Promise((resolve) => { releaseModelStatusSet = resolve; });
@@ -101,6 +102,10 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
           blockCounterSet = false;
           counterSetStarted();
           await new Promise((resolve) => { releaseCounterSet = resolve; });
+        }
+        if (failCounterSetOnce && Object.hasOwn(value, 'modelCalls')) {
+          failCounterSetOnce = false;
+          throw new Error('Private storage failure text');
         }
         if (failEpochOnce && Object.keys(value).length === 1 && Object.hasOwn(value, 'epoch')) {
           failEpochOnce = false;
@@ -755,5 +760,84 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     expect(await dispatch({ type: 'event', word: 'no', event: 'seen', revision: beforePermission.revision }, page)).toEqual({ ok: false });
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(5);
     expect(data['lang:fr:' + data.languagePacks.fr.version + ':recallReview'].cards.mot0).toBeDefined();
+
+    // A response sent with a replaced key must not restore either quota state
+    // or status, even when it arrives after the new key's save has committed.
+    const lateText = 'People read books and discuss quiet evenings together.';
+    const oldKeyEpoch = data.keyEpoch;
+    const old = await dispatch({ type: 'config' }, page);
+    const oldKey = `${old.revision}:${hashKey(lateText)}`;
+    let startedOld;
+    const oldSent = new Promise((resolve) => { startedOld = resolve; });
+    let finishOld;
+    globalThis.fetch = async () => {
+      startedOld();
+      return new Promise((resolve) => { finishOld = resolve; });
+    };
+    const lateFailure = dispatch({ type: 'swaps', revision: old.revision,
+      items: [{ key: oldKey, text: lateText }] }, page);
+    await oldSent;
+    expect((await dispatch({ type: 'save', apiKey: 'replacement-key' }, popup)).ok).toBe(true);
+    expect(data.keyEpoch).not.toBe(oldKeyEpoch);
+    finishOld({ ok: false, status: 429, text: async () => JSON.stringify({ error: {
+      status: 'quota_exceeded', message: 'secret old-key error',
+    } }), headers: { get: () => null } });
+    expect((await lateFailure).stale).toBe(true);
+    expect(data.modelStatus).toBeNull();
+    expect(data.quotaState.cooldowns).toEqual({});
+    expect(JSON.stringify(data.quotaState)).not.toContain('replacement-key');
+
+    const latest = await dispatch({ type: 'config' }, page);
+    const successKey = `${latest.revision}:${hashKey(lateText)}`;
+    let startedSuccess;
+    const successSent = new Promise((resolve) => { startedSuccess = resolve; });
+    let finishSuccess;
+    globalThis.fetch = async () => {
+      startedSuccess();
+      return new Promise((resolve) => { finishSuccess = resolve; });
+    };
+    const lateSuccess = dispatch({ type: 'swaps', revision: latest.revision,
+      items: [{ key: successKey, text: lateText }] }, page);
+    await successSent;
+    expect((await dispatch({ type: 'save', apiKey: 'newest-key' }, popup)).ok).toBe(true);
+    finishSuccess({ ok: true, status: 200, json: async () => ({ candidates: [{ content: {
+      parts: [{ text: JSON.stringify({ passages: [{ id: successKey, swaps: [] }] }) }],
+    } }] }) });
+    expect((await lateSuccess).stale).toBe(true);
+    expect(data.modelStatus).toBeNull();
+    expect(data.quotaState.cooldowns).toEqual({});
+
+    // A failed local call-count write must stop before either the primary or
+    // fallback fetch, and the error returned to the page is fixed local copy.
+    expect((await dispatch({ type: 'save', settings: { model: 'gemini-3.8-flash' } }, popup)).ok).toBe(true);
+    const beforeFailedCount = await dispatch({ type: 'config' }, page);
+    const failedCountKey = `${beforeFailedCount.revision}:${hashKey(lateText)}`;
+    let failedCountFetches = 0;
+    globalThis.fetch = async () => { failedCountFetches++; throw new Error('Unexpected dispatch'); };
+    failCounterSetOnce = true;
+    const failedCount = await dispatch({ type: 'swaps', revision: beforeFailedCount.revision,
+      items: [{ key: failedCountKey, text: lateText }] }, page);
+    expect(failedCount.error).toBe('Local reading storage failed');
+    expect(failedCountFetches).toBe(0);
+    expect(JSON.stringify(data.modelStatus)).not.toContain('Private storage failure text');
+    expect((await dispatch({ type: 'save', settings: { model: 'gemini-3.5-flash-lite' } }, popup)).ok).toBe(true);
+
+    // A normal settings change rotates page revision but must keep the key's
+    // operational cooldown, which is scoped to a separate random epoch.
+    const sameKeyEpoch = data.keyEpoch;
+    data.quotaState.cooldowns['gemini-3.8-flash'] = { until: Date.now() + 60000, kind: 'short',
+      setAt: Date.now(), durationMs: 60000 };
+    expect((await dispatch({ type: 'save', settings: { density: 'heavy' } }, popup)).ok).toBe(true);
+    expect(data.keyEpoch).toBe(sameKeyEpoch);
+    expect(data.quotaState.cooldowns['gemini-3.8-flash'].kind).toBe('short');
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: '0.5.0' }) });
+    data.modelStatus = { at: Date.now(), category: 'daily_quota' };
+    expect((await dispatch({ type: 'status' }, popup)).modelStatus).toBeNull();
+    data.quotaState.cooldowns['gemini-3.8-flash'] = { until: Date.now() - 1, kind: 'daily' };
+    expect((await dispatch({ type: 'status' }, popup)).modelStatus).toBeNull();
+    data.quotaState.cooldowns['gemini-3.8-flash'] = { until: Date.now() + 60000, kind: 'daily',
+      setAt: Date.now(), durationMs: 60000 };
+    expect((await dispatch({ type: 'status' }, popup)).modelStatus.category).toBe('daily_quota');
+    expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(5);
   } finally { Object.assign(globalThis, saved); }
 });

@@ -270,7 +270,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     win.document.querySelector('main').append(capped); await wait();
     expect(modelCalls).toBe(callsBefore);
     expect(capped.querySelector('.fw-word')).toBeNull();
-    expect(local.modelStatus.error).toContain('Daily limit');
+    expect(local.modelStatus.category).toBe('local_budget');
     local.modelCalls = counted;
 
     // Removing website access reverts the page.

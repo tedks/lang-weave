@@ -96,7 +96,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     await askBatch([includedText, excludedText], page, revision);
     modelFails = true;
     const mixed = await askBatch([includedText, excludedText, 'This passage has no matching word at all today.'], page, revision);
-    expect(mixed.error).toMatch(/Synthetic model failure/);
+    expect(mixed.error).toBe('Model request failed');
     expect(mixed.results[`${revision}:${hashKey(includedText)}`].map((s) => s.word)).toEqual([due]);
     expect(mixed.results[`${revision}:${hashKey(excludedText)}`]).toEqual([]);
     expect(data.recallReview.learning.count).toBe(1);
@@ -149,13 +149,13 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const resumed = (await send({ type: 'config' }, page)).revision;
     cacheWritesFail = true;
     const cacheFailed = await ask(excludedText, page, resumed);
-    expect(cacheFailed.error).toMatch(/Cache storage failed/);
+    expect(cacheFailed.error).toBe('Local reading storage failed');
     expect(cacheFailed.results).toEqual({});
     expect(data.recallReview).toEqual(old);
     cacheWritesFail = false;
     writesFail = true;
     const failed = await ask(excludedText, page, resumed);
-    expect(failed.error).toMatch(/Storage failed/);
+    expect(failed.error).toBe('Local reading storage failed');
     expect(failed.results).toEqual({});
     expect(data.recallReview).toEqual(old);
     writesFail = false;

@@ -1,3 +1,4 @@
+import { statusLabel } from './quota-status.js';
 import { resolveLevel } from './levels.js';
 import { MODELS } from './gemini.js';
 import { siteEnabled, siteOn, hasSiteAccess } from './settings.js';
@@ -60,7 +61,7 @@ async function refresh() {
     : !c.hasKey ? 'Add a Gemini key to start'
     : host && !siteEnabled(s, tab.url) ? 'Off on this site'
     : host && !hasSiteAccess(tab.url, c.origins) ? 'This site needs your OK'
-    : status.modelStatus?.error || 'On';
+    : statusLabel(status.modelStatus) || 'On';
   const list = $('siteList');
   list.replaceChildren();
   for (const [name, enabled] of Object.entries(s.siteOverrides)) {
