@@ -7,9 +7,11 @@ export const MAX_RETRY_MS = 24 * 60 * 60 * 1000;
 export const MODEL_IDS = new Set(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
 export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'request_failed', 'storage_failed', 'local_budget', 'ok']);
 const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
+const COOLDOWN_KINDS = new Set(['daily', 'short', 'overloaded', 'transient']);
 
 const finite = (n) => Number.isFinite(n) && n >= 0;
 const boundedRetry = (n) => finite(n) && n > 0 ? Math.min(n, MAX_RETRY_MS) : undefined;
+const cooldownCap = (kind) => kind === 'daily' ? MAX_RETRY_MS : MAX_SHORT_COOLDOWN_MS;
 
 function retryInfo(data) {
   const details = data?.error?.details;
@@ -97,8 +99,8 @@ export function cleanQuotaState(value, keyEpoch, now = Date.now()) {
       typeof value.cooldowns !== 'object') return out;
   for (const model of MODEL_IDS) {
     const entry = value.cooldowns[model];
-    if (!entry || !['daily', 'short', 'overloaded', 'transient'].includes(entry.kind) || !finite(entry.until)) continue;
-    const cap = entry.kind === 'daily' ? MAX_RETRY_MS : MAX_SHORT_COOLDOWN_MS;
+    if (!entry || !COOLDOWN_KINDS.has(entry.kind) || !finite(entry.until)) continue;
+    const cap = cooldownCap(entry.kind);
     // Every persisted entry needs its original timing evidence. A second model's
     // read-modify-write must preserve it so rollback cannot revive the first.
     if (!finite(entry.setAt) || !finite(entry.durationMs) || entry.durationMs <= 0 ||
@@ -112,6 +114,19 @@ export function cleanQuotaState(value, keyEpoch, now = Date.now()) {
       setAt: entry.setAt, durationMs: entry.durationMs };
   }
   return out;
+}
+
+export function newCooldownEntry(kind, wait, startedAt, now = Date.now()) {
+  if (!COOLDOWN_KINDS.has(kind) || !finite(wait) || wait <= 0 ||
+      !finite(startedAt) || !finite(now)) return null;
+  const cap = cooldownCap(kind);
+  const durationMs = Math.min(wait, cap);
+  const until = startedAt + durationMs;
+  // The error's clock sample anchors every field. A small in-flight rollback
+  // retains the original deadline; a larger one cannot justify a saved wait.
+  if (!finite(until) || until <= now || startedAt > now + CLOCK_ROLLBACK_TOLERANCE_MS ||
+      until > now + cap + CLOCK_ROLLBACK_TOLERANCE_MS) return null;
+  return { until, kind, setAt: startedAt, durationMs };
 }
 
 export function safeModelStatus(value) {

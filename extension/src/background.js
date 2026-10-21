@@ -2,7 +2,7 @@
 // Keys stay here; pages only get a config without them.
 import { createCache, chromeStorage } from './cache.js';
 import { requestSwaps } from './engine.js';
-import { cleanQuotaState, retainedRetryAt, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY, MODEL_IDS } from './quota-status.js';
+import { cleanQuotaState, newCooldownEntry, retainedRetryAt, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY, MODEL_IDS } from './quota-status.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
@@ -51,9 +51,9 @@ async function persistCooldown(model, category, wait, startedAt, epoch) {
     const state = cleanQuotaState(current[QUOTA_STATE_KEY], epoch, now);
     const kind = category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
       : category === 'rate_limit' ? 'short' : 'transient';
-    const cap = kind === 'daily' ? 86400000 : 3600000;
-    const durationMs = Math.min(wait, cap);
-    state.cooldowns[model] = { until: Math.min(now + cap, Math.max(now, startedAt + durationMs)), kind, setAt: now, durationMs };
+    const entry = newCooldownEntry(kind, wait, startedAt, now);
+    if (!entry) return;
+    state.cooldowns[model] = entry;
     await store.set({ [QUOTA_STATE_KEY]: state });
   });
 }

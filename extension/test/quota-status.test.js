@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { classifyProviderFailure, cleanQuotaState, parseRetryAfter, readBoundedBody, retainedRetryAt, safeModelStatus, statusLabel } from '../src/quota-status.js';
+import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, parseRetryAfter, readBoundedBody, retainedRetryAt, safeModelStatus, statusLabel } from '../src/quota-status.js';
 
 describe('quota status', () => {
   test('classifies nested daily quota dimension, and rejects bare or conflicting short-window 429s', () => {
@@ -51,8 +51,8 @@ describe('quota status', () => {
 
   test('second model persistence retains first model clock metadata and original deadline', () => {
     const start = 100000000;
-    const flash = { until: start + 3600000, kind: 'daily', setAt: start, durationMs: 3600000 };
-    const lite = { until: start + 60000, kind: 'short', setAt: start, durationMs: 60000 };
+    const flash = newCooldownEntry('daily', 3600000, start, start);
+    const lite = newCooldownEntry('short', 60000, start, start);
     const raw = { keyEpoch: 'k', cooldowns: { 'gemini-3.8-flash': flash } };
     const cleaned = cleanQuotaState(raw, 'k', start);
     cleaned.cooldowns['gemini-3.5-flash-lite'] = lite; // persistCooldown's second read-modify-write
@@ -68,6 +68,18 @@ describe('quota status', () => {
     expect(cleanQuotaState(cleanQuotaState(persisted, 'k', start + 60001), 'k', start + 60002)
       .cooldowns['gemini-3.8-flash']).toEqual(flash);
     expect(cleanQuotaState(persisted, 'k', start + 3600000).cooldowns).toEqual({});
+  });
+
+  test('a small rollback during the request keeps consistent saved timing; a large one drops it', () => {
+    const start = 100000000;
+    const short = newCooldownEntry('short', 3600000, start, start - 120000);
+    expect(short).toEqual({ until: start + 3600000, kind: 'short', setAt: start, durationMs: 3600000 });
+    expect(cleanQuotaState({ keyEpoch: 'k', cooldowns: { 'gemini-3.5-flash-lite': short } },
+      'k', start - 120000).cooldowns['gemini-3.5-flash-lite']).toEqual(short);
+    expect(newCooldownEntry('short', 3600000, start, start - 300000)).toEqual(short);
+    expect(newCooldownEntry('short', 3600000, start, start - 300001)).toBeNull();
+    expect(newCooldownEntry('short', 3600000, start, start + 3600000)).toBeNull();
+    expect(newCooldownEntry('short', 999999999, start, start).durationMs).toBe(3600000);
   });
 
   test('missing, inconsistent or oversized timing metadata cannot preserve a cooldown', () => {
