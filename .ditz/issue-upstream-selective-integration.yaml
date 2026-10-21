@@ -14,8 +14,8 @@ type: task
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-20T22:10:14-00:00
 references: []
 log_events:
@@ -75,3 +75,11 @@ log_events:
     provider claim. Fresh dotfiles pin-only release-preparation lane assigned; root
     retains merge/targeted rollout. Installed fleet0.6.1 unchanged until reviewed
     immutable installer cutover.'
+- time: 2026-10-21T00:52:11-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Selected safety/curriculum/quota/delayed-gloss PR8-11 accepted/normal merged
+    througha0d9391,0.7.2; immutable pin PR204 merged9982c4b and5reachable hosts install/status
+    verified, root installed-artifact guarded Chromium PASS. Remaining semantic/layout/polish,Mac
+    updater,splinter0-unreachable and personal-activation limits tracked separately;
+    no blanket upstream/live provider claim.
