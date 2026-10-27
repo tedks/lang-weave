@@ -6,7 +6,7 @@ import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
 import { cleanReview } from '../src/review.js';
 import { memoryStorage } from '../src/cache.js';
 import { scopedStorage } from '../src/scope.js';
-import { cleanEncounters, countEncounters, ENCOUNTERS_KEY, MAX_ENCOUNTER_COUNT } from '../src/encounters.js';
+import { cleanEncounters, countEncounters, ENCOUNTERS_KEY, MAX_ENCOUNTER_COUNT, MAX_ENCOUNTER_IDS } from '../src/encounters.js';
 
 const now = Date.parse('2026-10-27T14:00:00Z');
 const day = '2026-10-27';
@@ -137,5 +137,10 @@ test('encounters store only coarse saturated entry counts and do not change revi
     .find((w) => w.fr === 'la ventana')?.reasonCode).toBe('encountered_often');
   const rollback = cleanEncounters(aggregate, [id], day);
   expect(countEncounters(rollback, [id], day).counts[id]).toBe(aggregate.counts[id]);
+  const many = Array.from({ length: MAX_ENCOUNTER_IDS + 30 }, (_, i) => `es:legacy:${i}`);
+  const bounded = cleanEncounters({ version: 1, day, bucket: aggregate.bucket,
+    counts: Object.fromEntries(many.map((key) => [key, 6])), touched: many }, many, day);
+  expect(Object.keys(bounded.counts)).toHaveLength(MAX_ENCOUNTER_IDS);
+  expect(bounded.touched).toHaveLength(MAX_ENCOUNTER_IDS);
   expect(ENCOUNTERS_KEY).toBe('vocabularyEncounters');
 });

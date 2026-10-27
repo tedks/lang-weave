@@ -15,10 +15,12 @@ export function cleanEncounters(raw, allowedIds, day) {
   const heldDay = Number.isFinite(saved) && saved > today ? raw.day : day;
   const bucket = heldDay === raw?.day && saved > today ? savedBucket : currentBucket;
   const counts = Object.create(null);
-  for (const [id, value] of Object.entries(raw?.version === 1 && raw.counts && typeof raw.counts === 'object' && !Array.isArray(raw.counts) ? raw.counts : {})) {
+  const source = raw?.version === 1 && raw.counts && typeof raw.counts === 'object' && !Array.isArray(raw.counts) ? raw.counts : {};
+  let kept = 0;
+  for (const [id, value] of Object.entries(source).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     if (!allowed.has(id) || !Number.isSafeInteger(value) || value < 1 || value > MAX_ENCOUNTER_COUNT) continue;
     const decayed = Math.max(0, value - elapsed);
-    if (decayed) counts[id] = decayed;
+    if (decayed && kept < MAX_ENCOUNTER_IDS) { counts[id] = decayed; kept++; }
   }
   const touched = heldDay === raw?.day && Array.isArray(raw?.touched)
     ? [...new Set(raw.touched.filter((id) => typeof id === 'string' && allowed.has(id)))].slice(0, MAX_ENCOUNTER_IDS) : [];
