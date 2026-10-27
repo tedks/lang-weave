@@ -41,3 +41,17 @@ log_events:
   who: Ted Smith
   what: no longer blocked by vocabulary-source-audit
   comment: ""
+- time: 2026-10-27T18:02:06-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'LEAD DONE / awaiting root acceptance. Ready PR14 at pushed immutable head
+    5daff55e001cb82a36cac2e992d3b19a88db0050; branch up to date with origin. Full
+    provider-diverse council converged CLEAN in available OpenAI gpt-6-sol native
+    and Anthropic Opus seats; Google agy was actually quota-unavailable and left empty.
+    Exact-head gates PASS: frozen Bun 170 tests/3418 assertions, Python 91 tests,
+    three 0.10.0 surfaces, 35 blocks, diff check, guarded Chromium smoke/gradual/quota/gloss/highlights/Again/adaptive/personal.
+    PR comment records commands, SHA, findings, repair deltas, limitations and follow-ups.
+    Synthetic production menu callback was tested, not physical OS click or live Gemini.
+    Save has no provider call/broadcast. Root owns acceptance, merge, installer and
+    rollout; do not close this issue until root accepts. Minor nits are separately
+    tracked on ditz-metadata.'
