@@ -27,5 +27,5 @@ export async function queueEvents(storage, events, day = localDay()) {
 export async function shownToday(storage, day = localDay()) {
   const obj = await storage.get([SENT_KEY]);
   const sent = obj?.[SENT_KEY];
-  return sent?.day === day ? sent.words.filter((w) => !w.includes(':')) : [];
+  return sent?.day === day ? sent.words.filter((w) => !w.startsWith('peek:')) : [];
 }

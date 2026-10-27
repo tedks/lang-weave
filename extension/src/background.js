@@ -133,6 +133,7 @@ const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.sett
 const publicContext = ({ words, allWords, legacyWords, legacyAllWords, personal, captureEpoch,
   activePersonal, personalAuto, ...safe }) => safe;
 const personalScope = (language) => scopedStorage(chromeStorage, `personal:${language}`);
+const laterDay = (a, b) => a > b ? a : b; // ISO local dates or empty string
 
 // The tab title is local-only safety context. Refresh it after every asynchronous
 // boundary that could precede cache delivery or a primary/fallback fetch.
@@ -548,8 +549,8 @@ async function status() {
   return { config: publicContext(config), words: config.words.length,
     languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
     pastedKey: !!data.apiKey, modelStatus,
-    budgetWarning: [futureBudgetDay(state.learning, localDay()),
-      futureBudgetDay(personalReview(config).state.learning, localDay())].sort().at(-1),
+    budgetWarning: laterDay(futureBudgetDay(state.learning, localDay()),
+      futureBudgetDay(personalReview(config).state.learning, localDay())),
     review: await reviewStatus(config),
     update: await checkUpdate() };
 }
@@ -563,7 +564,7 @@ async function recoverBudget(msg) {
     const today = localDay();
     const legacyFuture = futureBudgetDay(state.learning, today);
     const personalFuture = futureBudgetDay(own.state.learning, today);
-    if (!legacyFuture && !personalFuture || msg.day !== [legacyFuture, personalFuture].sort().at(-1) ||
+    if (!legacyFuture && !personalFuture || msg.day !== laterDay(legacyFuture, personalFuture) ||
         msg.scope !== ctx.scope)
       return false;
     // Keep the historical date while allowing due inline recall from the next
@@ -900,6 +901,11 @@ async function captureDraft(msg) {
         reason: 'shared spelling or phrase needs explicit review' } : {}) })) };
 }
 
+function captureKeepAlive(msg) {
+  const draft = captureDrafts.get(msg.nonce);
+  return { ok: !!draft && !draft.error && Date.now() - draft.createdAt <= CAPTURE_MS };
+}
+
 async function captureSave(msg) {
   return locked(async () => {
     const completed = completedCaptures.get(msg.nonce);
@@ -1057,7 +1063,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     introAck: () => introduction(msg, sender),
     introRelease: () => introduction(msg, sender),
     introRenew: () => introduction(msg, sender),
-    captureDraft: () => captureDraft(msg),
+    captureDraft: () => captureDraft(msg), captureKeepAlive: () => captureKeepAlive(msg),
     captureSave: () => captureSave(msg),
     captureCancel: () => ({ ok: captureDrafts.delete(msg.nonce) }),
     personalList, personalArchive: () => personalArchive(msg),
@@ -1066,7 +1072,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown'];
   if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
-      !(capture && ['captureDraft', 'captureSave', 'captureCancel', 'personalList',
+      !(capture && ['captureDraft', 'captureKeepAlive', 'captureSave', 'captureCancel', 'personalList',
         'personalArchive', 'personalIntroduce', 'personalExport'].includes(msg.type)) &&
       !(page && ['config', 'captureReady', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate', 'introAck', 'introRelease', 'introRenew'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));

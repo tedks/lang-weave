@@ -3,6 +3,21 @@ const nonce = new URL(location.href).searchParams.get('nonce') || '';
 let draft = null;
 let busy = false;
 let allEntries = [];
+let heartbeat = null;
+const stopHeartbeat = () => { if (heartbeat !== null) clearInterval(heartbeat); heartbeat = null; };
+function startHeartbeat() {
+  stopHeartbeat();
+  if (!draft?.selectedText) return;
+  // Chrome may idle an MV3 worker after 30 seconds. Keep the ephemeral draft
+  // alive only while this confirmation page is open, at most until its 2-minute expiry.
+  heartbeat = setInterval(() => {
+    if (!draft) { stopHeartbeat(); return; }
+    void send('captureKeepAlive', { nonce }).then((result) => {
+      if (!draft) return;
+      if (!result.ok) { stopHeartbeat(); notice('Capture expired. Select the word again on the page.'); }
+    }).catch(() => { stopHeartbeat(); if (draft) notice('Capture expired. Select the word again on the page.'); });
+  }, 15000);
+}
 
 async function send(type, fields = {}) {
   const result = await chrome.runtime.sendMessage({ type, ...fields });
@@ -105,12 +120,14 @@ async function act(button, callback) {
 }
 async function loadDraft() {
   if (!nonce) return;
+  stopHeartbeat();
   try {
     const result = await send('captureDraft', { nonce });
     draft = result;
     $('selected').textContent = String(result.selectedText || '');
     $('language').textContent = `Selected language: ${String(result.language || 'unknown')}`;
     if (result.error) notice(result.error);
+    else startHeartbeat();
     $('retry').hidden = false;
     $('editor').hidden = false;
     drawSuggestions(result.matches);
@@ -126,6 +143,7 @@ $('capture-form').addEventListener('submit', (event) => {
     if (!draft || !nonce) throw new Error('Capture expired. Retry from the page selection.');
     const fields = new FormData(event.currentTarget);
     const result = await send('captureSave', { nonce, direction: fields.get('direction'), source: fields.get('source'), target: fields.get('target'), sense: fields.get('sense'), distinct: $('distinct').checked });
+    stopHeartbeat();
     notice(result.archived ? 'This entry already exists in your archive. Unarchive it below to use it.' :
       result.duplicate ? 'This personal entry already exists.' :
       result.reviewOnly ? 'Saved as a review-only personal entry.' :
@@ -137,6 +155,7 @@ $('capture-form').addEventListener('submit', (event) => {
 $('cancel').addEventListener('click', () => act($('cancel'), async () => {
   if (nonce) await send('captureCancel', { nonce });
   draft = null;
+  stopHeartbeat();
   $('editor').hidden = true;
   notice('Capture cancelled.');
 }));
@@ -152,3 +171,4 @@ $('export').addEventListener('click', () => act($('export'), async () => {
   notice('Personal export downloaded.');
 }));
 void Promise.all([loadDraft(), loadEntries()]).catch((error) => notice(error.message));
+window.addEventListener('pagehide', stopHeartbeat);

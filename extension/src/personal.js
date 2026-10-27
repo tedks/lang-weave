@@ -1,6 +1,7 @@
 import { exactTarget } from './levels.js';
 import { englishAnchors } from './catalog.js';
 import { cleanReview } from './review.js';
+import { languageCode } from './language-name.js';
 
 export const PERSONAL_KEY = 'personalVocabularyV1';
 export const MAX_PERSONAL = 300;
@@ -10,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BAD = /[\p{Cc}\p{Cf}\p{Cs}\u2028\u2029<>]/u;
 const URLISH = /(?:https?:\/\/|www\.|\S+@\S+|\.[a-z]{2,}(?:\/|$))/iu;
 const SPANISH_ARTICLE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
-const AUTOMATIC_FORM = /^[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*$/u;
+const AUTOMATIC_FORM = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:['’\-][\p{L}\p{N}][\p{L}\p{M}\p{N}]*)*$/u;
 const automaticTarget = (form, language) => AUTOMATIC_FORM.test(form) ||
   language === 'es' && SPANISH_ARTICLE.test(form) && AUTOMATIC_FORM.test(form.replace(SPANISH_ARTICLE, ''));
 
@@ -24,7 +25,7 @@ export function validForm(value, { selection = false } = {}) {
 }
 
 export function validLanguage(code) {
-  return typeof code === 'string' && /^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(code) ? code.toLowerCase() : null;
+  return code === 'es' ? 'es' : languageCode(code);
 }
 
 const normal = (s, language) => s.normalize('NFC').toLocaleLowerCase(language).replace(/\s+/gu, ' ').trim();
@@ -50,7 +51,7 @@ export function cleanPersonal(raw) {
   for (const item of raw?.entries || []) {
     const language = validLanguage(item?.language);
     const source = validForm(item?.source), target = validForm(item?.target), sense = validForm(item?.sense);
-    if (!language || !UUID.test(item?.uuid || '') || ids.has(item.uuid) || !source || !target || !sense ||
+    if (!language || language !== item.language || !UUID.test(item?.uuid || '') || ids.has(item.uuid) || !source || !target || !sense ||
         !['en-to-target', 'target-to-en'].includes(item.direction) ||
         item.id && item.id !== `personal:${language}:${item.uuid}`)
       return { version: 1, revision: 0, entries: [], history: {}, unsupported: true };
@@ -117,7 +118,7 @@ export function addPersonal(personal, fields, language, now = Date.now(), uuid =
   const source = validForm(fields?.source), target = validForm(fields?.target);
   const sense = validForm(fields?.sense) || (fields?.sense === '' ? source : null);
   const direction = fields?.direction;
-  if (!source || !target || !sense || !['en-to-target', 'target-to-en'].includes(direction) || !validLanguage(language))
+  if (!source || !target || !sense || !['en-to-target', 'target-to-en'].includes(direction) || validLanguage(language) !== language)
     throw new Error('Enter a short English form, target form and meaning.');
   const proposal = { language, source, target, sense };
   const same = personal.entries.find((entry) => exactPersonal(entry, proposal));

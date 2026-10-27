@@ -9,11 +9,13 @@ function markup() {
 }
 
 test('capture page treats worker strings as text and manual introduction is explicit', async () => {
-  const previous = { document: globalThis.document, location: globalThis.location, chrome: globalThis.chrome };
+  const previous = { document: globalThis.document, location: globalThis.location,
+    window: globalThis.window, chrome: globalThis.chrome };
   const window = new Window({ url: 'chrome-extension://id/src/capture.html?nonce=nonce-1234567890123456' });
   window.document.body.innerHTML = markup();
   globalThis.document = window.document;
   globalThis.location = window.location;
+  globalThis.window = window;
   const sent = [];
   globalThis.chrome = { runtime: { sendMessage: async (message) => {
     sent.push(message);
@@ -44,6 +46,41 @@ test('capture page treats worker strings as text and manual introduction is expl
     found.querySelector('button').click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(sent.some((message) => message.type === 'personalIntroduce' && message.id === 'entry-1')).toBe(true);
+  } finally {
+    Object.assign(globalThis, previous);
+    await window.happyDOM.abort();
+  }
+});
+
+test('an open confirmation keeps its short-lived draft active and stops on cancel', async () => {
+  const previous = { document: globalThis.document, location: globalThis.location,
+    window: globalThis.window, chrome: globalThis.chrome,
+    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval };
+  const window = new Window({ url: 'chrome-extension://id/src/capture.html?nonce=nonce-1234567890123456' });
+  window.document.body.innerHTML = markup();
+  Object.assign(globalThis, { document: window.document, location: window.location, window });
+  const sent = [], cleared = [];
+  let tick;
+  globalThis.setInterval = (fn, ms) => { expect(ms).toBe(15000); tick = fn; return 42; };
+  globalThis.clearInterval = (id) => cleared.push(id);
+  globalThis.chrome = { runtime: { sendMessage: async (message) => {
+    sent.push(message);
+    if (message.type === 'captureDraft') return { selectedText: 'glimmer', language: 'es', matches: [] };
+    if (message.type === 'personalList') return { entries: [] };
+    if (message.type === 'captureKeepAlive' || message.type === 'captureCancel') return { ok: true };
+    throw new Error(`Unexpected message ${message.type}`);
+  } } };
+  try {
+    await import('../src/capture-page.js?heartbeat');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(typeof tick).toBe('function');
+    tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sent.some((message) => message.type === 'captureKeepAlive' &&
+      message.nonce === 'nonce-1234567890123456')).toBe(true);
+    window.document.getElementById('cancel').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(cleared).toContain(42);
   } finally {
     Object.assign(globalThis, previous);
     await window.happyDOM.abort();

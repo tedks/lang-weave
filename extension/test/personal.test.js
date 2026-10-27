@@ -47,6 +47,16 @@ test('unsafe spelling or English anchors are review-only, distinct supported ite
   const article = fresh();
   save(article, 'gleam', 'el brillo');
   expect(personalWords(article, 'es', [])[0].reviewOnly).toBe(false);
+  const script = fresh();
+  const hindi = addPersonal(script, { source: 'greeting', target: 'नमस्ते', sense: 'greeting',
+    direction: 'en-to-target' }, 'hi', 123, '00000000-0000-4000-8000-000000000099').entry;
+  expect(personalWords(script, 'hi', [])[0].reviewOnly).toBe(false);
+  expect(cleanPersonal(script).entries[0].id).toBe(hindi.id);
+  const regional = fresh();
+  const brazilian = addPersonal(regional, { source: 'glimmer', target: 'brilho', sense: 'glimmer',
+    direction: 'en-to-target' }, 'pt-BR', 123, '00000000-0000-4000-8000-000000000098').entry;
+  expect(cleanPersonal(regional).entries[0].id).toBe(brazilian.id);
+  expect(personalWords(cleanPersonal(regional), 'pt-BR', [])[0].reviewOnly).toBe(false);
 });
 
 test('selection and fields reject controls, format, URL-like, markup and oversized input', () => {

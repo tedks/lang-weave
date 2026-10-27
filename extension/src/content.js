@@ -538,7 +538,9 @@ chrome.runtime.onMessage.addListener((msg) => {
 // A context-menu gesture wakes an idle MV3 worker and re-announces this exact
 // document through Chrome's sender metadata before the native menu is chosen.
 document.addEventListener('contextmenu', () => {
-  if (on()) void send({ type: 'captureReady' }).catch(() => {});
+  if (capturePageAllowed({ url: location.href, title: document.title,
+    settings: config?.settings, origins: config?.origins }))
+    void send({ type: 'captureReady' }).catch(() => {});
 }, true);
 // The worker targets the exact top-frame document. Recheck consent/title and the live selection here;
 // menu selectionText alone is stale, untrusted input and is never sufficient to authorize capture.

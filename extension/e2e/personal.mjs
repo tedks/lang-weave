@@ -30,7 +30,7 @@ try {
   await worker.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings');
     await chrome.storage.local.set({ settings: { ...settings, enabled: true, newSitesEnabled: true,
-      gradual: true, newWordsPerDay: 1, inlineRecall: true }, apiKey: 'synthetic-personal-key' });
+      gradual: true, newWordsPerDay: 1, inlineRecall: true } });
     globalThis.personalModelCalls = 0;
     const original = fetch;
     globalThis.fetch = async (url, init) => {
@@ -66,6 +66,8 @@ try {
       range.setStart(node, offset); range.setEnd(node, offset + expected.length);
       const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
     }, text);
+    await reading.locator(selector).dispatchEvent('contextmenu'); // content script re-announces the document
+    await reading.waitForTimeout(100);
     const tab = await worker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0], reading.url());
     assert.ok(tab?.id);
     const opened = browser.waitForEvent('page');
@@ -91,6 +93,9 @@ try {
   assert.equal(saved.entries.length, 1);
   const id = saved.entries[0].id;
   assert.equal(saved.history.es?.cards?.[id], undefined); // Save alone did not introduce
+  assert.equal(await worker.evaluate(() => chrome.storage.local.get('apiKey').then((data) => !!data.apiKey)), false);
+  await worker.evaluate(() => chrome.storage.local.set({ apiKey: 'synthetic-personal-key' }));
+  await reading.reload(); // the content script now receives a key-enabled reading config
   await reading.bringToFront();
   await reading.locator('#reading').scrollIntoViewIfNeeded();
   await reading.locator('#reading .fw-word').waitFor({ timeout: 10000 });
@@ -137,7 +142,7 @@ try {
   assert.equal(exported.history.es.cards[id].reviews, 1);
   assert.ok(!JSON.stringify(exported).includes('reading.example'));
   assert.ok(!JSON.stringify(exported).includes('synthetic-personal-key'));
-  console.log('PASS: guarded MV3 production listener with synthetic menu event, exact-document challenge, extension confirmation, local Save, visible budgeted introduction, review/Again, collision review-only, archive/export. Native OS menu click and live Gemini were not exercised.');
+  console.log('PASS: guarded MV3 production listener with synthetic menu event, exact-document challenge, keyless local capture/Save, visible budgeted introduction, review/Again, collision review-only, archive/export. Native OS menu click and live Gemini were not exercised.');
 } finally {
   if (browser) await browser.close();
   await rm(scratch, { recursive: true, force: true }); // this script owns its unique scratch directory

@@ -78,4 +78,7 @@ test('local feedback is deduplicated daily and capped without retaining page tex
   expect(await shownToday(store, '2026-10-17')).toEqual([]);
   await queueEvents(store, [{ word: 'y', kind: 'seen' }], '2026-10-18');
   expect(await shownToday(store, '2026-10-18')).toEqual(['y']);
+  await queueEvents(store, [{ word: 'personal:es:00000000-0000-4000-8000-000000000001', kind: 'seen' },
+    { word: 'personal:es:00000000-0000-4000-8000-000000000002', kind: 'peek' }], '2026-10-18');
+  expect(await shownToday(store, '2026-10-18')).toEqual(['y', 'personal:es:00000000-0000-4000-8000-000000000001']);
 });

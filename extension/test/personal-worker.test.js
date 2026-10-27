@@ -316,6 +316,20 @@ test('production menu listener, one-use save, stable review history and archive/
     expect(data.personalVocabularyV1.history.es.learning).toEqual({ day: localDay(), count: 0, pending: [] });
     expect(data.personalVocabularyV1.history.es.cards[shimmerSaved.id].introGateDay).toBe(localDay());
 
+    // Canonical generated-language casing remains part of personal identity.
+    data.languagePacks['pt-BR'] = { words: Array.from({ length: 20 }, (_, i) => ({
+      fr: `forma${i}`, en: `anchor${i}`, hint: 'form', level: i < 10 ? 1 : 2,
+    })) };
+    expect((await send({ type: 'save', settings: { language: 'pt-BR' } }, popup)).ok).toBe(true);
+    const regionalNonce = await click('gleam');
+    const regionalSaved = await send({ type: 'captureSave', nonce: regionalNonce,
+      direction: 'en-to-target', source: 'gleam', target: 'brilho', sense: '' }, captureSender(regionalNonce));
+    expect(regionalSaved.ok).toBe(true);
+    expect(data.personalVocabularyV1.entries.find((entry) => entry.id === regionalSaved.id).language).toBe('pt-BR');
+    expect((await send({ type: 'personalList' }, captureSender(regionalNonce))).entries
+      .find((entry) => entry.id === regionalSaved.id).reviewOnly).toBe(false);
+    await send({ type: 'save', settings: { language: 'es' } }, popup);
+
     alive = false;
     const missing = await click('dazzle');
     expect((await send({ type: 'captureDraft', nonce: missing }, captureSender(missing))).error).toMatch(/document|selection/i);
