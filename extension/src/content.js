@@ -209,7 +209,7 @@ async function openCue(span) {
             status.textContent = 'Rating was not saved. Try again or dismiss.';
           }
         });
-        firstRating ||= rated;
+        if (rating === 'hard') firstRating = rated; // preserve the prior keyboard focus
       }
       firstRating?.focus();
     } catch {

@@ -136,19 +136,10 @@ test('worker owns review access, persistence, and raced rating serialization', a
     failReviewWrite = false;
     const missReplies = await Promise.all([
       dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review),
-      dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'hard' }, review),
+      dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review),
     ]);
     expect(missReplies.filter((r) => r.ok)).toHaveLength(1);
     expect(missReplies.filter((r) => r.error)).toHaveLength(1);
-    // Ordering inside a concurrent race is nondeterministic. If Hard won,
-    // run a separate valid miss at its due boundary to inspect Again itself.
-    if (data[REVIEW_KEY].cards.y.interval === 1) {
-      now += DAY_MS;
-      data[REVIEW_KEY].current = null;
-      const retry = (await dispatch({ type: 'reviewNext' }, review)).card;
-      await dispatch({ type: 'reviewReveal', ticket: retry.ticket }, review);
-      expect((await dispatch({ type: 'reviewRate', ticket: retry.ticket, rating: 'again' }, review)).ok).toBe(true);
-    }
     const savedMiss = structuredClone(data[REVIEW_KEY]);
     expect(savedMiss.cards.y.due).toBe(now + 10 * 60 * 1000);
     expect(savedMiss.cards.y.interval).toBe(0);
@@ -161,6 +152,12 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(0);
     now++;
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(1);
+    const hard = (await dispatch({ type: 'reviewNext' }, review)).card;
+    expect(hard.en).toBe('and');
+    await dispatch({ type: 'reviewReveal', ticket: hard.ticket }, review);
+    expect((await dispatch({ type: 'reviewRate', ticket: hard.ticket, rating: 'hard' }, review)).ok).toBe(true);
+    expect(data[REVIEW_KEY].cards.y.due).toBe(now + DAY_MS);
+    expect(data[REVIEW_KEY].cards.y.interval).toBe(1);
   } finally {
     Object.assign(globalThis, saved);
   }

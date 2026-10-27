@@ -3,6 +3,7 @@ import { cleanReview, introduce, beginInline, revealInline, finishInline, nextRe
 import { cleanLearning, remaining, policyWords, commitLearning, acknowledgeIntroduction,
   releaseIntroduction, futureBudgetDay } from '../src/learning.js';
 import { capSwaps } from '../src/levels.js';
+import { localDay } from '../src/events.js';
 
 const words = [
   { fr: 'y', en: 'and', hint: 'ee' },
@@ -206,6 +207,23 @@ test('inline Again is bound to its revealed document and revision, with a ten-mi
   expect(finishInline(state, ticket, sender, revision, now, 'again')).toBeNull(); // duplicate
   expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000 - 1)).toBeNull();
   expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000)).toHaveProperty('ticket');
+});
+
+test('Again cannot bypass the same-local-day automatic cue guard, while manual review remains due', () => {
+  const today = localDay(new Date(now));
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 0, reviews: 0, introducedDay: today,
+    introGateDay: today };
+  const first = nextReview(state, [words[2]], now, () => 'manual-ticket');
+  expect(revealReview(state, [words[2]], first.ticket, now)?.fr).toBe('libro');
+  expect(rateReview(state, first.ticket, 'again', now, true)?.due).toBe(now + 10 * 60 * 1000);
+  expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000)).toBeNull();
+  const nextMidnight = new Date(now);
+  nextMidnight.setHours(24, 0, 0, 0);
+  expect(beginInline(state, 'libro', sender, revision, nextMidnight.getTime() - 1)).toBeNull();
+  expect(nextReview(state, [words[2]], now + 10 * 60 * 1000, () => 'retry-ticket')?.ticket)
+    .toBe('retry-ticket');
+  expect(beginInline(state, 'libro', sender, revision, nextMidnight.getTime())).toHaveProperty('ticket');
 });
 
 test('a familiar card cannot enter the existing inline rating route', () => {

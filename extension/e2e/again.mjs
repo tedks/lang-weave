@@ -66,6 +66,9 @@ try {
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
   assert.equal(await page.locator('.fw-recall button', { hasText: 'Again' }).count(), 0);
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  assert.equal(await page.locator('.fw-recall button', { hasText: 'Hard' }).evaluate((el) => document.activeElement === el), true);
+  const callsBeforeRating = await worker.evaluate(() => globalThis.modelCalls);
+  assert.ok(callsBeforeRating >= 1);
   await page.locator('.fw-recall button', { hasText: 'Again' }).click();
   await page.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
@@ -77,22 +80,28 @@ try {
   assert.equal(rated.learning.count, 1);
   assert.equal(await cue.getAttribute('title'), null);
   assert.equal(await cue.textContent(), 'la idea');
-  const callsAfterRating = await worker.evaluate(() => globalThis.modelCalls);
+  assert.equal(await worker.evaluate(() => globalThis.modelCalls), callsBeforeRating);
   const review = await browser.newPage();
   await review.goto(`chrome-extension://${id}/src/review.html`);
-  await review.locator('#counts').getByText(/0 due/).waitFor();
+  await review.locator('#counts').getByText(/^0 due/).waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
-  await worker.evaluate(() => { globalThis.virtualNow += 10 * 60 * 1000 - 1; });
+  await worker.evaluate(() => {
+    if (!Number.isSafeInteger(globalThis.virtualNow)) throw new Error('Synthetic worker clock was lost');
+    globalThis.virtualNow += 10 * 60 * 1000 - 1;
+  });
   await review.locator('#refresh').click();
-  await review.locator('#counts').getByText(/0 due/).waitFor();
-  await worker.evaluate(() => { globalThis.virtualNow++; });
+  await review.locator('#counts').getByText(/^0 due/).waitFor();
+  await worker.evaluate(() => {
+    if (!Number.isSafeInteger(globalThis.virtualNow)) throw new Error('Synthetic worker clock was lost');
+    globalThis.virtualNow++;
+  });
   await review.locator('#refresh').click();
   await review.locator('#prompt').getByText('the idea').waitFor();
   assert.equal(await review.locator('#solution').isHidden(), true);
   await review.locator('#reveal').click();
   await review.locator('#solution').waitFor({ state: 'visible' });
   assert.equal(await review.locator('[data-rating="again"]').isVisible(), true);
-  assert.equal(await worker.evaluate(() => globalThis.modelCalls), callsAfterRating);
+  assert.equal(await worker.evaluate(() => globalThis.modelCalls), callsBeforeRating);
   console.log('PASS: guarded MV3 synthetic inline Again retains history/budget, waits exact virtual ten minutes, then permits standalone review without another model call or immediate cue.');
 } finally {
   if (browser) await browser.close();

@@ -73,6 +73,9 @@ test('Again resets day interval and Easy streak, then becomes due at the ten-min
   expect(rateReview(state, 'again-ticket', 'again', now)).toEqual({ due: now + 10 * 60 * 1000, interval: 0 });
   expect(state.cards.y).toEqual({ due: now + 10 * 60 * 1000, interval: 0, reviews: 8,
     easyStreak: 0, introducedDay: '2026-10-16', introGateDay: '2026-10-17' });
+  const reloaded = cleanReview(structuredClone(state), words, now).cards.y;
+  expect(reloaded).toEqual({ ...state.cards.y, easyStreak: undefined });
+  expect(reloaded.easyStreak ?? 0).toBe(0); // zero is omitted by legacy cleaning
   expect(rateReview(state, 'again-ticket', 'again', now)).toBeNull(); // duplicate
   expect(nextReview(state, words, now + 10 * 60 * 1000 - 1)).toBeNull();
   expect(nextReview(state, words, now + 10 * 60 * 1000, () => 'retry-ticket')).toEqual({

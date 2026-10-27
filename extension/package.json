@@ -7,6 +7,7 @@
   "scripts": {
     "test": "bun test",
     "test:browser": "node e2e/smoke.mjs",
+    "test:again": "node e2e/again.mjs",
     "test:highlights": "node e2e/highlights.mjs"
   },
   "devDependencies": {
