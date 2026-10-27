@@ -64,3 +64,17 @@ log_events:
     package, all exact-head gates/convergence required. recall-again-rating closed
     fixed; parent remains in progress, personal capture queued. No fleet release or
     activation change.
+- time: 2026-10-27T17:10:39-00:00
+  who: Ted Smith
+  what: commented
+  comment: Adaptive PR13 ACCEPTED/NORMAL MERGED d92a8a4cd1cd8cd314e0d6c5d4af313df0c9ce3f,
+    parents369eab4/d20167b and identical tested tree f720fbeb28399bfc2c4e112f75e0d5fce3131816
+    verified. Root HOLD resolved with post-await generation checks, both original
+    probes separately PASS;34focusedBun366assertions/91Python/version/diff/guarded
+    adaptive Chromium PASS. Lead160Bun3144/full gates and provider convergence accepted.
+    Public https://github.com/tedks/lang-weave/pull/13#issuecomment-6448402872. adaptive-working-vocabulary
+    closed fixed; parent in progress. Fresh personal-word-capture package from accepted
+    main prepared for selection menu/extension-owned explicit confirmation/local manual
+    unknowns/stable personal history and normal learning budgets; additive personal
+    storage authorized, no existing-card migration or external lexical import. No
+    fleet/activation change; downgrade unknown-card note retained.
