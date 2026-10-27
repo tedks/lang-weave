@@ -39,3 +39,16 @@ log_events:
     selection flow confirms meaning/translation before local save. Root owns integration/normal
     merge/release; no new release or fleet change. Dispatch complete; implementation
     and audit remain in progress.'
+- time: 2026-10-27T16:09:58-00:00
+  who: Ted Smith
+  what: commented
+  comment: CTO accepted vocabulary-source-audit as bounded read-only evidence, including
+    full-history versus working-candidate separation. Adopt bundled 226/Beginner30
+    plus future manual user entries for first slice; external FreeDict/Wiktionary
+    imports remain deferred pending provenance/distribution review, not a product
+    approval queue. Fresh adaptive-vocabulary Lead dispatched for independent catalog/selector
+    preparation now, runtime integration held for immutable CLEAN/gated Again lower
+    or normal merged main. This parallel preparation bends original after-Again sequence
+    without weakening final integration gates. personal-word-capture stays queued
+    behind stable catalog contract. Again remains in progress; no source release/fleet
+    change.
