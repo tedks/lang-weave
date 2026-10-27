@@ -48,5 +48,17 @@ log_events:
     synchronous epoch repair, paired held-await regressions/mutations, consumer sweep,
     repair-delta council and exact-head replacement gates. No merge/fleet action;
     personal capture remains queued.'
+- time: 2026-10-27T17:06:20-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Root acceptance hold on 2699a36 resolved at replacement immutable pushed
+    d20167b4e83e5ffacababc232b5eab43b96bbd31, PR #13. Final gradual document lookup
+    now completes before synchronous permission/settings/day epoch checks. Root held-encounter
+    and post-count prefetch probes RED on old order, GREEN separately on new head;
+    branch paired held tests include revoke/remove-regrant/site-off and positive encounter/prefetch/fresh/cache
+    controls, with mutation RED/restored. Exact-head frozen Bun160/3144, Python91,
+    version0.9.0,35blocks/diff and guarded Chromium full suite PASS. Native OpenAI
+    and foreign Anthropic repair/final deltas CLEAN, Google actual quota empty. Ready
+    for root re-acceptance and normal merge; no deploy.'
 blocked_by:
 - vocabulary-source-audit
