@@ -1,0 +1,22 @@
+id: recall-again-rating
+title: Add an explicit Again rating for failed recall
+desc: Fresh Lead owns bounded Again/miss implementation at current0.7.2. Distinguish
+  no recall from Hard, preserve historical cards/reviews and success streak reset,
+  schedule bounded short relearning (default10minutes), consistent inline/standalone
+  controls after answer reveal. No introduction allowance charge, immediate quiz loop,
+  new model call or privacy/catalog scope. Paired/mutation tests, exact-head full
+  gates and provider council fixpoint; root accepts/normal merges. Expected0.8.0.
+  No fleet action by lane.
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T15:58:37-00:00
+references: []
+log_events:
+- time: 2026-10-27T15:58:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
