@@ -15,8 +15,8 @@ async function heldLookup({ name, lookup, change, prime = false }) {
   } };
   const messages = [], removed = [], added = [];
   const on = (listeners = []) => ({ addListener: (fn) => listeners.push(fn) });
-  let origins = ['<all_urls>'], lookups = 0, targetLookup = prime ? 0 : lookup;
-  let releaseLookup, enteredLookup;
+  let origins = ['<all_urls>'], lookups = 0, encounterReads = 0, targetLookup = prime ? 0 : lookup;
+  let releaseLookup, enteredLookup, heldCaller = '';
   let fetches = 0;
   try {
     globalThis.chrome = {
@@ -24,6 +24,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
         async setAccessLevel() {},
         async get(keys) {
           const pick = typeof keys === 'string' ? [keys] : keys || Object.keys(data);
+          if (pick.includes('vocabularyEncounters')) encounterReads++;
           return structuredClone(Object.fromEntries(pick.filter((key) => key in data)
             .map((key) => [key, data[key]])));
         },
@@ -35,6 +36,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
       tabs: { get: async () => {
         lookups++;
         if (lookups === targetLookup) {
+          heldCaller = new Error().stack || '';
           enteredLookup();
           await new Promise((resolve) => { releaseLookup = resolve; });
         }
@@ -69,6 +71,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
     const request = send(message);
     await Promise.race([entered, new Promise((_, reject) => setTimeout(() => reject(new Error('Tab lookup not held')), 2000))]);
     expect(lookups).toBe(targetLookup);
+    expect(heldCaller).toContain('liveGradualDocument'); // second lookup within stillSafe
     // The ordinal also has to represent the intended gate. If a new tab
     // lookup shifts the sequence, these phase assertions fail instead of
     // silently testing an earlier authorization point.
@@ -77,6 +80,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
       expect(data.recallReview.cards['la idea'].reviews).toBe(2);
       expect(Object.keys(data).some((key) => key.startsWith('c:'))).toBe(true);
     } else if (lookup === 6) {
+      expect(encounterReads).toBe(1); // the final check after the encounter read
       expect(data.vocabularyEncounters).toBeUndefined();
       expect(data.modelCalls).toBeUndefined();
     } else if (lookup === 13) {
