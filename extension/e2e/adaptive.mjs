@@ -60,7 +60,7 @@ try {
     }
     throw new Error(`Timed out waiting for visible introduction of ${word}`);
   };
-  await page.waitForTimeout(350);
+  await page.waitForTimeout(1500);
   const beforeVisible = await saved();
   assert.equal(beforeVisible.recallReview?.learning?.count || 0, 0);
   assert.equal(beforeVisible.recallReview?.cards?.['la idea'], undefined);
@@ -82,7 +82,8 @@ try {
   });
   const beforeThrottle = (await calls()).length;
   await page.goto('https://reading.example/question');
-  await page.waitForTimeout(350);
+  // Give the worker a bounded interval to expose a delayed, unwanted request.
+  await page.waitForTimeout(1500);
   assert.equal(await page.locator('#reading .fw-word').count(), 0);
   assert.equal((await calls()).length, beforeThrottle);
   assert.equal((await saved()).recallReview.cards['la pregunta'], undefined);

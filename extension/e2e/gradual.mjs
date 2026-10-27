@@ -183,7 +183,7 @@ try {
     p.textContent = 'We discussed the question with friends every week.';
     document.querySelector('main').append(p);
   });
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(1500); // bounded observation for a delayed unwanted model call
   assert.equal(await worker.evaluate(() => globalThis.calls.some((text) => text.includes('the question'))), false);
   assert.equal(await page.locator('#question .fw-word').count(), 0);
   await worker.evaluate(async () => {

@@ -16,12 +16,12 @@ export function cleanEncounters(raw, allowedIds, day) {
   const bucket = heldDay === raw?.day && saved > today ? savedBucket : currentBucket;
   const counts = Object.create(null);
   const source = raw?.version === 1 && raw.counts && typeof raw.counts === 'object' && !Array.isArray(raw.counts) ? raw.counts : {};
-  let kept = 0;
-  for (const [id, value] of Object.entries(source).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
-    if (!allowed.has(id) || !Number.isSafeInteger(value) || value < 1 || value > MAX_ENCOUNTER_COUNT) continue;
-    const decayed = Math.max(0, value - elapsed);
-    if (decayed && kept < MAX_ENCOUNTER_IDS) { counts[id] = decayed; kept++; }
-  }
+  const eligible = Object.entries(source).filter(([id, value]) => allowed.has(id) &&
+    Number.isSafeInteger(value) && value >= 1 && value <= MAX_ENCOUNTER_COUNT)
+    .map(([id, value]) => [id, Math.max(0, value - elapsed)])
+    .filter(([, value]) => value > 0)
+    .sort(([a, av], [b, bv]) => bv - av || (a < b ? -1 : a > b ? 1 : 0));
+  for (const [id, value] of eligible.slice(0, MAX_ENCOUNTER_IDS)) counts[id] = value;
   const touched = heldDay === raw?.day && Array.isArray(raw?.touched)
     ? [...new Set(raw.touched.filter((id) => typeof id === 'string' && allowed.has(id)))].slice(0, MAX_ENCOUNTER_IDS) : [];
   return { version: 1, day: heldDay, bucket, counts, touched };

@@ -99,14 +99,22 @@ const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.sett
 async function safePageTitle(msg, sender) {
   // Content scripts are registered for the top frame only. Fail closed if a
   // frame nevertheless reaches this handler: its live title is not tab.title.
-  if (sender.frameId && sender.frameId !== 0 || sender.documentLifecycle && sender.documentLifecycle !== 'active') return false;
+  if (sender.frameId && sender.frameId !== 0) return false;
   if (isZeroFrench(msg.title || '') || isZeroFrench(sender.tab?.title || '')) return false;
   if (!Number.isSafeInteger(sender.tab?.id)) return false;
   try {
     const tab = await chrome.tabs.get(sender.tab.id);
-    return typeof tab?.title === 'string' && !isZeroFrench(tab.title) &&
-      (!tab.url || tab.url === sender.url);
+    return typeof tab?.title === 'string' && !isZeroFrench(tab.title);
   } catch { return false; } // a closed/inaccessible tab cannot authorize disclosure
+}
+
+async function liveGradualDocument(sender) {
+  if (sender.frameId !== 0 || !sender.documentId ||
+      sender.documentLifecycle && sender.documentLifecycle !== 'active') return false;
+  try {
+    const tab = await chrome.tabs.get(sender.tab?.id);
+    return typeof tab?.url === 'string' && tab.url === sender.url;
+  } catch { return false; }
 }
 
 async function broadcast(type = 'config') {
@@ -124,7 +132,8 @@ async function swaps(msg, sender) {
     const latest = await context();
     return latest.revision === ctx.revision && activeOn(latest, sender.url) &&
       await safePageTitle(msg, sender) && permissionGeneration === consentGeneration &&
-      (!ctx.settings.gradual || settingsGeneration === settingsAtStart) && (!policyDay || localDay() === policyDay);
+      (!ctx.settings.gradual || settingsGeneration === settingsAtStart && await liveGradualDocument(sender)) &&
+      (!policyDay || localDay() === policyDay);
   };
   if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url)) return { results: {}, stale: true };
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
@@ -132,17 +141,17 @@ async function swaps(msg, sender) {
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
   if (!items.length) return { results: {} };
   if (!(await safePageTitle(msg, sender))) return { results: Object.fromEntries(items.map((i) => [i.key, []])) };
+  if (ctx.settings.gradual && !(await liveGradualDocument(sender))) return { results: {}, stale: true };
   const now = Date.now();
   const day = localDay(new Date(now));
   policyDay = ctx.settings.gradual ? day : '';
   let candidates, state, shown;
   if (ctx.settings.gradual) {
-    if (sender.frameId !== 0 || !sender.documentId ||
-        sender.documentLifecycle && sender.documentLifecycle !== 'active') return { results: {}, stale: true };
     // The content script sends only locally readable, near-viewport text. The
     // worker independently rechecks consent, top frame, title and revision at
     // each awaited storage boundary before recording a coarse catalog signal.
     const entries = catalogEntries(ctx.words, ctx.scope);
+    const allEntries = catalogEntries(ctx.allWords, ctx.scope);
     const matches = matchingEntries(items, entries);
     if (!matches.length) return locked(async () => await stillSafe()
       ? { results: Object.fromEntries(items.map((i) => [i.key, []])) } : { results: {}, stale: true });
@@ -153,7 +162,7 @@ async function swaps(msg, sender) {
         const scoped = scopedStorage(chromeStorage, ctx.scope);
         const { [ENCOUNTERS_KEY]: raw } = await scoped.get([ENCOUNTERS_KEY]);
         if (!(await stillSafe())) return null;
-        const aggregate = cleanEncounters(raw, entries.map((entry) => entry.id), day);
+        const aggregate = cleanEncounters(raw, allEntries.map((entry) => entry.id), day);
         const before = JSON.stringify(aggregate);
         countEncounters(aggregate, matches.map((entry) => entry.id), day);
         if (JSON.stringify(aggregate) !== before) await scoped.set({ [ENCOUNTERS_KEY]: aggregate });
@@ -164,9 +173,9 @@ async function swaps(msg, sender) {
       shown = await shownToday(scopedStorage(chromeStorage, ctx.scope));
     } catch { return { results: {}, error: 'Local reading storage failed' }; }
     if (!(await stillSafe())) return { results: {}, stale: true };
-    candidates = selectWorkingSet({ batch: items, words: ctx.words, fullWords: ctx.allWords,
+    candidates = selectWorkingSet({ batch: items, words: ctx.words,
       scope: ctx.scope, state, settings: ctx.settings, now, day, revision: ctx.revision,
-      encounters: counts, level: ctx.level, language: ctx.language, density: ctx.settings.density,
+      encounters: counts, sender, level: ctx.level, language: ctx.language, density: ctx.settings.density,
       shownToday: shown });
   } else {
     candidates = policyWords(ctx.words, null, ctx.settings, now, day, ctx.revision);

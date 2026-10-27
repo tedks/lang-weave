@@ -86,7 +86,10 @@ export function commitLearning(state, results, settings, sender, revision, now =
   const left = remaining(state.learning, day, settings.newWordsPerDay, now, revision);
   let added = 0;
   const batch = new Map();
-  const reserved = new Set(activeReservations(state.learning, day, now, revision).map((p) => p.word));
+  const reservations = activeReservations(state.learning, day, now, revision);
+  const reserved = new Set(reservations.map((p) => p.word));
+  const owned = new Map(reservations.filter((p) => sender?.documentId && p.ownerKey ===
+    introductionOwner(p.ticket, sender, revision)).map((p) => [p.word, p]));
   const output = {};
   for (const [key, swaps] of Object.entries(results)) {
     output[key] = [];
@@ -101,9 +104,10 @@ export function commitLearning(state, results, settings, sender, revision, now =
           ...(card.due <= now && settings.inlineRecall && (!(card.introGateDay || card.introducedDay) ||
             (card.introGateDay || card.introducedDay) < day)
             ? { practice: true } : {}) });
-      } else if (typeof swap.word === 'string' && !reserved.has(swap.word) && (batch.has(swap.word) || added < left) &&
+      } else if (typeof swap.word === 'string' && (owned.has(swap.word) ||
+          !reserved.has(swap.word) && (batch.has(swap.word) || added < left)) &&
           sender?.documentId && Number.isSafeInteger(sender.tab?.id) && Number.isSafeInteger(sender.frameId)) {
-        let reservation = batch.get(swap.word);
+        let reservation = batch.get(swap.word) || owned.get(swap.word);
         if (!reservation) {
           const id = ticket();
           reservation = { word: swap.word, ticket: id, day, until: now + RESERVATION_MS,
@@ -112,6 +116,7 @@ export function commitLearning(state, results, settings, sender, revision, now =
           state.learning.pending.push(reservation);
           added++;
         }
+        batch.set(swap.word, reservation);
         output[key].push({ ...swap, status: 'new', introTicket: reservation.ticket });
       }
     }

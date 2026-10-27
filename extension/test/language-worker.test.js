@@ -695,10 +695,14 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     const turkish = await dispatch({ type: 'config' }, page);
     expect(await dispatch({ type: 'event', word: 'İstanbul0', event: 'seen', revision: turkish.revision }, page)).toEqual({ ok: true });
     expect(data[`lang:tr:${data.languagePacks.tr.version}:readingEvents`][0].word).toBe('istanbul0');
+    const encounterKey = `lang:tr:${data.languagePacks.tr.version}:vocabularyEncounters`;
+    data[encounterKey] = { version: 1, day: '2026-10-27', bucket: 1,
+      counts: { 'tr:legacy:istanbul0': 1 }, touched: ['tr:legacy:istanbul0'] };
     expect((await dispatch({ type: 'removeLanguage', code: 'fr' }, popup)).error).toMatch(/selected/);
     expect(data.languagePacks.fr).toBeDefined();
     expect((await dispatch({ type: 'removeLanguage', code: 'tr' }, popup)).ok).toBe(true);
     expect(data.settings.language).toBe('es');
+    expect(data[encounterKey]).toBeUndefined();
 
     // A permission remove/regrant round trip must not revive an old page token.
     const beforePermission = await dispatch({ type: 'config' }, page);

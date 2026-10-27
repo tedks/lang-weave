@@ -129,9 +129,24 @@ test('worker records only eligible catalog encounters and blocks held-await revo
     expect(data.recallReview.cards['la idea'].reviews).toBe(0);
     await ask(idea, revision);
     expect(data.vocabularyEncounters.counts[entryId('es', { fr: 'la idea' })]).toBe(1);
+    await send({ type: 'save', settings: { levelOverride: 2 } }, popup);
+    revision = (await send({ type: 'config' })).revision;
+    await ask('The window is near the book today.', revision);
+    const windowId = entryId('es', { fr: 'la ventana' });
+    expect(data.vocabularyEncounters.counts[windowId]).toBe(1);
+    await send({ type: 'save', settings: { levelOverride: 1 } }, popup);
+    revision = (await send({ type: 'config' })).revision;
+    await ask(idea, revision);
+    expect(data.vocabularyEncounters.counts[windowId]).toBe(1);
     const before = modelCalls;
     const denied = await ask(question, revision, { ...page, frameId: 1, documentId: 'subframe' });
     expect(Object.values(denied.results)).toEqual([[]]);
     expect(modelCalls).toBe(before);
+    await send({ type: 'save', settings: { gradual: false } }, popup);
+    revision = (await send({ type: 'config' })).revision;
+    const offMode = await ask(idea, revision, { ...page, url: 'https://reading.example/old-url',
+      documentLifecycle: 'prerender' });
+    expect(offMode.stale).toBeUndefined();
+    expect(Object.values(offMode.results).flat().some((swap) => swap.word === 'la idea')).toBe(true);
   } finally { Object.assign(globalThis, prior); }
 }, 30000);

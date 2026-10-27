@@ -3,10 +3,14 @@ import { catalogEntries, englishAnchors, matchingEntries, entryId } from '../src
 import { BACKLOG_THROTTLE, MAX_CANDIDATES, MAX_REQUEST_CHARS, MAX_VOCABULARY_CHARS,
   requestChars, reviewBacklog, selectWorkingSet, vocabularyChars } from '../src/adaptive.js';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
-import { cleanReview } from '../src/review.js';
+import { cleanReview, rateReview } from '../src/review.js';
+import { commitLearning, introductionOwner } from '../src/learning.js';
 import { memoryStorage } from '../src/cache.js';
 import { scopedStorage } from '../src/scope.js';
 import { cleanEncounters, countEncounters, ENCOUNTERS_KEY, MAX_ENCOUNTER_COUNT, MAX_ENCOUNTER_IDS } from '../src/encounters.js';
+import { hashKey } from '../src/hash.js';
+import { buildRequest } from '../src/gemini.js';
+import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from '../src/prompt.js';
 
 const now = Date.parse('2026-10-27T14:00:00Z');
 const day = '2026-10-27';
@@ -46,17 +50,22 @@ test('due and recent difficulty lead active and new with stable ties and passage
   expect(state.cards['la historia']).toBeUndefined();
 });
 
-test('full-scope backlog throttles fresh at the exact boundary and resumes after review', () => {
+test('eligible-level backlog throttles fresh at the exact boundary and resumes after real review', () => {
   const cards = Object.fromEntries(L2_WORDS.slice(0, BACKLOG_THROTTLE).map((w) =>
     [w.fr, { due: now - 1, interval: 1, reviews: 1 }]));
   const state = cleanReview({ version: 1, cards }, L2_WORDS, now);
   const passage = batch('The window and the book are here today with the cat.');
   expect(reviewBacklog(state, L2_WORDS, now)).toBe(5);
   expect(select({ batch: passage, state }).some((w) => w.status === 'new')).toBe(false);
-  state.cards[L2_WORDS[0].fr].due = now + 2 * 86400000;
-  state.cards[L2_WORDS[0].fr].interval = 2;
+  state.current = { word: L2_WORDS[0].fr, ticket: 'review-ticket', revealed: true };
+  expect(rateReview(state, 'review-ticket', 'medium', now, true)?.interval).toBeGreaterThan(1);
   expect(reviewBacklog(state, L2_WORDS, now)).toBe(4);
   expect(select({ batch: passage, state }).some((w) => w.status === 'new')).toBe(true);
+  const beginner = cleanReview({ version: 1, cards: Object.fromEntries(L2_WORDS.slice(30, 35).map((w) =>
+    [w.fr, { due: now - 1, interval: 1, reviews: 1 }])) }, L2_WORDS, now);
+  expect(reviewBacklog(beginner, L2_WORDS, now)).toBe(5);
+  expect(select({ batch: batch('The window is near the book today.'), state: beginner,
+    words: L1_WORDS, fullWords: L2_WORDS }).some((w) => w.status === 'new')).toBe(true);
   state.learning = { day, count: 5, pending: [] };
   expect(select({ batch: passage, state }).some((w) => w.status === 'new')).toBe(false);
 });
@@ -66,7 +75,8 @@ test('candidate, fresh, vocabulary and entire request bounds never truncate an e
   const text = words.map((w) => w.en).join(' ');
   const chosen = select({ batch: batch(text), words, fullWords: words });
   expect(chosen).toHaveLength(4);
-  expect(chosen.every((w) => words.includes(words.find((entry) => entry.fr === w.fr)))).toBe(true);
+  expect(chosen.every((w) => words.some((entry) =>
+    entry.fr === w.fr && entry.en === w.en && entry.hint === w.hint))).toBe(true);
   const state = cleanReview({ version: 1, cards: Object.fromEntries(words.map((w) =>
     [w.fr, { due: now - 1, interval: 2, reviews: 2 }])) }, words, now);
   const due = select({ batch: batch(text), words, fullWords: words, state });
@@ -77,6 +87,53 @@ test('candidate, fresh, vocabulary and entire request bounds never truncate an e
   expect(select({ batch: batch(text), words: [{ fr: 'x'.repeat(3100), en: 'anchor0' }],
     fullWords: words })).toEqual([]);
   expect(select({ batch: batch('x'.repeat(26000) + ' anchor0'), words, fullWords: words })).toEqual([]);
+});
+
+test('full request measurement includes every worker key as the dispatched passage ID', () => {
+  const word = { fr: 'la idea', en: 'the idea', hint: 'x' };
+  const makeBatch = (quotes) => Array.from({ length: 8 }, (_, i) => {
+    const text = `We discussed the idea with friends today. ${'"'.repeat(quotes)} ${i}`;
+    return { key: `rev:${hashKey(text)}`, text };
+  });
+  const actualChars = (batch) => JSON.stringify(buildRequest({
+    system: buildSystemPrompt(1, [{ ...word, status: 'new' }], [], 'es', 'normal'),
+    user: buildUserContent(batch.map(({ key, text }) => ({ id: key, text }))), schema: RESPONSE_SCHEMA,
+  })).length;
+  const withoutIds = (batch) => JSON.stringify(buildRequest({
+    system: buildSystemPrompt(1, [{ ...word, status: 'new' }], [], 'es', 'normal'),
+    user: buildUserContent(batch), schema: RESPONSE_SCHEMA,
+  })).length;
+  const boundary = Array.from({ length: 201 }, (_, i) => 600 + i).find((n) =>
+    actualChars(makeBatch(n)) > MAX_REQUEST_CHARS && withoutIds(makeBatch(n)) <= MAX_REQUEST_CHARS);
+  expect(boundary).toBeDefined();
+  const allowed = makeBatch(boundary - 1), overflowing = makeBatch(boundary);
+  expect(allowed.every(({ text }) => text.length <= 2000)).toBe(true);
+  expect(actualChars(allowed)).toBeLessThanOrEqual(MAX_REQUEST_CHARS);
+  expect(select({ batch: allowed, words: [word], fullWords: [word], level: 1 })).toHaveLength(1);
+  expect(actualChars(overflowing)).toBeGreaterThan(MAX_REQUEST_CHARS);
+  expect(select({ batch: overflowing, words: [word], fullWords: [word], level: 1 })).toEqual([]);
+});
+
+test('an unacknowledged reservation can be reoffered only to its document without another slot', () => {
+  const word = L1_WORDS.find((entry) => entry.fr === 'la idea');
+  const sender = { documentId: 'first-document', tab: { id: 7 }, frameId: 0 };
+  const other = { ...sender, documentId: 'second-document' };
+  const ticket = '00000000-0000-4000-8000-000000000001';
+  const state = cleanReview(null, L2_WORDS, now);
+  state.learning = { day, count: 0, pending: [{ word: word.fr, ticket, day,
+    until: now + 30000, revision: 'rev', ownerKey: introductionOwner(ticket, sender, 'rev') }] };
+  const options = { batch: batch('We discussed the idea with friends today.'),
+    words: L1_WORDS, state, settings: { gradual: true, newWordsPerDay: 1 } };
+  expect(select({ ...options, sender }).map((candidate) => candidate.fr)).toContain(word.fr);
+  expect(select({ ...options, sender: other }).some((candidate) => candidate.fr === word.fr)).toBe(false);
+  const before = structuredClone(state.learning);
+  const output = commitLearning(state, { one: [{ word: word.fr, original: 'the idea' }] },
+    options.settings, sender, 'rev', now, day);
+  expect(output.one[0].introTicket).toBe(ticket);
+  expect(state.learning).toEqual(before);
+  expect(commitLearning(state, { one: [{ word: word.fr }] }, options.settings,
+    other, 'rev', now, day).one).toEqual([]);
+  expect(state.cards[word.fr]).toBeUndefined();
 });
 
 test('full history survives many candidate windows, level/scope toggles and restart', async () => {
@@ -144,5 +201,9 @@ test('encounters store only coarse saturated entry counts and do not change revi
     counts: Object.fromEntries(many.map((key) => [key, 6])), touched: many }, many, day);
   expect(Object.keys(bounded.counts)).toHaveLength(MAX_ENCOUNTER_IDS);
   expect(bounded.touched).toHaveLength(MAX_ENCOUNTER_IDS);
+  const preferred = cleanEncounters({ version: 1, day, bucket: aggregate.bucket,
+    counts: { ...Object.fromEntries(many.map((key) => [key, 1])), 'es:legacy:z-last': 7 },
+    touched: many }, [...many, 'es:legacy:z-last'], day);
+  expect(preferred.counts['es:legacy:z-last']).toBe(7);
   expect(ENCOUNTERS_KEY).toBe('vocabularyEncounters');
 });
