@@ -13,8 +13,8 @@ type: task
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-27T15:58:37-00:00
 references: []
 log_events:
@@ -58,6 +58,11 @@ log_events:
     lexical data imported. No source/PR changes, bulk dump, profile, live model or
     legal/linguistic certification. Root owns adoption and implementation dispatch;
     no new product ruling needed for bounded first slice.'
+- time: 2026-10-27T16:06:44-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Read-only primary-source and current-interface audit delivered in private
+    report; root retains adoption and implementation.
 blocks:
 - personal-word-capture
 - adaptive-working-vocabulary
