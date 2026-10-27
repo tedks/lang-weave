@@ -130,9 +130,13 @@ async function swaps(msg, sender) {
   let policyDay = '';
   const stillSafe = async () => {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url) &&
-      await safePageTitle(msg, sender) && permissionGeneration === consentGeneration &&
-      (!ctx.settings.gradual || settingsGeneration === settingsAtStart && await liveGradualDocument(sender)) &&
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) ||
+        !(await safePageTitle(msg, sender)) ||
+        (ctx.settings.gradual && !(await liveGradualDocument(sender)))) return false;
+    // Permission and gradual settings events can occur during either tab lookup.
+    // Keep these checks synchronous and last before a write, fetch or delivery.
+    return permissionGeneration === consentGeneration &&
+      (!ctx.settings.gradual || settingsGeneration === settingsAtStart) &&
       (!policyDay || localDay() === policyDay);
   };
   if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url)) return { results: {}, stale: true };
