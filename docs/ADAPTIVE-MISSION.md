@@ -31,3 +31,4 @@ Authority: bounded source, tests, docs, version and harness repairs on this bran
 ## Evidence log
 
 - 2026-10-27: Confirmed assigned worktree and clean `adaptive-vocabulary` branch at baseline. Read role doctrine, design and accepted source audit. Identified `cleanReview` pruning hazard; chose full-catalog bridge rather than an unrequested V2 migration.
+- 2026-10-27: Early draft PR #13 opened from a docs-only checkpoint. Published full catalog/history versus ephemeral candidate contract to root and Again Lead with submitted/queued receipts. Implemented independent exact-form catalog IDs, local English-anchor matching, deterministic capped selector and coarse saturated encounter aggregate. A valid unknown V1 card now survives cleaning; review queues still use current-level words. These modules are not yet connected to the worker, pending accepted Again lower. No personal overlay or V2 migration.
