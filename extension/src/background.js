@@ -943,7 +943,6 @@ async function captureSave(msg) {
       archived: result.entry.archived, reviewOnly };
     completedCaptures.set(msg.nonce, { at: Date.now(), result: receipt });
     if (completedCaptures.size > 20) completedCaptures.delete(completedCaptures.keys().next().value);
-    if (ctx.revision !== (await context()).revision) void broadcast('retry').catch(() => {});
     return receipt;
   });
 }

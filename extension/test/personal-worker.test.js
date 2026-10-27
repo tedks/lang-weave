@@ -15,7 +15,8 @@ test('production menu listener, one-use save, stable review history and archive/
     documentId: 'document-one', documentLifecycle: 'active', url };
   const popup = { id, url: `chrome-extension://${id}/src/popup.html` };
   let liveUrl = url, title = 'Reading', origins = ['<all_urls>'];
-  let alive = true, challenge = true, modelCalls = 0, failPersonalWrite = false, modelEnabled = false;
+  let alive = true, challenge = true, modelCalls = 0, broadcastQueries = 0,
+    failPersonalWrite = false, modelEnabled = false;
   let holdNextTab = false, entered, release;
   globalThis.chrome = {
     storage: { local: {
@@ -41,7 +42,7 @@ test('production menu listener, one-use save, stable review history and archive/
         }
         return { id: 7, title, url: liveUrl };
       },
-      async query() { return []; },
+      async query() { broadcastQueries++; return []; },
       async create(options) { opened.push(options.url); return { id: 8 }; },
       async sendMessage(tabId, msg, options) {
         if (msg.type === 'personalCaptureChallenge' || msg.type === 'personalCaptureAlive') {
@@ -123,6 +124,10 @@ test('production menu listener, one-use save, stable review history and archive/
     expect(data.personalVocabularyV1.history.es.cards[saved.id].reviews).toBe(1);
     expect(data.personalVocabularyV1.history.es.cards[saved.id].due).toBeGreaterThan(Date.now());
 
+    // Save with a configured model must not start a reading retry or provider request.
+    data.apiKey = 'synthetic-key';
+    modelEnabled = true;
+    const beforeSaveCalls = modelCalls, beforeSaveBroadcasts = broadcastQueries;
     // A second ordinary personal entry enters the budgeted adaptive path only after visible ack.
     const shimmerNonce = await click('shimmer');
     const shimmerOwner = captureSender(shimmerNonce);
@@ -133,8 +138,9 @@ test('production menu listener, one-use save, stable review history and archive/
     const sparkSaved = await send({ type: 'captureSave', nonce: sparkNonce, direction: 'en-to-target',
       source: 'spark', target: 'chispa', sense: '' }, captureSender(sparkNonce));
     expect(sparkSaved.reviewOnly).toBe(false);
-    data.apiKey = 'synthetic-key'; // reading needs a key; capture and Save above did not
-    modelEnabled = true;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(modelCalls).toBe(beforeSaveCalls);
+    expect(broadcastQueries).toBe(beforeSaveBroadcasts);
     const revision = (await send({ type: 'config' })).revision;
     const passage = 'We saw shimmer around the quiet garden today.';
     const request = () => send({ type: 'swaps', revision,
