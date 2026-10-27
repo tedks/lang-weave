@@ -1,0 +1,21 @@
+id: personal-capture-preview
+title: Preview bundled match outcome in personal capture confirmation
+desc: Council PR14 minor UI follow-up. The confirmation page marks saved personal
+  suggestions that are review-only, but a bundled/generated suggestion does not yet
+  predict whether an exact Save links to the Spanish card or creates a separate generated-pack
+  personal ID. Capture and Save remain correct and show the actual result. Add a precise
+  pre-Save explanation without implying independent dictionary validation or changing
+  identity rules.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T17:48:16-00:00
+references: []
+log_events:
+- time: 2026-10-27T17:48:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
