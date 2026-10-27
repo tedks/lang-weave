@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Lang Weave",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
   "permissions": [
     "storage",
     "alarms",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*"
