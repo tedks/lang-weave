@@ -32,3 +32,14 @@ log_events:
     and stale/storage guards; source/test/docs/version/PR readiness only. Root retains
     acceptance, normal merge and release. Assumptions/failure modes and evidence plan
     recorded in docs/AGAIN-MISSION.md.'
+- time: 2026-10-27T16:16:18-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'TECHNICAL DONE awaiting root acceptance: ready PR #12 at immutable pushed
+    f8923914583a7c15f9316ce35cab9c0b51000e42; public exact-head gate and council record
+    https://github.com/tedks/lang-weave/pull/12#issuecomment-6447218841. OpenAI+Anthropic
+    fix-delta CLEAN; Google empty on current quota. Frozen Bun install, 146 Bun/2935
+    assertions, 91 Python, version0.8.0,35 blocks/diff, guarded Again/smoke/gradual/quota/gloss/highlights
+    PASS on final head; isolated 11-minute mutation RED. Browser evidence synthetic/virtual-clock
+    only, no live Gemini or personal profile. Root owns acceptance/normal merge/release.
+    Nonblocking test nits tracked recall-again-test-hardening.'
