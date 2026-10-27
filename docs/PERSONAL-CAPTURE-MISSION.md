@@ -1,0 +1,39 @@
+# Personal word capture (0.10.0)
+
+State: STARTED. Owner: `personal-word-capture` Lead, OpenAI gpt-6-sol. Base: accepted main `d92a8a4cd1cd8cd314e0d6c5d4af313df0c9ce3f`. Root owns acceptance, merge and rollout. This record is sanitized; it contains no captured page data.
+
+## Intent and authority
+
+On an enabled, granted, safe page, let a reader select a bounded word or short phrase, choose **Add to Lang Weave**, review a local match or type the English and target forms, and explicitly Save a local personal entry. A selected target-language phrase requires an explicit direction and English gloss. Save never introduces, reviews or masters a card. Existing visible introduction, daily budget, due/weak priority, backlog throttle, Again, reveal tickets and inline cue remain the authority for learning.
+
+Owned source, tests, this document, version and guarded browser harness may change. `contextMenus` is the one authorized new permission. No host grant, endpoint, generated lexical data, provider call, existing history migration/deletion, install, deployment or merge is authorized here. Stop and escalate a changed privacy, legacy-history or learning contract, genuine licensing uncertainty, or an exhausted approach.
+
+## Assumptions and failure modes before implementation
+
+- The selected text is untrusted browser input. A menu can appear in a denied page or frame. A page may change its selection, URL, title, DOM, site setting, permission or language while an async check is pending. Worker restart destroys any pending draft. No frame/document identifier means no capture.
+- The content script is an isolated extension context but must still check the live DOM selection. The worker verifies the exact top-frame document and current consent/title before and after every awaited lookup, then issues a one-use, short-lived nonce bound to tab, document, language, revision and source. The confirmation page cannot choose a different draft or save with a forged page/content-script message.
+- A headword is not a sense. Equality for dedup uses confirmed canonical language, English source, sense label and exact target, with NFC/case/space comparison only; accents and article-bearing display survive. Other senses of the same spelling remain distinct. Unsafe shared English anchors or target spellings are review-only until a sense-aware matcher exists; no silent spelling-index overwrite.
+- Chrome local storage can fail or race. The personal entry and its history live in **one versioned local object** and are written through the worker's existing serialization lock, so Save, archive and review updates cannot report half a commit. A failed write leaves the nonce and visible form for retry. Concurrent Save is idempotent by nonce and exact dedup.
+- Bounded local catalog: at most 300 personal entries, 80 Unicode codepoints and five words per captured selection, 80 source/target codepoints, 80 sense-label codepoints. Reject controls, format characters, markup and URL-like strings. Prompt-window limits stay `32` candidates, `3000` vocabulary chars, `25000` request chars and `4` fresh candidates; no unbounded personal text is sent to Gemini.
+
+## Identity and compatibility contract
+
+Legacy Beginner 30/Expanded 226 arrays and all existing `fr` review keys are byte/order unchanged. Generated pack version scopes remain as they are. Personal entries use a random UUID in `personalVocabularyV1` with canonical target language and a separate opaque history key `personal:<language>:<uuid>`. That key is only scheduler identity; `fr` always remains the exact display/validator target and `en` the English source. No opaque ID is sent as a target form. Personal history, learning count, current ticket and inline ticket are independent of generated-pack scope and remain in the same personal object as entries. The adapter reads the full active catalog for a language to clean/review; request candidates are a bounded subset. Archiving removes eligibility, not the ID or card. Generated pack removal only removes existing `lang:<language>:<pack version>:` data, never canonical-language personal data.
+
+The identity bridge must touch **every** `fr`-keyed consumer: cleaner, counts, manual introduction, due selection, reveal/rating/known, policy and adaptive ranking, reservations/acknowledgement, inline begin/reveal/rating, validation, encounter and event routing. Historical `fr` remains the identity for legacy entries. A personal card with a shared target spelling or English anchor is review-only; an unambiguous supported entry can enter adaptive selection. A personal phrase that the current matcher cannot prove safe is review-only and manually introducible through explicit controls. Preserve next-local-day inline cue after a visible introduction.
+
+No existing card is copied or re-keyed. Version 0.9.0 retains valid unknown V1 cards, but 0.8.0 writes may prune them; rollback by version number alone is not claimed safe. The new personal store is ignored by older versions, and export provides a local recovery snapshot. No import or deletion is included.
+
+## Capture and UI contract
+
+Menu click accepts only our menu ID, top frame, current `http(s)` document, short valid `selectionText`, and current enabled/granted/non-sensitive page. `chrome.tabs.sendMessage(tabId, challenge, {documentId, frameId: 0})` addresses the exact document. Its content script checks the live selection equals the menu text and comes entirely from connected readable prose, excluding editable/form, link, code, hidden and high-stakes passages. No page injection is attempted on a denied or unsupported page; an extension-owned page explains failure. No URL, title, surrounding passage or draft is persisted.
+
+Known local matches are suggestions, not dictionary validation. Unknown text gets manual English/target fields. The page escapes all candidate text as text nodes, shows provenance, direction and collision/review-only status, and offers Save/Cancel. Save revalidates fields, nonce, document, language/revision and permission/settings epochs after the **last** async tab lookup; failures are visible and retryable. The nonce is consumed only after successful storage. Archive/unarchive preserves ID/history; export is local versioned JSON containing only explicit personal entries, review data and provenance.
+
+## Acceptance evidence
+
+Paired model, worker and DOM tests; mutation-red guards for nonce/ownership/eligibility/history/budget; guarded real MV3 synthetic menu callback through production listener and confirmation page through save, then adaptive passage, visible acknowledgement, later review, archive/export. Browser evidence must say that a synthetic callback does not prove a physical native menu click. Frozen full Bun, Python, three-surface version, 35 blocks, diff and every guarded browser gate; provider-diverse council to fixpoint on immutable pushed head. No personal profile, key or live Gemini used.
+
+## Chrome contracts checked
+
+[contextMenus](https://developer.chrome.com/docs/extensions/reference/api/contextMenus/) documents `selectionText`, `frameId`, `editable` and menu IDs, including that items may appear on unsupported pages. [tabs.sendMessage](https://developer.chrome.com/docs/extensions/reference/api/tabs/) supports `documentId` and `frameId` targeting. [runtime.MessageSender](https://developer.chrome.com/docs/extensions/reference/api/runtime/) provides document identity/lifecycle. [storage](https://developer.chrome.com/docs/extensions/reference/api/storage/) documents local persistence and trusted-context access; the store is already restricted by `setAccessLevel`.
