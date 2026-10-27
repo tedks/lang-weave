@@ -1,0 +1,20 @@
+id: adaptive-selector-prompt-performance
+title: 'Measure and, if needed, reduce repeated full-request serialization in selectWorkingSet.
+  Council PR13 nit N-2: current bounded catalog is 226 entries and request cap is
+  25,000 characters; correctness gates pass, so optimize only with measured browser
+  latency and preserve exact full-request bound including dispatched IDs. This is
+  a nonblocking follow-up after adaptive-vocabulary acceptance.'
+desc: ""
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T16:43:54-00:00
+references: []
+log_events:
+- time: 2026-10-27T16:43:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
