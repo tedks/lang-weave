@@ -15,7 +15,8 @@ async function heldLookup({ name, lookup, change, prime = false }) {
   } };
   const messages = [], removed = [], added = [];
   const on = (listeners = []) => ({ addListener: (fn) => listeners.push(fn) });
-  let origins = ['<all_urls>'], lookups = 0, encounterReads = 0, targetLookup = prime ? 0 : lookup;
+  let origins = ['<all_urls>'], lookups = 0, encounterReads = 0, reviewReads = 0;
+  let targetLookup = prime ? 0 : lookup;
   let releaseLookup, enteredLookup, heldCaller = '';
   let fetches = 0;
   try {
@@ -25,6 +26,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
         async get(keys) {
           const pick = typeof keys === 'string' ? [keys] : keys || Object.keys(data);
           if (pick.includes('vocabularyEncounters')) encounterReads++;
+          if (pick.includes('recallReview')) reviewReads++;
           return structuredClone(Object.fromEntries(pick.filter((key) => key in data)
             .map((key) => [key, data[key]])));
         },
@@ -77,6 +79,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
     // silently testing an earlier authorization point.
     if (prime) {
       expect(fetches).toBe(1);
+      expect(reviewReads).toBe(4); // second delivery has reloaded the card before its final check
       expect(data.recallReview.cards['la idea'].reviews).toBe(2);
       expect(Object.keys(data).some((key) => key.startsWith('c:'))).toBe(true);
     } else if (lookup === 6) {
