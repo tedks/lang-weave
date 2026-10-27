@@ -1,0 +1,20 @@
+id: personal-capture-context-cost
+title: Reduce bounded context recomputation for personal vocabulary
+desc: Council PR14 minor performance follow-up. context() compares up to 300 personal
+  entries against the 226-word bundled catalog on each config/swaps request. Current
+  caps make this safe and small enough for 0.10.0; defer indexing/memoization until
+  measured in browser. Preserve exact-match, article/bare alias and ambiguous-sense
+  behavior if optimizing.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T17:48:16-00:00
+references: []
+log_events:
+- time: 2026-10-27T17:48:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
