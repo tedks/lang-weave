@@ -37,5 +37,7 @@ log_events:
     in progress. No acceptance, merge, deployment, live model or personal-profile
     claim. Legacy exact fr keys and generated scopes remain untouched; new canonical-language
     personal store planned. Full gates and provider council remain required.
-blocked_by:
-- vocabulary-source-audit
+- time: 2026-10-27T17:53:19-00:00
+  who: Ted Smith
+  what: no longer blocked by vocabulary-source-audit
+  comment: ""
