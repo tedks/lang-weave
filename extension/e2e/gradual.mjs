@@ -175,22 +175,16 @@ try {
   await review.locator('#counts').getByText(/0 due/).waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
 
-  // The current page has exhausted its one-word allowance. A cached empty
-  // decision for the same text must be reconsidered after local-day rollover.
+  // The current page has exhausted its one-word allowance. With no due
+  // anchor in this passage, local selection skips the model entirely; the
+  // same passage is reconsidered after local-day rollover.
   await page.evaluate(() => {
     const p = document.createElement('p'); p.id = 'question';
     p.textContent = 'We discussed the question with friends every week.';
     document.querySelector('main').append(p);
   });
-  const questionRequested = await worker.evaluate(async () => {
-    for (let i = 0; i < 100; i++) {
-      if (globalThis.calls.some((text) => text.includes('the question'))) return true;
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-    return false;
-  });
-  assert.equal(questionRequested, true);
-  await page.waitForTimeout(100);
+  await page.waitForTimeout(1500); // bounded observation for a delayed unwanted model call
+  assert.equal(await worker.evaluate(() => globalThis.calls.some((text) => text.includes('the question'))), false);
   assert.equal(await page.locator('#question .fw-word').count(), 0);
   await worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
@@ -229,6 +223,7 @@ try {
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   assert.equal(await worker.evaluate(() => chrome.storage.local.get('settings').then((x) => x.settings.language)), 'fr');
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
+  await page.close(); // stop the earlier reading page before resetting an introduction fixture
   await popup.locator('#language').selectOption('es');
   await popup.locator('#gradual').check();
   await popup.locator('#newWordsPerDay').selectOption('2');

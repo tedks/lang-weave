@@ -14,6 +14,9 @@ import { policyWords, remaining, commitLearning, acknowledgeIntroduction, releas
   futureBudgetDay, introductionOwner } from './learning.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
+import { catalogEntries, matchingEntries } from './catalog.js';
+import { selectWorkingSet } from './adaptive.js';
+import { ENCOUNTERS_KEY, cleanEncounters, countEncounters } from './encounters.js';
 
 const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
@@ -21,6 +24,7 @@ const ALARM = 'updates';
 const cooldown = new Map(); // hot copy; quotaState is the bounded restart-safe source
 const cooldownKinds = new Map();
 let permissionGeneration = 0; // permission events can arrive while the storage lock is held
+let settingsGeneration = 0; // a popup change also invalidates a held dispatch before its write gets the lock
 
 const serial = () => {
   let chain = Promise.resolve();
@@ -104,6 +108,15 @@ async function safePageTitle(msg, sender) {
   } catch { return false; } // a closed/inaccessible tab cannot authorize disclosure
 }
 
+async function liveGradualDocument(sender) {
+  if (sender.frameId !== 0 || !sender.documentId ||
+      sender.documentLifecycle && sender.documentLifecycle !== 'active') return false;
+  try {
+    const tab = await chrome.tabs.get(sender.tab?.id);
+    return typeof tab?.url === 'string' && tab.url === sender.url;
+  } catch { return false; }
+}
+
 async function broadcast(type = 'config') {
   const config = await context();
   const tabs = await chrome.tabs.query({});
@@ -113,22 +126,64 @@ async function broadcast(type = 'config') {
 async function swaps(msg, sender) {
   const ctx = await context();
   const consentGeneration = permissionGeneration;
+  const settingsAtStart = settingsGeneration;
+  let policyDay = '';
   const stillSafe = async () => {
     const latest = await context();
-    return latest.revision === ctx.revision && activeOn(latest, sender.url) &&
-      await safePageTitle(msg, sender) && permissionGeneration === consentGeneration;
+    if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) ||
+        !(await safePageTitle(msg, sender)) ||
+        (ctx.settings.gradual && !(await liveGradualDocument(sender)))) return false;
+    // Permission and gradual settings events can occur during either tab lookup.
+    // Keep these checks synchronous and last before a write, fetch or delivery.
+    return permissionGeneration === consentGeneration &&
+      (!ctx.settings.gradual || settingsGeneration === settingsAtStart) &&
+      (!policyDay || localDay() === policyDay);
   };
   if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url)) return { results: {}, stale: true };
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
   const items = msg.items.filter((i) => i && typeof i.text === 'string' && i.text.length <= 2000 &&
     wordCount(i.text) >= 6 && !isZeroFrench(i.text) && i.key === `${ctx.revision}:${hashKey(i.text)}`);
+  if (!items.length) return { results: {} };
   if (!(await safePageTitle(msg, sender))) return { results: Object.fromEntries(items.map((i) => [i.key, []])) };
-  // Raw model decisions depend on which words are eligible now. A stable page
-  // revision alone would keep yesterday's empty decision after quota resets.
-  const { state } = ctx.settings.gradual ? await reviewState() : { state: null };
+  if (ctx.settings.gradual && !(await liveGradualDocument(sender))) return { results: {}, stale: true };
   const now = Date.now();
   const day = localDay(new Date(now));
-  const candidates = policyWords(ctx.words, state, ctx.settings, now, day, ctx.revision);
+  policyDay = ctx.settings.gradual ? day : '';
+  let candidates, state, shown;
+  if (ctx.settings.gradual) {
+    // The content script sends only locally readable, near-viewport text. The
+    // worker independently rechecks consent, top frame, title and revision at
+    // each awaited storage boundary before recording a coarse catalog signal.
+    const entries = catalogEntries(ctx.words, ctx.scope);
+    const allEntries = catalogEntries(ctx.allWords, ctx.scope);
+    const matches = matchingEntries(items, entries);
+    if (!matches.length) return locked(async () => await stillSafe()
+      ? { results: Object.fromEntries(items.map((i) => [i.key, []])) } : { results: {}, stale: true });
+    let counts;
+    try {
+      counts = await locked(async () => {
+        if (!(await stillSafe())) return null;
+        const scoped = scopedStorage(chromeStorage, ctx.scope);
+        const { [ENCOUNTERS_KEY]: raw } = await scoped.get([ENCOUNTERS_KEY]);
+        if (!(await stillSafe())) return null;
+        const aggregate = cleanEncounters(raw, allEntries.map((entry) => entry.id), day);
+        const before = JSON.stringify(aggregate);
+        countEncounters(aggregate, matches.map((entry) => entry.id), day);
+        if (JSON.stringify(aggregate) !== before) await scoped.set({ [ENCOUNTERS_KEY]: aggregate });
+        return aggregate.counts;
+      });
+      if (!counts) return { results: {}, stale: true };
+      ({ state } = await reviewState(ctx));
+      shown = await shownToday(scopedStorage(chromeStorage, ctx.scope));
+    } catch { return { results: {}, error: 'Local reading storage failed' }; }
+    if (!(await stillSafe())) return { results: {}, stale: true };
+    candidates = selectWorkingSet({ batch: items, words: ctx.words,
+      scope: ctx.scope, state, settings: ctx.settings, now, day, revision: ctx.revision,
+      encounters: counts, sender, level: ctx.level, language: ctx.language, density: ctx.settings.density,
+      shownToday: shown });
+  } else {
+    candidates = policyWords(ctx.words, null, ctx.settings, now, day, ctx.revision);
+  }
   if (ctx.settings.gradual && !candidates.length) return locked(async () => {
     return await stillSafe()
       ? { results: Object.fromEntries(items.map((i) => [i.key, []])) }
@@ -136,7 +191,7 @@ async function swaps(msg, sender) {
   });
   const policy = ctx.settings.gradual ? hashKey(JSON.stringify([day,
     remaining(state.learning, day, ctx.settings.newWordsPerDay, now, ctx.revision),
-    candidates.map(({ fr, status }) => [fr, status])])) : '';
+    candidates.map(({ entryId, fr, status, reasonCode }) => [entryId, fr, status, reasonCode])])) : '';
   const cacheKey = (key) => policy ? `${key}:gradual:${policy}` : key;
   const cached = await cache.getMany(items.map((i) => cacheKey(i.key)));
   if (!(await safePageTitle(msg, sender))) return { results: {}, stale: true };
@@ -204,7 +259,7 @@ async function swaps(msg, sender) {
       };
       return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
         density: ctx.settings.density, words: candidates, fetchImpl, cooldownKinds,
-        shownToday: await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })),
+        shownToday: shown || await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })),
         onFailure: async (model, category, wait, startedAt) => {
           cooldownKinds.set(model, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
             : category === 'rate_limit' ? 'short' : 'transient');
@@ -365,6 +420,7 @@ async function removeLanguage(msg) {
 
 // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
 async function save(msg) {
+  settingsGeneration++;
   await locked(async () => {
     const saved = await store.get(['settings', 'apiKey']);
     if (msg.settings && typeof msg.settings === 'object' && Object.hasOwn(msg.settings, 'language') &&

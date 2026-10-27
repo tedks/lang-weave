@@ -34,7 +34,7 @@ test('explicit introduction, clock scheduling, and one revealed rating per ticke
   expect(state.cards.y.reviews).toBe(10000);
 });
 
-test('loaded state drops foreign and malformed cards, preserving Spanish accents and level scope', () => {
+test('loaded state retains valid unknown history but excludes it from current level review', () => {
   const now = Date.parse('2026-10-17T12:00:00Z');
   const state = cleanReview({ version: 1, cards: {
     'sí': { due: now, interval: 3, reviews: 2, extra: 'discard' },
@@ -42,7 +42,8 @@ test('loaded state drops foreign and malformed cards, preserving Spanish accents
     y: { due: 'yesterday', interval: 1, reviews: 4 },
     bonjour: { due: now, interval: 1, reviews: 1 },
   }, current: { word: 'bonjour', ticket: 'x', revealed: true } }, L2_WORDS);
-  expect(Object.keys(state.cards).sort()).toEqual(['si', 'sí']);
+  expect(Object.keys(state.cards).sort()).toEqual(['bonjour', 'si', 'sí']);
+  expect(state.cards.bonjour).toEqual({ due: now, interval: 1, reviews: 1 });
   expect(state.cards.sí).toEqual({ due: now, interval: 3, reviews: 2 });
   expect(state.current).toBeNull();
   expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 1, new: 29 });

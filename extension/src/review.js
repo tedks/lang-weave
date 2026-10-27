@@ -10,8 +10,11 @@ export function cleanReview(raw, words, now = Date.now()) {
   const cards = Object.create(null);
   const source = raw?.version === 1 && raw.cards && typeof raw.cards === 'object' && !Array.isArray(raw.cards)
     ? raw.cards : {};
-  for (const { fr } of words) {
-    const card = Object.hasOwn(source, fr) ? source[fr] : null;
+  // `words` is the full scope catalog, never a prompt window. Keep valid
+  // historical orphans as well: a temporary catalog change must not erase a
+  // card merely because its form cannot currently be offered for reading.
+  for (const [fr, card] of Object.entries(source)) {
+    if (!fr || fr.length > 100) continue;
     if (card && Number.isSafeInteger(card.due) && card.due >= 0 &&
         Number.isSafeInteger(card.interval) && card.interval >= 0 && card.interval <= 365 &&
         Number.isSafeInteger(card.reviews) && card.reviews >= 0 && card.reviews <= 10000) {

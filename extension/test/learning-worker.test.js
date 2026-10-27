@@ -27,7 +27,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     } },
     runtime: { id: 'fw-test', getURL: (p) => `chrome-extension://fw-test/${p}`,
       getManifest: () => ({ version: '0.5.0' }), onMessage: on(listeners), onInstalled: on(), onStartup: on() },
-    tabs: { get: async () => ({ id: 7, title: 'Ordinary reading' }), query: async () => [], sendMessage: async () => {} }, action: { setBadgeText: async () => {} },
+    tabs: { get: async () => ({ id: 7, title: 'Ordinary reading', url: 'https://reading.example/article' }), query: async () => [], sendMessage: async () => {} }, action: { setBadgeText: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins }), onAdded: on(permissionAdded), onRemoved: on(permissionRemoved) },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
@@ -170,9 +170,14 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const nextDay = await ask(excludedText, page, nextRevision);
     expect(Object.values(nextDay.results).flat().map((s) => s.status)).toEqual(['new']);
     expect(modelCalls).toBe(beforeNewDay + 1);
-    data.recallReview.cards = {}; // exhausted allowance with no retained candidate
+    data.recallReview.cards = {}; // pending introduction still belongs to this document
+    const pendingTicket = Object.values(nextDay.results).flat()[0].introTicket;
+    const repeated = await ask(excludedText, page, nextRevision);
+    expect(Object.values(repeated.results).flat()[0].introTicket).toBe(pendingTicket);
+    expect(data.recallReview.learning.pending).toHaveLength(1);
+    // Another document cannot consume or replay that reserved slot.
     const beforeEmpty = modelCalls;
-    expect(Object.values((await ask(excludedText, page, nextRevision)).results)).toEqual([[]]);
+    expect(Object.values((await ask(excludedText, { ...page, documentId: 'other-document' }, nextRevision)).results)).toEqual([[]]);
     expect(modelCalls).toBe(beforeEmpty);
     data.recallReview.cards['la idea'] = { due: Date.now(), interval: 0, reviews: 1,
       introducedDay: '2099-01-01' };
