@@ -1,0 +1,20 @@
+id: recall-again-test-hardening
+title: 'Harden nonblocking Again test details after PR #12 council: add an explicit
+  mixed Again/Hard concurrent rating assertion (the existing Easy/Hard worker race
+  already covers mixed ratings generally), and make the same-local-day test fixture
+  independent of runner time zone. Current short-due behavior, ticket serialization,
+  and local-day guard are covered; this is test quality follow-up, not a merge blocker.'
+desc: ""
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T16:11:25-00:00
+references: []
+log_events:
+- time: 2026-10-27T16:11:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
