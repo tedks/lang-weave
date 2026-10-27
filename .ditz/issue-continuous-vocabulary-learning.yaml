@@ -26,3 +26,16 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-27T16:03:31-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO dispatch2026-10-27: fresh visible Lead espanol-weave:again pane%830
+    started Again implementation on accepted0.7.2a0d9391; fresh Lead espanol-weave:vocab-sources
+    pane%829 started read-only trusted lexical source/catalog/selection-add contract
+    audit on same base. Both assignments independently verified submitted and executing
+    via shared readback after transport receipt timeouts; no payload replay. personal-word-capture
+    and adaptive-working-vocabulary remain queued behind source audit. Source adoption
+    must preserve sense/provenance/license evidence, legacy review history and privacy;
+    selection flow confirms meaning/translation before local save. Root owns integration/normal
+    merge/release; no new release or fleet change. Dispatch complete; implementation
+    and audit remain in progress.'
