@@ -21,7 +21,7 @@ export function englishAnchors(word) {
 }
 
 export function matchingEntries(batch, entries) {
-  const text = batch.map(({ text }) => text).join(' ').normalize('NFC').toLocaleLowerCase('en').replace(/[’‘`]/g, "'");
+  const texts = batch.map(({ text }) => text.normalize('NFC').toLocaleLowerCase('en').replace(/[’‘`]/g, "'"));
   const byAnchor = new Map();
   for (const entry of entries) for (const anchor of englishAnchors(entry.word)) {
     if (!byAnchor.has(anchor)) byAnchor.set(anchor, []);
@@ -33,8 +33,11 @@ export function matchingEntries(batch, entries) {
     // explicit sense-aware context, including already reviewed entries.
     if (owners.length !== 1) continue;
     const escaped = anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'u').test(text)) {
-      matched.set(owners[0].id, owners[0]);
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'u');
+    if (texts.some((text) => pattern.test(text))) {
+      const prior = matched.get(owners[0].id);
+      if (!prior || anchor.length > prior.matchLength) matched.set(owners[0].id,
+        { ...owners[0], matchLength: anchor.length });
     }
   }
   return [...matched.values()];

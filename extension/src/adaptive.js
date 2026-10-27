@@ -36,25 +36,27 @@ export function selectWorkingSet({ batch, words, fullWords, scope, state, settin
   const left = remaining(state.learning, day, settings.newWordsPerDay, now, revision);
   const allowFresh = reviewBacklog(state, fullWords, now) >= BACKLOG_THROTTLE ? 0 : Math.min(MAX_FRESH_CANDIDATES, left);
   const reserved = new Set(activeReservations(state.learning, day, now, revision).map((p) => p.word));
-  const ranked = matchingEntries(batch, catalogEntries(words, scope)).map(({ id, word }) => {
+  const ranked = matchingEntries(batch, catalogEntries(words, scope)).map(({ id, word, matchLength }) => {
     const card = state.cards[word.fr];
-    if (card?.familiar) return { ...word, entryId: id, status: 'known', reasonCode: 'known', rank: 4 };
-    if (card?.due <= now) return { ...word, entryId: id, status: 'due', reasonCode: weak(card) ? 'recent_difficulty' : 'due', rank: 0 };
-    if (weak(card)) return { ...word, entryId: id, status: 'active', reasonCode: 'recent_difficulty', rank: 1 };
-    if (card) return { ...word, entryId: id, status: 'active', reasonCode: 'active', rank: 2 };
-    return { ...word, entryId: id, status: 'new', reasonCode: (encounters[id] || 0) >= 2 ? 'encountered_often' : 'new', rank: 3 };
+    const base = { ...word, entryId: id, matchLength };
+    if (card?.familiar) return { ...base, status: 'known', reasonCode: 'known', rank: 4 };
+    if (card?.due <= now) return { ...base, status: 'due', reasonCode: weak(card) ? 'recent_difficulty' : 'due', rank: 0 };
+    if (weak(card)) return { ...base, status: 'active', reasonCode: 'recent_difficulty', rank: 1 };
+    if (card) return { ...base, status: 'active', reasonCode: 'active', rank: 2 };
+    return { ...base, status: 'new', reasonCode: (encounters[id] || 0) >= 2 ? 'encountered_often' : 'new', rank: 3 };
   }).filter((w) => w.status !== 'new' || allowFresh > 0 && !reserved.has(w.fr));
   ranked.sort((a, b) => a.rank - b.rank ||
     (a.rank === 0 ? state.cards[a.fr].due - state.cards[b.fr].due : 0) ||
     (encounters[b.entryId] || 0) - (encounters[a.entryId] || 0) ||
     (a.rank === 3 ? Number(BASIC.has(a.en)) - Number(BASIC.has(b.en)) : 0) ||
+    b.matchLength - a.matchLength ||
     (a.entryId < b.entryId ? -1 : a.entryId > b.entryId ? 1 : 0));
   const selected = [];
   let fresh = 0, known = 0;
   for (const word of ranked) {
     if (word.status === 'new' && fresh >= allowFresh || word.status === 'known' && known >= 2) continue;
     if (selected.length >= MAX_CANDIDATES) break;
-    const { rank, ...candidate } = word;
+    const { rank, matchLength, ...candidate } = word;
     const next = [...selected, candidate];
     if (vocabularyChars(next) > MAX_VOCABULARY_CHARS ||
         requestChars(next, { batch, level, language, density, shownToday }) > MAX_REQUEST_CHARS) continue;

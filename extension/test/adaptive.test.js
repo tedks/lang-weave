@@ -24,6 +24,8 @@ test('catalog IDs retain exact legacy forms and local matching skips ambiguous a
     .some((entry) => ['libre', 'gratis'].includes(entry.word.fr))).toBe(false);
   expect(matchingEntries(batch('The windows were open.'), catalogEntries([{ fr: 'la ventana', en: 'the window' }], 'es')))
     .toEqual([]); // plural noun needs a separate safe form
+  expect(matchingEntries([{ text: 'We discussed a bright' }, { text: 'idea with friends' }],
+    catalogEntries([{ fr: 'x', en: 'bright idea' }], 'es'))).toEqual([]);
   expect(select({ batch: batch('Zebras orbit quartz; distant galaxies shimmer.') })).toEqual([]);
 });
 
@@ -37,7 +39,7 @@ test('due and recent difficulty lead active and new with stable ties and passage
   const first = select({ batch: text, state });
   expect(first.map(({ fr, reasonCode }) => [fr, reasonCode])).toEqual([
     ['la ventana', 'due'], ['el libro', 'recent_difficulty'], ['el día', 'active'],
-    ['el pueblo', 'new'], ['hoy', 'new'], ['la historia', 'new'], ['y', 'new'],
+    ['la historia', 'new'], ['el pueblo', 'new'], ['hoy', 'new'], ['y', 'new'],
   ]);
   expect(select({ batch: text, state })).toEqual(first);
   expect(first.every((w) => !['el gato', 'el perro'].includes(w.fr))).toBe(true);
