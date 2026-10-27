@@ -184,7 +184,7 @@ async function openCue(span) {
       status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
       revealButton.remove();
       let firstRating;
-      for (const [label, rating] of [['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
+      for (const [label, rating] of [['Again', 'again'], ['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
         const rated = button(label, async () => {
           if (!liveCue()) { closeCue(); return; }
           for (const b of buttons.querySelectorAll('button')) b.disabled = true;

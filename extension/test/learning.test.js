@@ -186,6 +186,35 @@ test('due contextual result can cue recall; reveal and one rating require same d
   expect(beginInline(state, 'libro', sender, 'revision-a', now)).toBeNull();
 });
 
+test('inline Again is bound to its revealed document and revision, with a ten-minute retry', () => {
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 21, reviews: 4, easyStreak: 2,
+    introducedDay: '2026-10-17', introGateDay: '2026-10-17' };
+  const ticket = beginInline(state, 'libro', sender, revision, now, () => 'b'.repeat(36)).ticket;
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toBeNull(); // unrevealed
+  expect(revealInline(state, words, ticket, { ...sender, documentId: 'other' }, revision, now)).toBeNull();
+  expect(revealInline(state, words, ticket, sender, 'other-revision', now)).toBeNull();
+  expect(revealInline(state, words, ticket, sender, revision, now)?.fr).toBe('libro');
+  expect(finishInline(state, ticket, { ...sender, documentId: 'other' }, revision, now, 'again')).toBeNull();
+  expect(finishInline(state, ticket, sender, 'other-revision', now, 'again')).toBeNull();
+  expect(finishInline(state, ticket, sender, revision, now, 'AGAIN')).toBeNull(); // malformed rating
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toEqual({
+    due: now + 10 * 60 * 1000, interval: 0, familiar: false,
+  });
+  expect(state.cards.libro).toEqual({ due: now + 10 * 60 * 1000, interval: 0, reviews: 5,
+    easyStreak: 0, introducedDay: '2026-10-17', introGateDay: '2026-10-17' });
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toBeNull(); // duplicate
+  expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000 - 1)).toBeNull();
+  expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000)).toHaveProperty('ticket');
+});
+
+test('a familiar card cannot enter the existing inline rating route', () => {
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 365, reviews: 20, familiar: true };
+  expect(beginInline(state, 'libro', sender, revision, now)).toBeNull();
+  expect(nextReview(state, [words[2]], now)).toBeNull();
+});
+
 test('density choice changes a deterministic ceiling independent of level', () => {
   const swaps = ['y', 'pero', 'libro', 'casa'].map(swap);
   const text = 'And books are here. But the house is there.';

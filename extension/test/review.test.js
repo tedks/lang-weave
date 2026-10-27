@@ -57,3 +57,33 @@ test('the most overdue card wins even when it is later in the vocabulary list', 
   state.cards.pero.due = now - 3 * DAY_MS;
   expect(nextReview(state, L1_WORDS, now, () => 'ticket').en).toBe('but');
 });
+
+test('Again resets day interval and Easy streak, then becomes due at the ten-minute boundary', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const words = [{ fr: 'y', en: 'and', hint: 'ee' }];
+  const state = cleanReview({ version: 1, cards: { y: {
+    due: now, interval: 14, reviews: 7, easyStreak: 2, introducedDay: '2026-10-16', introGateDay: '2026-10-17',
+  } } }, words, now);
+
+  expect(rateReview(state, 'again-ticket', 'again', now)).toBeNull(); // unrevealed
+  state.current = { word: 'y', ticket: 'old-ticket', revealed: true };
+  expect(rateReview(state, 'again-ticket', 'again', now)).toBeNull(); // stale ticket
+  state.current = { word: 'y', ticket: 'again-ticket', revealed: true };
+  expect(rateReview(state, 'again-ticket', 'Again', now)).toBeNull(); // malformed rating
+  expect(rateReview(state, 'again-ticket', 'again', now)).toEqual({ due: now + 10 * 60 * 1000, interval: 0 });
+  expect(state.cards.y).toEqual({ due: now + 10 * 60 * 1000, interval: 0, reviews: 8,
+    easyStreak: 0, introducedDay: '2026-10-16', introGateDay: '2026-10-17' });
+  expect(rateReview(state, 'again-ticket', 'again', now)).toBeNull(); // duplicate
+  expect(nextReview(state, words, now + 10 * 60 * 1000 - 1)).toBeNull();
+  expect(nextReview(state, words, now + 10 * 60 * 1000, () => 'retry-ticket')).toEqual({
+    ticket: 'retry-ticket', en: 'and', revealed: false,
+  });
+});
+
+test('cleanReview preserves only the legacy version 1 storage contract', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const words = [{ fr: 'y', en: 'and', hint: 'ee' }];
+  const card = { due: now, interval: 3, reviews: 2, easyStreak: 1 };
+  expect(cleanReview({ version: 1, cards: { y: card } }, words, now).cards.y).toEqual(card);
+  expect(cleanReview({ version: 2, cards: { y: card } }, words, now).cards).toEqual({});
+});

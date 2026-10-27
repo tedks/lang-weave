@@ -11,6 +11,7 @@ test('worker owns review access, persistence, and raced rating serialization', a
   const handlers = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
+  let failReviewWrite = false;
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
@@ -19,7 +20,8 @@ test('worker owns review access, persistence, and raced rating serialization', a
         const pick = keys == null ? Object.keys(data) : typeof keys === 'string' ? [keys] : keys;
         return structuredClone(Object.fromEntries(pick.filter((key) => key in data).map((key) => [key, data[key]])));
       },
-      async set(value) { await tick(); Object.assign(data, structuredClone(value)); },
+      async set(value) { await tick(); if (failReviewWrite && REVIEW_KEY in value) throw new Error('Storage failed');
+        Object.assign(data, structuredClone(value)); },
       async remove(keys) { for (const key of typeof keys === 'string' ? [keys] : keys) delete data[key]; },
     } },
     runtime: { id: 'fw-test', getURL: (path) => `chrome-extension://fw-test/${path}`,
@@ -115,6 +117,50 @@ test('worker owns review access, persistence, and raced rating serialization', a
     await dispatch({ type: 'reviewReveal', ticket: opted.ticket }, review);
     expect((await dispatch({ type: 'reviewRate', ticket: opted.ticket, rating: 'easy' }, review)).ok).toBe(true);
     expect(data[REVIEW_KEY].cards.y.familiar).toBe(true);
+
+    // A legacy card can miss after prior success without losing history or
+    // charging another introduction; the worker persists one rating only.
+    data[REVIEW_KEY].cards.y = { due: now, interval: 21, reviews: 9, easyStreak: 2,
+      introducedDay: '2026-10-17' };
+    data[REVIEW_KEY].current = null;
+    const missed = (await dispatch({ type: 'reviewNext' }, review)).card;
+    expect(missed.en).toBe('and');
+    expect((await dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review)).error)
+      .toMatch(/not been revealed/);
+    expect((await dispatch({ type: 'reviewReveal', ticket: missed.ticket }, review)).answer.fr).toBe('y');
+    const beforeMiss = structuredClone(data[REVIEW_KEY]);
+    failReviewWrite = true;
+    expect((await dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review)).error)
+      .toMatch(/Storage failed/);
+    expect(data[REVIEW_KEY]).toEqual(beforeMiss);
+    failReviewWrite = false;
+    const missReplies = await Promise.all([
+      dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review),
+      dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'hard' }, review),
+    ]);
+    expect(missReplies.filter((r) => r.ok)).toHaveLength(1);
+    expect(missReplies.filter((r) => r.error)).toHaveLength(1);
+    // Ordering inside a concurrent race is nondeterministic. If Hard won,
+    // run a separate valid miss at its due boundary to inspect Again itself.
+    if (data[REVIEW_KEY].cards.y.interval === 1) {
+      now += DAY_MS;
+      data[REVIEW_KEY].current = null;
+      const retry = (await dispatch({ type: 'reviewNext' }, review)).card;
+      await dispatch({ type: 'reviewReveal', ticket: retry.ticket }, review);
+      expect((await dispatch({ type: 'reviewRate', ticket: retry.ticket, rating: 'again' }, review)).ok).toBe(true);
+    }
+    const savedMiss = structuredClone(data[REVIEW_KEY]);
+    expect(savedMiss.cards.y.due).toBe(now + 10 * 60 * 1000);
+    expect(savedMiss.cards.y.interval).toBe(0);
+    expect(savedMiss.cards.y.easyStreak).toBe(0);
+    expect(savedMiss.cards.y.introducedDay).toBe('2026-10-17');
+    expect(savedMiss.learning.count).toBe(beforeMiss.learning.count);
+    expect((await dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review)).error)
+      .toMatch(/stale/);
+    now += 10 * 60 * 1000 - 1;
+    expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(0);
+    now++;
+    expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(1);
   } finally {
     Object.assign(globalThis, saved);
   }
