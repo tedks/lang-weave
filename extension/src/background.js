@@ -124,7 +124,7 @@ async function swaps(msg, sender) {
     const latest = await context();
     return latest.revision === ctx.revision && activeOn(latest, sender.url) &&
       await safePageTitle(msg, sender) && permissionGeneration === consentGeneration &&
-      settingsGeneration === settingsAtStart && (!policyDay || localDay() === policyDay);
+      (!ctx.settings.gradual || settingsGeneration === settingsAtStart) && (!policyDay || localDay() === policyDay);
   };
   if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url)) return { results: {}, stale: true };
   if (!Array.isArray(msg.items) || msg.items.length > 8) throw new Error('Invalid text batch');
@@ -134,7 +134,7 @@ async function swaps(msg, sender) {
   if (!(await safePageTitle(msg, sender))) return { results: Object.fromEntries(items.map((i) => [i.key, []])) };
   const now = Date.now();
   const day = localDay(new Date(now));
-  policyDay = day;
+  policyDay = ctx.settings.gradual ? day : '';
   let candidates, state, shown;
   if (ctx.settings.gradual) {
     if (sender.frameId !== 0 || !sender.documentId ||
