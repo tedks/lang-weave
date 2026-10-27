@@ -1,0 +1,23 @@
+id: personal-language-tag-stability
+title: Keep stored personal language tags readable across browser canonicalization
+  changes
+desc: Council PR14 minor compatibility follow-up. Current personal entry creation
+  uses Intl-canonical target language codes and fail-closed cleaning. If browser Intl
+  alias rules change between versions, a stored tag could become unsupported, blocking
+  capture/export while preserving raw bytes. Audit canonicalization drift and design
+  a read-only/exportable recovery path without silently merging language namespaces
+  or migrating existing review IDs. Not needed for current 0.10.0 supported tags;
+  any identity migration requires separate review.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T17:53:15-00:00
+references: []
+log_events:
+- time: 2026-10-27T17:53:15-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
