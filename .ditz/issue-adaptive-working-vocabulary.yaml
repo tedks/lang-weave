@@ -37,5 +37,16 @@ log_events:
     pass. Native OpenAI and foreign Anthropic council CLEAN to final delta; Google
     seat empty at actual quota. Root owns acceptance, normal merge and rollout. Follow-ups:
     adaptive-selector-prompt-performance and adaptive-prerender-retry. No deployment.'
+- time: 2026-10-27T16:56:59-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO acceptance HOLD on 2699a362e5842c2674e45b1d8ec4719a00621c18: root
+    synthetic worker probes reproduced permission revocation during final liveGradualDocument
+    tabs.get after generation comparison. Encounter probe persists coarse counts after
+    revoke; dispatch probe starts one synthetic fetch before eventual stale rejection.
+    No personal data/live provider call. Returned to owned Lead for bounded post-await
+    synchronous epoch repair, paired held-await regressions/mutations, consumer sweep,
+    repair-delta council and exact-head replacement gates. No merge/fleet action;
+    personal capture remains queued.'
 blocked_by:
 - vocabulary-source-audit
