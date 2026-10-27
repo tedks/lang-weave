@@ -10,6 +10,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BAD = /[\p{Cc}\p{Cf}\p{Cs}\u2028\u2029<>]/u;
 const URLISH = /(?:https?:\/\/|www\.|\S+@\S+|\.[a-z]{2,}(?:\/|$))/iu;
 const SPANISH_ARTICLE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
+const AUTOMATIC_FORM = /^[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*$/u;
+const automaticTarget = (form, language) => AUTOMATIC_FORM.test(form) ||
+  language === 'es' && SPANISH_ARTICLE.test(form) && AUTOMATIC_FORM.test(form.replace(SPANISH_ARTICLE, ''));
 
 export function validForm(value, { selection = false } = {}) {
   if (typeof value !== 'string' || BAD.test(value)) return null;
@@ -63,7 +66,8 @@ export function cleanPersonal(raw) {
   const history = {};
   const languages = new Set([...Object.keys(byLanguage), ...Object.keys(raw?.history || {})]);
   for (const language of languages) {
-    if (!validLanguage(language)) return { version: 1, revision: 0, entries: [], history: {}, unsupported: true };
+    if (validLanguage(language) !== language)
+      return { version: 1, revision: 0, entries: [], history: {}, unsupported: true };
     const words = byLanguage[language] || [];
     const rawHistory = raw?.history?.[language];
     history[language] = cleanReview(rawHistory, words.map((entry) => ({ fr: entry.id, en: entry.source, hint: '' })));
@@ -84,7 +88,8 @@ export function personalWords(personal, language, bundledAll) {
   }
   return active.map((entry) => {
     const anchors = englishAnchors({ en: entry.source });
-    const reviewOnly = !!entry.linkedLegacy || entry.source.includes(' ') || entry.target.includes(' ') ||
+    const reviewOnly = !!entry.linkedLegacy || !AUTOMATIC_FORM.test(entry.source) ||
+      !automaticTarget(entry.target, language) ||
       targetAliases(entry.target, language).some((target) => targetCount.get(target) !== 1) ||
       anchors.some((anchor) => anchorCount.get(anchor) !== 1);
     return { entry, reviewOnly, word: { fr: entry.target, en: entry.source, hint: '',
@@ -130,9 +135,14 @@ export function addPersonal(personal, fields, language, now = Date.now(), uuid =
 }
 
 export function exportPersonal(personal) {
+  const history = Object.fromEntries(Object.entries(personal.history).map(([language, state]) =>
+    [language, { version: 1, cards: Object.fromEntries(Object.entries(state.cards).map(([id, card]) => {
+      const { introReceipt, ...progress } = card;
+      return [id, progress];
+    })), learning: { day: state.learning.day, count: state.learning.count } }]));
   return { format: 'lang-weave-personal-vocabulary', version: 1,
     entries: personal.entries.map(({ id, uuid, language, source, target, sense, direction, archived, provenance, createdAt, linkedLegacy }) =>
       ({ id, uuid, language, source, target, sense, direction, archived, provenance, createdAt,
         ...(linkedLegacy ? { linkedLegacy } : {}) })),
-    history: personal.history };
+    history };
 }

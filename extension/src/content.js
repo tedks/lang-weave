@@ -535,6 +535,11 @@ function reveal(e) {
 chrome.runtime.onMessage.addListener((msg) => {
   if (['config', 'retry'].includes(msg?.type)) update(msg.config, msg.type === 'retry');
 });
+// A context-menu gesture wakes an idle MV3 worker and re-announces this exact
+// document through Chrome's sender metadata before the native menu is chosen.
+document.addEventListener('contextmenu', () => {
+  if (on()) void send({ type: 'captureReady' }).catch(() => {});
+}, true);
 // The worker targets the exact top-frame document. Recheck consent/title and the live selection here;
 // menu selectionText alone is stale, untrusted input and is never sufficient to authorize capture.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

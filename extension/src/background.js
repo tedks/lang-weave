@@ -6,7 +6,7 @@ import { cleanQuotaState, newCooldownEntry, retainedRetryAt, safeModelStatus, ST
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel, exactTarget, isZeroFrench, wordCount, wordsForLevel } from './levels.js';
 import { hashKey } from './hash.js';
-import { localDay, queueEvents, shownToday } from './events.js';
+import { localDay, queueEvents, shownToday, PENDING_KEY, SENT_KEY } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { REVIEW_KEY, cleanReview, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
   beginInline, revealInline, finishInline } from './review.js';
@@ -37,6 +37,10 @@ const captureUrlSafe = (url) => {
   try { const parsed = new URL(url); return /^https?:$/.test(parsed.protocol) && !CAPTURE_PATH.test(parsed.pathname); }
   catch { return false; }
 };
+// Catalog writes change reading policy, but they do not change the source page's
+// consent, language, or document. Keep parallel confirmation pages usable.
+const captureRevision = (ctx) => hashKey(JSON.stringify([ctx.settings, ctx.level, ctx.scope,
+  ctx.language, ctx.origins, ctx.hasKey, ctx.captureEpoch, chrome.runtime.getManifest().version]));
 
 const serial = () => {
   let chain = Promise.resolve();
@@ -100,10 +104,14 @@ async function context() {
   const activePersonal = personalWords(personal, saved.language, legacyAllWords);
   const personalAuto = activePersonal.filter(({ reviewOnly }) => !reviewOnly);
   const separate = activePersonal.filter(({ entry }) => !entry.linkedLegacy).map(({ entry }) => entry);
-  const blockedLegacy = (word) => separate.some((entry) =>
-    targetAliases(entry.target, saved.language).some((target) =>
+  const blockedLegacy = (word) => separate.some((entry) => {
+    // An exact pack match is already teachable by the pack. Keep it available;
+    // a separate personal ID survives if the generated pack is later removed.
+    if (entry.source === word.en && entry.target === word.fr && entry.sense === word.en) return false;
+    return targetAliases(entry.target, saved.language).some((target) =>
       targetAliases(word.fr, saved.language).includes(target)) ||
-    englishAnchors({ en: entry.source }).some((anchor) => englishAnchors(word).includes(anchor)));
+      englishAnchors({ en: entry.source }).some((anchor) => englishAnchors(word).includes(anchor));
+  });
   const safeLegacyWords = legacyWords.filter((word) => !blockedLegacy(word));
   const autoWords = settings.gradual ? personalAuto.map(({ word }) => word) : [];
   const allWords = [...legacyAllWords, ...autoWords];
@@ -113,14 +121,18 @@ async function context() {
   const paused = false; // retained in the page config protocol; pause is settings.enabled
   const { origins = [] } = await chrome.permissions.getAll();
   const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, scope,
-    personal.revision, personal.unsupported === true, chrome.runtime.getManifest().version, hasKey, origins]));
-  return { settings, level, revision, hasKey, paused, origins, stage: 0, language: saved.language,
+    safeLegacyWords.map((word) => [word.fr, word.en]), personalAuto.map(({ entry }) =>
+      [entry.id, entry.source, entry.target]), personal.unsupported === true,
+    chrome.runtime.getManifest().version, hasKey, origins]));
+  return { settings, level, revision, hasKey, paused, origins, captureEpoch: data.epoch || '',
+    stage: 0, language: saved.language,
     scope, words, allWords, legacyWords, legacyAllWords, personal, activePersonal, personalAuto };
 }
 
 const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
-const publicContext = ({ words, allWords, legacyWords, legacyAllWords, personal,
+const publicContext = ({ words, allWords, legacyWords, legacyAllWords, personal, captureEpoch,
   activePersonal, personalAuto, ...safe }) => safe;
+const personalScope = (language) => scopedStorage(chromeStorage, `personal:${language}`);
 
 // The tab title is local-only safety context. Refresh it after every asynchronous
 // boundary that could precede cache delivery or a primary/fallback fetch.
@@ -192,17 +204,28 @@ async function swaps(msg, sender) {
       counts = await locked(async () => {
         if (!(await stillSafe())) return null;
         const scoped = scopedStorage(chromeStorage, ctx.scope);
-        const { [ENCOUNTERS_KEY]: raw } = await scoped.get([ENCOUNTERS_KEY]);
+        const ownScoped = personalScope(ctx.language);
+        const [{ [ENCOUNTERS_KEY]: raw }, { [ENCOUNTERS_KEY]: ownRaw }] = await Promise.all([
+          scoped.get([ENCOUNTERS_KEY]), ownScoped.get([ENCOUNTERS_KEY])]);
         if (!(await stillSafe())) return null;
-        const aggregate = cleanEncounters(raw, allEntries.map((entry) => entry.id), day);
-        const before = JSON.stringify(aggregate);
-        countEncounters(aggregate, matches.map((entry) => entry.id), day);
+        const ownIds = new Set(ctx.activePersonal.map(({ entry }) => entry.id));
+        const aggregate = cleanEncounters(raw, allEntries.filter((entry) => !ownIds.has(entry.id))
+          .map((entry) => entry.id), day);
+        const ownAggregate = cleanEncounters(ownRaw, ctx.personal.entries.filter((entry) =>
+          entry.language === ctx.language).map((entry) => entry.id), day);
+        const before = JSON.stringify(aggregate), ownBefore = JSON.stringify(ownAggregate);
+        countEncounters(aggregate, matches.filter((entry) => !ownIds.has(entry.id)).map((entry) => entry.id), day);
+        countEncounters(ownAggregate, matches.filter((entry) => ownIds.has(entry.id)).map((entry) => entry.id), day);
         if (JSON.stringify(aggregate) !== before) await scoped.set({ [ENCOUNTERS_KEY]: aggregate });
-        return aggregate.counts;
+        if (JSON.stringify(ownAggregate) !== ownBefore) await ownScoped.set({ [ENCOUNTERS_KEY]: ownAggregate });
+        return { ...aggregate.counts, ...ownAggregate.counts };
       });
       if (!counts) return { results: {}, stale: true };
       ({ state } = await adaptiveReviewState(ctx, day, now));
-      shown = await shownToday(scopedStorage(chromeStorage, ctx.scope));
+      const [oldShown, ownShown] = await Promise.all([shownToday(scopedStorage(chromeStorage, ctx.scope)),
+        shownToday(personalScope(ctx.language))]);
+      const ownTargets = new Map(ctx.activePersonal.map(({ entry }) => [entry.id, entry.target]));
+      shown = [...oldShown, ...ownShown.map((id) => ownTargets.get(id)).filter(Boolean)];
     } catch { return { results: {}, error: 'Local reading storage failed' }; }
     if (!(await stillSafe())) return { results: {}, stale: true };
     candidates = selectWorkingSet({ batch: items, words: ctx.words,
@@ -400,7 +423,9 @@ async function record(msg, sender) {
     if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
     const word = ctx.words.find((w) => exactTarget(w.fr, ctx.language) === exactTarget(msg.word, ctx.language));
     if (!word) return { ok: false };
-    await queueEvents(scopedStorage(chromeStorage, ctx.scope), [{ word: word.fr, kind: msg.event }]);
+    const personal = ctx.personalAuto.find(({ entry }) => entry.target === word.fr)?.entry;
+    await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
+      [{ word: personal?.id || word.fr, kind: msg.event }]);
     return { ok: true };
   });
 }
@@ -523,7 +548,8 @@ async function status() {
   return { config: publicContext(config), words: config.words.length,
     languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
     pastedKey: !!data.apiKey, modelStatus,
-    budgetWarning: futureBudgetDay(state.learning, localDay()),
+    budgetWarning: [futureBudgetDay(state.learning, localDay()),
+      futureBudgetDay(personalReview(config).state.learning, localDay())].sort().at(-1),
     review: await reviewStatus(config),
     update: await checkUpdate() };
 }
@@ -533,14 +559,25 @@ async function recoverBudget(msg) {
   const recovered = await locked(async () => {
     const ctx = await context();
     const { state, scoped } = await reviewState(ctx);
+    const own = personalReview(ctx);
     const today = localDay();
-    if (!futureBudgetDay(state.learning, today) || msg.day !== state.learning.day || msg.scope !== ctx.scope)
+    const legacyFuture = futureBudgetDay(state.learning, today);
+    const personalFuture = futureBudgetDay(own.state.learning, today);
+    if (!legacyFuture && !personalFuture || msg.day !== [legacyFuture, personalFuture].sort().at(-1) ||
+        msg.scope !== ctx.scope)
       return false;
     // Keep the historical date while allowing due inline recall from the next
     // local day after an explicitly confirmed clock recovery.
-    for (const card of Object.values(state.cards)) if (card.introducedDay > today) card.introGateDay = today;
-    state.learning = { day: today, count: 0, pending: [] };
-    await scoped.set({ [REVIEW_KEY]: state });
+    if (legacyFuture) {
+      for (const card of Object.values(state.cards)) if (card.introducedDay > today) card.introGateDay = today;
+      state.learning = { day: today, count: 0, pending: [] };
+      await scoped.set({ [REVIEW_KEY]: state });
+    }
+    if (personalFuture) {
+      for (const card of Object.values(own.state.cards)) if (card.introducedDay > today) card.introGateDay = today;
+      own.state.learning = { day: today, count: 0, pending: [] };
+      await store.set({ [PERSONAL_KEY]: ctx.personal });
+    }
     return true;
   });
   if (recovered) await broadcast('retry');
@@ -567,7 +604,7 @@ function personalForTarget(ctx, target) {
 }
 
 function spentElsewhere(state, day, revision, now) {
-  return state.learning.day > day ? 20 :
+  return state.learning.day > day ? Number.MAX_SAFE_INTEGER :
     (state.learning.day === day ? state.learning.count : 0) +
     activeReservations(state.learning, day, now, revision).length;
 }
@@ -617,10 +654,11 @@ async function commitAdaptive(ctx, raw, sender, stillSafe) {
     await legacy.scoped.set({ [REVIEW_KEY]: legacy.state });
   const personalBudget = Math.max(0, ctx.settings.newWordsPerDay -
     spentElsewhere(legacy.state, day, ctx.revision, now));
-  const personalOutput = commitLearning(personal.state, personalRaw,
-    { ...ctx.settings, newWordsPerDay: personalBudget }, sender, ctx.revision, now, day);
+  const personalOutput = ctx.personal.unsupported ? Object.fromEntries(Object.keys(raw).map((key) => [key, []])) :
+    commitLearning(personal.state, personalRaw,
+      { ...ctx.settings, newWordsPerDay: personalBudget }, sender, ctx.revision, now, day);
   if (!(await stillSafe())) throw Object.assign(new Error('Page context changed'), { stale: true });
-  if (JSON.stringify(personal.state.learning) !== beforePersonal)
+  if (!ctx.personal.unsupported && JSON.stringify(personal.state.learning) !== beforePersonal)
     await store.set({ [PERSONAL_KEY]: ctx.personal });
   return Object.fromEntries(Object.keys(raw).map((key) => [key,
     [...(legacyOutput[key] || []), ...(personalOutput[key] || []).map((swap) => ({ ...swap,
@@ -658,8 +696,13 @@ async function reviewNext() {
       .reduce((due, w) => Math.min(due, own.state.cards[w.fr].due), Infinity);
     const usePersonal = personalDue < legacyDue;
     const card = usePersonal ? nextReview(own.state, own.words, now) : nextReview(state, words, now);
-    if (usePersonal) await store.set({ [PERSONAL_KEY]: ctx.personal });
-    else await scoped.set({ [REVIEW_KEY]: state });
+    if (usePersonal) {
+      if (state.current) { state.current = null; await scoped.set({ [REVIEW_KEY]: state }); }
+      await store.set({ [PERSONAL_KEY]: ctx.personal });
+    } else {
+      if (own.state.current) { own.state.current = null; await store.set({ [PERSONAL_KEY]: ctx.personal }); }
+      await scoped.set({ [REVIEW_KEY]: state });
+    }
     const counts = await reviewStatus(ctx);
     return { card, ...counts, language: languageName(language) };
   });
@@ -804,12 +847,12 @@ async function captureMenuClicked(info, tab) {
     if (response?.ok !== true || response.text !== selected) throw new Error('Selection unavailable');
     const latest = await context();
     const finalTab = await chrome.tabs.get(tab.id);
-    if (latest.revision !== ctx.revision || finalTab?.url !== info.pageUrl ||
+    if (captureRevision(latest) !== captureRevision(ctx) || finalTab?.url !== info.pageUrl ||
         isZeroFrench(finalTab.title || '') || contentDocuments.get(tab.id)?.documentId !== document.documentId ||
         settingsAtStart !== settingsGeneration || permissionAtStart !== permissionGeneration)
       throw new Error('Page or settings changed');
     Object.assign(draft, { selectedText: selected, tabId: tab.id, documentId: document.documentId,
-      url: info.pageUrl, language: ctx.language, revision: ctx.revision,
+      url: info.pageUrl, language: ctx.language, revision: captureRevision(ctx),
       settingsGeneration: settingsAtStart, permissionGeneration: permissionAtStart });
   } catch {
     draft.error = 'The selection changed, or this document is no longer available. Select it again on the page.';
@@ -822,7 +865,7 @@ async function captureIsCurrent(draft) {
   const settingEpoch = settingsGeneration, permissionEpoch = permissionGeneration;
   if (settingEpoch !== draft.settingsGeneration || permissionEpoch !== draft.permissionGeneration) return null;
   const ctx = await context();
-  if (ctx.language !== draft.language || ctx.revision !== draft.revision ||
+  if (ctx.language !== draft.language || captureRevision(ctx) !== draft.revision ||
       !siteEnabled(ctx.settings, draft.url) || !hasSiteAccess(draft.url, ctx.origins) ||
       !captureUrlSafe(draft.url) ||
       contentDocuments.get(draft.tabId)?.documentId !== draft.documentId) return null;
@@ -850,7 +893,11 @@ async function captureDraft(msg) {
     ctx.legacyAllWords, ctx.personal).map((match) => ({ ...match, direction: 'en-to-target' })),
     ...suggestedMatches(draft.selectedText, 'target-to-en', ctx.language,
       ctx.legacyAllWords, ctx.personal).map((match) => ({ ...match, direction: 'target-to-en' }))].slice(0, 24);
-  return { selectedText: draft.selectedText, language: ctx.language, matches };
+  const personalStatus = new Map(ctx.activePersonal.map(({ entry, reviewOnly }) => [entry.id, reviewOnly]));
+  return { selectedText: draft.selectedText, language: ctx.language,
+    matches: matches.map((match) => ({ ...match,
+      ...(match.id ? { reviewOnly: personalStatus.get(match.id) === true,
+        reason: 'shared spelling or phrase needs explicit review' } : {}) })) };
 }
 
 async function captureSave(msg) {
@@ -866,6 +913,13 @@ async function captureSave(msg) {
       return { error: 'The selected form must match the confirmed source or target exactly.' };
     const exactKnown = ctx.language === 'es' && (!msg.sense || msg.sense === source)
       ? ctx.legacyAllWords.find((word) => word.fr === target && word.en === source) : null;
+    const samePackMeaning = ctx.legacyAllWords.some((word) => word.fr === target && word.en === source &&
+      (!msg.sense || msg.sense === word.en));
+    const collidesWithPack = ctx.legacyAllWords.some((word) =>
+      targetAliases(word.fr, ctx.language).some((form) => targetAliases(target, ctx.language).includes(form)) ||
+      englishAnchors(word).some((anchor) => englishAnchors({ en: source }).includes(anchor)));
+    if (collidesWithPack && !samePackMeaning && msg.distinct !== true)
+      return { error: 'This spelling already has another meaning in the current pack. Confirm “distinct meaning” to save it separately.' };
     let result;
     try {
       result = addPersonal(ctx.personal, { ...msg,
@@ -879,10 +933,11 @@ async function captureSave(msg) {
     captureDrafts.delete(msg.nonce);
     const { reviewOnly } = personalWords(ctx.personal, ctx.language, ctx.legacyAllWords)
       .find(({ entry }) => entry.id === result.entry.id) || { reviewOnly: true };
-    const receipt = { ok: true, id: result.entry.id, duplicate: result.duplicate, reviewOnly };
+    const receipt = { ok: true, id: result.entry.id, duplicate: result.duplicate,
+      archived: result.entry.archived, reviewOnly };
     completedCaptures.set(msg.nonce, { at: Date.now(), result: receipt });
     if (completedCaptures.size > 20) completedCaptures.delete(completedCaptures.keys().next().value);
-    void broadcast('retry').catch(() => {});
+    if (ctx.revision !== (await context()).revision) void broadcast('retry').catch(() => {});
     return receipt;
   });
 }
@@ -910,7 +965,7 @@ async function personalArchive(msg) {
       entry.archived = msg.archived;
       ctx.personal.revision++;
       await store.set({ [PERSONAL_KEY]: ctx.personal });
-      void broadcast('retry').catch(() => {});
+      if (ctx.revision !== (await context()).revision) void broadcast('retry').catch(() => {});
     }
     return { ok: true };
   });
@@ -941,7 +996,14 @@ async function personalIntroduce(msg) {
 async function personalExportResult() {
   const { [PERSONAL_KEY]: raw } = await store.get(PERSONAL_KEY);
   if (cleanPersonal(raw).unsupported) return { error: 'Personal vocabulary uses a newer format. Update Lang Weave.' };
-  return { json: JSON.stringify(exportPersonal(cleanPersonal(raw)), null, 2) };
+  const personal = cleanPersonal(raw);
+  const feedback = {};
+  for (const language of new Set(personal.entries.map((entry) => entry.language))) {
+    const own = await personalScope(language).get([ENCOUNTERS_KEY, PENDING_KEY, SENT_KEY]);
+    feedback[language] = { encounters: own[ENCOUNTERS_KEY] || null,
+      events: own[PENDING_KEY] || [], shown: own[SENT_KEY] || null };
+  }
+  return { json: JSON.stringify({ ...exportPersonal(personal), feedback }, null, 2) };
 }
 
 // A git update can replace this folder on disk, but Chrome keeps
@@ -974,9 +1036,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const review = sender.url === chrome.runtime.getURL('src/review.html');
   const capture = capturePageSender(sender);
   const page = sender.tab && /^https?:\/\//.test(sender.url || '');
-  if (page && msg.type === 'config') rememberDocument(sender);
+  if (page && ['config', 'captureReady'].includes(msg.type)) rememberDocument(sender);
   const handlers = {
     config: async () => publicContext(await context()),
+    captureReady: async () => ({ ok: true }),
     swaps: () => swaps(msg, sender),
     event: () => record(msg, sender),
     status, clearCache,
@@ -1005,7 +1068,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       !(review && reviews.includes(msg.type)) &&
       !(capture && ['captureDraft', 'captureSave', 'captureCancel', 'personalList',
         'personalArchive', 'personalIntroduce', 'personalExport'].includes(msg.type)) &&
-      !(page && ['config', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate', 'introAck', 'introRelease', 'introRenew'].includes(msg.type))) return false;
+      !(page && ['config', 'captureReady', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate', 'introAck', 'introRelease', 'introRenew'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
@@ -1057,8 +1120,11 @@ chrome.alarms.onAlarm.addListener((a) => {
 function registerCaptureMenu() {
   if (!chrome.contextMenus?.create) return;
   chrome.contextMenus.removeAll(() => {
+    if (chrome.runtime.lastError) { console.warn('Lang Weave selection menu unavailable:', chrome.runtime.lastError.message); return; }
     chrome.contextMenus.create({ id: CAPTURE_MENU, title: 'Add to Lang Weave',
-      contexts: ['selection'], documentUrlPatterns: ['http://*/*', 'https://*/*'] });
+      contexts: ['selection'], documentUrlPatterns: ['http://*/*', 'https://*/*'] }, () => {
+      if (chrome.runtime.lastError) console.warn('Lang Weave selection menu unavailable:', chrome.runtime.lastError.message);
+    });
   });
 }
 const captureMenuListener = (info, tab) => { void captureMenuClicked(info, tab).catch(() => {}); };

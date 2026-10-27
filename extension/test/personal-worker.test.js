@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { hashKey } from '../src/hash.js';
 import { L2_WORDS } from '../src/vocabulary.js';
+import { localDay } from '../src/events.js';
 
 test('production menu listener, one-use save, stable review history and archive/export', async () => {
   const prior = { chrome: globalThis.chrome, fetch: globalThis.fetch };
@@ -60,6 +61,7 @@ test('production menu listener, one-use save, stable review history and archive/
       async updateContentScripts() {}, async unregisterContentScripts() {} },
   };
   globalThis.fetch = async (endpoint, init) => {
+    if (String(endpoint).endsWith('manifest.json')) return { ok: true, json: async () => ({ version: '0.10.0' }) };
     modelCalls++;
     if (!modelEnabled) throw new Error('No network allowed in capture test');
     const user = JSON.parse(init.body).contents[0].parts[0].text;
@@ -100,10 +102,11 @@ test('production menu listener, one-use save, stable review history and archive/
     expect((await send(fields, owner)).error).toMatch(/could not be saved/i);
     expect(data.personalVocabularyV1).toBeUndefined();
     failPersonalWrite = false;
-    const saved = await send(fields, owner);
+    const [saved, concurrent] = await Promise.all([send(fields, owner), send(fields, owner)]);
     expect(saved.ok).toBe(true);
     expect(saved.reviewOnly).toBe(false);
-    expect((await send(fields, owner)).id).toBe(saved.id); // retry receipt cannot create a second entry
+    expect(concurrent.id).toBe(saved.id); // one write and one idempotent receipt
+    expect((await send(fields, owner)).id).toBe(saved.id); // later retry cannot create a second entry
     expect(data.personalVocabularyV1.entries).toHaveLength(1);
     expect(data.personalVocabularyV1.history.es?.cards[saved.id]).toBeUndefined(); // Save did not introduce
     expect(data.recallReview).toBeUndefined();
@@ -146,6 +149,9 @@ test('production menu listener, one-use save, stable review history and archive/
     expect((await send({ type: 'introAck', word: swap.word, ticket: swap.introTicket, revision })).ok).toBe(true);
     expect(data.personalVocabularyV1.history.es.cards[shimmerSaved.id].reviews).toBe(0);
     expect(data.personalVocabularyV1.history.es.learning.count).toBe(1);
+    expect((await send({ type: 'event', word: 'brillar', event: 'seen', revision })).ok).toBe(true);
+    expect(data['lang:personal:es:readingEvents'][0].word).toBe(shimmerSaved.id);
+    expect(data['lang:personal:es:vocabularyEncounters'].counts[shimmerSaved.id]).toBeGreaterThan(0);
     const beforeBlocked = modelCalls;
     const sparkPassage = 'We saw spark around the quiet garden today.';
     const blocked = await send({ type: 'swaps', revision,
@@ -167,7 +173,9 @@ test('production menu listener, one-use save, stable review history and archive/
     const exported = JSON.parse((await send({ type: 'personalExport' }, owner)).json);
     expect(exported.entries[0].id).toBe(saved.id);
     expect(exported.history.es.cards[saved.id].reviews).toBe(1);
+    expect(exported.feedback.es.events.some((event) => event.word === shimmerSaved.id)).toBe(true);
     expect(JSON.stringify(exported)).not.toMatch(/reading\.example|document-one|apiKey|\/story/);
+    expect(JSON.stringify(exported)).not.toMatch(/ownerKey|documentId|introReceipt|"pending"|"inline"|"current"/);
 
     const known = L2_WORDS.find((word) => word.fr === 'el gato');
     const knownNonce = await click(known.en);
@@ -206,6 +214,12 @@ test('production menu listener, one-use save, stable review history and archive/
     })) };
     data.languagePacks = { fr: frenchPack };
     expect((await send({ type: 'save', settings: { language: 'fr' } }, popup)).ok).toBe(true);
+    const packRevision = (await send({ type: 'config' })).revision;
+    const packNonce = await click('anchor0');
+    const packMatch = await send({ type: 'captureSave', nonce: packNonce,
+      direction: 'en-to-target', source: 'anchor0', target: 'mot0', sense: '' }, captureSender(packNonce));
+    expect(packMatch.reviewOnly).toBe(true); // separate durable ID, pack still teaches this exact meaning
+    expect((await send({ type: 'config' })).revision).toBe(packRevision);
     const frenchNonce = await click('sunbeam');
     const frenchOwner = captureSender(frenchNonce);
     const frenchSaved = await send({ type: 'captureSave', nonce: frenchNonce,
@@ -213,9 +227,11 @@ test('production menu listener, one-use save, stable review history and archive/
     expect(frenchSaved.ok).toBe(true);
     expect((await send({ type: 'personalIntroduce', id: frenchSaved.id }, frenchOwner)).added).toBe(true);
     const frenchCard = structuredClone(data.personalVocabularyV1.history.fr.cards[frenchSaved.id]);
+    data['lang:personal:fr:readingEvents'] = [{ word: frenchSaved.id, kind: 'seen', day: localDay() }];
     expect((await send({ type: 'removeLanguage', code: 'fr' }, popup)).ok).toBe(true);
     expect(data.personalVocabularyV1.entries.find((entry) => entry.id === frenchSaved.id).target).toBe('rayon');
     expect(data.personalVocabularyV1.history.fr.cards[frenchSaved.id]).toEqual(frenchCard);
+    expect(data['lang:personal:fr:readingEvents'][0].word).toBe(frenchSaved.id);
     data.languagePacks = { fr: frenchPack };
     expect((await send({ type: 'save', settings: { language: 'fr' } }, popup)).ok).toBe(true);
     expect(data.personalVocabularyV1.history.fr.cards[frenchSaved.id]).toEqual(frenchCard);
@@ -233,7 +249,7 @@ test('production menu listener, one-use save, stable review history and archive/
     release();
     expect((await pending).error).toMatch(/expired|changed/i);
     await revocation;
-    expect(data.personalVocabularyV1.entries).toHaveLength(7);
+    expect(data.personalVocabularyV1.entries).toHaveLength(8);
     origins = ['<all_urls>']; await added[0]();
 
     const reboundNonce = await click('radiance');
@@ -249,7 +265,7 @@ test('production menu listener, one-use save, stable review history and archive/
     release();
     expect((await pendingRebound).error).toMatch(/expired|changed/i);
     await Promise.all([removedOnce, addedBack]);
-    expect(data.personalVocabularyV1.entries).toHaveLength(7);
+    expect(data.personalVocabularyV1.entries).toHaveLength(8);
 
     const siteNonce = await click('luster');
     const siteOwner = captureSender(siteNonce);
@@ -261,7 +277,7 @@ test('production menu listener, one-use save, stable review history and archive/
     release();
     expect((await pendingSite).error).toMatch(/expired|changed/i);
     await siteOff;
-    expect(data.personalVocabularyV1.entries).toHaveLength(7);
+    expect(data.personalVocabularyV1.entries).toHaveLength(8);
     await send({ type: 'save', settings: { enabled: true } }, popup);
 
     const navNonce = await click('gleam');
@@ -269,7 +285,7 @@ test('production menu listener, one-use save, stable review history and archive/
     expect((await send({ type: 'captureSave', nonce: navNonce, direction: 'en-to-target',
       source: 'gleam', target: 'brillo', sense: '' }, captureSender(navNonce))).error).toMatch(/expired|changed/i);
     liveUrl = url;
-    expect(data.personalVocabularyV1.entries).toHaveLength(7);
+    expect(data.personalVocabularyV1.entries).toHaveLength(8);
 
     const reloadNonce = await click('glow');
     alive = false; // same URL, old document is gone
@@ -291,12 +307,40 @@ test('production menu listener, one-use save, stable review history and archive/
     expect((await send({ type: 'captureDraft', nonce: noPermission }, captureSender(noPermission))).error).toMatch(/off|unavailable/i);
     origins = ['<all_urls>'];
 
+    data.personalVocabularyV1.history.es.learning = { day: '2099-01-01', count: 1, pending: [] };
+    data.personalVocabularyV1.history.es.cards[shimmerSaved.id].introducedDay = '2099-01-01';
+    const budgetStatus = await send({ type: 'status' }, popup);
+    expect(budgetStatus.budgetWarning).toBe('2099-01-01');
+    expect((await send({ type: 'recoverBudget', confirm: true, day: '2099-01-01',
+      scope: budgetStatus.config.scope }, popup)).ok).toBe(true);
+    expect(data.personalVocabularyV1.history.es.learning).toEqual({ day: localDay(), count: 0, pending: [] });
+    expect(data.personalVocabularyV1.history.es.cards[shimmerSaved.id].introGateDay).toBe(localDay());
+
     alive = false;
     const missing = await click('dazzle');
     expect((await send({ type: 'captureDraft', nonce: missing }, captureSender(missing))).error).toMatch(/document|selection/i);
     alive = true; challenge = false;
     const denied = await click('dazzle');
     expect((await send({ type: 'captureDraft', nonce: denied }, captureSender(denied))).error).toMatch(/selection|document/i);
-    expect(modelCalls).toBe(1);
+    challenge = true;
+    const intact = structuredClone(data.personalVocabularyV1);
+    data.personalVocabularyV1 = { version: 1, entries: [{ invalid: true }], history: intact.history };
+    const malformed = structuredClone(data.personalVocabularyV1);
+    const unsupportedRevision = (await send({ type: 'config' })).revision;
+    const catPassage = 'We saw cat around the quiet garden today.';
+    await send({ type: 'swaps', revision: unsupportedRevision,
+      items: [{ key: `${unsupportedRevision}:${hashKey(catPassage)}`, text: catPassage }] });
+    expect(data.personalVocabularyV1).toEqual(malformed); // reading cannot overwrite an unsupported store
+    data.personalVocabularyV1 = intact;
+    const restartNonce = await click('renewal');
+    messages.length = 0; clicks.length = 0; removed.length = 0; added.length = 0;
+    await import('../src/background.js?personal-worker-restart');
+    expect((await send({ type: 'captureDraft', nonce: restartNonce }, captureSender(restartNonce))).error).toMatch(/expired/i);
+    expect((await send({ type: 'captureSave', nonce: restartNonce, direction: 'en-to-target',
+      source: 'renewal', target: 'renovación', sense: '' }, captureSender(restartNonce))).error).toMatch(/expired|changed/i);
+    await send({ type: 'captureReady' }); // right-click re-announces the live document after worker restart
+    const resumedNonce = await click('renewal');
+    expect((await send({ type: 'captureDraft', nonce: resumedNonce }, captureSender(resumedNonce))).selectedText).toBe('renewal');
+    expect(modelCalls).toBeGreaterThanOrEqual(1);
   } finally { Object.assign(globalThis, prior); }
 }, 30000);

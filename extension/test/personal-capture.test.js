@@ -31,6 +31,12 @@ test('capture requires enabled granted safe HTTP prose and an exact bounded live
   win.happyDOM.abort();
 });
 
+test('live selection and menu text use the same NFC and whitespace normalization', () => {
+  const { win, result } = selection('<p>We can read café  around the quiet garden.</p>', 'café  ');
+  expect(verifyCaptureSelection(result, 'café', options)).toEqual({ ok: true, text: 'café' });
+  win.happyDOM.abort();
+});
+
 test('selection is rejected if it touches a link, editable control, code, or hidden content', () => {
   for (const wrapper of ['<a href="#">', '<span contenteditable="true">', '<code>', '<span hidden>', '<span aria-hidden="true">']) {
     const { win, result } = selection(`<p>${wrapper}selected word</${wrapper.match(/^<([\w]+)/)[1]}></p>`, 'selected word');

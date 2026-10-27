@@ -40,6 +40,13 @@ test('unsafe spelling or English anchors are review-only, distinct supported ite
   const aliasState = fresh();
   save(aliasState, 'dwelling', 'casa');
   expect(personalWords(aliasState, 'es', [{ fr: 'la casa', en: 'home' }])[0].reviewOnly).toBe(true);
+  const phrase = fresh();
+  save(phrase, 'bright idea', 'idea brillante');
+  save(phrase, 'bank/shore', 'orilla');
+  expect(personalWords(phrase, 'es', []).every(({ reviewOnly }) => reviewOnly)).toBe(true);
+  const article = fresh();
+  save(article, 'gleam', 'el brillo');
+  expect(personalWords(article, 'es', [])[0].reviewOnly).toBe(false);
 });
 
 test('selection and fields reject controls, format, URL-like, markup and oversized input', () => {

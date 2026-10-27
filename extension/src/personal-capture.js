@@ -1,6 +1,7 @@
 // Conservative, local-only validation for personal capture. No page text leaves this module.
 import { siteEnabled, hasSiteAccess, offByDefault } from './settings.js';
 import { isZeroFrench, wordCount } from './levels.js';
+import { validForm } from './personal.js';
 
 const MAX_CAPTURE = 80;
 const MAX_WORDS = 5;
@@ -60,10 +61,10 @@ function rangeHasSafeText(range) {
 export function verifyCaptureSelection(selection, expectedText, { url, title, settings, origins } = {}) {
   if (!capturePageAllowed({ url, title, settings, origins }) || !selection || selection.isCollapsed || selection.rangeCount < 1) return { ok: false };
   const text = String(selection.toString());
-  if (text !== expectedText || !text.trim() || [...text].length > MAX_CAPTURE ||
+  if (validForm(text, { selection: true }) !== expectedText || !text.trim() || [...text].length > MAX_CAPTURE ||
       (text.match(/\S+/gu) || []).length > MAX_WORDS || /[\p{Cc}\p{Cf}<>]/u.test(text) ||
       /(?:https?:\/\/|www\.|\b\w+@\w+\.)/i.test(text) || HIGH_STAKES.test(text) ||
       isZeroFrench(text)) return { ok: false };
   for (let i = 0; i < selection.rangeCount; i++) if (!rangeHasSafeText(selection.getRangeAt(i))) return { ok: false };
-  return { ok: true, text };
+  return { ok: true, text: expectedText };
 }

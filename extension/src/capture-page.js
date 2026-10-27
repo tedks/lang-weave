@@ -29,9 +29,9 @@ function drawSuggestions(matches) {
     const target = String(match?.fr ?? match?.target ?? '');
     text.textContent = `${source} ⇄ ${target}${match?.sense ? ` · ${String(match.sense)}` : ''}`;
     const provenance = document.createElement('p'); provenance.className = 'muted';
-    const origin = match?.provenance === 'bundled-suggestion'
+    const origin = match?.id ? 'Your saved personal entry' : match?.provenance === 'bundled-suggestion'
       ? 'Bundled suggestion; meaning has not been independently dictionary checked'
-      : match?.provenance === 'manual' ? 'Your saved personal entry' : 'Local suggestion';
+      : 'Local suggestion';
     provenance.textContent = `${origin}${match?.reviewOnly ? ` · Review only: ${String(match.reason || 'automatic reading is disabled for this entry')}` : ''}`;
     const choose = document.createElement('button'); choose.type = 'button'; choose.textContent = 'Use suggestion';
     choose.addEventListener('click', () => {
@@ -126,7 +126,10 @@ $('capture-form').addEventListener('submit', (event) => {
     if (!draft || !nonce) throw new Error('Capture expired. Retry from the page selection.');
     const fields = new FormData(event.currentTarget);
     const result = await send('captureSave', { nonce, direction: fields.get('direction'), source: fields.get('source'), target: fields.get('target'), sense: fields.get('sense'), distinct: $('distinct').checked });
-    notice(result.reviewOnly ? 'Saved as a review-only personal entry.' : result.duplicate ? 'This personal entry already exists.' : 'Saved as a personal entry. It was not added to review.');
+    notice(result.archived ? 'This entry already exists in your archive. Unarchive it below to use it.' :
+      result.duplicate ? 'This personal entry already exists.' :
+      result.reviewOnly ? 'Saved as a review-only personal entry.' :
+      'Saved as a personal entry. It was not added to review.');
     draft = null;
     await loadEntries();
   });
