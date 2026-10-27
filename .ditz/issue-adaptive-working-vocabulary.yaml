@@ -11,8 +11,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-27T15:58:37-00:00
 references: []
 log_events:
@@ -60,5 +60,13 @@ log_events:
     version0.9.0,35blocks/diff and guarded Chromium full suite PASS. Native OpenAI
     and foreign Anthropic repair/final deltas CLEAN, Google actual quota empty. Ready
     for root re-acceptance and normal merge; no deploy.'
+- time: 2026-10-27T17:10:39-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: CTO re-accepted d20167b4e83e5ffacababc232b5eab43b96bbd31; original held-document
+    probes separately PASS,34 focused Bun366 assertions,91 Python,version,diff and
+    guarded adaptive MV3 PASS. Full Lead gates and repair/final council CLEAN accepted.
+    PR13 normal merged d92a8a4cd1cd8cd314e0d6c5d4af313df0c9ce3f, expected parents/identical
+    tested tree verified. No fleet deployment.
 blocked_by:
 - vocabulary-source-audit
