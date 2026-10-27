@@ -1,0 +1,22 @@
+id: personal-capture-idle-evidence
+title: Add real MV3 idle confirmation evidence and menu recovery checks
+desc: Council PR14 minor evidence/reliability follow-up. The bounded 15-second heartbeat
+  is covered by DOM tests and Chrome's documented worker lifecycle, while the isolated
+  Chromium flow does not hold a confirmation page open past the normal 30-second worker
+  idle interval. Add a guarded long-idle browser scenario without a personal profile/key
+  or live Gemini, and inspect keyboard-menu reannouncement and transient context menu
+  registration failure handling. Current flow remains fail-closed with retry and does
+  not persist drafts.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T17:53:15-00:00
+references: []
+log_events:
+- time: 2026-10-27T17:53:15-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
