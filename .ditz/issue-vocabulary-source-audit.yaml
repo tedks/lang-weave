@@ -63,6 +63,9 @@ log_events:
   what: 'closed: fixed'
   comment: Read-only primary-source and current-interface audit delivered in private
     report; root retains adoption and implementation.
+- time: 2026-10-27T17:53:19-00:00
+  who: Ted Smith
+  what: no longer blocks personal-word-capture
+  comment: ""
 blocks:
-- personal-word-capture
 - adaptive-working-vocabulary
