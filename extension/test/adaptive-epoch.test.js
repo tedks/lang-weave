@@ -159,11 +159,11 @@ test('held fresh delivery lookup rejects revoke before caching or reserving', as
 }, 30000);
 
 test('held cached delivery lookup rejects revoke without returning cached swaps', async () => {
-  const denied = await heldLookup({ name: 'cached-delivery-revoke', lookup: 13, change: 'revoke', prime: true });
+  const denied = await heldLookup({ name: 'cached-delivery-revoke', lookup: 15, change: 'revoke', prime: true });
   expect(denied.result.stale).toBe(true);
   expect(denied.fetches).toBe(1); // only the authorized priming fetch
   expect(denied.data.recallReview.cards['la idea'].reviews).toBe(2);
-  const allowed = await heldLookup({ name: 'cached-delivery-allowed', lookup: 13, prime: true });
+  const allowed = await heldLookup({ name: 'cached-delivery-allowed', lookup: 15, prime: true });
   expect(allowed.result.stale).toBeUndefined();
   expect(allowed.fetches).toBe(1);
   expect(Object.values(allowed.result.results).flat()[0].status).toBe('due');

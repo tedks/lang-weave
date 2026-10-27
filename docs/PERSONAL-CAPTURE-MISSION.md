@@ -1,6 +1,6 @@
 # Personal word capture (0.10.0)
 
-State: STARTED. Owner: `personal-word-capture` Lead, OpenAI gpt-6-sol. Base: accepted main `d92a8a4cd1cd8cd314e0d6c5d4af313df0c9ce3f`. Root owns acceptance, merge and rollout. This record is sanitized; it contains no captured page data.
+State: IN PROGRESS, draft PR 14. Owner: `personal-word-capture` Lead, OpenAI gpt-6-sol. Base: accepted main `d92a8a4cd1cd8cd314e0d6c5d4af313df0c9ce3f`. Root owns acceptance, merge and rollout. This record is sanitized; it contains no captured page data.
 
 ## Intent and authority
 
@@ -20,7 +20,11 @@ Owned source, tests, this document, version and guarded browser harness may chan
 
 Legacy Beginner 30/Expanded 226 arrays and all existing `fr` review keys are byte/order unchanged. Generated pack version scopes remain as they are. Personal entries use a random UUID in `personalVocabularyV1` with canonical target language and a separate opaque history key `personal:<language>:<uuid>`. That key is only scheduler identity; `fr` always remains the exact display/validator target and `en` the English source. No opaque ID is sent as a target form. Personal history, learning count, current ticket and inline ticket are independent of generated-pack scope and remain in the same personal object as entries. The adapter reads the full active catalog for a language to clean/review; request candidates are a bounded subset. Archiving removes eligibility, not the ID or card. Generated pack removal only removes existing `lang:<language>:<pack version>:` data, never canonical-language personal data.
 
+For exact Spanish bundled source/target/sense matches, the personal entry records an explicit link to the unchanged legacy card. It has no duplicate personal review card. Generated-pack matches keep a separate personal ID/history so removing or recreating that pack cannot erase the personal record. Different senses with shared English anchors, target spellings or Spanish article/bare aliases are review-only. The corresponding legacy entry is also suppressed from automatic reading while an unresolved personal sense is active; its legacy manual review remains available. Unarchiving recomputes eligibility without merging histories.
+
 The identity bridge must touch **every** `fr`-keyed consumer: cleaner, counts, manual introduction, due selection, reveal/rating/known, policy and adaptive ranking, reservations/acknowledgement, inline begin/reveal/rating, validation, encounter and event routing. Historical `fr` remains the identity for legacy entries. A personal card with a shared target spelling or English anchor is review-only; an unambiguous supported entry can enter adaptive selection. A personal phrase that the current matcher cannot prove safe is review-only and manually introducible through explicit controls. Preserve next-local-day inline cue after a visible introduction.
+
+Implementation choice: keep the existing V1 legacy state in its original scope. `personalVocabularyV1` contains personal entries and per-language V1-shaped personal history under opaque IDs. At a request boundary the worker materializes a temporary combined spelling-keyed view **only for unique automatic candidates**; manual review and inline tickets route to their owning ledger and map the ID back to display text on reveal. Daily allowance is the sum of the two ledgers' committed counts and active reservations. Each acknowledgement writes only one ledger while holding the existing storage serialization lock. A mixed request can leave an expiring reservation in one ledger if the other write fails; no introduction is charged until the visible acknowledgement, and a retry is idempotent. Save and every personal history change write the single versioned personal object, so an entry cannot be committed separately from its personal card state.
 
 No existing card is copied or re-keyed. Version 0.9.0 retains valid unknown V1 cards, but 0.8.0 writes may prune them; rollback by version number alone is not claimed safe. The new personal store is ignored by older versions, and export provides a local recovery snapshot. No import or deletion is included.
 
@@ -37,3 +41,10 @@ Paired model, worker and DOM tests; mutation-red guards for nonce/ownership/elig
 ## Chrome contracts checked
 
 [contextMenus](https://developer.chrome.com/docs/extensions/reference/api/contextMenus/) documents `selectionText`, `frameId`, `editable` and menu IDs, including that items may appear on unsupported pages. [tabs.sendMessage](https://developer.chrome.com/docs/extensions/reference/api/tabs/) supports `documentId` and `frameId` targeting. [runtime.MessageSender](https://developer.chrome.com/docs/extensions/reference/api/runtime/) provides document identity/lifecycle. [storage](https://developer.chrome.com/docs/extensions/reference/api/storage/) documents local persistence and trusted-context access; the store is already restricted by `setAccessLevel`.
+
+## Evidence checkpoints
+
+- Contract checkpoint `7956d43` pushed to draft PR 14; `personal-word-capture` started and metadata synced. The UI helper's separate assumptions and DOM evidence are in `docs/PERSONAL-CAPTURE-UI-REPORT.md`.
+- Focused personal model/worker/DOM tests and the guarded isolated Chromium synthetic callback flow passed locally. The browser test appends a callback handle to a throwaway copied worker file only; no runtime test hook is shipped. It verifies actual listener logic and confirmation page, not a physical native OS menu click. Its Gemini response is synthetic and external Gemini DNS/proxy access is blocked.
+- Isolated mutation probes went RED when changing nonce lookup, sender ownership, collision eligibility, personal history cleaning and combined daily count. They ran against throwaway copies; the worktree source was not mutated.
+- Exact-head full suite, Python/version/35-block/diff gates, all existing guarded Chromium flows and full provider-diverse council are still pending at this record entry. No live Gemini, personal profile or installed extension was used.
