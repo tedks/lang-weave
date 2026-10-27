@@ -128,6 +128,7 @@ test('production menu listener, one-use save, stable review history and archive/
     data.apiKey = 'synthetic-key';
     modelEnabled = true;
     const beforeSaveCalls = modelCalls, beforeSaveBroadcasts = broadcastQueries;
+    const beforeSaveRevision = (await send({ type: 'config' })).revision;
     // A second ordinary personal entry enters the budgeted adaptive path only after visible ack.
     const shimmerNonce = await click('shimmer');
     const shimmerOwner = captureSender(shimmerNonce);
@@ -141,6 +142,13 @@ test('production menu listener, one-use save, stable review history and archive/
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(modelCalls).toBe(beforeSaveCalls);
     expect(broadcastQueries).toBe(beforeSaveBroadcasts);
+    const stalePassage = 'We saw shimmer around the quiet garden today.';
+    expect((await send({ type: 'swaps', revision: beforeSaveRevision,
+      items: [{ key: `${beforeSaveRevision}:${hashKey(stalePassage)}`, text: stalePassage }] })).stale).toBe(true);
+    expect((await send({ type: 'introAck', revision: beforeSaveRevision,
+      word: 'brillar', ticket: crypto.randomUUID() })).stale).toBe(true);
+    expect(modelCalls).toBe(beforeSaveCalls); // stale traffic cannot start a provider call or charge learning
+    expect(data.personalVocabularyV1.history.es?.learning?.count || 0).toBe(0);
     const revision = (await send({ type: 'config' })).revision;
     const passage = 'We saw shimmer around the quiet garden today.';
     const request = () => send({ type: 'swaps', revision,
