@@ -223,6 +223,7 @@ try {
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   assert.equal(await worker.evaluate(() => chrome.storage.local.get('settings').then((x) => x.settings.language)), 'fr');
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
+  await page.close(); // stop the earlier reading page before resetting an introduction fixture
   await popup.locator('#language').selectOption('es');
   await popup.locator('#gradual').check();
   await popup.locator('#newWordsPerDay').selectOption('2');
