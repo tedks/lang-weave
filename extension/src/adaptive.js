@@ -21,7 +21,7 @@ export function reviewBacklog(state, eligibleWords, now) {
 export function requestChars(words, { batch, level, language, density, shownToday = [] }) {
   // Worker items carry `key`; requestSwaps sends that value as `id`. Measure
   // the exact JSON field that the model receives, including every batch ID.
-  const requestBatch = batch.map(({ id, key, text }) => ({ id: id ?? key, text }));
+  const requestBatch = batch.map(({ id, key, text }) => ({ id: key ?? id, text }));
   const body = buildRequest({ system: buildSystemPrompt(level, words, shownToday, language, density),
     user: buildUserContent(requestBatch), schema: RESPONSE_SCHEMA });
   return JSON.stringify(body).length;

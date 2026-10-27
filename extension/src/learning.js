@@ -112,7 +112,6 @@ export function commitLearning(state, results, settings, sender, revision, now =
           const id = ticket();
           reservation = { word: swap.word, ticket: id, day, until: now + RESERVATION_MS,
             revision, ownerKey: introductionOwner(id, sender, revision) };
-          batch.set(swap.word, reservation);
           state.learning.pending.push(reservation);
           added++;
         }

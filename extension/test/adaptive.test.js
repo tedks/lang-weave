@@ -17,7 +17,7 @@ const day = '2026-10-27';
 const settings = { gradual: true, newWordsPerDay: 5 };
 const batch = (text) => [{ id: 'one', text }];
 const select = (options = {}) => selectWorkingSet({ batch: batch('The window and the book are here today.'),
-  words: L2_WORDS, fullWords: L2_WORDS, scope: 'es', state: cleanReview(null, L2_WORDS, now),
+  words: L2_WORDS, scope: 'es', state: cleanReview(null, L2_WORDS, now),
   settings, now, day, revision: 'rev', level: 2, language: 'es', ...options });
 
 test('catalog IDs retain exact legacy forms and local matching skips ambiguous anchors', () => {
@@ -65,7 +65,7 @@ test('eligible-level backlog throttles fresh at the exact boundary and resumes a
     [w.fr, { due: now - 1, interval: 1, reviews: 1 }])) }, L2_WORDS, now);
   expect(reviewBacklog(beginner, L2_WORDS, now)).toBe(5);
   expect(select({ batch: batch('The window is near the book today.'), state: beginner,
-    words: L1_WORDS, fullWords: L2_WORDS }).some((w) => w.status === 'new')).toBe(true);
+    words: L1_WORDS }).some((w) => w.status === 'new')).toBe(true);
   state.learning = { day, count: 5, pending: [] };
   expect(select({ batch: passage, state }).some((w) => w.status === 'new')).toBe(false);
 });
@@ -73,20 +73,19 @@ test('eligible-level backlog throttles fresh at the exact boundary and resumes a
 test('candidate, fresh, vocabulary and entire request bounds never truncate an entry', () => {
   const words = Array.from({ length: 45 }, (_, i) => ({ fr: `palabra${i}`, en: `anchor${i}`, hint: 'x' }));
   const text = words.map((w) => w.en).join(' ');
-  const chosen = select({ batch: batch(text), words, fullWords: words });
+  const chosen = select({ batch: batch(text), words });
   expect(chosen).toHaveLength(4);
   expect(chosen.every((w) => words.some((entry) =>
     entry.fr === w.fr && entry.en === w.en && entry.hint === w.hint))).toBe(true);
   const state = cleanReview({ version: 1, cards: Object.fromEntries(words.map((w) =>
     [w.fr, { due: now - 1, interval: 2, reviews: 2 }])) }, words, now);
-  const due = select({ batch: batch(text), words, fullWords: words, state });
+  const due = select({ batch: batch(text), words, state });
   expect(due).toHaveLength(MAX_CANDIDATES);
   expect(vocabularyChars(due)).toBeLessThanOrEqual(MAX_VOCABULARY_CHARS);
   expect(requestChars(due, { batch: batch(text), level: 2, language: 'es', density: 'normal' }))
     .toBeLessThanOrEqual(MAX_REQUEST_CHARS);
-  expect(select({ batch: batch(text), words: [{ fr: 'x'.repeat(3100), en: 'anchor0' }],
-    fullWords: words })).toEqual([]);
-  expect(select({ batch: batch('x'.repeat(26000) + ' anchor0'), words, fullWords: words })).toEqual([]);
+  expect(select({ batch: batch(text), words: [{ fr: 'x'.repeat(3100), en: 'anchor0' }] })).toEqual([]);
+  expect(select({ batch: batch('x'.repeat(26000) + ' anchor0'), words })).toEqual([]);
 });
 
 test('full request measurement includes every worker key as the dispatched passage ID', () => {
@@ -109,9 +108,11 @@ test('full request measurement includes every worker key as the dispatched passa
   const allowed = makeBatch(boundary - 1), overflowing = makeBatch(boundary);
   expect(allowed.every(({ text }) => text.length <= 2000)).toBe(true);
   expect(actualChars(allowed)).toBeLessThanOrEqual(MAX_REQUEST_CHARS);
-  expect(select({ batch: allowed, words: [word], fullWords: [word], level: 1 })).toHaveLength(1);
+  expect(select({ batch: allowed, words: [word], level: 1 })).toHaveLength(1);
   expect(actualChars(overflowing)).toBeGreaterThan(MAX_REQUEST_CHARS);
-  expect(select({ batch: overflowing, words: [word], fullWords: [word], level: 1 })).toEqual([]);
+  expect(select({ batch: overflowing, words: [word], level: 1 })).toEqual([]);
+  expect(select({ batch: overflowing.map((item) => ({ ...item, id: '' })),
+    words: [word], level: 1 })).toEqual([]);
 });
 
 test('an unacknowledged reservation can be reoffered only to its document without another slot', () => {
@@ -151,7 +152,7 @@ test('full history survives many candidate windows, level/scope toggles and rest
     const levelWords = i % 2 ? L1_WORDS : L2_WORDS;
     const state = cleanReview((await spanish.get(['recallReview'])).recallReview, L2_WORDS, now);
     select({ batch: batch(`${levelWords[i % levelWords.length].en} and the window today.`),
-      words: levelWords, fullWords: L2_WORDS, state });
+      words: levelWords, state });
     await spanish.set({ recallReview: state });
   }
   const restarted = cleanReview((await spanish.get(['recallReview'])).recallReview, L2_WORDS, now);
@@ -167,7 +168,7 @@ test('full history survives many candidate windows, level/scope toggles and rest
 test('generated scope is exact and retains listed forms', () => {
   const words = [{ fr: 'fenêtre', en: 'window', hint: 'x' }, { fr: 'livre', en: 'book', hint: 'x' }];
   const state = cleanReview(null, words, now);
-  const chosen = select({ words, fullWords: words, scope: 'fr:pack123', language: 'fr',
+  const chosen = select({ words, scope: 'fr:pack123', language: 'fr',
     batch: batch('The window and book are on the table.'), state });
   expect(chosen.map((w) => w.entryId)).toEqual(['fr:pack123:legacy:fen%C3%AAtre', 'fr:pack123:legacy:livre']);
   expect(chosen.map((w) => w.fr)).toEqual(['fenêtre', 'livre']);
