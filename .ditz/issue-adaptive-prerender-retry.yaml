@@ -1,0 +1,21 @@
+id: adaptive-prerender-retry
+title: Check gradual prerender retry after activation
+desc: Council PR13 convergence nit. Gradual-mode live-document guard returns stale
+  while a page is prerendered or its live URL differs. Content script retries a bounded
+  number of times (5, 10, 15 seconds) and should be checked against long prerender
+  activation and harmless URL changes. No model dispatch or encounter write occurs
+  during the stale state. Verify browser lifecycle behavior before changing retry
+  policy; this is nonblocking for current package.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T16:46:47-00:00
+references: []
+log_events:
+- time: 2026-10-27T16:46:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
