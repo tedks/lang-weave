@@ -24,3 +24,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-27T16:01:57-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'STARTED in clean again-rating worktree at a0d939104756ad8b4e87dc8cb26313a53f61e944.
+    Scope: explicit Again 10-minute local failed recall, both surfaces, preservation
+    and stale/storage guards; source/test/docs/version/PR readiness only. Root retains
+    acceptance, normal merge and release. Assumptions/failure modes and evidence plan
+    recorded in docs/AGAIN-MISSION.md.'
