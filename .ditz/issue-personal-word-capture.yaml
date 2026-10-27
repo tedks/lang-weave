@@ -19,3 +19,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-27T15:58:37-00:00
+  who: Ted Smith
+  what: blocked by vocabulary-source-audit
+  comment: ""
+blocked_by:
+- vocabulary-source-audit
