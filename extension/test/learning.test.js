@@ -3,6 +3,7 @@ import { cleanReview, introduce, beginInline, revealInline, finishInline, nextRe
 import { cleanLearning, remaining, policyWords, commitLearning, acknowledgeIntroduction,
   releaseIntroduction, futureBudgetDay } from '../src/learning.js';
 import { capSwaps } from '../src/levels.js';
+import { localDay } from '../src/events.js';
 
 const words = [
   { fr: 'y', en: 'and', hint: 'ee' },
@@ -184,6 +185,52 @@ test('due contextual result can cue recall; reveal and one rating require same d
   expect(finishInline(state, ticket, sender, 'revision-a', now, 'easy')).toBeNull();
   expect(state.cards.libro.reviews).toBe(1);
   expect(beginInline(state, 'libro', sender, 'revision-a', now)).toBeNull();
+});
+
+test('inline Again is bound to its revealed document and revision, with a ten-minute retry', () => {
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 21, reviews: 4, easyStreak: 2,
+    introducedDay: '2026-10-17', introGateDay: '2026-10-17' };
+  const ticket = beginInline(state, 'libro', sender, revision, now, () => 'b'.repeat(36)).ticket;
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toBeNull(); // unrevealed
+  expect(revealInline(state, words, ticket, { ...sender, documentId: 'other' }, revision, now)).toBeNull();
+  expect(revealInline(state, words, ticket, sender, 'other-revision', now)).toBeNull();
+  expect(revealInline(state, words, ticket, sender, revision, now)?.fr).toBe('libro');
+  expect(finishInline(state, ticket, { ...sender, documentId: 'other' }, revision, now, 'again')).toBeNull();
+  expect(finishInline(state, ticket, sender, 'other-revision', now, 'again')).toBeNull();
+  expect(finishInline(state, ticket, sender, revision, now, 'AGAIN')).toBeNull(); // malformed rating
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toEqual({
+    due: now + 10 * 60 * 1000, interval: 0, familiar: false,
+  });
+  expect(state.cards.libro).toEqual({ due: now + 10 * 60 * 1000, interval: 0, reviews: 5,
+    easyStreak: 0, introducedDay: '2026-10-17', introGateDay: '2026-10-17' });
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toBeNull(); // duplicate
+  expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000 - 1)).toBeNull();
+  expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000)).toHaveProperty('ticket');
+});
+
+test('Again cannot bypass the same-local-day automatic cue guard, while manual review remains due', () => {
+  const today = localDay(new Date(now));
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 0, reviews: 0, introducedDay: today,
+    introGateDay: today };
+  const first = nextReview(state, [words[2]], now, () => 'manual-ticket');
+  expect(revealReview(state, [words[2]], first.ticket, now)?.fr).toBe('libro');
+  expect(rateReview(state, first.ticket, 'again', now, true)?.due).toBe(now + 10 * 60 * 1000);
+  expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000)).toBeNull();
+  const nextMidnight = new Date(now);
+  nextMidnight.setHours(24, 0, 0, 0);
+  expect(beginInline(state, 'libro', sender, revision, nextMidnight.getTime() - 1)).toBeNull();
+  expect(nextReview(state, [words[2]], now + 10 * 60 * 1000, () => 'retry-ticket')?.ticket)
+    .toBe('retry-ticket');
+  expect(beginInline(state, 'libro', sender, revision, nextMidnight.getTime())).toHaveProperty('ticket');
+});
+
+test('a familiar card cannot enter the existing inline rating route', () => {
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now, interval: 365, reviews: 20, familiar: true };
+  expect(beginInline(state, 'libro', sender, revision, now)).toBeNull();
+  expect(nextReview(state, [words[2]], now)).toBeNull();
 });
 
 test('density choice changes a deterministic ceiling independent of level', () => {

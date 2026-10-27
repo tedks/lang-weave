@@ -3,7 +3,8 @@ import { cleanLearning, validDay, RESERVATION_MS } from './learning.js';
 import { localDay } from './events.js';
 export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
-const RATINGS = new Set(['hard', 'medium', 'easy']);
+export const AGAIN_MS = 10 * 60 * 1000;
+const RATINGS = new Set(['again', 'hard', 'medium', 'easy']);
 
 export function cleanReview(raw, words, now = Date.now()) {
   const cards = Object.create(null);
@@ -92,6 +93,18 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false) {
 }
 
 function scheduleCard(card, rating, now, autoFamiliar = false) {
+  if (rating === 'again') {
+    // A ten-minute retry is not a day interval; keeping interval at zero also
+    // prevents a miss from carrying forward an old Easy/Medium interval.
+    card.interval = 0;
+    card.due = now + AGAIN_MS;
+    card.reviews = Math.min(10000, card.reviews + 1);
+    card.easyStreak = 0;
+    // Keep a failed recall unmastered if another valid route ever reaches
+    // this scheduler with a previously familiar card.
+    delete card.familiar;
+    return { due: card.due, interval: card.interval };
+  }
   const interval = rating === 'hard' ? 1 : rating === 'medium'
     ? Math.max(3, card.interval * 2) : Math.max(7, card.interval * 3);
   card.interval = Math.min(365, interval);
