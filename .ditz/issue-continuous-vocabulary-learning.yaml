@@ -52,3 +52,15 @@ log_events:
     without weakening final integration gates. personal-word-capture stays queued
     behind stable catalog contract. Again remains in progress; no source release/fleet
     change.
+- time: 2026-10-27T16:19:30-00:00
+  who: Ted Smith
+  what: commented
+  comment: Again feature ACCEPTED/NORMAL MERGED PR12 at 369eab44bf5823f98cfc84a9d2e4575302cc1001
+    (parents a0d9391/f892391; tree a160d7d0e46f496386dd47d98d688773b87b4ca6 identical
+    to reviewed/gated head). Root inspected runtime/compatibility/final docs delta,
+    accepted full Lead gates/provider fixpoint and independently passed focused23Bun228assertions,91Python,version,diff,guardedAgain
+    Chromium. Public acceptance https://github.com/tedks/lang-weave/pull/12#issuecomment-6447274545.
+    Adaptive Lead may now rebase onto verified origin/main and integrate approved
+    package, all exact-head gates/convergence required. recall-again-rating closed
+    fixed; parent remains in progress, personal capture queued. No fleet release or
+    activation change.
