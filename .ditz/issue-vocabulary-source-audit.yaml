@@ -1,0 +1,24 @@
+id: vocabulary-source-audit
+title: Audit trusted lexical sources and catalog/capture contract
+desc: 'Read-only fresh lane: primary-source comparison of FreeDict per-pair TEI/licenses,
+  Wiktionary/Kaikki raw extraction, wordfreq ranking/attribution, and useful alternatives.
+  Return pinned provenance/license/API/sample/size/quality evidence and a recommended
+  reproducible bounded catalog path, no bulk import or claims of native-speaker certification.
+  Design stable master catalog vs adaptive working set vs personal words without progress
+  pruning, local permitted-text aggregate encounter signals, generic scopes, and explicit
+  selection->sense/translation confirmation. Bound samples/scratch; no personal reading/key/live
+  Gemini or new runtime provider. Root owns adoption and implementation briefs; report
+  private unique artifact, not public code changes.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T15:58:37-00:00
+references: []
+log_events:
+- time: 2026-10-27T15:58:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
