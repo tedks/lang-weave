@@ -69,6 +69,25 @@ async function heldLookup({ name, lookup, change, prime = false }) {
     const request = send(message);
     await Promise.race([entered, new Promise((_, reject) => setTimeout(() => reject(new Error('Tab lookup not held')), 2000))]);
     expect(lookups).toBe(targetLookup);
+    // The ordinal also has to represent the intended gate. If a new tab
+    // lookup shifts the sequence, these phase assertions fail instead of
+    // silently testing an earlier authorization point.
+    if (prime) {
+      expect(fetches).toBe(1);
+      expect(data.recallReview.cards['la idea'].reviews).toBe(2);
+      expect(Object.keys(data).some((key) => key.startsWith('c:'))).toBe(true);
+    } else if (lookup === 6) {
+      expect(data.vocabularyEncounters).toBeUndefined();
+      expect(data.modelCalls).toBeUndefined();
+    } else if (lookup === 13) {
+      expect(data.vocabularyEncounters.counts['es:legacy:la%20idea']).toBe(1);
+      expect(data.modelCalls.count).toBe(1);
+      expect(fetches).toBe(0);
+    } else if (lookup === 15) {
+      expect(fetches).toBe(1);
+      expect(data.recallReview).toBeUndefined();
+      expect(Object.keys(data).some((key) => key.startsWith('c:'))).toBe(false);
+    }
     let mutation = Promise.resolve();
     if (change === 'revoke') {
       origins = [];
