@@ -1,0 +1,21 @@
+id: personal-word-capture
+title: Implement confirmed selection-to-personal-vocabulary capture
+desc: 'Queued authorized feature: highlight bounded word/short phrase, menu Add to
+  Lang Weave, confirm selected sense/current target, persist personal entry locally
+  and integrate with existing visible intro/SR budgets. Dictionary/local catalog first,
+  manual confirmation when unknown, no silent hallucinated target or surrounding page
+  upload. Preserve permission/high-stakes/frame/editable guards and existing keys/progress.
+  Requires source/catalog contract audit; no editing lane assigned yet.'
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T15:58:37-00:00
+references: []
+log_events:
+- time: 2026-10-27T15:58:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
