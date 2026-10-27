@@ -27,5 +27,15 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-27T17:18:55-00:00
+  who: Ted Smith
+  what: commented
+  comment: STARTED personal-word-capture Lead on accepted main d92a8a4. Published
+    sanitized identity/privacy/compatibility contract in docs/PERSONAL-CAPTURE-MISSION.md
+    and pushed contract checkpoint 7956d43 to draft PR14. One bounded UI/DOM helper
+    finished local challenge/page/tests; worker storage and adaptive/review integration
+    in progress. No acceptance, merge, deployment, live model or personal-profile
+    claim. Legacy exact fr keys and generated scopes remain untouched; new canonical-language
+    personal store planned. Full gates and provider council remain required.
 blocked_by:
 - vocabulary-source-audit
