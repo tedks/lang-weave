@@ -1,0 +1,23 @@
+id: personal-capture-stale-ticket-evidence
+title: Exercise an owned pending introduction across personal Save revision change
+desc: Council PR14 minor test follow-up. The worker regression confirms old-revision
+  swaps return stale without a provider call, and an old-revision introAck cannot
+  charge learning. Its introAck uses a random ticket, so it does not independently
+  demonstrate behavior for an otherwise valid owned pending reservation. Add a fixture
+  with a genuine reservation before Save and assert the old ticket is rejected after
+  the catalog revision changes, while a normal later request refreshes the page config.
+  Production's revision check precedes ticket lookup; this improves evidence rather
+  than fixing an observed bug.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T17:59:43-00:00
+references: []
+log_events:
+- time: 2026-10-27T17:59:43-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
