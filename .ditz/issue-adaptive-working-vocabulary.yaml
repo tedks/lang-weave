@@ -1,0 +1,22 @@
+id: adaptive-working-vocabulary
+title: Rank and replenish an adaptive local working vocabulary
+desc: 'Queued authorized feature: deterministic encounter/usefulness/difficulty ranking
+  over trusted catalog, small due-first working set and gradual daily replenishment;
+  slow introductions with review load, never infer mastery from passive views. Preserve
+  permanent history when working set changes; bounded aggregate catalog-entry counts
+  only from eligible permitted reading, no passages/URLs/visiting history. No runtime
+  agents or full catalog prompt dump. Root to issue bounded implementation after source/catalog
+  audit and Again integration.'
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-27T15:58:37-00:00
+references: []
+log_events:
+- time: 2026-10-27T15:58:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
