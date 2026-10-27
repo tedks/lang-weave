@@ -42,6 +42,22 @@ log_events:
     Scope: primary lexical provenance/license/sample evidence plus preservation/privacy/bounds
     contract; no source edits, bulk import, live Gemini, or implementation. Root retains
     adoption/dispatch.'
+- time: 2026-10-27T16:06:42-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'DONE read-only audit at clean a0d939104756ad8b4e87dc8cb26313a53f61e944.
+    Private report: /home/tedks/Projects/spanish-weave/VOCABULARY-SOURCES-20261027.local.md.
+    Verified FreeDict eng-spa 2025.11.23 TEI/header SHA-512 (64,258 headwords, CC
+    BY-SA 3.0 statement) vs spa-eng 0.3.1 (4,502, GPL 2.0-or-later), raw Kaikki sample/route
+    and deprecation of postprocessed dump, wordfreq code-vs-data notice/ranking-only,
+    Wikidata alternative, current extension storage/review/message interfaces and
+    official Chrome contextMenus contract. Recommend initial shipped-226 catalog plus
+    explicitly confirmed personal entries, independent permanent history and bounded
+    deterministic due-first prompt window. FreeDict extract is a subsequent build-time
+    candidate pending attribution/license-chain and delivery review; no third-party
+    lexical data imported. No source/PR changes, bulk dump, profile, live model or
+    legal/linguistic certification. Root owns adoption and implementation dispatch;
+    no new product ruling needed for bounded first slice.'
 blocks:
 - personal-word-capture
 - adaptive-working-vocabulary
