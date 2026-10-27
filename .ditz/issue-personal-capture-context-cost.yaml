@@ -18,3 +18,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-27T17:59:16-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Council convergence note: each eligible Save changes the reading revision.
+    Save itself makes no network call; an open tab''s next ordinary swaps request
+    sees stale, refetches config and may re-weave the visible passage, consuming a
+    normal model call/quota and causing a brief flicker. Current bounded behavior
+    preserves no-network-on-Save and stale-result safety. Measure/optimize alongside
+    context recomputation, without silently retaining stale introduction tickets.'
