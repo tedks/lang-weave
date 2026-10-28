@@ -102,3 +102,19 @@ log_events:
     Fresh0100release Lead package explicitly includes normal pin merge and targeted
     fleet install, no new feature/batching/root approval wait. Parent remains in progress
     through0100release; personal activation/live provider unverified.
+- time: 2026-10-28T08:36:47-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO accepts bounded0.10.0 release evidence: dotfilesPR208 normal15306ae0c2fee81fa2fc06e22b50b2e69e4d98df
+    and finalreceiptPR209 normalbf63d8b138c2deed22c64384d8f3a9e53b197915 independently
+    verified MERGED with expected parents/tested-tree parity. Actual468085byte archive
+    SHA2565b70a5fcab666bafafc2caae7282200f8d522d88fbbebc0b06d9bccd776479c1 pins accepted
+    source0230718; exact38file parity,18Python186shell/syntax/diff/pin,guarded smoke/Again/adaptive/personal
+    and independent lightCLEAN review accepted. framework0/drynwyn/tower0/homes-imac
+    installed/status/parityPASS, framework0 actual-installed-path isolatedChromiumPASS.
+    Splinter0/1DNSblocked before mutation after bounded attempts; existing dotfiles090splinterissues
+    updated target0.10.0. Source childfeatures/audit accepted/merged; main bounded
+    mission complete. Separate followups retain personal activation/native menu verification,
+    deferred licensed catalog import, and existing minor tests/polish. No live provider/personal
+    activation/all-host completion claim. Release record https://github.com/tedks/dotfiles/blob/bf63d8b138c2deed22c64384d8f3a9e53b197915/docs/LANG-WEAVE-0100-RELEASE.md
+    .'
