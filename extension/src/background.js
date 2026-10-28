@@ -218,6 +218,9 @@ async function swaps(msg, sender) {
         countEncounters(aggregate, matches.filter((entry) => !ownIds.has(entry.id)).map((entry) => entry.id), day);
         countEncounters(ownAggregate, matches.filter((entry) => ownIds.has(entry.id)).map((entry) => entry.id), day);
         if (JSON.stringify(aggregate) !== before) await scoped.set({ [ENCOUNTERS_KEY]: aggregate });
+        // The first write may have yielded while consent changed. Do not start
+        // the separate personal write using the earlier authorization.
+        if (!(await stillSafe())) return null;
         if (JSON.stringify(ownAggregate) !== ownBefore) await ownScoped.set({ [ENCOUNTERS_KEY]: ownAggregate });
         return { ...aggregate.counts, ...ownAggregate.counts };
       });

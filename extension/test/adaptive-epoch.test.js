@@ -86,11 +86,11 @@ async function heldLookup({ name, lookup, change, prime = false }) {
       expect(encounterReads).toBe(1); // the final check after the encounter read
       expect(data.vocabularyEncounters).toBeUndefined();
       expect(data.modelCalls).toBeUndefined();
-    } else if (lookup === 13) {
+    } else if (lookup === 15) {
       expect(data.vocabularyEncounters.counts['es:legacy:la%20idea']).toBe(1);
       expect(data.modelCalls.count).toBe(1);
       expect(fetches).toBe(0);
-    } else if (lookup === 15) {
+    } else if (lookup === 17) {
       expect(fetches).toBe(1);
       expect(data.recallReview).toBeUndefined();
       expect(Object.keys(data).some((key) => key.startsWith('c:'))).toBe(false);
@@ -134,36 +134,36 @@ test('held final encounter lookup rejects revoke, remove/regrant and site-off be
 
 test('held final prefetch lookup rejects revoke, remove/regrant and site-off after counting', async () => {
   for (const change of ['revoke', 'remove-regrant', 'site-off']) {
-    const { data, result, fetches } = await heldLookup({ name: `prefetch-${change}`, lookup: 13, change });
+    const { data, result, fetches } = await heldLookup({ name: `prefetch-${change}`, lookup: 15, change });
     expect(result.stale).toBe(true);
     expect(fetches).toBe(0);
     expect(data.modelCalls.count).toBe(1); // accounting stays before dispatch
     expect(data.vocabularyEncounters.counts['es:legacy:la%20idea']).toBe(1); // counted while eligible
   }
-  const allowed = await heldLookup({ name: 'prefetch-allowed', lookup: 13 });
+  const allowed = await heldLookup({ name: 'prefetch-allowed', lookup: 15 });
   expect(allowed.result.stale).toBeUndefined();
   expect(allowed.fetches).toBe(1);
   expect(allowed.data.modelCalls.count).toBe(1);
 }, 30000);
 
 test('held fresh delivery lookup rejects revoke before caching or reserving', async () => {
-  const denied = await heldLookup({ name: 'fresh-delivery-revoke', lookup: 15, change: 'revoke' });
+  const denied = await heldLookup({ name: 'fresh-delivery-revoke', lookup: 17, change: 'revoke' });
   expect(denied.result.stale).toBe(true);
   expect(denied.fetches).toBe(1); // the fetch itself preceded the revocation
   expect(denied.data.modelCalls.count).toBe(1);
   expect(denied.data.recallReview).toBeUndefined();
   expect(Object.keys(denied.data).some((key) => key.startsWith('c:'))).toBe(false);
-  const allowed = await heldLookup({ name: 'fresh-delivery-allowed', lookup: 15 });
+  const allowed = await heldLookup({ name: 'fresh-delivery-allowed', lookup: 17 });
   expect(allowed.result.stale).toBeUndefined();
   expect(allowed.data.recallReview.learning.pending).toHaveLength(1);
 }, 30000);
 
 test('held cached delivery lookup rejects revoke without returning cached swaps', async () => {
-  const denied = await heldLookup({ name: 'cached-delivery-revoke', lookup: 15, change: 'revoke', prime: true });
+  const denied = await heldLookup({ name: 'cached-delivery-revoke', lookup: 17, change: 'revoke', prime: true });
   expect(denied.result.stale).toBe(true);
   expect(denied.fetches).toBe(1); // only the authorized priming fetch
   expect(denied.data.recallReview.cards['la idea'].reviews).toBe(2);
-  const allowed = await heldLookup({ name: 'cached-delivery-allowed', lookup: 15, prime: true });
+  const allowed = await heldLookup({ name: 'cached-delivery-allowed', lookup: 17, prime: true });
   expect(allowed.result.stale).toBeUndefined();
   expect(allowed.fetches).toBe(1);
   expect(Object.values(allowed.result.results).flat()[0].status).toBe('due');
