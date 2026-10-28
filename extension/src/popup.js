@@ -162,3 +162,6 @@ $('openExtensions').addEventListener('click', () => {
 $('openReview').addEventListener('click', () => run(async () => {
   await chrome.tabs.create({ url: chrome.runtime.getURL('src/review.html') });
 }));
+$('openBackup').addEventListener('click', () => run(async () => {
+  await chrome.tabs.create({ url: chrome.runtime.getURL('src/backup.html') });
+}));

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lang Weave · Learning backup</title>
+<link rel="stylesheet" href="capture.css">
+</head>
+<body>
+<main>
+  <h1>Learning backup</h1>
+  <p>Keep your old unpacked installation and its profile intact. Update that installation to a version with this page, export there, then open this page in the separate new installation. Do not remove the old one until you have checked your restored review queue.</p>
+  <section>
+    <h2>Export from this installation</h2>
+    <p>Download supported learning progress, personal entries, generated packs and learning preferences. Export only reads local state.</p>
+    <p>An unverified card from an old or removed language pack blocks the whole backup. The old installation and its history stay intact; this tool cannot safely include that card or import part of the history.</p>
+    <button id="export" type="button">Download learning backup</button>
+  </section>
+  <section>
+    <h2>Import into a fresh learning profile</h2>
+    <p>Choose a backup file from your computer. Import is available only when this installation has no meaningful learning progress and no Gemini key. Initialized defaults are okay. Existing progress, generated packs or an unknown storage format are conflicts; this page cannot merge or replace them.</p>
+    <label for="file">Learning backup JSON file</label>
+    <input id="file" type="file" accept=".json,application/json">
+    <button id="preview" type="button">Preview backup</button>
+    <div id="summary" hidden aria-live="polite">
+      <h2>Check before importing</h2>
+      <p id="sourceVersion"></p>
+      <p id="counts"></p>
+      <p id="preferences"></p>
+      <p class="muted">Excluded: Gemini keys, model/cache/quota data, site choices and host permissions, page text and URLs, pending captures, introduction reservations, reveal and inline tickets. Import never grants a host, enables a site, or calls Gemini. Re-enter a key and choose sites separately afterward.</p>
+      <label class="check"><input id="confirm" type="checkbox"> I checked this preview and want to import into this fresh learning profile.</label>
+      <button id="import" type="button" disabled>Import this backup</button>
+    </div>
+  </section>
+  <p id="notice" role="status" aria-live="polite"></p>
+</main>
+<script type="module" src="backup-page.js"></script>
+</body>
+</html>
