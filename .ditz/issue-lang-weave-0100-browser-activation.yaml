@@ -24,3 +24,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-28T18:10:48-00:00
+  who: Ted Smith
+  what: commented
+  comment: Requested splinter1 retry succeeded:0.7.2managedstatus verified then exact
+    accepted0.10.0 installer/ref/archive installed, newstatus/ownership/all38fileparity
+    PASS, priorpayloadretained. Receipt PR210 normal merged fdd96e45da2ae1db9832b50884f8a8a5b396a37f.
+    Fivehostfiles now verified; splinter0 explicitlyoffline leftuntouched. Personalbrowseractivation
+    remains unverified on splinter1 too, no key/profile/reload/approval action taken.
