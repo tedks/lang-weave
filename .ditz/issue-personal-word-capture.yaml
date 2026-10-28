@@ -67,3 +67,14 @@ log_events:
     tests, repair-delta council/exact-head gates and PR-body correction. No source14
     merge/deploy; accepted0.9.0 fleet release proceeds independently, no wait for
     capture.'
+- time: 2026-10-28T08:18:10-00:00
+  who: Ted Smith
+  what: commented
+  comment: PR14 CTO hold repaired at pushed 6733b1dbd77e211349c0fde01f4e08eeaee7d6aa.
+    The mixed encounter flow now rechecks full consent/document/settings epochs after
+    the awaited legacy storage write and before the personal write. Root isolated
+    held-write probe passes separately (1/50); paired allowed/revoke/remove-regrant/site-off/write-failure-retry
+    worker tests pass, and removing the gate made all three consent-race tests RED.
+    Native OpenAI and foreign Anthropic repair-delta council CLEAN; Google unavailable
+    at actual quota. Replacement full gates in progress; root retains acceptance and
+    merge. Nonblocking fixture nits filed as personal-capture-test-stability.
