@@ -1,0 +1,27 @@
+id: portable-orphan-history-recovery
+title: Explore provenance-backed recovery of legacy orphan learning history
+desc: First portability release refuses unverified legacy form-keyed history, preserving
+  source untouched, because V1 accepts arbitrary short strings without provenance.
+  Design a later bounded recovery path for legitimate removed-pack phrases without
+  admitting incidental page prose, silently losing history, or requiring users to
+  delete/reset progress. Prefer verifiable historical catalog manifests/exact scoped
+  identity or another explicit, defensible provenance mechanism. Partial migration
+  or history merging would require a separate visible product/data-loss contract;
+  do not add them as a workaround to current PR15. Preserve due/scheduling/day counts/future
+  protections and personal IDs; evaluate dependent event/shown/encounter references.
+  Require representative legitimate orphan and hostile short-prose fixtures, safe
+  diagnostics and mutation/privacy tests. No code lease, network/archive lookup, dictionary
+  licensing adoption, profile mutation or publication authorized by issue creation.
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T18:50:47-00:00
+references: []
+log_events:
+- time: 2026-10-28T18:50:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
