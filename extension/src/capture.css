@@ -1,0 +1,23 @@
+* { box-sizing: border-box; }
+body { max-width: 680px; margin: 2rem auto; padding: 0 1rem; color: #182027; background: #faf9f5; font: 16px/1.5 system-ui, sans-serif; }
+h1 { font-size: 1.55rem; }
+h2 { font-size: 1.2rem; }
+.selected, #editor, main > section { border: 1px solid #cbd2d5; border-radius: 10px; background: #fff; padding: 1rem; margin: 1rem 0; overflow-wrap: anywhere; }
+.selected { font-weight: 650; }
+.muted { color: #59636b; }
+#notice { min-height: 1.5em; color: #8a241d; }
+label { display: block; margin: .55rem 0 .2rem; }
+input:not([type=radio]):not([type=checkbox]) { width: 100%; padding: .45rem; font: inherit; }
+fieldset { margin: .8rem 0; border: 1px solid #cbd2d5; }
+.check { margin: .8rem 0; }
+button { font: inherit; padding: .45rem .75rem; margin: .2rem .35rem .2rem 0; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+.actions { margin-top: 1rem; }
+#matches article, #entries li { border-top: 1px solid #e0e4e5; padding: .6rem 0; }
+@media (prefers-color-scheme: dark) {
+  body { color: #f3f3f3; background: #15181c; }
+  .selected, #editor, main > section { background: #22282d; border-color: #52606a; }
+  .muted { color: #bbc3c9; }
+  fieldset { border-color: #52606a; }
+  button, input { color: #f3f3f3; background: #343d45; border: 1px solid #7a8790; }
+}

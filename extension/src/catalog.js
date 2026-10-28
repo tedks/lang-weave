@@ -4,7 +4,7 @@
 export const entryId = (scope, word) => `${scope}:legacy:${encodeURIComponent(word.fr)}`;
 
 export function catalogEntries(words, scope) {
-  return words.map((word) => ({ id: entryId(scope, word), word }));
+  return words.map((word) => ({ id: word.entryId || entryId(scope, word), word }));
 }
 
 export function englishAnchors(word) {

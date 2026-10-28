@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lang Weave · Capture a word</title>
+<link rel="stylesheet" href="capture.css">
+</head>
+<body>
+<main>
+  <h1>Capture a word</h1>
+  <p id="selected" class="selected"></p>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <button id="retry" type="button" hidden>Retry capture</button>
+  <section id="editor" hidden>
+    <p id="language" class="muted"></p>
+    <div id="matches" aria-label="Local suggestions"></div>
+    <form id="capture-form">
+      <fieldset>
+        <legend>What did you select?</legend>
+        <label><input type="radio" name="direction" value="en-to-target" required> English, to learn in the selected language</label>
+        <label><input type="radio" name="direction" value="target-to-en" required> Selected-language phrase, with its English meaning</label>
+      </fieldset>
+      <label for="source">English</label>
+      <input id="source" name="source" maxlength="80" required autocomplete="off">
+      <label for="target">Selected language</label>
+      <input id="target" name="target" maxlength="80" required autocomplete="off">
+      <label for="sense">Sense (optional)</label>
+      <input id="sense" name="sense" maxlength="80" autocomplete="off">
+      <label class="check"><input id="distinct" type="checkbox"> This is a different sense from an existing entry</label>
+      <div class="actions"><button id="save" type="submit">Save personal entry</button><button id="cancel" type="button">Cancel</button></div>
+    </form>
+  </section>
+  <section>
+    <h2>Personal entries</h2>
+    <label for="entry-search">Find an entry</label>
+    <input id="entry-search" type="search" autocomplete="off" placeholder="English, target or sense">
+    <button id="refresh" type="button">Refresh entries</button>
+    <button id="export" type="button">Export JSON</button>
+    <ul id="entries"></ul>
+  </section>
+</main>
+<script type="module" src="capture-page.js"></script>
+</body>
+</html>

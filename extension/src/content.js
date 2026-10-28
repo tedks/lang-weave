@@ -9,6 +9,7 @@ import { selector, readable } from './page.js';
 import { isZeroFrench } from './levels.js';
 import { localDay } from './events.js';
 import { languageName } from './language-name.js';
+import { capturePageAllowed, verifyCaptureSelection } from './personal-capture.js';
 
 let config = null;
 let observer = null;
@@ -533,6 +534,31 @@ function reveal(e) {
 }
 chrome.runtime.onMessage.addListener((msg) => {
   if (['config', 'retry'].includes(msg?.type)) update(msg.config, msg.type === 'retry');
+});
+// A context-menu gesture wakes an idle MV3 worker and re-announces this exact
+// document through Chrome's sender metadata before the native menu is chosen.
+document.addEventListener('contextmenu', () => {
+  if (capturePageAllowed({ url: location.href, title: document.title,
+    settings: config?.settings, origins: config?.origins }))
+    void send({ type: 'captureReady' }).catch(() => {});
+}, true);
+// The worker targets the exact top-frame document. Recheck consent/title and the live selection here;
+// menu selectionText alone is stale, untrusted input and is never sufficient to authorize capture.
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type === 'personalCaptureAlive') {
+    const ok = sender.id === chrome.runtime.id && capturePageAllowed({
+      url: location.href, title: document.title, settings: config?.settings, origins: config?.origins,
+    });
+    reply(ok ? { ok: true } : { ok: false });
+    return false;
+  }
+  if (msg?.type !== 'personalCaptureChallenge') return false;
+  const result = sender.id === chrome.runtime.id && typeof msg.nonce === 'string' && msg.nonce.length >= 16 &&
+    verifyCaptureSelection(window.getSelection(), msg.text, {
+      url: location.href, title: document.title, settings: config?.settings, origins: config?.origins,
+    });
+  reply(result?.ok ? { ok: true, text: result.text } : { ok: false });
+  return false;
 });
 document.addEventListener('click', reveal, true);
 document.addEventListener('keydown', reveal, true);
