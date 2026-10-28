@@ -13,8 +13,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-27T15:58:37-00:00
 references: []
 log_events:
@@ -118,3 +118,12 @@ log_events:
     deferred licensed catalog import, and existing minor tests/polish. No live provider/personal
     activation/all-host completion claim. Release record https://github.com/tedks/dotfiles/blob/bf63d8b138c2deed22c64384d8f3a9e53b197915/docs/LANG-WEAVE-0100-RELEASE.md
     .'
+- time: 2026-10-28T08:36:47-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Again, deterministic adaptive vocabulary, trustworthy-source audit and
+    confirmed personal capture accepted/normal merged through0.10.0; gated dotfiles
+    pin/receipts merged, four reachable hosts installed/status/parity verified. Bounded
+    rollout complete; splinterDNS, personal activation/native-menu verification and
+    later licensed-data work retain separate followups, no all-host/live-provider
+    claim.
