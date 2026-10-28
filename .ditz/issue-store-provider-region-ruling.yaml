@@ -1,0 +1,26 @@
+id: store-provider-region-ruling
+title: Choose Gemini provider-plan and territory for Store beta
+desc: 'Source: private STORE-READINESS-20261028.local.md at accepted source 0230718c5a10375ad907223878b33064fced9856.
+  Decision owner: Ted, with provider/legal interpretation if needed. Options: (A)
+  limited adult BYOK beta in a listed non-EEA/UK/Swiss territory after confirming
+  that a consumer-facing client is permitted under Gemini''s current professional/business
+  API terms; (B) paid-service-only clients with a documented plan and territory control,
+  requiring separate billing authority; (C) defer Store submission until provider
+  terms are clarified or another provider is chosen. Recommendation: A only after
+  explicit provider-fit review; otherwise C. Blocks external Store submission/distribution
+  choice and final in-product claims, not read-only audit. Gemini terms checked 2026-10-28:
+  https://ai.google.dev/gemini-api/terms and regions https://ai.google.dev/gemini-api/docs/available-regions
+  . No spend or account action authorized by this issue.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T18:14:23-00:00
+references: []
+log_events:
+- time: 2026-10-28T18:14:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
