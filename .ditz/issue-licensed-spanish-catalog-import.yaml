@@ -1,0 +1,26 @@
+id: licensed-spanish-catalog-import
+title: Review provenance and packaging for a larger licensed Spanish catalog
+desc: Deferred followup from accepted vocabulary-source-audit. Current0.10.0 uses
+  unchanged bundled226/Beginner30 plus confirmed personal entries. Before any external
+  extract is incorporated, verify exact pinned FreeDict eng-spa candidate archive/header,
+  WikDict/DBnary/Wiktionary attribution chain and redistribution/adaptation obligations,
+  package source/license/notices reproducibly, review sense/POS/gender/form quality
+  and collisions, and bound retained data/prompt costs. Compare a justified alternative
+  if obligations/quality do not fit; frequency lists rank entries but do not supply
+  meanings. No public lexical import, bulk corpus download, new dependency, runtime
+  lookup endpoint or provider call is authorized by this issue alone; root assigns
+  a bounded package first. The completed primary-source audit is design input, not
+  legal/native-speaker certification.
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T08:36:47-00:00
+references: []
+log_events:
+- time: 2026-10-28T08:36:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
