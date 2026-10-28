@@ -10,8 +10,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-27T15:58:37-00:00
 references: []
 log_events:
@@ -78,3 +78,11 @@ log_events:
     Native OpenAI and foreign Anthropic repair-delta council CLEAN; Google unavailable
     at actual quota. Replacement full gates in progress; root retains acceptance and
     merge. Nonblocking fixture nits filed as personal-capture-test-stability.
+- time: 2026-10-28T08:24:10-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: CTO accepted final6733b1d and normal merged PR14 as0230718c5a10375ad907223878b33064fced9856,
+    expected parents/identical tested tree verified. Root original dual-write probe1/50,19focusedBun416,version,diff,guarded
+    personalMV3 PASS; Lead full175Bun3451/91Python/allguardedflows/provider fixpoint
+    accepted. Immediate separately gated0.10.0 release dispatched, no deployment claim
+    yet.
