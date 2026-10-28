@@ -1,0 +1,26 @@
+id: lang-weave-0100-browser-activation
+title: Verify personal Chrome activation and native selection menu on 0.10.0
+desc: '0.10.0 installed payload/status/parity is verified on framework0, drynwyn,
+  tower0 and homes-imac, including an isolated installed-path Chromium canary. Personal
+  Chrome reload/activation remains unverified, and contextMenus may require browser
+  action. Follow up via user confirmation or separately authorized profile-safe UI
+  check: running extension shows0.10.0; approved contextMenus permission; selecting
+  safe enabled-site prose opens native Add to Lang Weave and local confirmation/Save.
+  Do not infer personal activation from installed files or synthetic listener callback;
+  do not read keys/profile storage, reset progress, restart a personal browser, or
+  call live Gemini merely to verify. This is an operational followup, not a blocker
+  on accepted source/payload release. Existing long-idle/accessibility/harness nits
+  remain separate.'
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T08:36:47-00:00
+references: []
+log_events:
+- time: 2026-10-28T08:36:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
