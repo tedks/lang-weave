@@ -48,11 +48,11 @@ try {
         introducedDay: '2026-10-27' } }, current: null, inline: null,
         learning: { day: '2026-10-27', count: 1, pending: [] } } } },
     recallReview: { version: 1, cards: { y: { due: 0, interval: 0, reviews: 2,
-      introducedDay: '2026-10-27' }, 'histórico': { due: 9000, interval: 7, reviews: 5, familiar: true } },
+      introducedDay: '2026-10-27' }, 'pero': { due: 9000, interval: 7, reviews: 5, familiar: true } },
       current: null, inline: null, learning: { day: '2026-10-28', count: 2, pending: [] } },
     [`lang:fr:${version}:recallReview`]: { version: 1, cards: { mot0: { due: 1000, interval: 1, reviews: 1 } },
       current: null, inline: null, learning: { day: '2026-10-20', count: 1, pending: [] } },
-    'lang:de:aaaaaaaaaaaaaaaa:recallReview': { version: 1, cards: { 'früher': { due: 1000, interval: 1, reviews: 1 } },
+    'lang:de:aaaaaaaaaaaaaaaa:recallReview': { version: 1, cards: {},
       current: null, inline: null, learning: { day: '2026-10-18', count: 1, pending: [] } },
     readingEvents: [{ word: 'y', kind: 'seen', day: '2026-10-28' }],
     seenSent: { day: '2026-10-28', words: ['y'] },
@@ -60,6 +60,7 @@ try {
       counts: { 'es:legacy:y': 2 }, touched: ['es:legacy:y'] },
   }), { words, version, uuid, personalId });
   const sourceBefore = await old.worker.evaluate(() => chrome.storage.local.get(null));
+  await old.backup.waitForTimeout(35000); // source page can remain open before choosing Export
   const downloadPromise = old.backup.waitForEvent('download');
   await old.backup.locator('#export').click();
   const download = await downloadPromise;
@@ -81,7 +82,7 @@ try {
   await fresh.backup.locator('#file').setInputFiles(file);
   await fresh.backup.locator('#preview').click();
   await fresh.backup.locator('#summary').waitFor({ state: 'visible' });
-  assert.match(await fresh.backup.locator('#counts').textContent(), /Review cards: 5/);
+  assert.match(await fresh.backup.locator('#counts').textContent(), /Review cards: 4/);
   assert.match(await fresh.backup.locator('#preferences').textContent(), /density heavy/);
   await fresh.backup.waitForTimeout(35000); // cross the usual MV3 idle window while the preview is open
   assert.equal(await fresh.backup.locator('#summary').isVisible(), true);
@@ -91,10 +92,10 @@ try {
   await fresh.backup.locator('#notice').getByText(/Learning progress imported/).waitFor();
   const restored = await fresh.worker.evaluate(() => chrome.storage.local.get(null));
   assert.equal(restored.recallReview.cards.y.reviews, 2);
-  assert.equal(restored.recallReview.cards['histórico'].familiar, true);
+  assert.equal(restored.recallReview.cards.pero.familiar, true);
   assert.equal(restored.personalVocabularyV1.entries[0].archived, true);
   assert.equal(restored[`lang:fr:${version}:recallReview`].cards.mot0.reviews, 1);
-  assert.equal(restored['lang:de:aaaaaaaaaaaaaaaa:recallReview'].cards['früher'].reviews, 1);
+  assert.equal(restored['lang:de:aaaaaaaaaaaaaaaa:recallReview'].learning.count, 1);
   assert.equal(restored.settings.newSitesEnabled, freshBefore.settings.newSitesEnabled);
   assert.deepEqual(restored.settings.siteOverrides, freshBefore.settings.siteOverrides);
   assert.equal(restored.apiKey, undefined);

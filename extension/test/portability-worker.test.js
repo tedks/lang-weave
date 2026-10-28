@@ -234,3 +234,31 @@ test('future settings survive worker restarts and cannot yield a lossy export', 
     expect(data.settings.futureLearningPreference).toBe('keep me');
   } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
 });
+
+test('restart after journal promotion but before any patch discards stale preview', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  try {
+    const source = setup({ settings: { language: 'es' },
+      recallReview: { version: 1, cards: { y: { due: 0, interval: 0, reviews: 0 } },
+        learning: { day: '2026-10-28', count: 1, pending: [] } } }, 'prepatch-source');
+    await source.load(); source.openPage();
+    const { json } = await source.dispatch({ type: 'learningExport' });
+    const data = { settings: { enabled: false, language: 'es' } };
+    const target = setup(data, 'prepatch-target');
+    await target.load();
+    const port = target.openPage();
+    const preview = await target.dispatch({ type: 'learningPreview', json, pageId });
+    const entered = target.holdCommitRead();
+    const pending = target.dispatch({ type: 'learningImport', token: preview.token, pageId });
+    await entered;
+    expect(data.learningImportJournalV1.phase).toBe('committing');
+    const restart = setup(data, 'prepatch-restart');
+    await restart.load(); restart.openPage();
+    expect((await restart.dispatch({ type: 'learningExport' })).json).not.toContain('"y"');
+    expect(data.recallReview).toBeUndefined();
+    expect(data.learningImportJournalV1).toBeUndefined();
+    port.disconnect(); target.releaseRead();
+    expect((await pending).error).toMatch(/expired|changed/);
+    expect(data.recallReview).toBeUndefined();
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});

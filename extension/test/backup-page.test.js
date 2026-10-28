@@ -96,6 +96,26 @@ test('backup UI escapes preview, requires a file and explicit confirmation, and 
   expect(ui.portMessages.at(-1)).toEqual({ pageId: ui.portMessages[0].pageId, invalidate: true });
 });
 
+test('open backup page sends bounded local keepalive before any preview', async () => {
+  const priorSet = globalThis.setInterval, priorClear = globalThis.clearInterval;
+  let pulse, cleared = false;
+  globalThis.setInterval = (callback, ms) => { expect(ms).toBe(20000); pulse = callback; return 17; };
+  globalThis.clearInterval = (id) => { expect(id).toBe(17); cleared = true; };
+  let ui;
+  try {
+    ui = await page('pre-preview-keepalive', async () => ({ json: '{}' }));
+    await tick();
+    expect(typeof pulse).toBe('function');
+    pulse();
+    expect(ui.portMessages.at(-1)).toEqual({ pageId: ui.portMessages[0].pageId, ping: true });
+  } finally {
+    if (ui) await ui.close();
+    globalThis.setInterval = priorSet;
+    globalThis.clearInterval = priorClear;
+  }
+  expect(cleared).toBe(true);
+});
+
 test('file change invalidates an in-flight preview and oversized files never reach the worker', async () => {
   let release;
   const pending = new Promise((resolve) => { release = resolve; });

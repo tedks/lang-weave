@@ -131,19 +131,40 @@ chrome.runtime.onConnect?.addListener((port) => {
   });
 });
 
-async function recoverLearningImport(beforePatch = async () => {}) {
+async function recoverLearningImport(beforePatch = async () => {}, forceCommit = false) {
   const { [IMPORT_JOURNAL_KEY]: journal } = await store.get(IMPORT_JOURNAL_KEY);
   if (!journal) return;
   if (journal.version !== 1 || !['prepared', 'committing'].includes(journal.phase) ||
       typeof journal.json !== 'string' || typeof journal.hash !== 'string' ||
-      !journal.settings || await digest(journal.json) !== journal.hash)
+      !journal.settings || !journal.before || await digest(journal.json) !== journal.hash)
     throw new Error('Learning import journal needs attention; storage was not changed further.');
   if (journal.phase === 'prepared') { await store.remove(IMPORT_JOURNAL_KEY); return; }
   targetFresh({ settings: journal.settings }); // journal may be corrupted; never restore a key or consent
   const backup = parseBackup(journal.json);
   const patch = learningPatch(backup, journal.settings);
+  const receipt = { schemaVersion: 1, hash: journal.hash };
+  const intended = { ...patch, [IMPORT_RECEIPT_KEY]: receipt };
+  const intendedKeys = Object.keys(intended).sort();
+  if (JSON.stringify(Object.keys(journal.before).sort()) !== JSON.stringify(intendedKeys))
+    throw new Error('Learning import journal has an unsupported key set.');
+  const current = await store.get(intendedKeys);
+  let applied = false;
+  for (const key of intendedKeys) {
+    const original = journal.before[key];
+    if (!original || typeof original.present !== 'boolean') throw new Error('Learning import journal is invalid.');
+    const exists = Object.hasOwn(current, key);
+    const sameBefore = exists === original.present && (!exists ||
+      storageSignature({ value: current[key] }) === storageSignature({ value: original.value }));
+    const sameAfter = exists && storageSignature({ value: current[key] }) ===
+      storageSignature({ value: intended[key] });
+    if (!sameBefore && !sameAfter) throw new Error('Learning import target changed during recovery.');
+    if (!sameBefore) applied = true;
+  }
+  // A crash after journal promotion but before the patch must not import from
+  // a stale preview. Only an already-started partial patch is finished on restart.
+  if (!forceCommit && !applied) { await store.remove(IMPORT_JOURNAL_KEY); return; }
   await beforePatch(); // import path rechecks authority after the journal digest/read awaits
-  await store.set({ ...patch, [IMPORT_RECEIPT_KEY]: { schemaVersion: 1, hash: journal.hash } });
+  await store.set(intended);
   await store.remove(IMPORT_JOURNAL_KEY);
 }
 
@@ -217,8 +238,12 @@ async function learningImport(msg, sender) {
       return { ok: true, already: true };
     }
     targetFresh(target.all);
+    const patch = learningPatch(backup, target.all.settings);
+    const before = Object.fromEntries([...Object.keys(patch), IMPORT_RECEIPT_KEY].map((key) =>
+      [key, { present: Object.hasOwn(target.all, key),
+        ...(Object.hasOwn(target.all, key) ? { value: target.all[key] } : {}) }]));
     const journal = { version: 1, phase: 'prepared', json: preview.json,
-      hash: preview.hash, settings: target.all.settings };
+      hash: preview.hash, settings: target.all.settings, before };
     // The journal makes an interrupted multi-key write recoverable on worker startup.
     await store.set({ [IMPORT_JOURNAL_KEY]: journal });
     const beforeCommit = await store.get(null);
@@ -250,7 +275,7 @@ async function learningImport(msg, sender) {
           throw new Error('Target or preview changed. Preview again.');
         settingsGeneration++; // invalidate held reading/config work before the learning preference write
         patchStarted = true;
-      });
+      }, true);
     } catch (error) {
       if (!patchStarted) await store.remove(IMPORT_JOURNAL_KEY);
       throw new Error(patchStarted

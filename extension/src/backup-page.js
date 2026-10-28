@@ -16,6 +16,7 @@ const portReady = new Promise((resolve) => {
     }
   });
   port.onDisconnect.addListener(() => {
+    if (heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
     clearTimeout(timer);
     resolve(false);
     if (active) {
@@ -26,6 +27,7 @@ const portReady = new Promise((resolve) => {
   });
 });
 port.postMessage({ pageId });
+void portReady.then((ready) => { if (ready && active) keepPageAlive(); });
 
 async function send(type, fields = {}) {
   const result = await chrome.runtime.sendMessage({ type, ...fields });
@@ -34,7 +36,6 @@ async function send(type, fields = {}) {
 }
 
 function clearPreview() {
-  if (heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
   generation++;
   previewToken = null;
   $('summary').hidden = true;
@@ -42,7 +43,7 @@ function clearPreview() {
   $('import').disabled = true;
 }
 
-function keepPreviewAlive() {
+function keepPageAlive() {
   if (heartbeat !== null) clearInterval(heartbeat);
   heartbeat = setInterval(() => { if (active) port.postMessage({ pageId, ping: true }); }, 20000);
 }
@@ -57,7 +58,6 @@ async function run(button, action) {
   try { await action(); }
   catch (error) { notice(error.message || 'Learning backup failed.'); }
   finally {
-    if (button.id === 'import' && heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
     busy = false;
     button.disabled = !active || button.id === 'import' && (!previewToken || !$('confirm').checked);
     if (button.id === 'import') {
@@ -114,7 +114,6 @@ $('preview').addEventListener('click', () => void run($('preview'), async () => 
   if (typeof result.token !== 'string' || !result.token || !result.preview) throw new Error('The preview was incomplete.');
   previewToken = result.token;
   renderPreview(result.preview);
-  keepPreviewAlive();
   notice('Preview validated. Import requires your confirmation and a fresh target check.');
 }));
 
@@ -122,7 +121,6 @@ $('import').addEventListener('click', () => void run($('import'), async () => {
   if (!previewToken || !$('confirm').checked) return;
   const token = previewToken;
   clearPreview(); // A failed or stale confirmation requires a new preview.
-  keepPreviewAlive(); // keep the live authority while the journal is being checked
   $('file').disabled = true;
   $('preview').disabled = true;
   if (!await portReady) throw new Error('The backup page connection is unavailable. Reload this page.');
@@ -136,6 +134,7 @@ $('import').addEventListener('click', () => void run($('import'), async () => {
 window.addEventListener('pagehide', () => {
   if (!active) return;
   active = false;
+  if (heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
   clearPreview();
   port.postMessage({ pageId, invalidate: true });
   port.disconnect();

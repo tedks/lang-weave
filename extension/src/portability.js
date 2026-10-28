@@ -86,14 +86,7 @@ function cardId(value, scope, known = false) {
   if (scope.startsWith('personal:')) {
     const match = PERSONAL_ID.exec(value);
     if (!match || match[1] !== scope.slice(9) || !UUID.test(match[2])) fail('invalid personal card ID');
-  } else {
-    if (!/[\p{L}\p{N}]/u.test(value) || /\.(?:com|org|net|gov)(?:\/|$)/iu.test(value))
-      fail('invalid historical card form');
-    // Old installed packs can leave orphan cards. Keep lexical forms, but a
-    // sentence-like storage key must not become an exported page passage.
-    if (!known && (value.length > 80 || value.trim() !== value ||
-        value.split(/\s+/u).length > 5 || /[.!?;:\n\r]/u.test(value))) fail('unsupported historical card form');
-  }
+  } else if (!known) fail('unverified historical card; old installation remains unchanged');
   return value;
 }
 function card(value) {
@@ -116,7 +109,12 @@ function review(value, scope, source = false, installed = {}) {
   const known = scope === 'es' ? new Set(wordsForLevel(2).map((word) => word.fr)) :
     scope.startsWith('lang:') ? new Set(installed[scope.split(':')[1]]?.version === scope.split(':')[2]
       ? installed[scope.split(':')[1]].words.map((word) => word.fr) : []) : new Set();
-  for (const [id, valueCard] of Object.entries(map(value.cards, 'cards', MAX_CARDS)))
+  const sourceCards = map(value.cards, 'cards', MAX_CARDS);
+  if (!scope.startsWith('personal:')) {
+    const unverified = Object.keys(sourceCards).filter((id) => !known.has(id)).length;
+    if (unverified) fail(`${unverified} unverified historical card ID(s); old installation remains unchanged`);
+  }
+  for (const [id, valueCard] of Object.entries(sourceCards))
     cards[cardId(id, scope, known.has(id))] = card(valueCard);
   keys(value.learning, source ? ['day', 'count', 'pending'] : ['day', 'count'], 'learning', ['day', 'count']);
   return { version: 1, cards, learning: { day: day(value.learning.day, true),
@@ -186,13 +184,16 @@ function personal(value, source = false) {
   return result;
 }
 function knownIds(scope, installed, personalState, scopeState) {
-  const forms = new Set(Object.keys(scopeState.review?.cards || {}).map((id) => id.toLowerCase()));
+  const forms = new Set();
   const aggregate = new Set();
   const catalogScope = scope.startsWith('lang:') ? scope.slice(5) : scope;
   const add = (word) => { forms.add(word.fr.toLowerCase()); aggregate.add(entryId(catalogScope, word)); };
   if (scope === 'es') {
     for (const word of wordsForLevel(2)) add(word);
   } else if (scope.startsWith('personal:')) {
+    for (const id of Object.keys(personalState.history[scope.slice(9)]?.cards || {})) {
+      forms.add(id.toLowerCase()); aggregate.add(id);
+    }
     for (const entry of personalState.entries) if (entry.language === scope.slice(9)) {
       forms.add(entry.id.toLowerCase()); aggregate.add(entry.id);
     }
@@ -200,13 +201,13 @@ function knownIds(scope, installed, personalState, scopeState) {
     const [, code, version] = scope.split(':');
     if (installed[code]?.version === version) for (const word of installed[code].words) add(word);
   }
-  if (!scope.startsWith('personal:')) for (const id of Object.keys(scopeState.review?.cards || {}))
-    aggregate.add(entryId(catalogScope, { fr: id }));
   return { forms, aggregate };
 }
 function feedbackId(id, allowed, scope, peek = false, encounter = false) {
   if (encounter) {
-    boundedString(id, 400, 'encounter ID');
+    // encodeURIComponent may use nine ASCII bytes per CJK code point. A
+    // 100-character historical card plus scope can exceed 400 encoded bytes.
+    boundedString(id, 1024, 'encounter ID');
     if (!allowed.aggregate.has(id)) fail('encounter refers to unknown catalog ID');
     return id;
   }
@@ -223,6 +224,20 @@ function feedback(value, scope, installed, personalState, source = false) {
     result.review = review(value.review, scope, source, installed);
   }
   const allowed = knownIds(scope, installed, personalState, result);
+  const unverifiedForm = (id, peek = false) => typeof id === 'string' &&
+    !allowed.forms.has((peek && id.startsWith('peek:') ? id.slice(5) : id).toLowerCase());
+  const unverifiedEncounter = (id) => typeof id === 'string' && !allowed.aggregate.has(id);
+  let unverifiedFeedback = 0;
+  if (Array.isArray(value.events)) unverifiedFeedback += value.events.filter((event) =>
+    event && unverifiedForm(event.word)).length;
+  if (Array.isArray(value.shown?.words)) unverifiedFeedback += value.shown.words.filter((id) =>
+    unverifiedForm(id, true)).length;
+  if (value.encounters?.counts && typeof value.encounters.counts === 'object' &&
+      !Array.isArray(value.encounters.counts))
+    unverifiedFeedback += Object.keys(value.encounters.counts).filter(unverifiedEncounter).length;
+  if (Array.isArray(value.encounters?.touched)) unverifiedFeedback += value.encounters.touched.filter(
+    unverifiedEncounter).length;
+  if (unverifiedFeedback) fail(`${unverifiedFeedback} unverified historical feedback ID(s); old installation remains unchanged`);
   if (Object.hasOwn(value, 'events')) {
     if (!Array.isArray(value.events) || value.events.length > 500) fail('invalid reading events');
     result.events = value.events.map((event) => {
