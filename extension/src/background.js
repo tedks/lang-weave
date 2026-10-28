@@ -19,6 +19,8 @@ import { selectWorkingSet } from './adaptive.js';
 import { ENCOUNTERS_KEY, cleanEncounters, countEncounters } from './encounters.js';
 import { PERSONAL_KEY, cleanPersonal, personalWords, suggestedMatches, addPersonal,
   exportPersonal, validForm, targetAliases } from './personal.js';
+import { createBackup, parseBackup, backupPreview, learningPatch, targetFresh,
+  validateStorageSettings, IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY, MAX_BACKUP_BYTES } from './portability.js';
 
 const store = chrome.storage.local;
 const cache = createCache(chromeStorage);
@@ -31,6 +33,9 @@ const CAPTURE_MENU = 'lang-weave-add-selection';
 const CAPTURE_MS = 2 * 60 * 1000;
 const captureDrafts = new Map(); // worker memory only; a restart invalidates every nonce
 const completedCaptures = new Map(); // short-lived idempotent receipts; no draft/page metadata
+const backupPages = new Map(); // live extension-page ports; a worker restart loses preview authority
+let importBlocked = false; // a failed journal commit needs startup recovery before any other mutation
+let startupUnsupportedSettings = false;
 const contentDocuments = new Map(); // tab -> top-frame document identity, never persisted
 const CAPTURE_PATH = /\/(?:login|signin|sign-in|checkout|payment|billing|settings|account|medical|patient|portal|banking)(?:\/|$)/i;
 const captureUrlSafe = (url) => {
@@ -82,11 +87,165 @@ const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
   if (store.setAccessLevel) await store.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
   const { settings } = await store.get('settings');
+  try { validateStorageSettings(settings || {}); }
+  catch { startupUnsupportedSettings = true; }
   if (settings?.apiKey) await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
   await store.set({ settings: cleanSettings(settings) });
   const { keyEpoch } = await store.get('keyEpoch');
   if (typeof keyEpoch !== 'string' || !keyEpoch) await store.set({ keyEpoch: crypto.randomUUID() });
+  await recoverLearningImport();
 })();
+
+const backupPageUrl = () => chrome.runtime.getURL('src/backup.html');
+const backupSender = (sender) => sender?.id === chrome.runtime.id && sender.url === backupPageUrl();
+const sameBackupSender = (a, b) => a.id === b.id && a.url === b.url &&
+  a.documentId === b.documentId && a.tab?.id === b.tab?.id;
+const digest = async (value) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+  new TextEncoder().encode(value))), (byte) => byte.toString(16).padStart(2, '0')).join('');
+const storageSignature = (value) => JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+const permissionSignature = (value) => JSON.stringify({ origins: [...(value.origins || [])].sort(),
+  permissions: [...(value.permissions || [])].sort() });
+const liveBackupPage = (page, sender, token) => page && page.port && !page.closed &&
+  sameBackupSender(page.sender, sender) && page.preview?.token === token;
+
+chrome.runtime.onConnect?.addListener((port) => {
+  if (port.name !== 'learning-backup-page' || !backupSender(port.sender)) return;
+  let page;
+  port.onMessage.addListener((message) => {
+    if (message?.invalidate === true && page && message.pageId === page.id) {
+      page.preview = null;
+      page.generation++;
+      return;
+    }
+    if (page || typeof message?.pageId !== 'string' || !/^[0-9a-f-]{36}$/i.test(message.pageId)) return;
+    page = { id: message.pageId, port, sender: port.sender, generation: 0, preview: null, closed: false };
+    backupPages.set(page.id, page);
+    port.postMessage({ ready: true, pageId: page.id });
+  });
+  port.onDisconnect.addListener(() => {
+    if (!page) return;
+    page.closed = true;
+    page.generation++;
+    page.preview = null;
+    if (backupPages.get(page.id) === page) backupPages.delete(page.id);
+  });
+});
+
+async function recoverLearningImport() {
+  const { [IMPORT_JOURNAL_KEY]: journal } = await store.get(IMPORT_JOURNAL_KEY);
+  if (!journal) return;
+  if (journal.version !== 1 || !['prepared', 'committing'].includes(journal.phase) ||
+      typeof journal.json !== 'string' || typeof journal.hash !== 'string' ||
+      !journal.settings || await digest(journal.json) !== journal.hash)
+    throw new Error('Learning import journal needs attention; storage was not changed further.');
+  if (journal.phase === 'prepared') { await store.remove(IMPORT_JOURNAL_KEY); return; }
+  targetFresh({ settings: journal.settings }); // journal may be corrupted; never restore a key or consent
+  const backup = parseBackup(journal.json);
+  const patch = learningPatch(backup, journal.settings);
+  await store.set({ ...patch, [IMPORT_RECEIPT_KEY]: { schemaVersion: 1, hash: journal.hash } });
+  await store.remove(IMPORT_JOURNAL_KEY);
+}
+
+async function stableLearningTarget() {
+  const generation = [permissionGeneration, settingsGeneration];
+  const first = await store.get(null);
+  const firstPermissions = await chrome.permissions.getAll();
+  const second = await store.get(null);
+  const secondPermissions = await chrome.permissions.getAll();
+  if (generation[0] !== permissionGeneration || generation[1] !== settingsGeneration ||
+      storageSignature(first) !== storageSignature(second) ||
+      permissionSignature(firstPermissions) !== permissionSignature(secondPermissions))
+    throw new Error('Target changed while it was being checked. Preview again.');
+  return { all: second, signature: storageSignature(second),
+    permissions: permissionSignature(secondPermissions), generation };
+}
+
+function alreadyImported(all, backup, hash) {
+  if (all[IMPORT_RECEIPT_KEY]?.schemaVersion !== 1 || all[IMPORT_RECEIPT_KEY]?.hash !== hash) return false;
+  const patch = learningPatch(backup, all.settings);
+  for (const [key, value] of Object.entries(patch)) if (storageSignature({ value: all[key] }) !==
+      storageSignature({ value })) return false;
+  const learned = Object.keys(all).filter((key) => ['languagePacks', 'personalVocabularyV1',
+    'recallReview', 'readingEvents', 'seenSent', 'vocabularyEncounters'].includes(key) || key.startsWith('lang:'));
+  return learned.every((key) => Object.hasOwn(patch, key));
+}
+
+async function learningExport() {
+  if (startupUnsupportedSettings) throw new Error('Settings use an unsupported format. Update Lang Weave before exporting.');
+  return locked(async () => ({ json: createBackup(await store.get(null), chrome.runtime.getManifest().version) }));
+}
+
+async function learningPreview(msg, sender) {
+  if (startupUnsupportedSettings) throw new Error('Target settings use an unsupported format.');
+  if (typeof msg.json !== 'string' || new TextEncoder().encode(msg.json).length > MAX_BACKUP_BYTES)
+    throw new Error('Choose a learning backup JSON file no larger than 1 MiB.');
+  const page = backupPages.get(msg.pageId);
+  if (!page || page.closed || !sameBackupSender(page.sender, sender)) throw new Error('Backup page expired. Reopen it.');
+  const generation = ++page.generation;
+  page.preview = null;
+  const backup = parseBackup(msg.json);
+  const hash = await digest(msg.json);
+  return locked(async () => {
+    const target = await stableLearningTarget();
+    if (page.closed || page.generation !== generation) throw new Error('Preview expired. Choose the file again.');
+    const already = alreadyImported(target.all, backup, hash);
+    if (!already) targetFresh(target.all);
+    const token = crypto.randomUUID();
+    page.preview = { token, json: msg.json, hash, target, generation, already };
+    return { token, preview: { ...backupPreview(backup), already } };
+  });
+}
+
+async function learningImport(msg, sender) {
+  const page = backupPages.get(msg.pageId);
+  if (!liveBackupPage(page, sender, msg.token)) throw new Error('Preview expired. Choose the file again.');
+  return locked(async () => {
+    const preview = page.preview;
+    if (!liveBackupPage(page, sender, msg.token) || preview.generation !== page.generation)
+      throw new Error('Preview expired. Choose the file again.');
+    const backup = parseBackup(preview.json);
+    if (await digest(preview.json) !== preview.hash) throw new Error('Preview payload changed.');
+    const target = await stableLearningTarget();
+    if (!liveBackupPage(page, sender, msg.token) || preview.generation !== page.generation ||
+        preview.target.signature !== target.signature || preview.target.permissions !== target.permissions ||
+        preview.target.generation[0] !== target.generation[0] || preview.target.generation[1] !== target.generation[1])
+      throw new Error('Target or preview changed. Preview again.');
+    if (preview.already) {
+      if (!alreadyImported(target.all, backup, preview.hash)) throw new Error('Imported learning changed. Preview again.');
+      page.preview = null;
+      return { ok: true, already: true };
+    }
+    targetFresh(target.all);
+    const journal = { version: 1, phase: 'prepared', json: preview.json,
+      hash: preview.hash, settings: target.all.settings };
+    // The journal makes an interrupted multi-key write recoverable on worker startup.
+    await store.set({ [IMPORT_JOURNAL_KEY]: journal });
+    const beforeCommit = await store.get(null);
+    const beforePermissions = await chrome.permissions.getAll();
+    delete beforeCommit[IMPORT_JOURNAL_KEY];
+    if (!liveBackupPage(page, sender, msg.token) || preview.generation !== page.generation ||
+        permissionGeneration !== target.generation[0] || settingsGeneration !== target.generation[1] ||
+        storageSignature(beforeCommit) !== target.signature ||
+        permissionSignature(beforePermissions) !== target.permissions) {
+      await store.remove(IMPORT_JOURNAL_KEY);
+      throw new Error('Preview expired before import. Preview again.');
+    }
+    await store.set({ [IMPORT_JOURNAL_KEY]: { ...journal, phase: 'committing' } });
+    if (!liveBackupPage(page, sender, msg.token) || preview.generation !== page.generation ||
+        permissionGeneration !== target.generation[0] || settingsGeneration !== target.generation[1]) {
+      await store.remove(IMPORT_JOURNAL_KEY);
+      throw new Error('Preview expired before import. Preview again.');
+    }
+    try { await recoverLearningImport(); }
+    catch (error) { throw new Error(`Learning import did not finish. Reopen Lang Weave to recover: ${error.message}`); }
+    page.preview = null;
+    return { ok: true };
+  }).catch(async (error) => {
+    try { if ((await store.get(IMPORT_JOURNAL_KEY))[IMPORT_JOURNAL_KEY]) importBlocked = true; }
+    catch { importBlocked = true; }
+    throw error;
+  });
+}
 
 // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
 async function context() {
@@ -1040,8 +1199,10 @@ async function checkUpdate() {
 // Pages may only ask for config, swaps and events; everything else is popup-only.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || sender.id !== chrome.runtime.id) return false;
+  if (importBlocked) { reply({ error: 'Learning import is incomplete. Reload Lang Weave to recover it.' }); return true; }
   const popup = sender.url === chrome.runtime.getURL('src/popup.html');
   const review = sender.url === chrome.runtime.getURL('src/review.html');
+  const backup = backupSender(sender);
   const capture = capturePageSender(sender);
   const page = sender.tab && /^https?:\/\//.test(sender.url || '');
   if (page && ['config', 'captureReady'].includes(msg.type)) rememberDocument(sender);
@@ -1070,12 +1231,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     captureCancel: () => ({ ok: captureDrafts.delete(msg.nonce) }),
     personalList, personalArchive: () => personalArchive(msg),
     personalIntroduce: () => personalIntroduce(msg), personalExport: personalExportResult,
+    learningExport, learningPreview: () => learningPreview(msg, sender),
+    learningImport: () => learningImport(msg, sender),
   };
   const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown'];
   if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
       !(capture && ['captureDraft', 'captureKeepAlive', 'captureSave', 'captureCancel', 'personalList',
         'personalArchive', 'personalIntroduce', 'personalExport'].includes(msg.type)) &&
+      !(backup && ['learningExport', 'learningPreview', 'learningImport'].includes(msg.type)) &&
       !(page && ['config', 'captureReady', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate', 'introAck', 'introRelease', 'introRenew'].includes(msg.type))) return false;
   ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;

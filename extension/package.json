@@ -1,6 +1,6 @@
 {
   "name": "lang-weave",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "type": "module",
   "description": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
