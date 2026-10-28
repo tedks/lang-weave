@@ -56,7 +56,8 @@ try {
       current: null, inline: null, learning: { day: '2026-10-18', count: 1, pending: [] } },
     readingEvents: [{ word: 'y', kind: 'seen', day: '2026-10-28' }],
     seenSent: { day: '2026-10-28', words: ['y'] },
-    vocabularyEncounters: { version: 1, day: '2026-10-28', bucket: 2960, counts: { y: 2 }, touched: ['y'] },
+    vocabularyEncounters: { version: 1, day: '2026-10-28', bucket: 2960,
+      counts: { 'es:legacy:y': 2 }, touched: ['es:legacy:y'] },
   }), { words, version, uuid, personalId });
   const sourceBefore = await old.worker.evaluate(() => chrome.storage.local.get(null));
   const downloadPromise = old.backup.waitForEvent('download');
@@ -82,6 +83,8 @@ try {
   await fresh.backup.locator('#summary').waitFor({ state: 'visible' });
   assert.match(await fresh.backup.locator('#counts').textContent(), /Review cards: 5/);
   assert.match(await fresh.backup.locator('#preferences').textContent(), /density heavy/);
+  await fresh.backup.waitForTimeout(35000); // cross the usual MV3 idle window while the preview is open
+  assert.equal(await fresh.backup.locator('#summary').isVisible(), true);
   assert.equal(await fresh.backup.locator('#import').isDisabled(), true);
   await fresh.backup.locator('#confirm').check();
   await fresh.backup.locator('#import').click();

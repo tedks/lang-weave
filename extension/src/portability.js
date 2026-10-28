@@ -6,6 +6,7 @@ import { wordsForLevel } from './levels.js';
 import { REVIEW_KEY } from './review.js';
 import { PENDING_KEY, SENT_KEY } from './events.js';
 import { ENCOUNTERS_KEY } from './encounters.js';
+import { entryId } from './catalog.js';
 
 export const BACKUP_FORMAT = 'lang-weave-learning-backup';
 export const BACKUP_SCHEMA = 1;
@@ -80,13 +81,19 @@ function storageKey(scope, suffix) {
   if (scope.startsWith('personal:')) return `lang:${scope}:${suffix}`;
   return `${scope}:${suffix}`;
 }
-function cardId(value, scope) {
-  boundedString(value, 100, 'card ID');
+function cardId(value, scope, known = false) {
+  boundedString(value, 100, 'card ID', !scope.startsWith('personal:'));
   if (scope.startsWith('personal:')) {
     const match = PERSONAL_ID.exec(value);
     if (!match || match[1] !== scope.slice(9) || !UUID.test(match[2])) fail('invalid personal card ID');
-  } else if (!/[\p{L}\p{N}]/u.test(value) || /\.(?:com|org|net|gov)(?:\/|$)/iu.test(value))
-    fail('invalid historical card form');
+  } else {
+    if (!/[\p{L}\p{N}]/u.test(value) || /\.(?:com|org|net|gov)(?:\/|$)/iu.test(value))
+      fail('invalid historical card form');
+    // Old installed packs can leave orphan cards. Keep lexical forms, but a
+    // sentence-like storage key must not become an exported page passage.
+    if (!known && (value.length > 80 || value.trim() !== value ||
+        value.split(/\s+/u).length > 5 || /[.!?;:\n\r]/u.test(value))) fail('unsupported historical card form');
+  }
   return value;
 }
 function card(value) {
@@ -101,12 +108,16 @@ function card(value) {
   // The one-use receipt belongs to an installation/document and is deliberately omitted.
   return result;
 }
-function review(value, scope, source = false) {
+function review(value, scope, source = false, installed = {}) {
   keys(value, source ? ['version', 'cards', 'current', 'inline', 'learning'] : ['version', 'cards', 'learning'],
     'review', ['version', 'cards', 'learning']);
   if (value.version !== 1) fail('unsupported review version');
   const cards = Object.create(null);
-  for (const [id, valueCard] of Object.entries(map(value.cards, 'cards', MAX_CARDS))) cards[cardId(id, scope)] = card(valueCard);
+  const known = scope === 'es' ? new Set(wordsForLevel(2).map((word) => word.fr)) :
+    scope.startsWith('lang:') ? new Set(installed[scope.split(':')[1]]?.version === scope.split(':')[2]
+      ? installed[scope.split(':')[1]].words.map((word) => word.fr) : []) : new Set();
+  for (const [id, valueCard] of Object.entries(map(value.cards, 'cards', MAX_CARDS)))
+    cards[cardId(id, scope, known.has(id))] = card(valueCard);
   keys(value.learning, source ? ['day', 'count', 'pending'] : ['day', 'count'], 'learning', ['day', 'count']);
   return { version: 1, cards, learning: { day: day(value.learning.day, true),
     count: integer(value.learning.count, 0, 20, 'introduction count') } };
@@ -175,20 +186,33 @@ function personal(value, source = false) {
   return result;
 }
 function knownIds(scope, installed, personalState, scopeState) {
-  const result = new Set(Object.keys(scopeState.review?.cards || {}));
-  if (scope === 'es') for (const word of wordsForLevel(2)) result.add(word.fr.toLowerCase());
-  else if (scope.startsWith('personal:')) for (const entry of personalState.entries)
-    if (entry.language === scope.slice(9)) result.add(entry.id.toLowerCase());
-  else {
+  const forms = new Set(Object.keys(scopeState.review?.cards || {}).map((id) => id.toLowerCase()));
+  const aggregate = new Set();
+  const catalogScope = scope.startsWith('lang:') ? scope.slice(5) : scope;
+  const add = (word) => { forms.add(word.fr.toLowerCase()); aggregate.add(entryId(catalogScope, word)); };
+  if (scope === 'es') {
+    for (const word of wordsForLevel(2)) add(word);
+  } else if (scope.startsWith('personal:')) {
+    for (const entry of personalState.entries) if (entry.language === scope.slice(9)) {
+      forms.add(entry.id.toLowerCase()); aggregate.add(entry.id);
+    }
+  } else {
     const [, code, version] = scope.split(':');
-    if (installed[code]?.version === version) for (const word of installed[code].words) result.add(word.fr.toLowerCase());
+    if (installed[code]?.version === version) for (const word of installed[code].words) add(word);
   }
-  return result;
+  if (!scope.startsWith('personal:')) for (const id of Object.keys(scopeState.review?.cards || {}))
+    aggregate.add(entryId(catalogScope, { fr: id }));
+  return { forms, aggregate };
 }
-function feedbackId(id, allowed, scope, peek = false) {
+function feedbackId(id, allowed, scope, peek = false, encounter = false) {
+  if (encounter) {
+    boundedString(id, 400, 'encounter ID');
+    if (!allowed.aggregate.has(id)) fail('encounter refers to unknown catalog ID');
+    return id;
+  }
   const bare = peek && id.startsWith('peek:') ? id.slice(5) : id;
-  cardId(bare, scope);
-  if (!allowed.has(bare) && !allowed.has(bare.toLowerCase())) fail('feedback refers to unknown word');
+  cardId(bare, scope, allowed.forms.has(bare.toLowerCase()));
+  if (!allowed.forms.has(bare.toLowerCase())) fail('feedback refers to unknown word');
   return id;
 }
 function feedback(value, scope, installed, personalState, source = false) {
@@ -196,7 +220,7 @@ function feedback(value, scope, installed, personalState, source = false) {
   const result = {};
   if (Object.hasOwn(value, 'review')) {
     if (scope.startsWith('personal:')) fail('personal review belongs in personal history');
-    result.review = review(value.review, scope, source);
+    result.review = review(value.review, scope, source, installed);
   }
   const allowed = knownIds(scope, installed, personalState, result);
   if (Object.hasOwn(value, 'events')) {
@@ -218,11 +242,11 @@ function feedback(value, scope, installed, personalState, source = false) {
     if (value.encounters.version !== 1) fail('unsupported encounter version');
     const counts = Object.create(null);
     for (const [id, count] of Object.entries(map(value.encounters.counts, 'encounter counts', 256)))
-      counts[feedbackId(id, allowed, scope)] = integer(count, 1, 7, 'encounter count');
+      counts[feedbackId(id, allowed, scope, false, true)] = integer(count, 1, 7, 'encounter count');
     if (!Array.isArray(value.encounters.touched) || value.encounters.touched.length > 256) fail('invalid touched IDs');
     result.encounters = { version: 1, day: day(value.encounters.day),
       bucket: integer(value.encounters.bucket, 0, 10000000, 'encounter bucket'), counts,
-      touched: value.encounters.touched.map((id) => feedbackId(id, allowed, scope)) };
+      touched: value.encounters.touched.map((id) => feedbackId(id, allowed, scope, false, true)) };
   }
   return result;
 }

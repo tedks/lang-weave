@@ -9,13 +9,15 @@ const event = () => { const listeners = []; return { listeners, addListener(fn) 
 function setup(data, suffix) {
   const message = event(), connect = event(), added = event(), removed = event();
   const writes = [];
-  let origins = [], failPatch = false, partialPatch = false, holdRead = false, releaseRead, readStarted;
+  let origins = [], failPatch = false, partialPatch = false, holdRead = false,
+    holdCommittingRead = false, releaseRead, readStarted;
   const chrome = {
     storage: { local: {
       async setAccessLevel() {},
       async get(keys) {
-        if (keys === null && holdRead) {
+        if (keys === null && (holdRead || holdCommittingRead && data.learningImportJournalV1?.phase === 'committing')) {
           holdRead = false;
+          holdCommittingRead = false;
           readStarted?.();
           await new Promise((resolve) => { releaseRead = resolve; });
         }
@@ -67,6 +69,7 @@ function setup(data, suffix) {
     setOrigins(value) { origins = value; },
     failNextPatch(partial = false) { failPatch = true; partialPatch = partial; },
     holdNextRead() { holdRead = true; return new Promise((resolve) => { readStarted = resolve; }); },
+    holdCommitRead() { holdCommittingRead = true; return new Promise((resolve) => { readStarted = resolve; }); },
     releaseRead() { releaseRead(); },
   };
 }
@@ -192,5 +195,42 @@ test('partial storage failure reports error and journal recovers on worker resta
     expect(data.learningImportReceiptV1.hash).toBeDefined();
     expect(data.recallReview.cards.y.reviews).toBe(0);
     expect(data.settings.enabled).toBe(false);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('permission changes during the final journal read cannot commit stale preview', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  try {
+    const source = setup({ settings: { language: 'es' },
+      recallReview: { version: 1, cards: { y: { due: 0, interval: 0, reviews: 0 } },
+        learning: { day: '2026-10-28', count: 1, pending: [] } } }, 'late-source');
+    await source.load(); source.openPage();
+    const { json } = await source.dispatch({ type: 'learningExport' });
+    const target = setup({ settings: { enabled: false, language: 'es' } }, 'late-target');
+    await target.load(); target.openPage();
+    const preview = await target.dispatch({ type: 'learningPreview', json, pageId });
+    const entered = target.holdCommitRead();
+    const pending = target.dispatch({ type: 'learningImport', token: preview.token, pageId });
+    await entered;
+    target.added.listeners[0](); // generation changes before its locked epoch write
+    target.releaseRead();
+    expect((await pending).error).toMatch(/changed/);
+    expect(target.data.recallReview).toBeUndefined();
+    expect(target.data.learningImportJournalV1).toBeUndefined();
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('future settings survive worker restarts and cannot yield a lossy export', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  try {
+    const data = { settings: { language: 'es', futureLearningPreference: 'keep me' } };
+    const first = setup(data, 'future-first');
+    await first.load(); first.openPage();
+    expect((await first.dispatch({ type: 'learningExport' })).error).toMatch(/unsupported/);
+    expect(data.settings.futureLearningPreference).toBe('keep me');
+    const second = setup(data, 'future-second');
+    await second.load(); second.openPage();
+    expect((await second.dispatch({ type: 'learningExport' })).error).toMatch(/unsupported/);
+    expect(data.settings.futureLearningPreference).toBe('keep me');
   } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
 });

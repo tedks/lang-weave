@@ -4,6 +4,7 @@ let previewToken = null;
 let generation = 0;
 let busy = false;
 let active = true;
+let heartbeat = null;
 const pageId = crypto.randomUUID();
 const port = chrome.runtime.connect({ name: 'learning-backup-page' });
 const portReady = new Promise((resolve) => {
@@ -33,11 +34,17 @@ async function send(type, fields = {}) {
 }
 
 function clearPreview() {
+  if (heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
   generation++;
   previewToken = null;
   $('summary').hidden = true;
   $('confirm').checked = false;
   $('import').disabled = true;
+}
+
+function keepPreviewAlive() {
+  if (heartbeat !== null) clearInterval(heartbeat);
+  heartbeat = setInterval(() => { if (active) port.postMessage({ pageId, ping: true }); }, 20000);
 }
 
 function notice(message) { $('notice').textContent = String(message || ''); }
@@ -50,6 +57,7 @@ async function run(button, action) {
   try { await action(); }
   catch (error) { notice(error.message || 'Learning backup failed.'); }
   finally {
+    if (button.id === 'import' && heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
     busy = false;
     button.disabled = !active || button.id === 'import' && (!previewToken || !$('confirm').checked);
     if (button.id === 'import') {
@@ -106,6 +114,7 @@ $('preview').addEventListener('click', () => void run($('preview'), async () => 
   if (typeof result.token !== 'string' || !result.token || !result.preview) throw new Error('The preview was incomplete.');
   previewToken = result.token;
   renderPreview(result.preview);
+  keepPreviewAlive();
   notice('Preview validated. Import requires your confirmation and a fresh target check.');
 }));
 
@@ -113,6 +122,7 @@ $('import').addEventListener('click', () => void run($('import'), async () => {
   if (!previewToken || !$('confirm').checked) return;
   const token = previewToken;
   clearPreview(); // A failed or stale confirmation requires a new preview.
+  keepPreviewAlive(); // keep the live authority while the journal is being checked
   $('file').disabled = true;
   $('preview').disabled = true;
   if (!await portReady) throw new Error('The backup page connection is unavailable. Reload this page.');

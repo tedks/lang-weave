@@ -12,6 +12,7 @@ const baseline = () => {
     hint: `moh${i}`, level: i < 10 ? 1 : 2 }));
   const version = hashKey(JSON.stringify(words));
   const spanish = wordsForLevel(2)[0].fr;
+  const spanishEntry = `es:legacy:${encodeURIComponent(spanish)}`;
   const source = { settings: { enabled: false, newSitesEnabled: true,
     siteOverrides: { 'private.example': true }, model: 'gemini-3.8-flash',
     language: 'fr', levelOverride: 2, gradual: true, newWordsPerDay: 3,
@@ -38,12 +39,14 @@ const baseline = () => {
     readingEvents: [{ word: spanish.toLowerCase(), kind: 'seen', day: '2026-10-28' }],
     seenSent: { day: '2026-10-28', words: [spanish.toLowerCase()] },
     vocabularyEncounters: { version: 1, day: '2026-10-28', bucket: 2960,
-      counts: { [spanish]: 4 }, touched: [spanish] },
+      counts: { [spanishEntry]: 4 }, touched: [spanishEntry] },
     [`lang:fr:${version}:recallReview`]: { version: 1, cards: {
       mot0: { due: 1000, interval: 0, reviews: 1, easyStreak: 0 },
       mot19: { due: 9000, interval: 3, reviews: 4 } },
       current: null, inline: null, learning: { day: '2026-10-28', count: 2, pending: [] } },
     [`lang:fr:${version}:readingEvents`]: [{ word: 'mot0', kind: 'flip', day: '2026-10-28' }],
+    [`lang:fr:${version}:vocabularyEncounters`]: { version: 1, day: '2026-10-28', bucket: 2960,
+      counts: { [`fr:${version}:legacy:mot0`]: 3 }, touched: [`fr:${version}:legacy:mot0`] },
     'lang:personal:fr:vocabularyEncounters': { version: 1, day: '2026-10-28', bucket: 2960,
       counts: { [personalId]: 2 }, touched: [personalId] },
     // A previous, now uninstalled pack scope is a valid historical orphan.
@@ -56,6 +59,7 @@ const baseline = () => {
 
 test('old Spanish, personal and versioned pack learning round-trip into a distinct fresh fixture', () => {
   const { source, version, spanish } = baseline();
+  const spanishEntry = `es:legacy:${encodeURIComponent(spanish)}`;
   const before = structuredClone(source);
   const json = createBackup(source, '0.11.0');
   expect(source).toEqual(before); // export is read-only
@@ -88,6 +92,8 @@ test('old Spanish, personal and versioned pack learning round-trip into a distin
   expect(imported.personalVocabularyV1.entries[0].archived).toBe(true);
   expect(imported[`lang:fr:${version}:recallReview`].cards.mot0.reviews).toBe(1);
   expect(imported[`lang:fr:${version}:recallReview`].learning.count).toBe(2);
+  expect(imported.vocabularyEncounters.counts[spanishEntry]).toBe(4);
+  expect(imported[`lang:fr:${version}:vocabularyEncounters`].counts[`fr:${version}:legacy:mot0`]).toBe(3);
   expect(imported['lang:de:aaaaaaaaaaaaaaaa:recallReview'].cards['früher'].due).toBe(90000);
   expect(remaining(imported.recallReview.learning, '2026-10-28', 3)).toBe(0);
   expect(futureBudgetDay(imported.recallReview.learning, '2026-10-28')).toBe('2026-11-11');
@@ -107,6 +113,7 @@ test('hostile and unsupported files fail closed', () => {
     altered((b) => { b.state.preferences.enabled = true; }),
     altered((b) => { Object.defineProperty(b.state.scopes, '__proto__', { value: {}, enumerable: true }); }),
     altered((b) => { b.state.scopes.es.review.cards['https://private.example/story'] = { due: 0, interval: 0, reviews: 0 }; }),
+    altered((b) => { b.state.scopes.es.review.cards['my oncology appointment is on Monday'] = { due: 0, interval: 0, reviews: 0 }; }),
     altered((b) => { b.state.personal.entries[0].id = 'personal:fr:constructor'; }),
     altered((b) => { b.state.scopes.es.events[0].word = 'raw page passage'; }),
   ]) expect(() => parseBackup(json)).toThrow();
@@ -127,4 +134,27 @@ test('initialized empty target is fresh; meaningful or unknown target state conf
     { personalVocabularyV1: { ...base.personalVocabularyV1, entries: [{ id: 'anything' }] } },
     { 'lang:fr:aaaaaaaaaaaaaaaa:recallReview': { version: 1, cards: {}, learning: { day: '', count: 0 } } }])
     expect(() => targetFresh({ ...base, ...patch })).toThrow();
+});
+
+test('unreviewed pack feedback and script joiners survive without a card', () => {
+  const { source, version } = baseline();
+  const words = source.languagePacks.fr.words.map((word) => ({ ...word }));
+  words[1].fr = 'می\u200cروم';
+  const nextVersion = hashKey(JSON.stringify(words));
+  source.languagePacks.fr = { version: nextVersion, words };
+  for (const suffix of ['recallReview', 'readingEvents', 'vocabularyEncounters']) {
+    source[`lang:fr:${nextVersion}:${suffix}`] = source[`lang:fr:${version}:${suffix}`];
+    delete source[`lang:fr:${version}:${suffix}`];
+  }
+  const aggregate = source[`lang:fr:${nextVersion}:vocabularyEncounters`];
+  aggregate.counts = { [`fr:${nextVersion}:legacy:mot0`]: 3 };
+  aggregate.touched = [`fr:${nextVersion}:legacy:mot0`];
+  source[`lang:fr:${nextVersion}:readingEvents`].push({ word: 'می\u200cروم', kind: 'seen', day: '2026-10-28' });
+  source[`lang:fr:${nextVersion}:vocabularyEncounters`].counts[`fr:${nextVersion}:legacy:${encodeURIComponent('می\u200cروم')}`] = 1;
+  source[`lang:fr:${nextVersion}:vocabularyEncounters`].touched.push(`fr:${nextVersion}:legacy:${encodeURIComponent('می\u200cروم')}`);
+  source.readingEvents.push({ word: 'pero', kind: 'seen', day: '2026-10-28' });
+  const backup = parseBackup(createBackup(source, '0.11.0'));
+  expect(backup.state.scopes[`lang:fr:${nextVersion}`].events[1].word).toBe('می\u200cروم');
+  expect(backup.state.scopes[`lang:fr:${nextVersion}`].encounters.touched).toHaveLength(2);
+  expect(backup.state.scopes.es.events[1].word).toBe('pero');
 });

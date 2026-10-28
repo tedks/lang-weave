@@ -90,7 +90,7 @@ const ready = (async () => {
   try { validateStorageSettings(settings || {}); }
   catch { startupUnsupportedSettings = true; }
   if (settings?.apiKey) await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
-  await store.set({ settings: cleanSettings(settings) });
+  if (!startupUnsupportedSettings) await store.set({ settings: cleanSettings(settings) });
   const { keyEpoch } = await store.get('keyEpoch');
   if (typeof keyEpoch !== 'string' || !keyEpoch) await store.set({ keyEpoch: crypto.randomUUID() });
   await recoverLearningImport();
@@ -131,7 +131,7 @@ chrome.runtime.onConnect?.addListener((port) => {
   });
 });
 
-async function recoverLearningImport() {
+async function recoverLearningImport(beforePatch = async () => {}) {
   const { [IMPORT_JOURNAL_KEY]: journal } = await store.get(IMPORT_JOURNAL_KEY);
   if (!journal) return;
   if (journal.version !== 1 || !['prepared', 'committing'].includes(journal.phase) ||
@@ -142,6 +142,7 @@ async function recoverLearningImport() {
   targetFresh({ settings: journal.settings }); // journal may be corrupted; never restore a key or consent
   const backup = parseBackup(journal.json);
   const patch = learningPatch(backup, journal.settings);
+  await beforePatch(); // import path rechecks authority after the journal digest/read awaits
   await store.set({ ...patch, [IMPORT_RECEIPT_KEY]: { schemaVersion: 1, hash: journal.hash } });
   await store.remove(IMPORT_JOURNAL_KEY);
 }
@@ -236,8 +237,25 @@ async function learningImport(msg, sender) {
       await store.remove(IMPORT_JOURNAL_KEY);
       throw new Error('Preview expired before import. Preview again.');
     }
-    try { await recoverLearningImport(); }
-    catch (error) { throw new Error(`Learning import did not finish. Reopen Lang Weave to recover: ${error.message}`); }
+    let patchStarted = false;
+    try {
+      await recoverLearningImport(async () => {
+        const latest = await store.get(null);
+        const permissions = await chrome.permissions.getAll();
+        delete latest[IMPORT_JOURNAL_KEY];
+        if (!liveBackupPage(page, sender, msg.token) || preview.generation !== page.generation ||
+            permissionGeneration !== target.generation[0] || settingsGeneration !== target.generation[1] ||
+            storageSignature(latest) !== target.signature ||
+            permissionSignature(permissions) !== target.permissions)
+          throw new Error('Target or preview changed. Preview again.');
+        settingsGeneration++; // invalidate held reading/config work before the learning preference write
+        patchStarted = true;
+      });
+    } catch (error) {
+      if (!patchStarted) await store.remove(IMPORT_JOURNAL_KEY);
+      throw new Error(patchStarted
+        ? `Learning import did not finish. Reopen Lang Weave to recover: ${error.message}` : error.message);
+    }
     page.preview = null;
     return { ok: true };
   }).catch(async (error) => {
