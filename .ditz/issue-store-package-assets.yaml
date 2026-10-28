@@ -1,0 +1,24 @@
+id: store-package-assets
+title: Prepare deterministic Store package, notices, icons and truthful listing assets
+desc: Queued Store prerequisite from accepted audit. Minimal deterministic ZIP manifest
+  at root, retained MIT/upstream notices and owned icon/real-product screenshots;
+  exclude tests/e2e/dev/private files. Audit actual permission/API use, unpacked alarm
+  updater and web-accessible dependency closure with tests before narrowing. Existing37file
+  in-memory ZIP is feasibility only and omits LICENSE/art, not approved for distribution.
+  Draft listing/reviewer instructions from actual behavior and final launch policy.
+  Root assigns bounded source/asset package; no account/fee/upload/publish or fleet
+  cutover authorization. New Store identity belongs to separately authorized publisher
+  bootstrap; preserve unpacked installed identity/history.
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T18:23:35-00:00
+references: []
+log_events:
+- time: 2026-10-28T18:23:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
