@@ -26,3 +26,19 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-28T18:50:47-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO ruling 2026-10-28: choose conservative A for the first portability
+    release. Arbitrary legacy form keys have no trustworthy provenance; lexical heuristics
+    cannot establish that they are vocabulary. Refuse export/import for unverified
+    legacy orphan forms outside the supported bundled/installed scope catalog; validate
+    encoded identities/dependent references too. This explicitly narrows preserve-unknown-history
+    acceptance: some legitimate removed-pack history cannot migrate yet. Preserve
+    source data exactly; no silent pruning, partial export, source deletion/reset
+    recommendation, rekey or new ledger. Explain limitation using safe counts/categories,
+    never suspect strings in backups/errors/logs/evidence. Supported histories and
+    durable budget/future-day protections remain exact. Lead continues encoded-ID
+    repairs, paired/mutation tests, truthful docs/UI, full exact-head gates and council
+    fixpoint. No extra product wait or merge/deploy/Store authorization. Future safe
+    orphan recovery tracked separately.'
