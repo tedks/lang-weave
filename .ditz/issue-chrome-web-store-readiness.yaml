@@ -1,0 +1,22 @@
+id: chrome-web-store-readiness
+title: Audit Chrome Web Store launch and monetization readiness
+desc: Ted asks whether Lang Weave is monetizable and can launch on the Chrome Web
+  Store. Fresh read-only Lead audits accepted0.10.0 runtime, packaging/assets/onboarding/permissions/privacy/provider
+  terms/identity and progress migration, and drafts submission fields plus a small
+  implementation sequence. Primary official sources and actual code only; no market/profitability/legal
+  certification. Compare BYOK beta and later optional paid convenience/curriculum/sync/managed
+  inference as hypotheses. Private unique report, no public code/account/publishing/fees/billing/keys/live
+  model/telemetry changes. Root owns adoption and any later outward approval.
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T18:08:28-00:00
+references: []
+log_events:
+- time: 2026-10-28T18:08:28-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
