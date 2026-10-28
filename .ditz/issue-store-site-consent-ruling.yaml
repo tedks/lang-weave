@@ -1,0 +1,26 @@
+id: store-site-consent-ruling
+title: Choose Store beta site opt-in and X default
+desc: 'Source: private STORE-READINESS-20261028.local.md at accepted source 0230718c5a10375ad907223878b33064fced9856.
+  Decision owner: Ted. Current code statically injects X/Twitter and resolves newSitesEnabled
+  null to on for permitted sites; user adds Gemini key in popup and optional grants
+  other hosts. Options: (A) Store new installs use explicit per-site allowlist including
+  X, retaining existing unpacked-profile behavior through a scoped migration; (B)
+  keep X default and show a prominent provider disclosure plus affirmative consent
+  before model use, with separate optional grants elsewhere. Recommendation A for
+  the public-facing beta, with tests preserving existing-profile progress/consent
+  state. Blocks final Store privacy onboarding and X permission/listing language;
+  does not authorize changing fleet installs or live profiles. Store user-data guidance:
+  https://developer.chrome.com/docs/webstore/program-policies/user-data-faq .'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T18:14:32-00:00
+references: []
+log_events:
+- time: 2026-10-28T18:14:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
