@@ -24,3 +24,17 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-28T18:15:47-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Read-only audit complete on accepted source 0230718c5a10375ad907223878b33064fced9856.
+    Private report: /home/tedks/Projects/spanish-weave/STORE-READINESS-20261028.local.md
+    . Verdict: adult Spanish-first BYOK Store beta is technically plausible but not
+    submission-ready. Blockers include provider plan/territory/client interpretation;
+    prominent consent/privacy/key-at-rest review; Store identity/full progress migration;
+    owned icon/screenshots, MIT notice and minimal package; publisher/account/fee/contact/privacy
+    URL and reviewer test method. In-memory deterministic 37-runtime-file ZIP, root
+    manifest/direct refs/testzip passed; no upload or live profile/model call. Draft
+    listing/privacy/permissions/reviewer instructions and four small follow-on missions
+    are in report. Product rulings filed separately as store-provider-region-ruling
+    and store-site-consent-ruling. No source edits, PR or account/public action.'
