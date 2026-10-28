@@ -1,0 +1,41 @@
+# Learning backup and fresh-target import (0.11.0)
+
+State: implementation in progress on `store-progress-portability`, based on accepted `0230718`. Root owns acceptance and merge. Issue: `store-progress-portability`. This record contains no personal browsing data.
+
+## Intent and boundary
+
+Give an existing unpacked installation an explicit local export of supported durable learning state and give a separate, keyless, fresh-learning installation a file-based preview and confirmed import. The old installation and its profile remain intact. This is preparation for a possible Store identity change, not a Store upload, identity change, account action, or release. The existing personal-only export remains available with its original format.
+
+No cross-extension storage access, arbitrary merge, overwrite of meaningful target learning, site or host consent transfer, secret transfer, provider call, or reading activation. Provider, region, publisher, and new-install site-default rulings belong to later Store work.
+
+## Assumptions and failure modes
+
+- Source and target each run a version that understands this backup format. Version 0.10.0 cannot export it; users keep the old installed path and update its code to 0.11.0 before exporting. The source may have old cards or scopes no longer in the active catalog.
+- Browser-local state can contain malformed or future-version values, including data a previous extension version wrote. Export must fail with a clear error rather than silently clean such state. Import treats the chosen file as hostile and rejects unknown keys, shapes, versions, prototype keys, excess data and ambiguous identities.
+- A target may have initialized settings, key epochs, caches, quotas or consent. Only learning fields are eligible to import. A target with meaningful learning, a key, or unknown storage format is a conflict. No target learning is cleared to make room.
+- Worker suspension, page navigation, permissions or settings changes, another review write and storage errors can occur between preview and confirmation. A preview is not authority after any such change. The worker serializes with settings/review writes and rechecks the exact payload, target snapshot and permission state before writing.
+- Chrome storage does not promise a multi-key transaction. A bounded journal records an intended commit before any learning-key write; startup completes or fails closed on an interrupted commit. A write error never reports success. The journal is not a merge facility.
+
+## Versioned file contract
+
+`format: "lang-weave-learning-backup"`, `schemaVersion: 1`, `exportedByVersion: "0.11.0"` (the tool version is informational and independent of the schema), and `state` with exactly `preferences`, `packs`, `personal`, and `scopes`. The maximum UTF-8 JSON size is 1 MiB. The import page accepts only a local file. Schema 1 has no migration fallback: future/unknown versions and fields fail closed.
+
+`preferences` contains only `language`, `levelOverride`, `gradual`, `newWordsPerDay`, `density`, and `inlineRecall`. `packs` is the complete validated `languagePacks` object (at most five installed packs). `personal` is the V1 entry and history object with stable UUIDs, IDs, language, source/target/sense, direction, archive flag, creation time, provenance and optional legacy link; its histories retain all valid orphan cards and per-language learning day/count. `scopes` is an explicit map of `es`, `lang:<canonical language>:<pack version>`, and `personal:<canonical language>` to durable `review`, `events`, `shown`, and `encounters` values when present. Historical versioned scopes remain even when their pack is no longer installed. `personal` histories are kept in their original V1 object; `personal:<language>` scopes hold only aggregate feedback.
+
+The corresponding source storage keys are `settings` (learning-field projection), `languagePacks`, `personalVocabularyV1`, unprefixed Spanish `recallReview`, `readingEvents`, `seenSent`, `vocabularyEncounters`, and the same four suffixes under `lang:<language>:<version>:` or `lang:personal:<language>:`. The personal history in `personalVocabularyV1` is not re-keyed. Cards preserve due time, interval, review count, familiarity, easy streak, introduction day and recovery gate day. Learning preserves the exact durable day/count, including a future day; pending reservations are excluded. Feedback is bounded catalog/card-ID-only data: no passages, URLs or visit identifiers.
+
+Explicit exclusions: `apiKey` and legacy `settings.apiKey`; authentication and host grants; `enabled`, `newSitesEnabled`, `siteOverrides`, `model`; `epoch`, `keyEpoch`; model calls, quota/cooldown/status, caches (`c:*`), update status; capture drafts; review `current`/`inline`, introduction receipts and pending reservations, tickets, owner hashes, tab/document IDs. These exclusions mean an outstanding reveal or introduction cannot be replayed from a backup. After import, the user must re-enter a key and separately grant/enable sites. The file is a local backup of learning, not a copy of the extension's whole storage.
+
+## Fresh-target and confirmation contract
+
+An initialized target is fresh when it has no review cards or charged introduction day/count, personal entries/history, installed packs, durable feedback or historical learning scope. Empty normal defaults are permitted. A present unsupported/unknown learning format or storage key is a conflict. An existing key conflicts, to ensure the import cannot activate reading. Existing target secrets, permission grants, enabled/new-site/site overrides, model, caches, quota and diagnostic settings are never copied or changed. Import changes only the six learning preferences and the backed-up learning keys.
+
+Preview displays source tool version, languages, pack/card/personal counts, selected learning preferences and the excluded security/consent classes. Confirmation is explicitly tied to the exact validated file, current target storage snapshot and permission generation. Another file choice, navigation, worker restart, settings/permission/review mutation or changed target state invalidates it. A successful exact-repeat import reports already imported without a write; a changed imported target is a conflict. The target may keep its old initialized defaults but cannot merge with existing learning; merging or replacement requires a separate approved package.
+
+## Acceptance evidence and stop conditions
+
+Round-trip representative Spanish, personal and generated/historical scopes with exact durable semantics in distinct fixtures and isolated MV3 identities. Pair negative tests for malformed/truncated/oversized/future/polluting input, target conflict, stale confirmation, failure/restart/concurrency and repeat import. Verify day/future-budget, Again/Hard/familiar/archive/history, no secret/URL/cache/ephemeral fields, no host/network enabling, and mutation-red guards. Run frozen Bun/Python, version checks, 35 blocks, diff and existing guarded browser flows plus focused two-identity proof. Full provider-diverse council to fixpoint precedes ready PR. Stop if the contract requires destructive merge, real profile data, new permissions or keys, Store action, or expanded privacy/history scope.
+
+## Record
+
+- 2026-10-28: read roles/doctrine, design, accepted Store audit, personal/adaptive/root mission records; confirmed clean designated branch at `0230718`. Issue started and `ditz sync` succeeded. Contract published before UI wiring. No source/runtime edits yet.
