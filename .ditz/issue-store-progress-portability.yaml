@@ -42,3 +42,16 @@ log_events:
     repairs, paired/mutation tests, truthful docs/UI, full exact-head gates and council
     fixpoint. No extra product wait or merge/deploy/Store authorization. Future safe
     orphan recovery tracked separately.'
+- time: 2026-10-28T19:07:05-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Implementation and bounded evidence delivered on pushed head fa5632708af910c28c484b571c1be98c68b80bfe;
+    PR #15 is ready for root acceptance/normal merge. Schema/allowlist and fresh-target
+    contract in docs/STORE-PORTABILITY-MISSION.md. Exact-head frozen Bun 193/3650,
+    Python 91, version 0.11.0 on three surfaces, 35 blocks, diff and all nine guarded
+    MV3 flows pass, including distinct-ID file transfer and keyless review. Mutation
+    probes red for omission/secret/freshness/preview/commit/budget/provenance. Council
+    fixpoint CLEAN from OpenAI and Anthropic after repair; Google seat unavailable
+    due to quota, no substitute. Strict catalog ruling means some old removed-pack
+    form history refuses the entire backup without source mutation. No Store/profile/provider/merge
+    action. Keep issue in progress until root accepts and merges.'
