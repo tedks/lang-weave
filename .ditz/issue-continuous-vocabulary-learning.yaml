@@ -89,3 +89,16 @@ log_events:
     HOLD for independently reproduced second encounter write after revocation during
     first awaited write; owner%834 receives bounded repair. Already accepted0.9.0
     remains safe release target. No new installation claim until receipts.'
+- time: 2026-10-28T08:24:10-00:00
+  who: Ted Smith
+  what: commented
+  comment: Personal capture PR14 ACCEPTED/NORMAL MERGED0230718c5a10375ad907223878b33064fced9856,
+    parentsd92a8a4/6733b1d, treeb3b829d5bbdeb2205b167f78f29594e126358f74 identical
+    to reviewed/gated head. Root dual-write HOLD resolved; independent1/50 probe,19Bun416/version/diff/guarded
+    personalMV3 PASS; full175Bun3451/91Python/allguarded/browser and provider convergence
+    accepted. Public acceptance https://github.com/tedks/lang-weave/pull/14#issuecomment-6464178728
+    . personal-word-capture closed fixed. Prior090release accepted COMPLETE with dotfilesPR206/207
+    merges8544a70/2a56688 and fourhost status/parity/canary, splinter0/1 DNSfollowups.
+    Fresh0100release Lead package explicitly includes normal pin merge and targeted
+    fleet install, no new feature/batching/root approval wait. Parent remains in progress
+    through0100release; personal activation/live provider unverified.
