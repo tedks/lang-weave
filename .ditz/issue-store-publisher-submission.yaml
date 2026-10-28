@@ -1,0 +1,24 @@
+id: store-publisher-submission
+title: Resolve publisher setup and submit reviewed Store release after outward approval
+desc: Future outward phase, not authorized to execute by issue creation. Requires
+  provider/territory/age/service-plan and Store site-consent ruling disposition; tested
+  progress portability/privacy onboarding/package-assets; publisher name/account/contact/support/privacy
+  hosting/2FA; explicit fee and account-action authorization. Prepare one concrete
+  reviewed ZIP/listing/privacy/reviewer package first, then request final outward
+  approval for account/bootstrap/upload/review/publication as applicable; preserve
+  existing unpacked state. Deferred publication can separate review from public release.
+  No price/demand/profitability or Store acceptance promise. Record exact approved
+  artifact/visibility/territories and resulting receipts.
+type: task
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T18:23:35-00:00
+references: []
+log_events:
+- time: 2026-10-28T18:23:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
