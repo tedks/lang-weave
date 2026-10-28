@@ -13,8 +13,8 @@ type: feature
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-28T18:21:31-00:00
 references: []
 log_events:
@@ -55,3 +55,13 @@ log_events:
     due to quota, no substitute. Strict catalog ruling means some old removed-pack
     form history refuses the entire backup without source mutation. No Store/profile/provider/merge
     action. Keep issue in progress until root accepts and merges.'
+- time: 2026-10-28T19:11:40-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: CTO accepted exact fa5632708af910c28c484b571c1be98c68b80bfe after source/journal/privacy
+    audit and independent 193 Bun/3650 assertions, 91 Python, version/35 blocks/diff
+    and two-identity guarded portability MV3 pass; normal PR15 merge d13e30df8b61596dc34b6652a19b9a7b0152b8a8
+    verified. Narrow orphan-history refusal contract accepted; source preserved, no
+    partial export. Local prerequisite only, not fleet deployment or Store submission.
+    Acceptance record https://github.com/tedks/lang-weave/pull/15#issuecomment-6478183169
+    . Followup portable-orphan-history-recovery remains separate.
