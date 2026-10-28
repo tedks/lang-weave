@@ -206,7 +206,7 @@ function knownIds(scope, installed, personalState, scopeState) {
 function feedbackId(id, allowed, scope, peek = false, encounter = false) {
   if (encounter) {
     // encodeURIComponent may use nine ASCII bytes per CJK code point. A
-    // 100-character historical card plus scope can exceed 400 encoded bytes.
+    // A catalog-valid 50-character generated form plus scope can exceed 400 encoded bytes.
     boundedString(id, 1024, 'encounter ID');
     if (!allowed.aggregate.has(id)) fail('encounter refers to unknown catalog ID');
     return id;
