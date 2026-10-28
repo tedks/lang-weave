@@ -1,0 +1,22 @@
+id: personal-capture-test-stability
+title: Stabilize personal capture epoch fixtures and record gate cost rationale
+desc: 'Council minor follow-up for PR14: replace adaptive-epoch numeric tabs.get hold
+  indexes with named hold points; make personal encounter site-off ordering explicit;
+  clear the 2-second Promise.race timer; assert allowed-path history shape directly.
+  Current tests and root isolated probe pass, mutation-red proves the consent boundary,
+  so these are fixture maintenance and are not acceptance blockers. Leave the extra
+  stillSafe() on legacy-only swaps: its small additional lookup cost favors a simple
+  uniform safety gate; reconsider only with measured evidence.'
+type: task
+component: testing
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-28T08:17:39-00:00
+references: []
+log_events:
+- time: 2026-10-28T08:17:39-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
