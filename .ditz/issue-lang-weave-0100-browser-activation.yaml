@@ -1,16 +1,20 @@
 id: lang-weave-0100-browser-activation
-title: Verify personal Chrome activation and native selection menu on 0.10.0
-desc: '0.10.0 installed payload/status/parity is verified on framework0, drynwyn,
-  tower0 and homes-imac, including an isolated installed-path Chromium canary. Personal
-  Chrome reload/activation remains unverified, and contextMenus may require browser
-  action. Follow up via user confirmation or separately authorized profile-safe UI
-  check: running extension shows0.10.0; approved contextMenus permission; selecting
-  safe enabled-site prose opens native Add to Lang Weave and local confirmation/Save.
-  Do not infer personal activation from installed files or synthetic listener callback;
-  do not read keys/profile storage, reset progress, restart a personal browser, or
-  call live Gemini merely to verify. This is an operational followup, not a blocker
-  on accepted source/payload release. Existing long-idle/accessibility/harness nits
-  remain separate.'
+title: Verify personal Chrome activation and native selection menu on current 0.11.0
+  fleet
+desc: 'Current accepted source0.11.0 d13e30df8b61596dc34b6652a19b9a7b0152b8a8 is FILE-installed
+  with status and all41file parity on framework0,drynwyn,tower0,splinter1,homes-imac;
+  normal dotfiles pin PR221 mergead34f8d and receipt PR222 merge251667c. Actual framework0
+  stable installed path passed isolated guarded Chromium canary. Personal Chrome reload/activation
+  remains unverified on all five; existing contextMenus approval may still need browser
+  action. Follow up via user confirmation or separately assigned profile-safe UI check:
+  running extension reports0.11.0; intended permission state; native safe-site selection
+  menu and local Save confirmation. Do not infer personal activation from files, isolated
+  test identities or synthetic menu callbacks. Do not inspect keys/profile storage,
+  reset progress, restart a personal browser, perform real learning import or call
+  live Gemini merely to verify. Splinter0 remains explicitly offline/untouched in
+  its separate installer followup. This operational activation followup does not block
+  accepted source/file deployment; long-idle/accessibility/harness followups remain
+  separate.'
 type: task
 component: extension
 release:
@@ -32,3 +36,11 @@ log_events:
     PASS, priorpayloadretained. Receipt PR210 normal merged fdd96e45da2ae1db9832b50884f8a8a5b396a37f.
     Fivehostfiles now verified; splinter0 explicitlyoffline leftuntouched. Personalbrowseractivation
     remains unverified on splinter1 too, no key/profile/reload/approval action taken.
+- time: 2026-10-29T23:38:37-00:00
+  who: Ted Smith
+  what: changed title
+  comment: ""
+- time: 2026-10-29T23:38:37-00:00
+  who: Ted Smith
+  what: updated description
+  comment: ""
