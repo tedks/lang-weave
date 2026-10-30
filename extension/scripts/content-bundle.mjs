@@ -14,8 +14,8 @@ const exportLocal = /^[ \t]*export\s*\{([^}]*)\}\s*;?[ \t]*$/gm;
 const exportDecl = new RegExp(`^([ \\t]*)export\\s+((?:async\\s+)?function|const|class)\\s+(${id})\\b`, 'gm');
 
 // Preserve UTF-16 offsets while blanking comments, string/template text and their delimiters.
-// Template expressions are scanned as code, including nested templates. Regex literals may
-// yield a false positive (a package refusal), never a missed import or a silent rewrite.
+// Template expressions are scanned as code, including nested templates. The regex heuristic
+// handles the current closure; unusual new regex syntax needs review before packaging.
 function codeMask(source) {
   const out = source.split('');
   const blank = (from, to) => { for (let p = from; p < to; p++) if (source[p] !== '\n') out[p] = ' '; };
@@ -94,7 +94,7 @@ function codeMask(source) {
 function replaceCode(source, pattern, transform) {
   const mask = codeMask(source);
   return source.replace(pattern, (...args) => {
-    const matched = args[0], offset = args.at(-2);
+    const matched = args[0], offset = typeof args.at(-1) === 'object' ? args.at(-3) : args.at(-2);
     const tokenAt = matched.search(/\b(?:import|export)\b/);
     if (tokenAt < 0 || !/^(?:import|export)\b/.test(mask.slice(offset + tokenAt))) return matched;
     return transform(...args);

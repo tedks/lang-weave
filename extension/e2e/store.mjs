@@ -70,6 +70,27 @@ async function checkWebAccessible(context, id, manifest, source = root) {
 const alarms = (worker) => worker.evaluate(() => chrome.alarms?.getAll().then((all) => all.map((a) => a.name)) ?? null);
 const settle = async (worker) => { await new Promise((done) => setTimeout(done, 1500)); return worker; };
 
+async function restartWorker(context, page, id, worker) {
+  await worker.evaluate(() => { globalThis.beforeRestart = true; });
+  const cdp = await context.newCDPSession(page);
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const target = targetInfos.find((t) => t.type === 'service_worker' && t.url === `chrome-extension://${id}/src/background.js`);
+  await cdp.send('Target.closeTarget', { targetId: target.targetId }); // keep the extension and dynamic registration loaded
+  const wake = await context.newPage();
+  await wake.goto(`chrome-extension://${id}/src/popup.html`);
+  const within = (p, ms) => Promise.race([p, new Promise((done) => setTimeout(() => done('timeout'), ms))]);
+  let fresh;
+  for (let i = 0; i < 50 && !fresh; i++) {
+    for (const w of context.serviceWorkers()) {
+      if (await within(w.evaluate(() => globalThis.beforeRestart ?? false).catch(() => 'closed'), 1000) === false) fresh = w;
+    }
+    if (!fresh) await new Promise((done) => setTimeout(done, 200));
+  }
+  assert.ok(fresh, 'a fresh worker started and ran registerSites');
+  await wake.close();
+  return settle(fresh);
+}
+
 let open;
 try {
   // Store build: no X content script, update_url as the Store writes it, sites granted by the user.
@@ -125,34 +146,25 @@ try {
   assert.deepEqual(storeReachable, []);
   assert.ok(storeFiles.includes('src/content.js'));
   for (const closureFile of dev.web_accessible_resources[0].resources) assert.ok(storeFiles.includes(closureFile));
-  // The update path: a stale exclusion on the existing registration must be cleared when a restarted worker
-  // re-registers with the explicit empty list (updateContentScripts keeps omitted properties; relaunching the
-  // browser would not do, since reloading an unpacked extension drops dynamic registrations).
+  // An upgrade can leave an old loader even when exclusions are already correct. Isolate that
+  // case so the exclusion repair cannot mask a failure to replace the js field.
   await worker.evaluate(() => chrome.scripting.updateContentScripts([{ id: 'weave-sites',
-    js: ['src/content-loader.js'], excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] }]));
+    js: ['src/content-loader.js'] }]));
   const [stale] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
-  assert.deepEqual([...stale.excludeMatches].sort(), ['https://twitter.com/*', 'https://x.com/*'], 'the stale exclusion is in place');
   assert.deepEqual(stale.js, ['src/content-loader.js'], 'the stale loader is in place');
-  await worker.evaluate(() => { globalThis.beforeRestart = true; });
-  const cdp = await context.newCDPSession(page);
-  const { targetInfos } = await cdp.send('Target.getTargets');
-  const target = targetInfos.find((t) => t.type === 'service_worker' && t.url === `chrome-extension://${id}/src/background.js`);
-  await cdp.send('Target.closeTarget', { targetId: target.targetId }); // stops the worker, keeps the extension loaded
-  const wake = await context.newPage();
-  await wake.goto(`chrome-extension://${id}/src/popup.html`); // the popup's status message wakes the worker
-  const within = (p, ms) => Promise.race([p, new Promise((done) => setTimeout(() => done('timeout'), ms))]);
-  let fresh;
-  for (let i = 0; i < 50 && !fresh; i++) {
-    for (const w of context.serviceWorkers()) {
-      if (await within(w.evaluate(() => globalThis.beforeRestart ?? false).catch(() => 'closed'), 1000) === false) fresh = w;
-    }
-    if (!fresh) await new Promise((done) => setTimeout(done, 200));
-  }
-  assert.ok(fresh, 'a fresh worker started and ran registerSites');
-  worker = await settle(fresh);
+  assert.deepEqual(stale.excludeMatches ?? [], [], 'exclusions are already correct');
+  worker = await restartWorker(context, page, id, worker);
   const [updated] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
-  assert.deepEqual(updated.excludeMatches ?? [], [], 'a restarted worker clears a stale exclusion');
   assert.deepEqual(updated.js, ['src/content-bundle.js'], 'a restarted worker replaces a stale loader');
+  // Separately pin the existing empty-exclusion update path. Omitting this field would keep X stale.
+  await worker.evaluate(() => chrome.scripting.updateContentScripts([{ id: 'weave-sites',
+    excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] }]));
+  const [excluded] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
+  assert.deepEqual([...excluded.excludeMatches].sort(), ['https://twitter.com/*', 'https://x.com/*']);
+  assert.deepEqual(excluded.js, ['src/content-bundle.js']);
+  worker = await restartWorker(context, page, id, worker);
+  const [cleared] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
+  assert.deepEqual(cleared.excludeMatches ?? [], [], 'a restarted worker clears a stale exclusion');
   await context.close();
 
   // Dev (unpacked) build: X through the manifest content script; the self-update stays armed. The X grant is
@@ -176,7 +188,7 @@ try {
   await checkWebAccessible(context, id, devGranted);
   await context.close();
   open = undefined;
-  console.log(`PASS: real Chromium MV3, unzipped Store package has no static content script, web-accessible resources or alarms permission; granted X swaps, glosses and flips through the bundled dynamic script; no Store source JS fetch succeeds; stale exclusion clears after worker restart. Dev build keeps modular loader and update alarm. Gemini mocked; no Store upload.`);
+  console.log(`PASS: real Chromium MV3, unzipped Store package has no static content script, web-accessible resources or alarms permission; granted X swaps, glosses and flips through the bundled dynamic script; no Store source JS fetch succeeds; a stale loader and stale exclusion each clear on isolated worker restarts. Dev build keeps modular loader and update alarm. Gemini mocked; no Store upload.`);
 } finally {
   try { if (open) await open.context.close(); } finally {
     // Only the exact mkdtemp directory created above, after closing its browser.
