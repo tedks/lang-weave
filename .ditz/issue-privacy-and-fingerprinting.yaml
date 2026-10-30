@@ -1,0 +1,21 @@
+id: privacy-and-fingerprinting
+title: In-extension consent before first Gemini call, privacy policy and Limited Use
+  page, no web-accessible scripts, fix log tag
+desc: 'Roadmap M3. Source: ux-audit #8, market.md Store policy quotes. web_accessible_resources
+  exposes src/*.js to every origin (fingerprinting once the ID is fixed): use_dynamic_url
+  or a single content bundle; the content-loader dynamic import must keep working.
+  content-loader.js:7 logs [french-weave]. Supersedes store-privacy-onboarding''s
+  engineering half.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:42-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
