@@ -1,0 +1,21 @@
+id: store-bundle-dead-loader
+title: Consider omitting the dead modular loader from the Store zip
+desc: 'Council PR #30 nit: src/content-loader.js still ships in the Store zip even
+  though its dynamic import cannot work with no web_accessible_resources. The Store
+  manifest has no static content script and packaged sites.js and popup.js both name
+  src/content-bundle.js, so the file is unreachable by normal paths and not web-accessible.
+  Consider omitting it from the Store zip after confirming no migration path needs
+  it. Not a release blocker.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:51:54-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:51:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
