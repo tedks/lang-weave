@@ -81,6 +81,8 @@ test('options works without a tab; settings, exception reset and key removal rou
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('keyFeedback').textContent === 'This browser cannot keep the key private. Update Chrome to 140 or newer.');
     isolationUnavailable = false;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('keyFeedback').textContent === '');
     expect($('reviewInfo').textContent).toBe('2');
     expect(window.document.querySelector('a[href="https://aistudio.google.com/apikey"]')).not.toBeNull();
     expect($('siteList').textContent).toContain('example.com: off');

@@ -107,6 +107,12 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       }
       // A settings round trip must not revive a result from its earlier revision.
       const patch = { settings: next, ...(msg.consentShown === true ? { consentShown: true } : {}) };
+      // An old profile may still hold its key inside settings. Keep it until the
+      // explicit removal path, even when this browser cannot isolate storage.
+      if (worker.keyIsolationUnavailable && typeof saved.settings?.apiKey === 'string' &&
+          typeof msg.apiKey !== 'string' && !forceKeyRotation) {
+        patch.settings = { ...next, apiKey: saved.settings.apiKey };
+      }
       if (typeof msg.apiKey === 'string') {
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();

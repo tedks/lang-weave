@@ -16,13 +16,16 @@ async function workerFixture({ isolation, initial = {} }) {
     async set(patch) { writes.push(structuredClone(patch)); Object.assign(data, structuredClone(patch)); },
     async remove(keys) { for (const key of [keys].flat()) delete data[key]; },
   };
+  let releaseIsolation;
   if (isolation) store.setAccessLevel = async ({ accessLevel }) => {
     expect(accessLevel).toBe('TRUSTED_CONTEXTS');
+    if (isolation === 'reject') throw new Error('unsupported');
+    if (isolation === 'deferred') await new Promise((done) => { releaseIsolation = done; });
   };
   globalThis.chrome = {
     storage: { local: store },
     runtime: { id: 'isolation-test', getURL: (path) => `chrome-extension://isolation-test/${path}`,
-      getManifest: () => ({ version: '0.12.12' }), onMessage: on(listeners),
+      getManifest: () => ({ version: '0.12.13' }), onMessage: on(listeners),
       onInstalled: on(), onStartup: on() },
     action: { setBadgeText: async () => {} },
     tabs: { query: async () => [], sendMessage: async () => {} },
@@ -32,7 +35,7 @@ async function workerFixture({ isolation, initial = {} }) {
   };
   globalThis.fetch = async (url) => {
     expect(url).toBe('chrome-extension://isolation-test/manifest.json');
-    return { ok: true, json: async () => ({ version: '0.12.12' }) };
+    return { ok: true, json: async () => ({ version: '0.12.13' }) };
   };
   await import(`../src/background.js?key-isolation-${isolation}-${crypto.randomUUID()}`);
   const popup = { id: 'isolation-test', url: 'chrome-extension://isolation-test/src/popup.html' };
@@ -42,6 +45,7 @@ async function workerFixture({ isolation, initial = {} }) {
     if (!listeners.some((listener) => listener(msg, sender, done))) done(undefined);
   });
   return { data, writes, dispatch, popup, options, page,
+    releaseIsolation() { releaseIsolation?.(); },
     restore() { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; } };
 }
 
@@ -74,6 +78,38 @@ test('missing access-level API never migrates a legacy key from settings', async
     expect(f.data.settings.apiKey).toBe('legacy-secret');
     expect(f.data.apiKey).toBeUndefined();
     expect(f.writes.every((patch) => !Object.hasOwn(patch, 'apiKey'))).toBe(true);
+    expect(await f.dispatch({ type: 'save', settings: { density: 'heavy' } }, f.options)).toEqual({ ok: true });
+    expect(f.data.settings.apiKey).toBe('legacy-secret');
+    expect((await f.dispatch({ type: 'status' })).pastedKey).toBe(true);
+    expect(await f.dispatch({ type: 'removeKey' }, f.options)).toEqual({ ok: true });
+    expect(f.data.settings.apiKey).toBeUndefined();
+    expect(f.data.apiKey).toBe('');
+    expect((await f.dispatch({ type: 'status' })).pastedKey).toBe(false);
+  } finally { f.restore(); }
+});
+
+test('rejected access-level request is treated like a missing API', async () => {
+  const f = await workerFixture({ isolation: 'reject' });
+  try {
+    const status = await f.dispatch({ type: 'status' });
+    expect(status.modelStatus).toEqual({ category: 'key_isolation_unavailable' });
+    expect(await f.dispatch({ type: 'save', apiKey: 'new-secret' }, f.options))
+      .toEqual({ error: statusLabel(status.modelStatus) });
+    expect(f.data.apiKey).toBeUndefined();
+  } finally { f.restore(); }
+});
+
+test('a key save arriving during startup waits for the isolation probe', async () => {
+  const f = await workerFixture({ isolation: 'deferred' });
+  try {
+    let settled = false;
+    const pending = f.dispatch({ type: 'save', apiKey: 'new-secret' }, f.options);
+    pending.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    f.releaseIsolation();
+    expect(await pending).toEqual({ ok: true });
+    expect(f.data.apiKey).toBe('new-secret');
   } finally { f.restore(); }
 });
 

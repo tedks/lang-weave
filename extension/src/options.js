@@ -62,6 +62,8 @@ async function refresh() {
   $('removeKey').disabled = !status.pastedKey;
   if (status.modelStatus?.category === 'key_isolation_unavailable')
     $('keyFeedback').textContent = statusLabel(status.modelStatus);
+  else if ($('keyFeedback').textContent === statusLabel({ category: 'key_isolation_unavailable' }))
+    $('keyFeedback').textContent = '';
   const list = $('siteList');
   list.replaceChildren();
   for (const [name, enabled] of Object.entries(s.siteOverrides)) {
