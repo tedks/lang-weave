@@ -204,12 +204,25 @@ test('migration derives FSRS state from the existing card shape and preserves ev
   expect(card.fsrs).toBeUndefined(); // input not mutated
   expect(fsrs).toEqual({ stability: 12, difficulty: 1, lastReview: due - 12 * DAY, lapses: 0 });
   // An existing valid state is kept; an invalid one is replaced by a derived state.
-  const kept = { stability: 40, difficulty: 3, lastReview: 7, lapses: 1 };
+  const kept = { stability: 40, difficulty: 3, lastReview: due - 12 * DAY, lapses: 1 }; // agrees with interval 12
   expect(withFsrs({ ...card, fsrs: kept }).fsrs).toEqual(kept);
   expect(withFsrs({ ...card, fsrs: { stability: 'x' } }).fsrs).toEqual(fsrs);
-  // A stored state reviewed after the card's due time is stale and is re-derived.
+  // due and interval are authoritative: a state that disagrees with them is re-derived.
   expect(withFsrs({ ...card, fsrs: { ...kept, lastReview: due + 1 } }).fsrs).toEqual(fsrs);
-  expect(withFsrs({ ...card, fsrs: { ...kept, lastReview: due } }).fsrs).toEqual({ ...kept, lastReview: due });
+  expect(withFsrs({ ...card, fsrs: { ...kept, lastReview: due - 11 * DAY } }).fsrs).toEqual(fsrs);
+  const agreeing = { ...kept, lastReview: due - 12 * DAY };
+  expect(withFsrs({ ...card, fsrs: agreeing }).fsrs).toEqual(agreeing);
+  // Again: interval 0 and a retry step of at most a day.
+  const again = { due, interval: 0, reviews: 4 };
+  expect(withFsrs({ ...again, fsrs: { ...kept, lastReview: due - AGAIN_STEP_MS } }).fsrs.stability).toBe(40);
+  expect(withFsrs({ ...again, fsrs: { ...kept, lastReview: due - 2 * DAY } }).fsrs.stability).toBe(0.212);
+  // Every state reviewCard writes is accepted as consistent.
+  let state = null, now = due;
+  for (const rating of ['medium', 'again', 'hard', 'easy', 'again', 'medium']) {
+    const step = reviewCard(state, rating, now);
+    expect(withFsrs({ due: step.due, interval: step.interval, reviews: 1, fsrs: step.fsrs }).fsrs).toEqual(step.fsrs);
+    state = step.fsrs; now = step.due;
+  }
   expect(withFsrs({ due, interval: 0, reviews: 0 })).toEqual({ due, interval: 0, reviews: 0 });
 });
 

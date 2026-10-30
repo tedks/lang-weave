@@ -214,12 +214,21 @@ export function migrateCard(card, w = DEFAULT_PARAMETERS) {
     difficulty: clampDifficulty(initialDifficultyRaw(grade(last), w)), lastReview, lapses: 0 };
 }
 
-// A copy of `card` with `fsrs` attached when it is derivable and not already valid. A stored
-// state whose last review is after the card's due time is stale and is re-derived.
+// Whether a stored state agrees with the card's schedule exactly as reviewCard writes it:
+// due = lastReview + interval days, or for Again (interval 0) a retry step of at most a day.
+function consistent(state, card) {
+  if (!Number.isSafeInteger(card.due) || !Number.isSafeInteger(card.interval) || card.interval < 0) return false;
+  return card.interval > 0 ? card.due === state.lastReview + card.interval * DAY_MS
+    : card.due >= state.lastReview && card.due - state.lastReview <= DAY_MS;
+}
+
+// A copy of `card` with `fsrs` attached. `due` and `interval` are authoritative: a stored state
+// that is malformed or disagrees with them (some other path moved the schedule) is replaced
+// by a derivation from them, and a card that cannot be derived keeps no state.
 export function withFsrs(card, w = DEFAULT_PARAMETERS) {
   if (!card || typeof card !== 'object' || Array.isArray(card)) return card;
   const existing = cleanFsrsState(card.fsrs);
-  if (existing && !(Number.isSafeInteger(card.due) && existing.lastReview > card.due)) return { ...card, fsrs: existing };
+  if (existing && consistent(existing, card)) return { ...card, fsrs: existing };
   const { fsrs: _invalid, ...rest } = card;
   const derived = migrateCard(rest, w);
   return derived ? { ...rest, fsrs: derived } : rest;

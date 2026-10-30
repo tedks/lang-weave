@@ -42,13 +42,13 @@ const has = (allowed, id) => {
 // exact personal ID (a UUID, never the learner's text) or a short catalog form with no
 // colon, slash, '@', markup, control character or dot followed by a letter or digit, so
 // nothing shaped like a URL, host, host:port or address passes even when listed. A shape
-// check cannot tell a four-word phrase from a short passage; the catalog decides that.
+// check cannot tell a five-word phrase from a short passage; the catalog decides that.
 // Zero-width (non-)joiners are allowed inside forms, as portability.js allows them.
 const PERSONAL_ID = /^personal:[a-z]{2,3}(?:-[a-z0-9]{2,8})*:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function validWordId(id) {
   if (typeof id !== 'string') return false;
   if (PERSONAL_ID.test(id)) return true;
-  return id.length > 0 && id.length <= 50 && id.trim() === id && id.split(/\s+/).length <= 4 &&
+  return id.length > 0 && id.length <= 50 && id.trim() === id && id.split(/\s+/).length <= 5 &&
     !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
     !/\.[\p{L}\p{N}]/u.test(id);
 }
