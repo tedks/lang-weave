@@ -1,0 +1,23 @@
+id: hosted-tier-and-donations-ruling
+title: Decide on donations now and a hosted no-key tier later
+desc: 'Source: docs/research/market.md monetization. Recommendation: keep BYOK free
+  with nothing gated; add GitHub Sponsors or Open Collective now; put a waitlist button
+  for a hosted tier in the key step (counts demand only, collects nothing else); build
+  a hosted tier only after retention is proven, at about $4-5/month with a hosted
+  cap near 50 calls/day (at the current 1,000-call cap a heavy user costs $45-100/month
+  on Flash-Lite). A hosted tier on a billed Lang Weave project is also the cleanest
+  fit for Gemini''s "not for consumer use" clause (see store-provider-region-ruling).
+  Money and outward acts: Ted decides. Blocks nothing in M1-M3.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
