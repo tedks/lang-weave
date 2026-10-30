@@ -164,4 +164,6 @@ chrome.tabs.onRemoved?.addListener((tabId) => {
 chrome.runtime.onInstalled.addListener(registerCaptureMenu);
 chrome.runtime.onStartup.addListener(registerCaptureMenu);
 void ready.then(registerSites).catch(() => {});
-void ready.then(() => badge.refreshAll()).catch(() => {});
+// On an MV3 wake, Chrome can retain the previous action badge. Resolve the
+// unpacked update first so a pending NEW is never replaced by reading state.
+void ready.then(async () => { await checkUpdate(); await badge.refreshAll(); }).catch(() => {});

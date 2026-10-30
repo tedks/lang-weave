@@ -14,6 +14,7 @@ const screenshots = process.argv.includes('--save-screenshots')
   ? join(root, '..', 'docs', 'artifacts') : join(scratch, 'screenshots');
 let browser;
 const colorCss = (value) => Array.isArray(value) ? `rgb(${value.slice(0, 3).join(', ')})` : value;
+const colorHex = (value) => `#${value.slice(0, 3).map((x) => x.toString(16).padStart(2, '0')).join('')}`;
 const contrast = (hex) => {
   const channels = hex.match(/[\da-f]{2}/gi).slice(0, 3).map((x) => parseInt(x, 16) / 255)
     .map((x) => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
@@ -70,7 +71,7 @@ try {
   const paused = await waitFor('–', 'Lang Weave is paused; click to turn it on');
   assert.equal(paused.title, 'Lang Weave is paused; click to turn it on');
   assert.equal(colorCss(paused.color), 'rgb(89, 99, 107)');
-  assert.ok(contrast('#9b221b') >= 4.5 && contrast('#59636b') >= 4.5);
+  assert.ok(contrast(colorHex(needsKey.color)) >= 4.5 && contrast(colorHex(paused.color)) >= 4.5);
   const icon = (await readFile(join(root, 'icons', 'icon-16.png'))).toString('base64');
   await mkdir(screenshots, { recursive: true });
   for (const theme of ['light', 'dark']) {

@@ -9,6 +9,7 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
     [2, { id: 2, url: 'https://other.example/article' }]]);
   const data = { settings: { enabled: true, newSitesEnabled: true } };
   const appearances = new Map();
+  const badgeWrites = [];
   let origins = [];
   let diskVersion = '0.12.8';
   const manifest = { version: '0.12.8' };
@@ -28,7 +29,7 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
       onMessage: on('message'), onInstalled: on('installed'), onStartup: on('startup'), onConnect: on('connect') },
     storage: { local: storage, onChanged: on('storage') },
     action: {
-      async setBadgeText({ tabId, text }) { appearances.set(tabId, { ...appearances.get(tabId), text }); },
+      async setBadgeText({ tabId, text }) { badgeWrites.push({ tabId, text }); appearances.set(tabId, { ...appearances.get(tabId), text }); },
       async setBadgeBackgroundColor({ tabId, color }) { appearances.set(tabId, { ...appearances.get(tabId), color }); },
       async setBadgeTextColor({ tabId, color }) { appearances.set(tabId, { ...appearances.get(tabId), textColor: color }); },
       async setTitle({ tabId, title }) { appearances.set(tabId, { ...appearances.get(tabId), title }); },
@@ -99,6 +100,10 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
     await until(() => appearances.get(1)?.text === 'NEW' && appearances.get(2)?.text === 'NEW');
     expect(appearances.get(1).title).toBe('New Lang Weave version available; reload the extension');
     expect(appearances.get(1).textColor).toBe('#ffffff');
+    const beforeRestart = badgeWrites.length;
+    await import('../src/background.js?badge-worker-restart');
+    await until(() => badgeWrites.length > beforeRestart);
+    expect(badgeWrites.slice(beforeRestart).every(({ text }) => text === 'NEW')).toBe(true);
   } finally {
     globalThis.chrome = saved.chrome;
     globalThis.fetch = saved.fetch;

@@ -15,7 +15,7 @@ export function readingState(config, url, modelStatus) {
   } catch { /* no website on this tab */ }
   if (!host) return 'unsupported';
   if (!siteEnabled(settings, url)) return offByDefault(host) &&
-    !Object.hasOwn(settings.siteOverrides, host.toLowerCase().replace(/\.$/, '')) ? 'sensitive' : 'site_off';
+    !Object.hasOwn(settings.siteOverrides || {}, host.toLowerCase().replace(/\.$/, '')) ? 'sensitive' : 'site_off';
   if (!hasSiteAccess(url, config.origins)) return 'needs_site';
   const category = safeModelStatus(modelStatus)?.category;
   if (category === 'key_rejected') return 'key_rejected';

@@ -23,6 +23,8 @@ export function badgeAppearance(state, modelStatus, quotaState, keyEpoch, now = 
   if (state === 'unsupported') return { text: '–', color: BADGE_MUTED, title: 'Open a website to use Lang Weave' };
   if (state === 'local_budget') return { text: '–', color: BADGE_MUTED, title: 'Daily model-call budget reached; review still works' };
   if (state === 'model_error') return { text: '–', color: BADGE_MUTED, title: 'Model request failed; review still works' };
+  if (state !== 'cooldown') return { text: '–', color: BADGE_MUTED,
+    title: 'Open Lang Weave to check this page' };
   const safe = safeModelStatus(modelStatus);
   const kind = safe?.category === 'daily_quota' ? 'daily'
     : safe?.category === 'overloaded' ? 'overloaded' : 'short';
@@ -41,18 +43,25 @@ export function createBadge({ context, store, updatePending }) {
   const generations = new Map();
   const writes = new Map();
 
-  async function refresh(tabId) {
+  async function snapshot() {
+    const [config, data] = await Promise.all([
+      context(), store.get(['keyEpoch', STATUS_KEY, QUOTA_STATE_KEY]),
+    ]);
+    const stored = safeModelStatus(data[STATUS_KEY]);
+    const budgetReached = stored?.category === 'local_budget' &&
+      await callsToday(chromeStorage) >= DAILY_MODEL_CALLS;
+    const status = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch, budgetReached);
+    return { config, data, status };
+  }
+
+  async function refresh(tabId, sharedSnapshot) {
     if (!Number.isInteger(tabId) || tabId < 0) return;
     const generation = (generations.get(tabId) || 0) + 1;
     generations.set(tabId, generation);
     try {
-      const tab = await chrome.tabs.get(tabId);
-      const config = await context();
-      const data = await store.get(['keyEpoch', STATUS_KEY, QUOTA_STATE_KEY]);
-      const stored = safeModelStatus(data[STATUS_KEY]);
-      const budgetReached = stored?.category === 'local_budget' &&
-        await callsToday(chromeStorage) >= DAILY_MODEL_CALLS;
-      const status = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch, budgetReached);
+      const [tab, { config, data, status }] = await Promise.all([
+        chrome.tabs.get(tabId), sharedSnapshot || snapshot(),
+      ]);
       const state = updatePending() ? 'new' : readingState(config, tab.url, status);
       const badge = badgeAppearance(state, status, data[QUOTA_STATE_KEY], data.keyEpoch);
       const options = { tabId };
@@ -66,12 +75,17 @@ export function createBadge({ context, store, updatePending }) {
       writes.set(tabId, write);
       await write;
       if (writes.get(tabId) === write) writes.delete(tabId);
-    } catch { /* tab may have closed or changed while its state was read */ }
+    } catch {
+      // A late update event after removal must not leave a worker-lifetime entry.
+      if (generations.get(tabId) === generation) generations.delete(tabId);
+    }
   }
 
   async function refreshAll() {
     const tabs = await chrome.tabs.query({});
-    await Promise.allSettled(tabs.map((tab) => refresh(tab.id)));
+    if (!tabs.length) return;
+    const shared = snapshot(); // one word-list/settings/grant read for all tabs
+    await Promise.allSettled(tabs.map((tab) => refresh(tab.id, shared)));
   }
 
   function removed(tabId) { generations.delete(tabId); }

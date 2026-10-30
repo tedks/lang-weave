@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
 import { readingState } from '../src/state.js';
 import { badgeAppearance, BADGE_ATTENTION, BADGE_MUTED } from '../src/badge.js';
+import { publicContext } from '../src/worker-context.js';
 
 const statuses = [null, 'ok', 'daily_quota', 'rate_limit', 'overloaded', 'key_rejected',
   'request_failed', 'storage_failed', 'local_budget'];
@@ -44,6 +45,27 @@ test('sensitive default, internal page and malformed status stay in fixed states
     }
   expect(readingState(config, 'https://example.com/', { category: 'provider says key=secret' })).toBe('working');
   expect(readingState(config, 'https://example.com/', { category: 'daily_quota' })).toBe('cooldown');
+});
+
+test('site defaults and explicit overrides distinguish sensitive from ordinary off', () => {
+  for (const host of ['mail.google.com', 'example.com']) for (const newSitesEnabled of [false, true])
+    for (const override of [undefined, false, true]) {
+      const siteOverrides = override === undefined ? {} : { [host]: override };
+      const config = { settings: { enabled: true, newSitesEnabled, siteOverrides },
+        hasKey: true, paused: false, origins: [`https://${host}/*`] };
+      const actual = readingState(config, `https://${host}/article`, null);
+      const expected = override === true ? 'working' : override === false ? 'site_off'
+        : host === 'mail.google.com' ? 'sensitive' : newSitesEnabled ? 'working' : 'site_off';
+      expect(actual).toBe(expected);
+    }
+});
+
+test('popup public config retains the worker predicates used by readingState', () => {
+  const safe = publicContext({ settings: { enabled: true, siteOverrides: {} }, origins: ['<all_urls>'],
+    paused: false, hasKey: true, words: [], allWords: [] });
+  expect(safe.origins).toEqual(['<all_urls>']);
+  expect(safe.paused).toBe(false);
+  expect(safe.hasKey).toBe(true);
 });
 
 test('badge text, colors and titles are allowlisted; NEW wins as its own state', () => {

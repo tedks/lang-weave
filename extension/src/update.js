@@ -25,7 +25,8 @@ export const selfUpdating = () => !Object.hasOwn(chrome.runtime.getManifest(), '
 export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {} }) {
   let waitingVersion = '';
   const updatePending = () => selfUpdating() && !!waitingVersion;
-  async function checkUpdate() {
+  let checking;
+  async function doCheckUpdate() {
     if (!selfUpdating()) return ''; // no disk fetch, reload, badge or popup banner for a packaged install
     try {
       const disk = await (await fetch(chrome.runtime.getURL('manifest.json'), { cache: 'no-store' })).json();
@@ -45,6 +46,13 @@ export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {
     } catch {
       return '';
     }
+  }
+
+  // Startup, popup and the existing update alarm can overlap. They must agree on
+  // one disk check and one reload attempt for a given worker wake.
+  function checkUpdate() {
+    if (!checking) checking = doCheckUpdate().finally(() => { checking = null; });
+    return checking;
   }
 
   // create() replaces an alarm of the same name, so calling it on both events is safe. Startup matters
