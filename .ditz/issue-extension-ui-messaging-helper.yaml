@@ -1,0 +1,20 @@
+id: extension-ui-messaging-helper
+title: Consider a shared extension-page send/run helper
+desc: 'Council nit on PR #25: popup.js and options.js duplicate the small send() and
+  run() wrappers. A shared helper could prevent future error-copy drift. No current
+  behavior fails; extracting it during the options move would add machinery without
+  demonstrated benefit. Revisit if the wrappers diverge or a third extension page
+  needs them.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:36:53-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:36:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
