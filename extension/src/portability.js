@@ -115,11 +115,14 @@ function card(value, m) {
   if (Object.hasOwn(value, 'introducedDay')) result.introducedDay = day(value.introducedDay);
   if (Object.hasOwn(value, 'introGateDay')) result.introGateDay = day(value.introGateDay);
   // The one-use receipt belongs to an installation/document and is deliberately omitted.
-  if (Object.hasOwn(value, 'fsrs')) {
+  // Schema 1 output never carries FSRS state, so storage state is simply not exported.
+  if (Object.hasOwn(value, 'fsrs') && m.schema >= 2) {
+    keys(value.fsrs, ['stability', 'difficulty', 'lastReview', 'lapses'], 'FSRS state',
+      ['stability', 'difficulty', 'lastReview', 'lapses']);
     if (!cleanFsrsState(value.fsrs)) fail('invalid FSRS state');
     // State that no longer agrees with due/interval is stale and re-derived later; schema 1
     // never carries it.
-    const fsrs = m.schema >= 2 ? storedFsrs({ ...result, fsrs: value.fsrs }) : null;
+    const fsrs = storedFsrs({ ...result, fsrs: value.fsrs });
     if (fsrs) result.fsrs = fsrs;
   }
   return result;
@@ -331,8 +334,16 @@ function feedback(value, scope, installed, personalState, m) {
   }
   return result;
 }
+// Schema 2 files may say how much log data the exporter left out (budget or ruling B), so the
+// import preview can report omissions the file itself no longer shows.
+function logOmitted(value) {
+  keys(value, ['retrievals', 'exposureWords'], 'log omissions', ['retrievals', 'exposureWords']);
+  return { retrievals: integer(value.retrievals, 0, 10000000, 'omitted retrieval count'),
+    exposureWords: integer(value.exposureWords, 0, 10000000, 'omitted exposure count') };
+}
 function state(value, m) {
-  keys(value, ['preferences', 'packs', 'personal', 'scopes'], 'state', ['preferences', 'packs', 'personal', 'scopes']);
+  keys(value, ['preferences', 'packs', 'personal', 'scopes', ...(m.schema >= 2 && !m.source ? ['logOmitted'] : [])],
+    'state', ['preferences', 'packs', 'personal', 'scopes']);
   const installed = packs(value.packs);
   const own = personal(value.personal, m);
   const scopes = Object.create(null);
@@ -340,7 +351,8 @@ function state(value, m) {
     scopeKey(id);
     scopes[id] = feedback(raw, id, installed, own, m);
   }
-  return { preferences: preferences(value.preferences, installed, m), packs: installed, personal: own, scopes };
+  return { preferences: preferences(value.preferences, installed, m), packs: installed, personal: own, scopes,
+    ...(Object.hasOwn(value, 'logOmitted') ? { logOmitted: logOmitted(value.logOmitted) } : {}) };
 }
 export function parseBackup(json) {
   if (typeof json !== 'string' || new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('file is too large');
@@ -378,8 +390,13 @@ function storageEntries(all) {
 export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
   if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
   const scopes = storageEntries(all);
-  // Schema 1 has no learning log; FSRS card state is stripped by card().
-  if (schema < 2) for (const fields of Object.values(scopes)) for (const field of LOG_FIELDS) delete fields[field];
+  // Schema 1 has no learning log; FSRS card state is stripped by card(). A scope that held only
+  // log data is dropped rather than exported empty.
+  if (schema < 2) for (const [id, fields] of Object.entries(scopes)) {
+    const had = Object.keys(fields).length;
+    for (const field of LOG_FIELDS) delete fields[field];
+    if (id !== 'es' && had && !Object.keys(fields).length) delete scopes[id];
+  }
   const settings = object(all.settings || {}, 'settings');
   validateStorageSettings(settings);
   const raw = { format: BACKUP_FORMAT, schemaVersion: schema, exportedByVersion,
@@ -407,6 +424,22 @@ export function learningPatch(backup, targetSettings) {
   }
   return out;
 }
+// A log value of exactly the version 1 shape, and whether it holds nothing.
+function knownLog(field, value) {
+  const list = field === 'retrievals' ? 'retrievals' : 'words';
+  return !!value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).length === 2 && value.version === 1 && Object.hasOwn(value, list) &&
+    (field === 'retrievals' ? Array.isArray(value.retrievals)
+      : !!value.words && typeof value.words === 'object' && !Array.isArray(value.words));
+}
+function emptyLog(field, value) {
+  return knownLog(field, value) && (field === 'retrievals' ? !value.retrievals.length : !Object.keys(value.words).length);
+}
+// An empty learning log under a storage key, which no import needs to write.
+export function emptyLogEntry(key, value) {
+  const field = SCOPE_FIELDS[key.startsWith('lang:') ? key.slice(key.lastIndexOf(':') + 1) : key];
+  return LOG_FIELDS.includes(field) && emptyLog(field, value);
+}
 export function targetFresh(all) {
   const scopes = storageEntries(all); // rejects unknown target keys, including unknown scoped formats
   validateStorageSettings(all.settings || {});
@@ -418,16 +451,9 @@ export function targetFresh(all) {
   for (const [id, raw] of Object.entries(scopes)) {
     if (id !== 'es' && Object.keys(raw).length) fail('target has a learning scope');
     // Any logged retrieval or exposure is learning progress; an unknown log shape is a conflict.
-    if (Object.hasOwn(raw, 'retrievals')) {
-      const log = raw.retrievals;
-      if (!log || typeof log !== 'object' || log.version !== 1 || !Array.isArray(log.retrievals)) fail('unknown learning log format');
-      if (log.retrievals.length) fail('target has learning progress');
-    }
-    if (Object.hasOwn(raw, 'exposures')) {
-      const log = raw.exposures;
-      if (!log || typeof log !== 'object' || log.version !== 1 || !log.words || typeof log.words !== 'object' ||
-          Array.isArray(log.words)) fail('unknown learning log format');
-      if (Object.keys(log.words).length) fail('target has learning progress');
+    for (const field of LOG_FIELDS) if (Object.hasOwn(raw, field) && !emptyLog(field, raw[field])) {
+      if (!knownLog(field, raw[field])) fail('unknown learning log format');
+      fail('target has learning progress');
     }
     const rest = { ...raw };
     for (const field of LOG_FIELDS) delete rest[field];
@@ -455,5 +481,6 @@ export function backupPreview(backup) {
     personal: s.personal.entries.length, preferences: s.preferences, schemaVersion: backup.schemaVersion,
     retrievals: Object.values(s.scopes).reduce((sum, scope) => sum + (scope.retrievals?.retrievals.length || 0), 0),
     exposureWords: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.exposures?.words || {}).length, 0),
-    omittedRetrievals: backup.omitted?.retrievals || 0, omittedExposureWords: backup.omitted?.exposures || 0 };
+    omittedRetrievals: (backup.omitted?.retrievals || 0) + (s.logOmitted?.retrievals || 0),
+    omittedExposureWords: (backup.omitted?.exposures || 0) + (s.logOmitted?.exposureWords || 0) };
 }

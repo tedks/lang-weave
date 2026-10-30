@@ -1,7 +1,7 @@
 // Learning backup page: export, preview and journaled import. A live port per page is its
 // preview authority; every import step rechecks it, the storage signature and both generations.
 import { createBackup, parseBackup, backupPreview, learningPatch, targetFresh, IMPORT_JOURNAL_KEY,
-  IMPORT_RECEIPT_KEY, MAX_BACKUP_BYTES, LEARNING_STORAGE_KEYS } from './portability.js';
+  IMPORT_RECEIPT_KEY, MAX_BACKUP_BYTES, LEARNING_STORAGE_KEYS, emptyLogEntry } from './portability.js';
 import { backupSender } from './router.js';
 
 export const sameBackupSender = (a, b) => a.id === b.id && a.url === b.url &&
@@ -20,7 +20,8 @@ export function alreadyImported(all, backup, hash) {
   for (const [key, value] of Object.entries(patch)) if (storageSignature({ value: all[key] }) !==
       storageSignature({ value })) return false;
   const learned = Object.keys(all).filter((key) => LEARNING_STORAGE_KEYS.includes(key) || key.startsWith('lang:'));
-  return learned.every((key) => Object.hasOwn(patch, key));
+  // A fresh target may already hold an empty learning log that the import had no reason to write.
+  return learned.every((key) => Object.hasOwn(patch, key) || emptyLogEntry(key, all[key]));
 }
 
 export function createBackupHandlers({ store, locked, worker, backupPages }) {

@@ -3,7 +3,7 @@ import { test, expect } from 'bun:test';
 import { createBackup, parseBackup, learningPatch, targetFresh, backupPreview, BACKUP_SCHEMA,
   READ_SCHEMAS } from '../src/portability.js';
 import { alreadyImported } from '../src/backup-handlers.js';
-import { cleanReview, AGAIN_MS, DAY_MS } from '../src/review.js';
+import { cleanReview, nextReview, revealReview, rateReview, AGAIN_MS, DAY_MS } from '../src/review.js';
 import { cleanSettings, DEFAULT_SETTINGS } from '../src/settings.js';
 import { personalId, baseline } from './backup-fixture.js';
 
@@ -99,7 +99,12 @@ test('malformed or out-of-schema schema 2 content fails closed', () => {
   const altered = (base, mutate) => { const copy = structuredClone(base); mutate(copy); return JSON.stringify(copy); };
   const cases = [
     [v2, (b) => { b.state.scopes.es.review.cards[spanish].fsrs.stability = -1; }, /invalid FSRS state/],
-    [v2, (b) => { b.state.scopes.es.review.cards[spanish].fsrs = 'x'; }, /invalid FSRS state/],
+    [v2, (b) => { b.state.scopes.es.review.cards[spanish].fsrs = 'x'; }, /FSRS state must be an object/],
+    [v2, (b) => { b.state.scopes.es.review.cards[spanish].fsrs.passage = 'https://private.example/text'; }, /unsupported FSRS state field/],
+    [v2, (b) => { delete b.state.scopes.es.review.cards[spanish].fsrs.lapses; }, /missing FSRS state field/],
+    [v2, (b) => { b.state.logOmitted = { retrievals: -1, exposureWords: 0 }; }, /invalid omitted retrieval count/],
+    [v2, (b) => { b.state.logOmitted = { retrievals: 1, exposureWords: 0, note: 'x' }; }, /unsupported log omissions field/],
+    [v1, (b) => { b.state.logOmitted = { retrievals: 1, exposureWords: 0 }; }, /unsupported state field/],
     [v1, (b) => { b.state.scopes.es.review.cards[spanish].fsrs = { stability: 1, difficulty: 5, lastReview: 1000, lapses: 0 }; }, /unsupported card field/],
     [v1, (b) => { b.state.scopes.es.retrievals = { version: 1, retrievals: [] }; }, /unsupported scope field/],
     [v1, (b) => { b.state.preferences.desiredRetention = 0.9; }, /unsupported preferences field/],
@@ -116,6 +121,39 @@ test('malformed or out-of-schema schema 2 content fails closed', () => {
   for (const [base, mutate, message] of cases) expect(() => parseBackup(altered(base, mutate))).toThrow(message);
 });
 
+test('a schema 2 file can carry the exporter\'s own omission counts into the preview', () => {
+  const { all } = writerStorage();
+  const file = JSON.parse(createBackup(all, '0.13.0', 2));
+  file.state.logOmitted = { retrievals: 40, exposureWords: 2 };
+  file.state.scopes.es.exposures.words.otraperdida = [1, 0, 1, '2026-10-04', '2026-10-04'];
+  expect(backupPreview(parseBackup(JSON.stringify(file)))).toMatchObject({ omittedRetrievals: 40, omittedExposureWords: 3 });
+});
+
+test('schema 1 export ignores stored FSRS state entirely and drops scopes that held only logs', () => {
+  const { all, spanish } = writerStorage();
+  all.recallReview.cards[spanish].fsrs = { stability: 99999, difficulty: 5, lastReview: 1000, lapses: 0 };
+  all['lang:it:bbbbbbbbbbbbbbbb:learningExposures'] = { version: 1, words: {} };
+  const json = createBackup(all, '0.12.3');
+  expect(json).not.toContain('fsrs');
+  expect(JSON.parse(json).state.scopes['lang:it:bbbbbbbbbbbbbbbb']).toBeUndefined();
+  expect(backupPreview(parseBackup(json)).languages).toBe(3);
+  // Schema 2 still refuses that invalid state.
+  expect(() => createBackup(all, '0.13.0', 2)).toThrow(/invalid FSRS state/);
+});
+
+test('an empty log already in a fresh target does not hide a completed import', () => {
+  const { all } = writerStorage();
+  const parsed = parseBackup(createBackup(all, '0.12.3'));
+  const target = { ...freshTarget(), learningExposures: { version: 1, words: {} } };
+  expect(targetFresh(target)).toBe(true);
+  const imported = { ...target, ...learningPatch(parsed, target.settings),
+    learningImportReceiptV1: { schemaVersion: 1, hash: 'h' } };
+  expect(Object.hasOwn(learningPatch(parsed, target.settings), 'learningExposures')).toBe(false);
+  expect(alreadyImported(imported, parsed, 'h')).toBe(true);
+  // A non-empty or unknown-shaped stray log still counts as a change.
+  expect(alreadyImported({ ...imported, learningExposures: { version: 1, words: {}, extra: 1 } }, parsed, 'h')).toBe(false);
+});
+
 test('target checks understand the new keys: empty logs are fresh, logged progress or unknown shapes conflict', () => {
   const empty = { ...freshTarget(), learningRetrievals: { version: 1, retrievals: [] },
     learningExposures: { version: 1, words: {} } };
@@ -123,6 +161,8 @@ test('target checks understand the new keys: empty logs are fresh, logged progre
   expect(() => targetFresh({ ...empty, learningRetrievals: { version: 1, retrievals: [['y', 1, 'inline', 'productive', 'easy', 0, null, null, null, null]] } }))
     .toThrow(/target has learning progress/);
   expect(() => targetFresh({ ...empty, learningExposures: { version: 2, words: {} } })).toThrow(/unknown learning log format/);
+  expect(() => targetFresh({ ...empty, learningRetrievals: { version: 1, retrievals: [], extra: 'x' } })).toThrow(/unknown learning log format/);
+  expect(() => targetFresh({ ...empty, learningExposures: { version: 1, words: [] } })).toThrow(/unknown learning log format/);
   expect(() => targetFresh({ ...freshTarget(), 'lang:personal:fr:learningRetrievals': { version: 1, retrievals: [] } }))
     .toThrow(/target has a learning scope/);
   expect(targetFresh({ ...freshTarget(), settings: { ...freshTarget().settings, desiredRetention: 0.9 } })).toBe(true);
@@ -135,6 +175,8 @@ test('stored FSRS state is kept only while it agrees with the card schedule', ()
     b: { due, interval: 5, reviews: 2, fsrs: { stability: 5, difficulty: 4, lastReview: due - 3 * DAY_MS, lapses: 0 } },
     c: { due, interval: 0, reviews: 2, fsrs: { stability: 0.2, difficulty: 6, lastReview: due - AGAIN_MS, lapses: 1 } },
     d: { due, interval: 5, reviews: 2, fsrs: { stability: -1, difficulty: 4, lastReview: 0, lapses: 0 } },
+    e: { due, interval: 0, reviews: 0, fsrs: { stability: 0.2, difficulty: 6, lastReview: due - AGAIN_MS, lapses: 0 } },
+    f: { due, interval: 5, reviews: 2, fsrs: { stability: 5, difficulty: 4, lastReview: due - 5 * DAY_MS, lapses: 3 } },
   }, learning: { day: '', count: 0 } };
   const cards = cleanReview(raw, []).cards;
   expect(cards.a.fsrs.stability).toBe(5);
@@ -142,6 +184,22 @@ test('stored FSRS state is kept only while it agrees with the card schedule', ()
   expect(cards.c.fsrs.lapses).toBe(1);
   expect(cards.d.fsrs).toBeUndefined();
   expect(cards.d).toEqual({ due, interval: 5, reviews: 2 });
+  expect(cards.e.fsrs).toBeUndefined(); // never rated
+  expect(cards.f.fsrs).toBeUndefined(); // more lapses than reviews
+});
+
+test('this build\'s scheduler clears FSRS state on every rating, Again included', () => {
+  const now = 100 * DAY_MS;
+  for (const rating of ['again', 'hard', 'medium', 'easy']) {
+    const state = cleanReview({ version: 1, cards: { y: { due: now, interval: 0, reviews: 1,
+      fsrs: { stability: 0.2, difficulty: 6, lastReview: now - AGAIN_MS, lapses: 0 } } },
+      learning: { day: '', count: 0 } }, [{ fr: 'y', en: 'and', hint: '' }]);
+    expect(state.cards.y.fsrs).toBeDefined();
+    const card = nextReview(state, [{ fr: 'y', en: 'and', hint: '' }], now, () => 't');
+    revealReview(state, [{ fr: 'y', en: 'and', hint: '' }], card.ticket, now);
+    expect(rateReview(state, card.ticket, rating, now)).not.toBeNull();
+    expect(state.cards.y.fsrs).toBeUndefined();
+  }
 });
 
 test('desiredRetention is kept when valid and never defaulted into settings', () => {
