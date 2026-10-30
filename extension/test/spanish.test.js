@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { validateSwaps, glossMatches, normalizeFr, L1_WORDS, L2_WORDS } from '../src/levels.js';
 import { queueEvents, shownToday, PENDING_KEY } from '../src/events.js';
@@ -40,7 +41,11 @@ test('Spanish articles stay with whole noun phrases and never double English det
 test('fork identity and permissions cannot collide with or contact the French companion', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
   expect(manifest.name).toBe('Lang Weave');
-  expect(manifest.key).toBeUndefined();
+  // Lang Weave pins its own public key (0.12.0): one ID across paths and hosts, distinct from French Weave.
+  // Chrome's ID is the first 128 bits of sha256(DER public key), each hex digit mapped 0-f to a-p.
+  const digest = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32);
+  const id = [...digest].map(c => String.fromCharCode(97 + parseInt(c, 16))).join('');
+  expect(id).toBe('lkbkmlgogcpcacjmdmoecgacdbfddbnh');
   expect(manifest.permissions).not.toContain('nativeMessaging');
   expect(manifest.background.service_worker).toBe('src/background.js');
   const worker = readFileSync(new URL('../src/background.js', import.meta.url), 'utf8');

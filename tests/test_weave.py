@@ -1,4 +1,6 @@
 """Offline tests for the hook, word state, native host and setup. Run: python3 -m unittest discover -s tests"""
+import base64
+import hashlib
 import io
 import json
 import os
@@ -592,10 +594,15 @@ class Setup(Home):
     def test_spanish_extension_is_independent_of_legacy_native_host(self):
         manifest = json.loads((ROOT / 'extension' / 'manifest.json').read_text())
         self.assertEqual(manifest['name'], 'Lang Weave')
-        self.assertNotIn('key', manifest)
         self.assertNotIn('nativeMessaging', manifest['permissions'])
+        # Lang Weave pins its own public key (0.12.0), so every unpacked or packaged install shares one ID.
+        # Chrome's ID is the first 128 bits of sha256(DER public key), each hex digit mapped 0-f to a-p.
+        digest = hashlib.sha256(base64.b64decode(manifest['key'], validate=True)).hexdigest()[:32]
+        extension_id = ''.join(chr(ord('a') + int(c, 16)) for c in digest)
+        self.assertEqual(extension_id, 'lkbkmlgogcpcacjmdmoecgacdbfddbnh')
         # The inherited CLI still registers its historical French extension ID, never this browser fork.
         self.assertRegex(fw.EXTENSION_ID, r'^[a-p]{32}$')
+        self.assertNotEqual(extension_id, fw.EXTENSION_ID)
 
 
 SPANISH = 'word,en,hint,scan\ny,and,ee,\npero,but,PEH-roh,\nentonces,so,en-TON-ses,\nahora,now,ah-OH-rah,\nsolo,only,SOH-loh,no\n'
