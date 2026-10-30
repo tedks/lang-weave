@@ -1,0 +1,23 @@
+id: welcome-consent-navigation
+title: Make a closed welcome page discoverable from popup and align Settings site
+  controls
+desc: 'Council PR #29 nits N-2 and N-11. When a new user closes welcome, adds a key
+  and grants a site from the popup, reading stays gated but the popup can still say
+  On. Show a consent-required state and a route back to welcome. Settings currently
+  lets the user change the site default while its note says consent must be chosen
+  on welcome; make that state clearer or provide the same explicit consent flow there.
+  Keep the in-extension disclosure before first Gemini call. This is outside the welcome-page
+  lane''s popup repair authority.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:05:35-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:05:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
