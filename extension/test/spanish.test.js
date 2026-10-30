@@ -50,9 +50,22 @@ test('fork identity and permissions cannot collide with or contact the French co
   expect(id).toBe('lkbkmlgogcpcacjmdmoecgacdbfddbnh');
   expect(manifest.permissions).not.toContain('nativeMessaging');
   expect(manifest.background.service_worker).toBe('src/background.js');
-  const worker = readFileSync(new URL('../src/background.js', import.meta.url), 'utf8');
-  expect(worker).not.toContain('sendNativeMessage');
-  expect(worker).not.toContain("from './hostsource.js'");
+  // The worker is background.js plus its static imports; scan all of it, not just the entry file.
+  // The hostsource check covers the files that were background.js before the split.
+  const WORKER_FILES = ['background.js', 'router.js', 'worker-context.js', 'review-state.js', 'gradual-budgets.js',
+    'reading.js', 'review-handlers.js', 'inline-recall.js', 'update.js', 'settings-handlers.js',
+    'capture-handlers.js', 'backup-handlers.js', 'sites.js'];
+  const seen = new Set();
+  const visit = (name) => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
+    expect([name, source.includes('sendNativeMessage')]).toEqual([name, false]);
+    if (WORKER_FILES.includes(name)) expect([name, source.includes("from './hostsource.js'")]).toEqual([name, false]);
+    for (const [, next] of source.matchAll(/from '\.\/([\w-]+\.js)'/g)) visit(next);
+  };
+  visit('background.js');
+  expect(WORKER_FILES.filter((name) => !seen.has(name))).toEqual([]);
 });
 
 test('plural English anchors cannot become singular Spanish nouns, while listed plurals and verbs still work', () => {
