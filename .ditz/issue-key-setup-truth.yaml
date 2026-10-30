@@ -10,8 +10,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T16:56:41-00:00
 references: []
 log_events:
@@ -22,4 +22,8 @@ log_events:
 - time: 2026-10-30T18:02:06-00:00
   who: Ted Smith
   what: started
+  comment: ""
+- time: 2026-10-30T18:15:30-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
   comment: ""
