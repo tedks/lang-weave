@@ -2,6 +2,22 @@
 
 State: phase 1 (standalone modules) merged in PR #19 at `eee1bfe`. Phase 2 is a two-PR stack. The bottom PR is the tolerant-reader release, 0.12.5 on branch `learning-core-reader`. The top PR is the writer release on branch `learning-core-writer`. Ditz issues `fsrs-scheduler` and `learning-event-log` stay open until the writer merges.
 
+## Phase 2, step 2: writer (0.12.6)
+
+The writer persists everything the reader accepts:
+- **Scheduling.** `review.js` schedules with `fsrs.js`. Again, Hard, Medium and Easy are FSRS Again, Hard, Good and Easy. A card without consistent stored state is migrated with `withFsrs` at its next rating, so due dates do not move until then. `reviewCard` writes `fsrs`, `due` and `interval`, keeping them consistent as defined above. Again keeps the ten-minute retry with interval 0. `reviews`, the Easy streak, automatic familiarity and clearing familiarity on Again are unchanged; `familiar-maintenance` is a separate mission.
+- **Retention.** `desiredRetention` defaults to 0.9. The popup's `save` message can set it between 0.85 and 0.9, rejects any other explicit value, and resets it with null. Changing only this setting keeps the reading epoch, so cached reading results survive.
+- **Retrieval log.** `review-handlers` (standalone rate and "already know") and `inline-recall` (inline rate and "already know") log one retrieval after the card write succeeds, in the same locked section and scope as the card. Personal words go to the personal scope.
+  - Direction is `productive`, because both surfaces prompt with English.
+  - Latency is worker-measured: rating time minus the `shownAt` stamped when the prompt was first shown. `shownAt` lives on the ephemeral `current` and `inline` tickets, which are never exported.
+  - A first rating's elapsed time is local calendar days since `introducedDay`.
+  - A log write that fails is swallowed, so a measurement never fails the rating it describes. The log record never reaches the page.
+- **Exposures.** `reading.record` logs exposures at the same point as the reading events. A seen counts each time, a peek counts as a peek only, and a flip is not an exposure. The catalogs match what a backup can verify: the scope's full word list, or the personal entry IDs of the current language.
+- **Backups** write schema 2 as compact JSON. The whole log gets one 512 KiB budget. Exposures of every scope go in first, bounded by the catalogs. Then retrievals go in newest first across scopes, stopping at the first that does not fit. A historical pack scope cannot reach the budget, because ruling B already omits its log for lack of a catalog. That is why the plan's third step was dropped. `state.logOmitted` counts everything left out.
+- **Measured worst case:** three full 5,000-entry logs export as 527,435 bytes. The file keeps 6,828 retrievals and counts 8,172 as omitted.
+- **Stats.** `learningStats` is a read-only message for the review page only. It returns `summarize` for the active scope and its personal scope. No UI uses it yet.
+- **Release note.** Install 0.12.5 or later before 0.12.6. From then on a downgrade target must be 0.12.5 or later.
+
 ## Phase 2, step 1: tolerant reader (0.12.5)
 
 This release reads everything the writer will produce and changes nothing a user sees:
