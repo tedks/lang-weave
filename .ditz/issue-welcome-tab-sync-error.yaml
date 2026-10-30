@@ -1,0 +1,20 @@
+id: welcome-tab-sync-error
+title: Handle synchronous Chrome tab-creation failure in install welcome listener
+desc: 'Convergence-round nit on PR #29. update.js wraps chrome.tabs.create in Promise.resolve(...).catch,
+  which handles a rejected promise but not a synchronous throw from create(). Chrome
+  normally returns a promise; this is defensive hardening. Consider a small try/catch
+  if there is a credible browser failure mode, with a test that uses a synchronous
+  throw. No observed install failure; not merge-blocking.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:06:59-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:06:59-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
