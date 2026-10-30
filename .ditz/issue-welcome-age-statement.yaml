@@ -1,0 +1,20 @@
+id: welcome-age-statement
+title: Add the 18+ statement to the welcome page consent step
+desc: 'Source: draft-listing-docs 2026-10-30. The privacy policy draft (docs/PRIVACY-POLICY.md,
+  PR #33) and the Store listing say users must be 18 or older because Gemini''s API
+  terms require it, but nothing in the product says so. Add one fixed-copy line to
+  the welcome page''s privacy step (and the options Sites and privacy section) with
+  a test; no gating beyond the statement unless Ted rules otherwise.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:17:29-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:17:29-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
