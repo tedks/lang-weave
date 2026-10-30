@@ -1,0 +1,23 @@
+id: learning-log-form-contract
+title: Share one word-form contract between cleanPack and the learning-log ID guard
+desc: 'Source: PR #19 council round 2 (Anthropic seat nit). learning-log.js validWordId
+  refuses some forms cleanPack accepts (il/elle, z.B., 1.000, EU:n), so their retrievals
+  and exposures are silently not logged. No learning state is lost, but measurements
+  for those words are biased.
+
+  Fix in phase 2: count refused log writes in diagnostics, and either relax the guard
+  to the cleanPack form rules or tighten cleanPack so both use one contract (catalog
+  membership remains the privacy guarantee).'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:33:24-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:33:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
