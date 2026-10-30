@@ -8,8 +8,15 @@ export const ALARM = 'updates';
 // differs after that (or reload fails), mark the toolbar icon so the user can reload by hand.
 export const RELOADED_KEY = 'reloadedFor';
 
+// Only an unpacked (development) install runs from files that can change under it. The Chrome Web Store and Edge
+// Add-ons write update_url into the manifest they install, and the browser's own updater replaces those copies;
+// the source manifest never carries one (test/update-gate.test.js pins that). Read synchronously, with no
+// chrome.management call: a missing key means unpacked, so the fleet's unpacked installs keep the self-update.
+export const selfUpdating = () => !Object.hasOwn(chrome.runtime.getManifest(), 'update_url');
+
 export function createUpdate({ store, locked, modelCall }) {
   async function checkUpdate() {
+    if (!selfUpdating()) return ''; // no disk fetch, reload, badge or popup banner for a packaged install
     try {
       const disk = await (await fetch(chrome.runtime.getURL('manifest.json'), { cache: 'no-store' })).json();
       const waiting = disk.version && disk.version !== chrome.runtime.getManifest().version ? String(disk.version) : '';
@@ -30,6 +37,7 @@ export function createUpdate({ store, locked, modelCall }) {
   // create() replaces an alarm of the same name, so calling it on both events is safe. Startup matters
   // because disabling and re-enabling the extension clears alarms without firing onInstalled.
   function arm() {
+    if (!selfUpdating()) return;
     chrome.alarms.create(ALARM, { periodInMinutes: 30 });
     void checkUpdate();
   }
