@@ -40,7 +40,7 @@ test('words outside the scope catalog and text-like IDs are never logged', () =>
     'one two three four five six', 'x'.repeat(101), 'casa\u0000', '']) {
     expect(appendRetrieval(state, { ...ok, word }, new Set([...CATALOG, word]))).toBe(word === 'mesa');
   }
-  // Host:port, abbreviations with inner dots, colons, long forms and 5+ words are refused.
+  // Host:port, abbreviations with inner dots, colons, long forms and six or more words are refused.
   for (const id of ['example.com:443', 'localhost:8080', 'p.ej.', 'foo.bar', 'personal:es:not-a-uuid', 'a:b',
     'x'.repeat(51), 'uno dos tres cuatro cinco seis']) expect(validWordId(id)).toBe(false);
   for (const id of ['etc.', 'au fur et à mesure', 'x'.repeat(50), 'personal:zh-hant:0b5c3f1e-8d2a-4c1b-9f3e-2a7d6c5b4e3f',
