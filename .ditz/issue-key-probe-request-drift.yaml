@@ -1,0 +1,20 @@
+id: key-probe-request-drift
+title: Keep the key probe aligned with Gemini request configuration
+desc: 'The explicit Test key action builds a small generateContent request directly
+  while reading uses callGemini. If the endpoint or authentication format changes,
+  the paths can drift. Consider a shared minimal request builder that preserves exactly
+  one test call without requiring swap-response parsing or adding a fallback. Council
+  nit on PR #22.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:13:51-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:13:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
