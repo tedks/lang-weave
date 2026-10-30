@@ -91,9 +91,10 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
           claimAt: card.claimAt ?? null, claimDue: card.claimDue ?? null } : null };
     };
     const blocked = (id, card, { archived = false, level = true } = {}) => archived ? 'Archived'
-      : !level ? 'Above your current reading level'
+      : card?.familiar && !ctx.settings.gradual ? 'Marked known. Reset it to practise again.'
+        : !level ? 'Above your current reading level'
         : ctx.settings.gradual && (card?.claimDue || 0) > now ? 'Claim pending. A later retrieval verifies it when due.'
-          : card?.familiar && !ctx.settings.gradual ? 'Marked known. Reset it to practise again.' : '';
+          : '';
     const rows = ctx.legacyAllWords.map((word) => {
       const saved = linked.get(entryId(ctx.scope, word));
       const p = progressOf(word.fr);

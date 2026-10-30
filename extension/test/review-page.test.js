@@ -142,7 +142,7 @@ test('an open review tab discards a revealed answer after language changes while
   try {
     await answerStarted;
     expect(page.$('language').textContent).toBe('Reviewing French');
-    expect(page.$('counts').textContent).toContain('1 words returned from retirement to be verified');
+    expect(page.$('counts').textContent).toContain('1 word returned from retirement to be verified');
     page.changed({ settings: {} }, 'local');
     releaseFrenchAnswer({ answer: { fr: 'et', hint: 'eh' } });
     await queueStarted;

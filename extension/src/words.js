@@ -32,7 +32,7 @@ function dueText(row, now) {
 function drawProgress(p) {
   $('language').textContent = `${p.language} words on this device`;
   $('headline').textContent = headline(p.verifiedKnown) +
-    (p.returned ? ` · ${p.returned} words returned from retirement to be verified` : '');
+    (p.returned ? ` · ${plural(p.returned, 'word')} returned from retirement to be verified` : '');
   $('stages').replaceChildren(...Object.entries(STAGE_LABELS).map(([stage, label]) => {
     const li = document.createElement('li');
     li.textContent = `${label}: ${p.stages[stage]}`;

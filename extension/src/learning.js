@@ -8,6 +8,7 @@ const RENEW_GRACE_MS = 24 * 60 * 60 * 1000;
 const MAX_PENDING = 20;
 const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)', 'in', 'the', 'a']);
 // Same effective review time as review.js, kept local to avoid a review/learning import cycle.
+// Both callers classify retired familiar cards as known before invoking this helper.
 const dueAt = (card) => Math.max(Math.min(card.due, card.peekDue ?? Infinity), card.claimDue || 0);
 export const introductionOwner = (ticket, sender, revision) =>
   hashKey(JSON.stringify([ticket, sender.documentId, sender.tab?.id, sender.frameId, revision]));

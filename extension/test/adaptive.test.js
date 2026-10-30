@@ -100,6 +100,11 @@ test('eligible-level backlog throttles fresh at the exact boundary and resumes a
   const state = cleanReview({ version: 1, cards }, L2_WORDS, now);
   const passage = batch('The window and the book are here today with the cat.');
   expect(reviewBacklog(state, L2_WORDS, now)).toBe(5);
+  state.cards[L2_WORDS[0].fr].maintenance = true;
+  state.cards[L2_WORDS[0].fr].familiar = true;
+  expect(reviewBacklog(state, L2_WORDS, now)).toBe(4);
+  delete state.cards[L2_WORDS[0].fr].maintenance;
+  delete state.cards[L2_WORDS[0].fr].familiar;
   expect(select({ batch: passage, state }).some((w) => w.status === 'new')).toBe(false);
   state.current = { word: L2_WORDS[0].fr, ticket: 'review-ticket', revealed: true };
   expect(rateReview(state, 'review-ticket', 'medium', now, true)?.interval).toBeGreaterThan(1);

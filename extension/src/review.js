@@ -24,7 +24,7 @@ export function cleanReview(raw, words, now = Date.now(), gradual = false) {
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(gradual && (card.maintenance === true || card.familiar === true) ? { maintenance: true } : {}),
         ...(card.retiredReturn === false ? { retiredReturn: false }
-          : card.retiredReturn === true || gradual && card.familiar === true && card.maintenance !== true
+          : card.familiar === true && (card.retiredReturn === true || gradual && card.maintenance !== true)
             ? { retiredReturn: true } : {}),
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
         ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}),

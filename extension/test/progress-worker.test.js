@@ -159,6 +159,9 @@ test('words actions: Practice now serves the chosen card first, Reset is guarded
     expect(progress.today.reviewed).toBe(2);
     expect(progress.practisedThisWeek).toBe(2);
     expect(progress.activity.filter((d) => d.retrievals).map((d) => d.retrievals)).toEqual([1, 2]);
+    expect(await dispatch({ type: 'wordKnown', id: above.id, scope: 'es' }, words)).toEqual({ ok: true });
+    expect((await dispatch({ type: 'wordsList' }, words)).rows.find((row) => row.id === above.id).reason)
+      .toBe('Marked known. Reset it to practise again.');
   } finally {
     restore();
     globalThis.chrome = saved.chrome;
