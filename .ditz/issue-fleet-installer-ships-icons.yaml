@@ -1,0 +1,26 @@
+id: fleet-installer-ships-icons
+title: Fleet installer must ship icons/ before its pin passes the Store-engineering
+  release
+desc: 'From store-engineering (PR #23): the manifest now declares icons/icon-{16,32,48,128}.png
+  and Chrome refuses to load an unpacked extension whose declared icons are missing.
+  The dotfiles fleet installer (scripts/install/install-spanish-weave, origin/master
+  590d70f) extracts only LICENSE, extension/manifest.json and flat extension/src/*.{js,css,html};
+  its check_manifest_assets() fails closed with ''manifest references an unshipped
+  asset: icons/icon-16.png''. So existing fleet installs keep working at their current
+  pin, but the pin cannot advance to a release containing PR #23 until the installer
+  ships extension/icons/*.png (flat, .png only) and its ownership check allows an
+  icons/ directory like src/. Same change can add LICENSE-MIT and NOTICE (relicense
+  follow-up). Owner: dotfiles lane / root CTO.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:22:37-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:22:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
