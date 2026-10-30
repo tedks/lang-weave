@@ -24,3 +24,14 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T18:32:58-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Implemented on tedks/dotfiles#225 (branch lang-weave-stable-id), reviewed
+    head cf43ef2, council CLEAN (Opus + Codex; agy empty). install-lang-weave ships
+    flat extension/icons/*.png: regular files only, <=256 KiB, PNG signature, plain
+    ASCII names; anything else under extension/icons/ refuses the release; marker
+    covers icons; releases without icons (current pin b1bc0cf) unchanged. Verified
+    offline with a git archive of 810d3b5 (62/62 files match, upgrade from b1bc0cf
+    works, Chromium loads stable ID with all four icons). Pin not advanced; unblocks
+    a future pin past #23 once #225 merges.'
