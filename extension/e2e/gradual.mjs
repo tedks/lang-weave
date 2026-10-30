@@ -292,6 +292,8 @@ try {
   await popup.reload();
   await popup.locator('#budgetRecovery').waitFor();
   assert.match(await popup.locator('#budgetWarning').textContent(), /2099-01-01/);
+  const popupHeight = await popup.evaluate(() => document.body.getBoundingClientRect().height);
+  assert.ok(popupHeight <= 600, `budget-recovery popup exceeds Chrome's 600px cap: ${popupHeight}px`);
   await popup.locator('#cancelBudget').click();
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).learning.day, '2099-01-01');
   await popup.reload();

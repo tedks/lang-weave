@@ -52,6 +52,7 @@ const NEAR_MISSES = [
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/popup.html` }, ['popup']], // popup opened in a tab
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/options.html` }, ['options']], // Chrome options in a tab
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/capture.html?nonce=x` }, ['capture']],
+  [{ id: ID, url: `${BASE}src/capture.html` }, ['capture']], // personal list needs no selection nonce
   [{ id: 'another-id', url: `${BASE}src/backup.html` }, []], // backup also checks the sender id
 ];
 
@@ -106,6 +107,8 @@ test('each surface sender receives exactly its pinned messages and nothing else'
     expect(TYPES.filter((type) => surfaceAllows(surfaces, type))).toEqual(PINNED[name]);
   }
   expect(TYPES.filter((type) => surfaceAllows(new Set(), type))).toEqual([]);
+  for (const type of ['addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey', 'reviewStatus'])
+    expect(surfaceAllows(senderSurfaces(SENDERS.popup), type)).toBe(false);
 }));
 
 test('near-miss senders match no surface, or only the one the old boolean matched', () => withChrome(() => {

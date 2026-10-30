@@ -20,6 +20,7 @@ test('popup shows one action and grants this site before saving or injecting', a
   const pageUrl = 'https://example.com/article';
   globalThis.chrome = {
     runtime: { getURL: (path) => `chrome-extension://fw-popup/${path}`,
+      openOptionsPage: async () => { events.push('options-tab'); },
       sendMessage: async (msg) => {
         if (msg.type === 'status') return { config: {
           settings: { enabled: state.enabled, newSitesEnabled: true,
@@ -49,6 +50,11 @@ test('popup shows one action and grants this site before saving or injecting', a
     expect($('operation').textContent).toBe('This site needs your OK');
     expect($('today').textContent).toContain('3 due for review');
     expect($('openWords').getAttribute('href')).toBe('capture.html');
+    $('openSettings').click();
+    await waitFor(() => events.includes('options-tab'));
+    $('openWords').click();
+    await waitFor(() => events.includes('chrome-extension://fw-popup/src/capture.html'));
+    events.length = 0;
     $('siteEnabled').checked = true;
     $('siteEnabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => events.includes('script'));

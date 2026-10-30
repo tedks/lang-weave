@@ -37,6 +37,8 @@ test('options works without a tab; settings, exception reset and key removal rou
     reviewStatus: async () => ({}), checkUpdate: async () => '',
   });
   const messages = [];
+  let storageChanged;
+  let generateFails = false;
   const status = () => ({ config: { settings: cleanSettings(data.settings), language: 'es',
     hasKey: !!data.apiKey, origins: [] }, update: '', languages: [{ code: 'es', name: 'Spanish' }],
     pastedKey: !!data.apiKey, modelStatus: null });
@@ -50,9 +52,15 @@ test('options works without a tab; settings, exception reset and key removal rou
         if (msg.type === 'clearCache') return handlers.clearCache();
         if (msg.type === 'testKey') return { ok: false, category: 'key_rejected',
           providerText: 'secret provider text' };
+        if (msg.type === 'addLanguage') {
+          if (generateFails) throw new Error('Generation failed');
+          return { ok: true };
+        }
         throw new Error('Unexpected message');
       } },
-    permissions: { contains: async () => false, request: async () => true },
+    storage: { onChanged: { addListener: (fn) => { storageChanged = fn; } } },
+    permissions: { contains: async () => false, request: async () => true,
+      onAdded: { addListener: () => {} }, onRemoved: { addListener: () => {} } },
     tabs: { create: async () => ({ id: 1 }) },
   };
   try {
@@ -69,6 +77,18 @@ test('options works without a tab; settings, exception reset and key removal rou
     await waitFor(() => $('siteList').textContent === 'None');
     expect(data.settings.siteOverrides).toEqual({});
     expect(messages.some((m) => m.siteOverride?.host === 'example.com' && m.siteOverride.enabled === null)).toBe(true);
+    $('newLanguage').value = 'fr';
+    $('addLanguage').click();
+    await waitFor(() => $('operation').textContent === '' && !$('addLanguage').disabled);
+    generateFails = true;
+    $('addLanguage').click();
+    await waitFor(() => $('notice').textContent === 'Generation failed');
+    expect($('operation').textContent).toBe('');
+    $('apiKey').value = 'unsaved-draft';
+    data.settings.density = 'light';
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('density').value === 'light');
+    expect($('apiKey').value).toBe('unsaved-draft');
     $('apiKey').value = 'synthetic-key';
     $('saveKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Saved ✓');

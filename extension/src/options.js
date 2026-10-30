@@ -5,6 +5,7 @@ import { MODELS } from './gemini.js';
 const $ = (id) => document.getElementById(id);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 let status;
+let refreshGeneration = 0;
 
 const send = async (msg) => {
   const res = await chrome.runtime.sendMessage(msg);
@@ -13,17 +14,20 @@ const send = async (msg) => {
 };
 
 async function refresh() {
-  status = await send({ type: 'status' });
+  const generation = ++refreshGeneration;
+  const next = await send({ type: 'status' });
+  const all = await chrome.permissions.contains({ origins: ALL_SITES });
+  if (generation !== refreshGeneration) return;
+  status = next;
   const c = status.config;
   const s = c.settings;
-  const all = await chrome.permissions.contains({ origins: ALL_SITES });
   $('version').textContent = chrome.runtime.getManifest().version;
   $('update').hidden = !status.update;
   $('updateVersion').textContent = status.update || '';
   $('newSitesEnabled').value = String(s.newSitesEnabled);
   $('grantSites').hidden = all || !s.newSitesEnabled;
   $('accessNote').textContent = s.newSitesEnabled
-    ? (all ? 'On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off.' : 'Chrome needs your OK before it can run on other sites.')
+    ? (all ? 'On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off. Reload pages already open to start there.' : 'Chrome needs your OK before it can run on other sites.')
     : 'Off on sites until you turn them on here.';
   const { effective } = resolveLevel(s);
   $('levelInfo').textContent = `L${effective}`;
@@ -44,7 +48,6 @@ async function refresh() {
   $('language').value = c.language;
   $('removeLanguage').hidden = c.language === 'es';
   $('model').value = s.model;
-  $('apiKey').value = '';
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
   $('testKey').disabled = !status.pastedKey;
   $('removeKey').disabled = !status.pastedKey;
@@ -72,6 +75,7 @@ async function save(msg) {
 
 async function run(fn) {
   $('notice').textContent = '';
+  $('operation').textContent = '';
   try { await fn(); } catch (e) { $('notice').textContent = e.message || 'Could not do that'; }
 }
 
@@ -94,7 +98,7 @@ $('addLanguage').addEventListener('click', () => run(async () => {
   button.disabled = true;
   $('operation').textContent = 'Generating experimental vocabulary…';
   try { await send({ type: 'addLanguage', code: $('newLanguage').value.trim() }); await refresh(); }
-  finally { button.disabled = false; }
+  finally { button.disabled = false; $('operation').textContent = ''; }
 }));
 $('removeLanguage').addEventListener('click', () => run(async () => {
   await send({ type: 'removeLanguage', code: status.config.language });
@@ -106,6 +110,7 @@ const saveKey = () => run(async () => {
   const key = $('apiKey').value.trim();
   if (!key) { $('keyFeedback').textContent = 'Paste a key first.'; return; }
   await save({ apiKey: key });
+  $('apiKey').value = '';
   $('keyFeedback').textContent = 'Saved ✓';
 });
 $('saveKey').addEventListener('click', saveKey);
@@ -128,6 +133,7 @@ $('removeKey').addEventListener('click', () => run(async () => {
   $('keyFeedback').textContent = '';
   await send({ type: 'removeKey' });
   await refresh();
+  $('apiKey').value = '';
   $('keyFeedback').textContent = 'Key removed.';
 }));
 $('grantSites').addEventListener('click', () => run(async () => {
@@ -141,5 +147,17 @@ $('clearCache').addEventListener('click', () => run(async () => {
 $('openExtensions').addEventListener('click', () => {
   void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
 });
+
+const refreshAfterExternalChange = () => {
+  $('operation').textContent = '';
+  void refresh().catch((e) => { $('notice').textContent = e.message || 'Could not refresh settings'; });
+};
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && ['settings', 'apiKey', 'languagePacks'].some((key) => Object.hasOwn(changes, key))) {
+    refreshAfterExternalChange();
+  }
+});
+chrome.permissions.onAdded.addListener(refreshAfterExternalChange);
+chrome.permissions.onRemoved.addListener(refreshAfterExternalChange);
 
 void run(refresh);

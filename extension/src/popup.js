@@ -77,6 +77,14 @@ $('recoverBudget').addEventListener('click', () => run(async () => {
 $('primary').addEventListener('click', () => run(async () => {
   await chrome.tabs.create({ url: chrome.runtime.getURL('src/review.html') });
 }));
+$('openSettings').addEventListener('click', (e) => {
+  e.preventDefault();
+  void run(() => chrome.runtime.openOptionsPage());
+});
+$('openWords').addEventListener('click', (e) => {
+  e.preventDefault();
+  void run(() => chrome.tabs.create({ url: chrome.runtime.getURL('src/capture.html') }));
+});
 
 void run(async () => {
   [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

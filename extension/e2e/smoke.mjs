@@ -142,10 +142,14 @@ try {
     height: document.body.getBoundingClientRect().height }));
   assert.equal(popupSize.width, 300);
   assert.ok(popupSize.height <= 600, `popup exceeds Chrome's 600px cap: ${popupSize.height}px`);
-  const [options] = await Promise.all([context.waitForEvent('page'), popup.evaluate(() => chrome.runtime.openOptionsPage())]);
+  const [options] = await Promise.all([context.waitForEvent('page'), popup.locator('#openSettings').click()]);
   await options.waitForLoadState();
   await options.waitForFunction((version) => document.querySelector('#version')?.textContent === version, manifest.version);
   assert.equal(await options.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
+  const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
+  await words.waitForLoadState();
+  assert.equal(new URL(words.url()).search, '');
+  await words.locator('#entries').getByText('No personal entries yet.').waitFor();
   assert.equal(await popup.locator('h1').textContent(), 'Lang Weave');
   assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
   assert.equal(await popup.locator('#primary').textContent(), 'Add words');
