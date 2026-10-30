@@ -17,7 +17,7 @@
   kbd { font: .8em ui-monospace, monospace; border: 1px solid currentColor; border-radius: 4px; padding: 0 .3em; margin: 0 .15em; opacity: .75; }
   #progress { margin: 0 0 .5rem; }
   #finish h2 { font-size: 1.3rem; margin: 0 0 .5rem; }
-  #finish:focus, #empty:focus { outline: none; }
+  #finish:focus, #empty:focus { outline: 2px solid currentColor; outline-offset: 6px; border-radius: 4px; }
   #notice { color: #9b221b; min-height: 1.5em; }
   @media (prefers-color-scheme: dark) { body { color: #f3f3f3; background: #15181c; } .muted { color: #bbc3c9; } .card { background: #22282d; border-color: #52606a; } button { color: #f3f3f3; background: #343d45; border: 1px solid #7a8790; } #notice { color: #ffb4a8; } }
 </style>
@@ -38,19 +38,19 @@
     <p id="progress" class="muted"></p>
     <div class="muted">Say this in <span class="language-name">your target language</span>:</div>
     <p id="prompt"></p>
-    <button id="reveal" aria-keyshortcuts="Space Enter">Reveal answer <kbd aria-hidden="true">Space</kbd></button>
+    <button id="reveal" aria-keyshortcuts="Space Enter" aria-describedby="progress prompt">Reveal answer <kbd aria-hidden="true">Space</kbd></button>
     <div id="solution" hidden>
       <div id="answer"></div>
       <div id="hint" class="muted"></div>
-      <p id="rating-question" class="muted">How well did you recall it? Press 1 to 4, or choose:</p>
-      <div role="group" aria-labelledby="rating-question" aria-describedby="rating-help">
+      <p id="rating-question" class="muted">How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.</p>
+      <div role="group" aria-labelledby="rating-question" aria-describedby="answer hint">
         <button data-rating="again" aria-keyshortcuts="1"><kbd aria-hidden="true">1</kbd> Again</button>
         <button data-rating="hard" aria-keyshortcuts="2"><kbd aria-hidden="true">2</kbd> Hard</button>
         <button data-rating="medium" aria-keyshortcuts="3"><kbd aria-hidden="true">3</kbd> Medium</button>
         <button data-rating="easy" aria-keyshortcuts="4"><kbd aria-hidden="true">4</kbd> Easy</button>
         <button id="known">Already know</button>
       </div>
-      <p id="rating-help" class="muted">Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more. Already know stops reviewing the word.</p>
+      <p id="rating-help" class="muted">Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more. Already know stops reviewing the word, and with gradual learning on, a third Easy in a row does too.</p>
     </div>
   </div>
 </main>

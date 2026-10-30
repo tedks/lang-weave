@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { Window } from 'happy-dom';
+import { cleanReview, rateReview, AGAIN_MS, DAY_MS as SCHEDULER_DAY_MS } from '../src/review.js';
 
 // Mount the shipped markup so these tests break when review.html and
 // review-page.js drift apart.
@@ -14,6 +15,15 @@ const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
 async function mount(name, sendMessage) {
   const previous = { document: globalThis.document, chrome: globalThis.chrome };
   const window = new Window();
+  // Chromium moves focus to <body> when the focused button becomes disabled;
+  // happy-dom keeps it. Emulate Chromium so focus tests see the real failure.
+  const proto = window.HTMLButtonElement.prototype;
+  const disabled = Object.getOwnPropertyDescriptor(proto, 'disabled');
+  Object.defineProperty(proto, 'disabled', { ...disabled, set(value) {
+    // happy-dom ignores blur() on an already-disabled button, so blur first.
+    if (value && this.ownerDocument.activeElement === this) this.blur();
+    disabled.set.call(this, value);
+  } });
   window.document.body.innerHTML = body;
   globalThis.document = window.document;
   const listeners = [];
@@ -41,20 +51,25 @@ async function mount(name, sendMessage) {
 
 // A minimal stand-in for the worker's review queue: one card at a time, a
 // reveal before any rating, and the due time the scheduler would return.
-function fakeQueue(words, { language = 'Spanish', fresh = 0, returns = RETURNS } = {}) {
+function fakeQueue(words, { language = 'Spanish', fresh = 0, returns = RETURNS, requeueAgain = false } = {}) {
+  words = [...words];
+  const later = [];
   const sent = [];
   let index = 0;
   let revealed = false;
   const sendMessage = async (message) => {
     sent.push(message);
+    while (later.length && later[0].due <= Date.now()) words.push(later.shift().word);
     const word = words[index];
     if (message.type === 'reviewNext') return { language, due: words.length - index, new: fresh,
       card: word ? { ticket: `ticket-${index}`, en: word.en, revealed } : null };
     if (message.type === 'reviewReveal') { revealed = true; return { answer: { fr: word.fr, hint: '' } }; }
     if (message.type === 'reviewRate') {
       if (!revealed) return { error: 'This rating is stale or the answer has not been revealed.' };
+      const due = Date.now() + returns[message.rating];
+      if (requeueAgain && message.rating === 'again') later.push({ word, due });
       index++; revealed = false;
-      return { ok: true, due: Date.now() + returns[message.rating], interval: 1 };
+      return { ok: true, due, interval: 1 };
     }
     if (message.type === 'reviewKnown') { index++; revealed = false; return { ok: true }; }
     throw new Error(`Unexpected review request: ${message.type}`);
@@ -213,6 +228,9 @@ test('Space or Enter reveals and keys 1 to 4 rate Again, Hard, Medium and Easy',
     expect(queue.ratings()).toEqual([]);
     expect(page.$('solution').hidden).toBe(true);
 
+    fromBody(' ', { shiftKey: true });
+    await settle();
+    expect(page.$('solution').hidden).toBe(true);
     expect(fromBody(' ').defaultPrevented).toBe(true);
     await settle();
     expect(page.$('solution').hidden).toBe(false);
@@ -222,9 +240,10 @@ test('Space or Enter reveals and keys 1 to 4 rate Again, Hard, Medium and Easy',
     page.press('5');
     await settle();
     expect(queue.ratings()).toEqual([]);
-    // A digit works while the focused control is a rating button.
+    // A digit works while the focused control is a rating button, and the
+    // physical key counts on layouts where the digit needs Shift (AZERTY).
     expect(page.doc.activeElement.dataset.rating).toBe('medium');
-    page.press('1');
+    page.press('&', { code: 'Digit1' });
     await settle();
     expect(page.$('prompt').textContent).toBe('but');
 
@@ -252,7 +271,7 @@ test('Space or Enter reveals and keys 1 to 4 rate Again, Hard, Medium and Easy',
 
 test('the queue reloads itself; Reload queue appears only after a failure', async () => {
   let fail = true;
-  const queue = fakeQueue([{ en: 'and', fr: 'y' }], { returns: { ...RETURNS, again: 20 } });
+  const queue = fakeQueue([{ en: 'and', fr: 'y' }], { returns: { ...RETURNS, again: 20 }, requeueAgain: true });
   const page = await mount('retry', async (message) => {
     if (message.type === 'reviewNext' && fail) { fail = false; return { error: 'Review is unavailable' }; }
     return queue.sendMessage(message);
@@ -274,11 +293,88 @@ test('the queue reloads itself; Reload queue appears only after a failure', asyn
     page.doc.querySelector('[data-rating="again"]').click();
     await settle();
     expect(page.$('finish').hidden).toBe(false);
-    const loadsBefore = queue.sent.filter((m) => m.type === 'reviewNext').length;
+    expect(page.$('finish-next').textContent).toMatch(/^Next review from this session: today from .+, 1 word\.$/);
     await new Promise((resolve) => setTimeout(resolve, 1200));
     await settle();
-    expect(queue.sent.filter((m) => m.type === 'reviewNext').length).toBe(loadsBefore + 1);
+    expect(page.$('finish').hidden).toBe(true);
+    expect(page.$('prompt').textContent).toBe('and');
+    expect(page.$('progress').textContent).toBe('Card 2 of 2');
   } finally {
     await page.restore();
   }
+});
+
+test('a stale card offers Reload queue instead of leaving the page stuck', async () => {
+  const queue = fakeQueue(WORDS.slice(0, 2));
+  let stale = true;
+  const page = await mount('stale-card', async (message) => {
+    if (message.type === 'reviewReveal' && stale) {
+      stale = false;
+      return { error: 'This review card is no longer available. Reload the queue.' };
+    }
+    return queue.sendMessage(message);
+  });
+  try {
+    await settle();
+    expect(page.$('retry').hidden).toBe(true);
+    page.$('reveal').click();
+    await settle();
+    expect(page.$('notice').textContent).toBe('This review card is no longer available. Reload the queue.');
+    expect(page.$('retry').hidden).toBe(false);
+    expect(page.doc.activeElement).toBe(page.$('retry'));
+    page.$('retry').click();
+    await settle();
+    expect(page.$('retry').hidden).toBe(true);
+    expect(page.$('notice').textContent).toBe('');
+    expect(page.doc.activeElement).toBe(page.$('reveal'));
+  } finally {
+    await page.restore();
+  }
+});
+
+test('a background refresh keeps the user\'s focus and never pulls it from the page body', async () => {
+  const queue = fakeQueue(WORDS.slice(0, 1));
+  const page = await mount('background-focus', queue.sendMessage);
+  const hard = page.doc.querySelector('[data-rating="hard"]');
+  try {
+    await settle();
+    page.$('reveal').click();
+    await settle();
+    hard.focus();
+    page.changed({ settings: {} }, 'local');
+    await settle();
+    // The revealed card comes back revealed, and focus stays on Hard.
+    expect(page.$('solution').hidden).toBe(false);
+    expect(page.doc.activeElement).toBe(hard);
+
+    hard.click();
+    await settle();
+    expect(page.$('finish').hidden).toBe(false);
+    page.$('finish').blur();
+    expect(page.doc.activeElement).toBe(page.doc.body);
+    const loads = queue.sent.filter((m) => m.type === 'reviewNext').length;
+    // Returning to a caught-up tab rechecks the queue without moving focus.
+    page.doc.dispatchEvent(new page.window.Event('visibilitychange'));
+    await settle();
+    expect(queue.sent.filter((m) => m.type === 'reviewNext').length).toBe(loads + 1);
+    expect(page.doc.activeElement).toBe(page.doc.body);
+  } finally {
+    await page.restore();
+  }
+});
+
+test('the rating help states the scheduler\'s intervals for a new card', () => {
+  const now = 1_000_000_000_000;
+  const after = (rating) => {
+    const state = cleanReview({ version: 1, cards: { y: { due: now, interval: 0, reviews: 0 } },
+      current: { word: 'y', ticket: '00000000-0000-0000-0000-000000000000', revealed: true } }, [], now);
+    return rateReview(state, '00000000-0000-0000-0000-000000000000', rating, now).due - now;
+  };
+  expect(after('again')).toBe(AGAIN_MS);
+  expect(AGAIN_MS).toBe(10 * 60 * 1000);
+  expect(after('hard')).toBe(SCHEDULER_DAY_MS);
+  expect(after('medium')).toBe(3 * SCHEDULER_DAY_MS);
+  expect(after('easy')).toBe(7 * SCHEDULER_DAY_MS);
+  const help = body.match(/<p id="rating-help"[^>]*>([^<]*)<\/p>/)[1];
+  expect(help).toContain('Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more.');
 });
