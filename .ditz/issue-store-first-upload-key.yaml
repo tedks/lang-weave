@@ -1,0 +1,51 @@
+id: store-first-upload-key
+title: 'Ruling: verify the Store honors Lang Weave''s self-generated key before any
+  Store release'
+desc: 'Context: Lang Weave 0.12.0 (tedks/lang-weave#18) pins extension ID lkbkmlgogcpcacjmdmoecgacdbfddbnh
+  with a self-generated public key in the manifest. The private key is at ~/.local/share/lang-weave-keys/lang-weave.pem
+  on framework0 (needs a backup).
+
+
+  Question: will the Chrome Web Store give the first Store upload this same ID?
+
+
+  What the docs say (details and quotes in docs/STABLE-ID-MISSION.md): the current
+  manifest-key page documents the reverse flow, where you upload first and copy the
+  Store''s public key into the manifest. A 2013 official guide, no longer published,
+  says the Store keeps a self-generated ID if the private key is placed as key.pem
+  in the zip root on first upload. No current page confirms or denies that, or says
+  what happens to a manifest "key" in an uploaded zip.
+
+
+  Options:
+
+  1. Before any Store release, create the item and do one unpublished upload with
+  key.pem in the zip root, then compare the Item ID with lkbk... Cost: a developer
+  account (one-time fee) and an outward act. If it matches, unpacked users never migrate
+  again.
+
+  2. Upload without key.pem, take the Store''s key, and replace the manifest key.
+  Every 0.12.0 unpacked user then migrates a second time via Learning backup.
+
+  3. Defer until the Store work (store-package-assets) is scheduled.
+
+
+  Recommendation: option 1, done as the first step of the Store work, not now. It
+  is the only way to keep one ID for both unpacked and Store users.
+
+  Decides: Ted (money, account, outward act).
+
+  Blocks: the Store release; not the 0.12.0 fleet rollout.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:00:55-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:00:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
