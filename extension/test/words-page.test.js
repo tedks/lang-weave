@@ -97,6 +97,15 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     expect(items().map((li) => li.dataset.id)).toEqual(['w3']);
     expect($('count').textContent).toBe('1 word of 151');
     expect(items()[0].textContent).toContain('Learning · Due in 2 days · seen 5 times on 3 days');
+    // Accents fold on Latin letters only: Cyrillic й is a different letter from и.
+    rows.push({ ...rows[0], id: 'ru', target: 'мой', gloss: 'my' });
+    $('search').value = 'мои';
+    $('search').dispatchEvent(new window.Event('input'));
+    expect(items().map((li) => li.dataset.id)).toEqual([]);
+    $('search').value = 'мой';
+    $('search').dispatchEvent(new window.Event('input'));
+    expect(items().map((li) => li.dataset.id)).toEqual(['ru']);
+    rows.pop();
     $('search').value = 'glimmer';
     $('search').dispatchEvent(new window.Event('input'));
     expect(items().map((li) => li.dataset.id)).toEqual(['personal:es:x']);

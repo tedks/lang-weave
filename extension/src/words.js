@@ -59,9 +59,10 @@ function drawProgress(p) {
   }));
 }
 
-// Fold Latin accents only (U+0300-U+036F): other scripts' combining marks change the letter.
-const fold = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC')
-  .toLocaleLowerCase().trim();
+// Fold accents on Latin letters only: in other scripts a combining mark makes a different
+// letter (Cyrillic й is not и; Devanagari vowel signs are letters).
+const fold = (value) => String(value || '').normalize('NFD').replace(/(\p{Script=Latin})[\u0300-\u036f]+/gu, '$1')
+  .normalize('NFC').toLocaleLowerCase().trim();
 function matching() {
   const query = fold($('search').value);
   const stage = $('stage').value;
@@ -152,7 +153,8 @@ function rowItem(row) {
   return li;
 }
 
-// One row is the list's single Tab stop (roving tabindex); arrow keys move it.
+// Rows use a roving tabindex: one row at a time is in the Tab order, and arrow keys move it.
+// Each row's buttons stay in the Tab order as well.
 function rove(row) {
   for (const li of $('words').querySelectorAll('li[tabindex="0"]')) li.tabIndex = -1;
   if (row) row.tabIndex = 0;
