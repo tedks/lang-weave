@@ -19,3 +19,10 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T17:01:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Installer part done in tedks/dotfiles#225 (draft, ec5d36a): LICENSE-MIT
+    and NOTICE installed and tracked in the marker when present; LICENSE stays required;
+    docs/lang-weave.md wording updated. Lands with the pin bump to a post-relicense
+    0.12.0 commit. Web Store package part still open.'
