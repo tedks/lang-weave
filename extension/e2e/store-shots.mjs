@@ -71,7 +71,7 @@ if (process.argv.includes('--check')) {
 
     await welcome.locator('#onlySites').click();
     await welcome.locator('#choiceStatus').getByText(/Only sites you turn on selected/).waitFor();
-    const words = L1_WORDS.filter(({ en }) => ['and', 'with', 'always', 'because', 'important', 'possible'].includes(en));
+    const words = L1_WORDS.filter(({ en }) => ['and', 'but', 'with', 'always', 'because', 'important', 'possible'].includes(en));
     await worker.evaluate(async (candidateWords) => {
       for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
         await new Promise((done) => setTimeout(done, 10));
@@ -138,6 +138,7 @@ if (process.argv.includes('--check')) {
     }
     const hoverWord = reading.locator('#opening .fw-word[data-fr="y"]').first();
     await hoverWord.waitFor();
+    await reading.locator('#third .fw-word[data-fr="pero"]').waitFor();
     await hoverWord.hover();
     await reading.locator('.fw-gloss.fw-gloss-on').waitFor();
     assert.match(await reading.locator('.fw-gloss.fw-gloss-on').textContent(), /y · and/);
