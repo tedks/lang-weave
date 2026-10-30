@@ -1,0 +1,20 @@
+id: welcome-e2e-ready-helper
+title: Fail closed when synthetic browser fixture initialization times out
+desc: 'Council PR #29 nit N-10. Nine e2e scripts repeat a loop waiting up to one second
+  for initial settings before seeding synthetic keys and consent. The loop currently
+  proceeds if settings never appears, making a later failure misleading. Move it to
+  a shared harness helper that throws on timeout, or add explicit post-loop assertions,
+  while retaining isolated profiles and no live Gemini requests.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:05:35-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:05:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
