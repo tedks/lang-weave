@@ -1,0 +1,26 @@
+id: signing-key-backup-ruling
+title: Choose where the Lang Weave extension signing key is backed up
+desc: 'The manifest key pin (PR #18, 0.12.0) was generated as RSA 2048. The private
+  key exists in exactly one copy: ~/.local/share/lang-weave-keys/lang-weave.pem on
+  framework0 (mode 600, outside every repo). The public key in the manifest is what
+  fixes the extension ID (lkbkmlgogcpcacjmdmoecgacdbfddbnh), so losing the private
+  key does not break unpacked installs; it is needed only to pack a .crx with that
+  ID or to keep the ID on a Store upload if the Store honors it (see store-first-upload-key).
+  Options: (A) Ted copies it into his password manager / existing secrets store; (B)
+  encrypted copy on drynwyn under Ted''s control; (C) accept single-copy risk until
+  the Store question is settled. Recommendation: A. Keys are Ted''s domain; the CTO
+  will not copy it anywhere. Blocks nothing in source; .crx packaging and Store ID
+  continuity depend on it.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:28:23-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:28:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
