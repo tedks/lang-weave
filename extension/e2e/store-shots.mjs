@@ -34,7 +34,7 @@ async function checkDimensions(directory = assets) {
     assert.ok(bytes.subarray(-12).equals(Buffer.from([0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130])),
       `${name}: complete IEND chunk`);
   }
-  console.log('PASS: five 1280x800 PNGs and one 440x280 PNG have the required IHDR dimensions.');
+  console.log('PASS: five 1280x800 PNGs and one 440x280 PNG have the required dimensions and RGB format.');
 }
 
 if (process.argv.includes('--check')) {
@@ -164,6 +164,7 @@ if (process.argv.includes('--check')) {
     await review.locator('#answer').getByText('y', { exact: true }).waitFor();
     await review.locator('[data-rating="medium"]').click();
     await review.waitForFunction(() => document.querySelector('#progress')?.textContent === 'Card 2 of 5');
+    await review.locator('#prompt').getByText('but', { exact: true }).waitFor();
     await review.locator('#reveal').click();
     await review.locator('#solution').waitFor({ state: 'visible' });
     await review.screenshot({ path: join(rendered, shots[3][0]) });
