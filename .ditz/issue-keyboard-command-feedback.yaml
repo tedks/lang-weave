@@ -1,0 +1,19 @@
+id: keyboard-command-feedback
+title: Give feedback when pause shortcut cannot act on the current site
+desc: 'Council nit on PR #31: an ungranted, ask-first, internal, or inactive tab fails
+  closed with no visible shortcut response. Recommendation: use a bounded, allowlisted
+  badge/title indication without storing site data or adding permissions. Product
+  copy and duration need a decision. Does not block PR #31.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:54:53-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:54:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
