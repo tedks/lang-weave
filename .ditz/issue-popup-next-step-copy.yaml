@@ -1,11 +1,5 @@
 id: popup-next-step-copy
-title: 'Decide whether the popup status line should add a key-setup pointer or self-update
-  notice. Council on PR #25 suggested both. Current mission explicitly keeps one existing
-  allowlisted state line and only Settings/My words/Help links, so PR #25 follows
-  that scope. Options: (A) keep the current line and Settings link; (B) add a direct
-  Settings pointer for no-key; (C) add update-ready copy on the state line. Recommendation:
-  keep A through onboarding and revisit if first-run users cannot find setup. Ted
-  decides; blocks no current merge.'
+title: Decide whether popup status should point to key setup or update
 desc: 'Decide whether the popup status line should add a key-setup pointer or self-update
   notice. Council on PR #25 suggested both. Current mission explicitly keeps one existing
   allowlisted state line and only Settings/My words/Help links, so PR #25 follows
@@ -31,4 +25,8 @@ log_events:
 - time: 2026-10-30T18:36:39-00:00
   who: Ted Smith
   what: created
+  comment: ""
+- time: 2026-10-30T18:36:53-00:00
+  who: Ted Smith
+  what: changed title
   comment: ""
