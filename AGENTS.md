@@ -20,7 +20,7 @@ Keep Chrome runtime verification separate from mocked model verification; never 
 
 ## Repo specifics
 
-The extension must work without a Python/native host. Never read or write the user's French Weave progress. Preserve explicit site permissions, sensitive-site defaults, API-key isolation and stale-result guards. The historical `fr` property in swap/word objects is a compatibility field for target-language text. Preserve the installed `spanish-weave/extension` path for Chrome ID and progress compatibility.
+The extension must work without a Python/native host. Never read or write the user's French Weave progress. Preserve explicit site permissions, sensitive-site defaults, API-key isolation and stale-result guards. The historical `fr` property in swap/word objects is a compatibility field for target-language text. The manifest `key` fixes the extension ID (`lkbkmlgogcpcacjmdmoecgacdbfddbnh`) on every path; change or remove it only with a CEO ruling, because that moves every user to a new ID, and never commit the private key. Never put 0.12.0 or later into a pre-0.12.0 install directory: its self-reload would strand that install's progress (see docs/STABLE-ID-MISSION.md). Keyless updates between pre-0.12 releases keep the ID.
 
 ## Issue tracking
 
