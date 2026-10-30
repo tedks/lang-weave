@@ -1,0 +1,19 @@
+id: speech-voicefor
+title: Port upstream's pure voice picker with BCP-47 matching and Latin American preference
+desc: 'Roadmap M3, after audio-local-voices-ruling. Source: upstream-delta.md row
+  3 (upstream speech.js, 51 lines, MIT; keep notice). Local voices only; the gloss
+  button and pointer bridge wait for the UX ruling; use upstream''s ce4f4ac/0ad71b3
+  fix list as the checklist if ported.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:42-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
