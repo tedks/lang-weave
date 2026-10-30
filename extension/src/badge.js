@@ -75,8 +75,8 @@ export function createBadge({ context, store, updatePending }) {
         await chrome.action.setTitle?.({ ...options, title: badge.title });
       });
       writes.set(tabId, write);
-      await write;
-      if (writes.get(tabId) === write) writes.delete(tabId);
+      try { await write; }
+      finally { if (writes.get(tabId) === write) writes.delete(tabId); }
     } catch {
       // A late update event after removal must not leave a worker-lifetime entry.
       if (generations.get(tabId) === generation) generations.delete(tabId);
@@ -90,6 +90,6 @@ export function createBadge({ context, store, updatePending }) {
     await Promise.allSettled(tabs.map((tab) => refresh(tab.id, shared)));
   }
 
-  function removed(tabId) { generations.delete(tabId); }
+  function removed(tabId) { generations.delete(tabId); writes.delete(tabId); }
   return { refresh, refreshAll, removed };
 }

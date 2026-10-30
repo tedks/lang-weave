@@ -38,10 +38,10 @@ test('sensitive default, internal page and malformed status stay in fixed states
   expect(readingState(config, 'https://mail.google.com/', null)).toBe('sensitive');
   expect(readingState(config, 'chrome://extensions', null)).toBe('unsupported');
   for (const enabled of [false, true]) for (const paused of [false, true])
-    for (const hasKey of [false, true]) for (const category of statuses) {
+    for (const consentShown of [false, true]) for (const hasKey of [false, true]) for (const category of statuses) {
       const unknown = { ...config, settings: { ...config.settings, enabled }, paused, hasKey };
-      expect(readingState(unknown, undefined, category && { category })).toBe(!enabled || paused
-        ? 'paused' : !hasKey ? 'needs_key' : 'unavailable');
+      expect(readingState(unknown, undefined, category && { category }, consentShown)).toBe(!enabled || paused
+        ? 'paused' : !consentShown ? 'needs_setup' : !hasKey ? 'needs_key' : 'unavailable');
     }
   expect(readingState(config, 'https://example.com/', { category: 'provider says key=secret' })).toBe('working');
   expect(readingState(config, 'https://example.com/', { category: 'daily_quota' })).toBe('cooldown');

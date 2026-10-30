@@ -10,6 +10,7 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
   const data = { settings: { enabled: true, newSitesEnabled: true }, consentShown: false };
   const appearances = new Map();
   const badgeWrites = [];
+  const createdTabs = [];
   let origins = [];
   let diskVersion = '0.12.8';
   const manifest = { version: '0.12.8' };
@@ -35,12 +36,13 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
       async setTitle({ tabId, title }) { appearances.set(tabId, { ...appearances.get(tabId), title }); },
     },
     tabs: { get: async (id) => tabs.get(id), query: async () => [...tabs.values()],
-      sendMessage: async () => {} , onActivated: on('activated'), onUpdated: on('updated'), onRemoved: on('removed') },
+      sendMessage: async () => {}, create: async (tab) => { createdTabs.push(tab); return { id: 3, ...tab }; },
+      onActivated: on('activated'), onUpdated: on('updated'), onRemoved: on('removed') },
     permissions: { getAll: async () => ({ origins }), onAdded: on('added'), onRemoved: on('permissionRemoved') },
     alarms: { create() {}, onAlarm: on('alarm') },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
-    contextMenus: { onClicked: on('clicked'), create() {} },
+    contextMenus: { onClicked: on('clicked'), create() {}, removeAll(done) { done(); } },
   };
   globalThis.fetch = async (url) => {
     if (url !== extensionUrl('manifest.json')) throw new Error('unexpected network request');
@@ -56,6 +58,9 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
   try {
     await import('../src/background.js?badge-worker');
     await until(() => appearances.get(1)?.title === 'Finish setup in the welcome page');
+    fire('installed', { reason: 'install' });
+    await until(() => createdTabs.length === 1);
+    expect(createdTabs[0].url).toBe(extensionUrl('src/welcome.html'));
     data.consentShown = true;
     fire('storage', { consentShown: { newValue: true } }, 'local');
     await until(() => appearances.get(1)?.title === 'Add your Gemini key');

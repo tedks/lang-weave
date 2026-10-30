@@ -62,9 +62,11 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
     expect(badges.at(-1)).toBe('');
     diskVersion = '0.3.1';
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.3.1');
+    for (let i = 0; i < 20 && badges.at(-1) !== 'NEW'; i++) await tick();
     expect(badges.at(-1)).toBe('NEW');
     diskVersion = '0.3.0'; // reloaded: the running copy matches the disk again
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('');
+    for (let i = 0; i < 20 && badges.at(-1) !== ''; i++) await tick();
     expect(badges.at(-1)).toBe('');
     const revision = (await dispatch({ type: 'config' }, page)).revision;
 

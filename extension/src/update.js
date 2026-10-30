@@ -40,7 +40,9 @@ export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {
       }
       if (waitingVersion !== waiting) {
         waitingVersion = waiting;
-        await onBadgeChange(); // per-tab NEW takes precedence over reading state
+        // The wake path refreshes after this check. Other paths notify tabs without
+        // making a popup status reply depend on all of their action writes.
+        if (allowReload) void Promise.resolve().then(onBadgeChange).catch(() => {});
       }
       return waiting;
     } catch {
