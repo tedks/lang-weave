@@ -25,3 +25,12 @@ log_events:
   what: 'closed: fixed'
   comment: 'Landed in PR #20 (merge ebf183c, 0.12.3). Example sentences left out:
     bundled vocabulary has none. Deck-wide next due is review-next-due.'
+- time: 2026-10-30T18:31:26-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Gate miss found 2026-10-30 after merge: extension/e2e/portability.mjs:120
+    waits for #empty after a rating, but #20 shows #finish once session.reviewed >
+    0, so the portability Chromium gate has been red on main since ebf183c (0.12.3).
+    The review-flow brief listed smoke/again/personal/gradual but not portability;
+    CTO error in the brief. Harness repair routed to learning-core PR #24. Lesson
+    for future briefs: name every e2e script, or require all of them.'
