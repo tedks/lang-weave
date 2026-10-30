@@ -1,0 +1,19 @@
+id: claim-gate-repeat
+title: Clarify repeated known claims on verified maintenance cards
+desc: 'Council nit: a direct My words wordKnown request on an already verified maintenance
+  card can create a fresh claim and temporarily remove verified status; UI hides this
+  action, but worker should make the idempotence semantics explicit. Review claim
+  lifecycle and test repeat claims without changing the learning log.'
+type: bugfix
+component: progress
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:50:07-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:50:07-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
