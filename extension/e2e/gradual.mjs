@@ -51,7 +51,7 @@ try {
   });
   const html = `<!doctype html><html lang="en"><body><main>
     <p id="reading">We discussed the idea with friends every week.</p>
-    <p id="reading2">We discussed the idea with neighbors every week.</p>
+    <p id="reading2">We discussed the idea with neighbors every week. ${'The neighbors shared simple stories at the table. '.repeat(20)}</p>
     <p id="reading3">We discussed the idea with colleagues every week.</p>
     <p id="health">The doctor explained the idea behind my medication.</p>
     <form><p>Private form text and the idea stay here.</p><input value="private"></form>
