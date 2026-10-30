@@ -16,3 +16,10 @@ they are satisfied by keeping LICENSE-MIT with every copy.
 
 Bundled Spanish vocabulary selection credits wordfreq by Robyn Speer (data
 CC BY-SA 4.0) for frequency ordering; see docs/UPSTREAM-CURRICULUM-MISSION.md.
+
+The scheduler in extension/src/fsrs.js is an independent port of the published
+FSRS-6 algorithm (Free Spaced Repetition Scheduler, open-spaced-repetition,
+https://github.com/open-spaced-repetition). Its default parameter values are
+the FSRS-6 defaults published with py-fsrs and ts-fsrs, which are MIT licensed
+(Copyright (c) open-spaced-repetition contributors). No upstream source code is
+vendored.
