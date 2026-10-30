@@ -109,6 +109,13 @@ test('options works without a tab; settings, exception reset and key removal rou
     refreshTick();
     await waitFor(() => $('reviewInfo').textContent === '7');
     expect($('apiKey').value).toBe('unsaved-draft');
+    Object.defineProperty(window.document, 'hidden', { configurable: true, value: true });
+    due = 8;
+    refreshTick();
+    expect($('reviewInfo').textContent).toBe('7');
+    Object.defineProperty(window.document, 'hidden', { configurable: true, value: false });
+    window.document.dispatchEvent(new window.Event('visibilitychange'));
+    await waitFor(() => $('reviewInfo').textContent === '8');
     $('apiKey').value = 'synthetic-key';
     $('saveKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Saved ✓');
