@@ -42,11 +42,11 @@ The learner can see their words and whether learning is happening, from local da
   The brief named four stages. Claims are a fifth because the research says a claim is not evidence (recommendation 5). The boundary is pinned against an `fsrs.js` sequence of Good ratings with stabilities 2.31, 10.96, 46.28 and 162.86.
 - **Verified known without a reset marker.** The log has no reset outcome, and adding one is a format change, so Reset logs nothing. A pass verifies a word only if the gap it measured began on or after the card's introduction day, with one day of slack. A reset word is introduced again with a new introduction day. A pass from before the reset began its gap 21 or more days earlier, so it no longer counts. A card with no introduction day, from before 0.8, has no floor. The section 9 measurements remain history: they still include retrievals made before a reset.
 - **Today.**
-  - **Introduced:** cards whose introduction day is today, excluding claims.
+  - **Introduced:** cards whose introduction day is today, including words later marked known, so the count never drops when a word is claimed. Already know on a word never introduced adds a card today and counts too. Reset removes the card and its introduction.
   - **Seen and peeked:** distinct words, from the per-day record in `events.js`.
   - **Flipped:** flip events in the bounded reading-event queue, which keeps the latest 500. It is a lower bound.
   - **Reviewed:** graded ratings logged today. Claims are excluded.
-- **Activity and the week.** A day is active when it holds any retrieval, a rating or a claim. "Days practised this week" counts active days among the last seven local days, today included. A missed day only lowers that rolling count, and nothing is ever lost.
+- **Activity and the week.** A day is active when it holds any retrieval, a rating or a claim. Days are dates in the device's current time zone. The log stores instants only, so after travel, past retrievals are counted on the new zone's dates. "Days practised this week" counts active days among the last seven local days, today included. A missed day only lowers that rolling count, and nothing is ever lost.
 - **Measurements and thresholds.** Below these thresholds, a measurement reads "Not enough data yet" with its current sample, never a rate:
 
   | Measurement | Minimum sample |
@@ -60,7 +60,7 @@ The learner can see their words and whether learning is happening, from local da
 - **Practice now.** The review ticket gains an optional `practice` field: the card's due time when the learner chose it. While the card still has that due time, the due checks (`askable` in `review.js`) accept it before it is due. Any other write to the card voids the grant, because every rating, inline rating or reset moves the due time. Familiar cards are still refused.
   - **Scheduling.** FSRS schedules the rating from the real elapsed time as an early review, and the log records its prediction.
   - **Easy streak.** An early pass leaves the Easy streak alone, so automatic familiarity still needs three spaced Easy reviews. Without this, repeated Practice now plus Easy would retire a word in minutes.
-  - **New words.** A new word is introduced first, as "Add to review" does.
+  - **New words.** A new word is introduced first. Like the review page's Add button and the capture page's "Add to review", this is an explicit manual introduction. It sits outside the gradual daily budget, which governs automatic introductions while reading.
   - **Latency.** It starts when the review page first fetches the ticket, whether the card was due or not.
   - **Scope order.** `reviewNext` keeps a ticket that is already on offer across the pack and personal scopes. A chosen personal word is therefore not displaced by an earlier-due pack card. This also applies to an ordinary due ticket already on screen, which the old code could switch away from in that rare case.
   - **Refusals.** Words above the current level, archived words and claimed words cannot be practised.
@@ -72,7 +72,7 @@ The learner can see their words and whether learning is happening, from local da
   - the scope the page listed, and the version of the card it showed (due, reviews, familiar).
 
   If a rating, claim or language change happened in between, the request is refused as stale. Open review and inline tickets for the word are dropped, so a page holding one gets the existing stale reply. A reservation exists only while a word has no card. Practice now or Already know may create the card during a 30-second reservation; the page's acknowledgement is then refused because the card exists, as with the review page's Add button. Reset never deletes a reservation. A replayed introduction receipt fails, because its pending entry was removed when it was first acknowledged. The daily introduction budget is not refunded. The log and exposures are untouched.
-- **Stage totals and the list.** Stage totals count the pack and active unlinked personal entries. The list also shows archived entries, so its count can be higher.
+- **Stage totals and the list.** Stage totals count the pack and active unlinked personal entries, and the page says so. The list also shows archived entries, so its count can be higher.
 - **Clock recovery.** The verified-word floor uses the gate day after a confirmed clock recovery, as inline recall does.
 - **Linked personal entries** share their bundled card. They appear as "saved by you" on the bundled row, which offers archive. The worker refuses word actions on the linked ID itself.
 - **Router.** The words page is a new surface entry. It may send `progress`, `wordsList`, `wordPractice`, `wordKnown`, `wordReset` and the existing `personalArchive`. The popup and options gain `progress`. No existing entry was widened to reach the new page.
