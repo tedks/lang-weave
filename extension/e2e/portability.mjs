@@ -117,7 +117,7 @@ try {
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText('y').waitFor();
   await review.locator('[data-rating="hard"]').click();
-  await review.locator('#empty').waitFor({ state: 'visible' });
+  await review.locator('#finish').waitFor({ state: 'visible' }); // review-flow (#20): a finished session shows its summary
   const rated = await fresh.worker.evaluate(() => chrome.storage.local.get('recallReview'));
   assert.equal(rated.recallReview.cards.y.interval, 1);
   assert.equal(rated.recallReview.cards.y.reviews, 3);
