@@ -1,0 +1,21 @@
+id: popup-test-progress-divergence
+title: 'popup.test: make the progress mock differ from status so the button source
+  is proven'
+desc: 'Council round 4 nit on PR #28 (Anthropic seat): extension/test/popup.test.js''s
+  progress mock is commented ''Deliberately different from status.review: the button
+  must follow this reply'' but returns the same due/new as status, so it cannot tell
+  which reply drives the button. Return e.g. due: state.due + 1 from progress and
+  assert the label. Test-only.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:38:32-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:38:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
