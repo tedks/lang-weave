@@ -1,0 +1,18 @@
+id: claim-toggle-test-copy
+title: Isolate claim toggle test fixture
+desc: 'Final council nit: review.test.js uses the same card object for an off/on cleanReview
+  round trip and later claim assertions. cleanReview currently copies; use a clone
+  if the test is refactored to mutate.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T22:09:16-00:00
+references: []
+log_events:
+- time: 2026-10-30T22:09:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
