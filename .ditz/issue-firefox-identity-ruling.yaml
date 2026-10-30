@@ -1,0 +1,22 @@
+id: firefox-identity-ruling
+title: Choose the Firefox add-on id, publisher, data-collection categories and timing
+desc: 'Source: docs/research/upstream-delta.md Firefox section, market.md platform
+  plan. The gecko id is the add-on''s permanent identity. AMO requires data_collection_permissions
+  since 2025-11-03; recommended categories websiteContent plus authenticationInfo
+  (the user''s key goes to Google). Prerequisite: real-Firefox probe of storage.local.setAccessLevel
+  (key isolation guard silently skipped if absent) and the content loader''s dynamic
+  import. Options: id like lang-weave@tedks.com; publish after the Chrome listing
+  (recommended) or alongside. Decides: Ted. Blocks firefox-support, not the probe.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
