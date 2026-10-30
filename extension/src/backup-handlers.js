@@ -20,7 +20,8 @@ export function alreadyImported(all, backup, hash) {
   for (const [key, value] of Object.entries(patch)) if (storageSignature({ value: all[key] }) !==
       storageSignature({ value })) return false;
   const learned = Object.keys(all).filter((key) => LEARNING_STORAGE_KEYS.includes(key) || key.startsWith('lang:'));
-  // A fresh target may already hold an empty learning log that the import had no reason to write.
+  // An empty learning log holds no progress, so one the import had no reason to write (already in
+  // the fresh target, or created since) does not mean the imported learning changed.
   return learned.every((key) => Object.hasOwn(patch, key) || emptyLogEntry(key, all[key]));
 }
 

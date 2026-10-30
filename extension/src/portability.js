@@ -437,8 +437,8 @@ function emptyLog(field, value) {
 }
 // An empty learning log under a storage key, which no import needs to write.
 export function emptyLogEntry(key, value) {
-  const field = SCOPE_FIELDS[key.startsWith('lang:') ? key.slice(key.lastIndexOf(':') + 1) : key];
-  return LOG_FIELDS.includes(field) && emptyLog(field, value);
+  const suffix = key.startsWith('lang:') ? key.slice(key.lastIndexOf(':') + 1) : key;
+  return Object.hasOwn(SCOPE_FIELDS, suffix) && LOG_FIELDS.includes(SCOPE_FIELDS[suffix]) && emptyLog(SCOPE_FIELDS[suffix], value);
 }
 export function targetFresh(all) {
   const scopes = storageEntries(all); // rejects unknown target keys, including unknown scoped formats
