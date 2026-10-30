@@ -14,6 +14,7 @@ let busy = false;
 let loadGeneration = 0;
 let refreshQueued = false;
 let returnTimer = null;
+let deckNextDue = null;
 // Page-local session summary. It holds only counts and the due times the worker
 // returned for ratings made in this tab; nothing here is stored.
 let session = { language: null, reviewed: 0, returns: [], easy: [] };
@@ -73,6 +74,17 @@ function nextReturn(now = Date.now()) {
   return `Next review from this session: ${when}, ${plural(count, 'word')}.`;
 }
 
+function deckReturn(response, now = Date.now()) {
+  if (!Object.hasOwn(response, 'nextDue') || !Object.hasOwn(response, 'nextCount')) return null;
+  if (response.nextDue === null) return 'No reviews scheduled.';
+  if (!Number.isSafeInteger(response.nextDue) || !Number.isSafeInteger(response.nextCount) || response.nextCount < 1) return null;
+  const day = midnight(response.nextDue);
+  const days = Math.round((day - midnight(now)) / DAY_MS);
+  if (days <= 0) return `Next review today from ${new Date(response.nextDue).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}, ${plural(response.nextCount, 'word')}.`;
+  if (days === 1) return `Next review tomorrow, ${plural(response.nextCount, 'word')}.`;
+  return `Nothing due until ${new Date(response.nextDue).toLocaleDateString([], { month: 'long', day: 'numeric' })} (${plural(response.nextCount, 'word')}).`;
+}
+
 // With nothing on screen, recheck when a card rated here comes due, and at
 // least hourly so a tab left open still picks up cards due from other sessions.
 function scheduleReturn() {
@@ -80,12 +92,14 @@ function scheduleReturn() {
   returnTimer = null;
   if (card) return;
   const returns = upcoming();
-  const wait = returns.length ? Math.min(...returns) - Date.now() + 1000 : AUTO_RELOAD_MS;
+  const due = [...returns, ...(Number.isSafeInteger(deckNextDue) ? [deckNextDue] : [])];
+  const wait = due.length ? Math.min(...due) - Date.now() + 1000 : AUTO_RELOAD_MS;
   returnTimer = setTimeout(() => refresh(), Math.max(1000, Math.min(wait, AUTO_RELOAD_MS)));
 }
 
 function showQueue(response) {
   card = response.card;
+  deckNextDue = response.nextDue;
   counts(response);
   $('question').hidden = !card;
   $('solution').hidden = true;
@@ -98,7 +112,7 @@ function showQueue(response) {
     : 'You are caught up. Come back when a card is due.';
   if (finished) {
     $('finish-summary').textContent = `You completed ${plural(session.reviewed, 'review')}.`;
-    $('finish-next').textContent = nextReturn();
+    $('finish-next').textContent = deckReturn(response) ?? nextReturn();
   }
   if (card) {
     const position = session.reviewed + 1;
@@ -198,11 +212,9 @@ for (const button of document.querySelectorAll('[data-rating]')) {
     if (!card || $('solution').hidden) return;
     const result = await send('reviewRate', { ticket: card.ticket, rating: button.dataset.rating });
     session.reviewed++;
-    // With gradual learning on, a third Easy in a row retires the word, and the
-    // worker's reply does not say whether that happened. Easy returns are kept
-    // apart: never promised, only used to withhold a claim they could falsify.
     if (Number.isSafeInteger(result.due)) {
-      (button.dataset.rating === 'easy' ? session.easy : session.returns).push(result.due);
+      if (button.dataset.rating !== 'easy' || result.familiar === false) session.returns.push(result.due);
+      else if (result.familiar !== true) session.easy.push(result.due); // older worker: retirement unknown
     }
     await load();
   }));

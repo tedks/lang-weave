@@ -124,6 +124,13 @@ test('production menu listener, one-use save, stable review history and archive/
     expect(rated.interval).toBe(0);
     expect(data.personalVocabularyV1.history.es.cards[saved.id].reviews).toBe(1);
     expect(data.personalVocabularyV1.history.es.cards[saved.id].due).toBeGreaterThan(Date.now());
+    const personalDue = data.personalVocabularyV1.history.es.cards[saved.id].due;
+    expect(await send({ type: 'reviewStatus' }, reviewer)).toMatchObject({
+      nextDue: personalDue, nextCount: 1,
+    });
+    expect(await send({ type: 'reviewNext' }, reviewer)).toMatchObject({
+      card: null, nextDue: personalDue, nextCount: 1,
+    });
 
     // Save with a configured model must not start a reading retry or provider request.
     data.apiKey = 'synthetic-key';

@@ -67,6 +67,27 @@ export function reviewCounts(state, words, now) {
   };
 }
 
+// Earliest future review in the offered catalog, with all cards due on that local day.
+// Maintenance cards remain reviewable; familiar cards have left the queue.
+export function nextDue(state, words, now) {
+  let first = null;
+  let day = null;
+  let nextCount = 0;
+  for (const { fr } of words) {
+    const card = state.cards[fr];
+    if (!card || card.familiar || !Number.isSafeInteger(card.due) || card.due <= now ||
+        !Number.isFinite(new Date(card.due).getTime())) continue;
+    const cardDay = localDay(new Date(card.due));
+    if (first === null || card.due < first) {
+      if (cardDay !== day) nextCount = 0;
+      first = card.due;
+      day = cardDay;
+    }
+    if (cardDay === day) nextCount++;
+  }
+  return { nextDue: first, nextCount };
+}
+
 export function introduce(state, words, now, count = 5) {
   const fresh = words.filter(({ fr }) => !Object.hasOwn(state.cards, fr)).slice(0, count);
   for (const { fr } of fresh) state.cards[fr] = { due: now, interval: 0, reviews: 0,
@@ -118,6 +139,7 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false, ret
   const card = state.cards[current.word];
   if (!askable(state, current, now)) return null;
   const result = scheduleCard(card, rating, now, autoFamiliar, retention, card.due > now);
+  result.familiar = card.familiar === true;
   result.record = { word: current.word, latencyMs: reviewLatency(current, now), ...result.record };
   state.current = null;
   return result;

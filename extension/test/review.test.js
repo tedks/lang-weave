@@ -1,7 +1,28 @@
 import { test, expect } from 'bun:test';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
-import { DAY_MS, cleanReview, introduce, nextReview, revealReview, rateReview, reviewCounts, markFamiliar, askable } from '../src/review.js';
+import { DAY_MS, cleanReview, introduce, nextDue, nextReview, revealReview, rateReview, reviewCounts, markFamiliar, askable } from '../src/review.js';
 import { initialState, nextState, intervalDays } from '../src/fsrs.js';
+
+test('nextDue reads offered future cards by local day in western and eastern time zones', () => {
+  const previous = process.env.TZ;
+  const now = Date.parse('2026-10-30T00:00:00Z');
+  const due = ['2026-10-31T00:30:00Z', '2026-10-31T04:30:00Z', '2026-10-31T07:30:00Z'].map(Date.parse);
+  const words = ['a', 'b', 'c', 'retired', 'overdue', 'new'].map((fr) => ({ fr }));
+  const state = { cards: { a: { due: due[0], interval: 1, reviews: 1 },
+    b: { due: due[1], interval: 30, reviews: 4 }, // maintenance still returns
+    c: { due: due[2], interval: 1, reviews: 1 },
+    retired: { due: due[0], interval: 1, reviews: 1, familiar: true },
+    overdue: { due: now, interval: 1, reviews: 1 } } };
+  const before = structuredClone(state);
+  try {
+    process.env.TZ = 'America/Los_Angeles';
+    expect(nextDue(state, words, now)).toEqual({ nextDue: due[0], nextCount: 2 });
+    process.env.TZ = 'Asia/Tokyo';
+    expect(nextDue(state, words, now)).toEqual({ nextDue: due[0], nextCount: 3 });
+    expect(nextDue(state, words, due[2])).toEqual({ nextDue: null, nextCount: 0 });
+    expect(state).toEqual(before); // accessor cannot schedule or retire a card
+  } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+});
 
 test('explicit introduction, clock scheduling, and one revealed rating per ticket', () => {
   const now = Date.parse('2026-10-17T12:00:00Z');
