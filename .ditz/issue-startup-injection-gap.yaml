@@ -1,0 +1,32 @@
+id: startup-injection-gap
+title: Cover pages opened before granted-site registration finishes after startup
+desc: 'Chromium evidence on 2026-10-30: in an isolated unpacked profile, pristine
+  main 81f88d2 quota-status e2e passed twice and failed once after profile restart
+  because the second page did not advance modelStatus.at. A failing-first diagnostic
+  on c4bbd46 observed zero weave-sites dynamic registrations at raw worker wake. The
+  browser scripting API documents persistAcrossSessions default true; explicitly setting
+  true did not make the registration visible at that raw-wake instant. The bounded
+  startup-registration-race repair makes routed replies wait for registerSites, but
+  a granted page loaded before any worker reply can still miss injection until reload.
+
+
+  Candidate designs: (A) after registration, retrospectively inject into already-loaded
+  granted tabs through the existing popup fallback path, rechecking site permissions/settings/title
+  and preventing duplicate script execution; (B) use a different registration model
+  that is available before navigation. Assess duplicate-script behavior and the Store
+  content-bundle rewrite for both, with no new permissions or alarms unless separately
+  authorized. This limitation does not block the CTO-approved first-reply barrier
+  PR.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:10:28-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:10:28-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
