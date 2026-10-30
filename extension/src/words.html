@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lang Weave · My words</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  * { box-sizing: border-box; }
+  body { max-width: 820px; margin: 2rem auto; padding: 0 1.25rem 3rem; font: 16px/1.5 system-ui, sans-serif; color: var(--ui-text); background: var(--ui-bg); }
+  h1 { margin-bottom: .25rem; }
+  h2 { margin: 0 0 .5rem; font-size: 1.2rem; }
+  section { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; padding: 1.1rem 1.25rem; margin: 1.25rem 0; }
+  .muted { color: var(--ui-muted); }
+  .error { color: var(--ui-danger); }
+  button { font: inherit; padding: .3rem .6rem; cursor: pointer; }
+  button:disabled { cursor: default; opacity: .55; }
+  #headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0; }
+  #stages { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin: .5rem 0; padding: 0; list-style: none; }
+  #strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin: .6rem 0 .25rem; max-width: 520px; }
+  #strip span { aspect-ratio: 1; border-radius: 3px; border: 1px solid var(--ui-border); }
+  #strip span.on { background: currentColor; border-color: currentColor; }
+  .controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
+  .controls label { display: grid; gap: .15rem; }
+  .controls input, .controls select { font: inherit; padding: .35rem; min-width: 12rem; }
+  #words { list-style: none; padding: 0; margin: .75rem 0 0; }
+  #words li { border-top: 1px solid var(--ui-divider); padding: .55rem .35rem; display: grid; gap: .2rem; }
+  #words li:focus { outline: 2px solid currentColor; outline-offset: -2px; border-radius: 4px; }
+  .form { font-weight: 600; }
+  .meta { font-size: .9rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+  #measures { padding-left: 1.1rem; }
+  #measures li { margin: .5rem 0; }
+  @media (prefers-color-scheme: dark) {
+    input, select, button { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>My words</h1>
+  <p id="language" class="muted"></p>
+  <p id="notice" class="error" role="alert"></p>
+  <section aria-labelledby="progressHeading">
+    <h2 id="progressHeading">Progress</h2>
+    <p id="headline"></p>
+    <ul id="stages" aria-label="Words by stage"></ul>
+    <p id="today" class="muted"></p>
+    <div id="strip" role="img"></div>
+    <p id="week" class="muted"></p>
+  </section>
+  <section aria-labelledby="listHeading">
+    <h2 id="listHeading">Words</h2>
+    <div class="controls">
+      <label for="search">Find a word<input id="search" type="search" autocomplete="off" placeholder="Spanish, English or meaning" aria-describedby="keys"></label>
+      <label for="stage">Stage<select id="stage"><option value="">All stages</option></select></label>
+    </div>
+    <p id="keys" class="muted meta">Arrow keys move between words; Tab reaches each word's actions; Escape returns to search.</p>
+    <p id="count" class="muted" role="status" aria-live="polite"></p>
+    <ul id="words" aria-labelledby="listHeading"></ul>
+    <button id="more" type="button" hidden>Show more</button>
+  </section>
+  <section aria-labelledby="workingHeading">
+    <h2 id="workingHeading">Is this working?</h2>
+    <p class="muted">Measured from your own reviews on this device. Nothing is sent anywhere.</p>
+    <ul id="measures"></ul>
+  </section>
+  <p class="muted"><a href="capture.html" id="openEntries">Personal entries</a> lists all your own words and exports them as JSON. <a href="options.html" id="openSettings">Settings</a></p>
+</main>
+<script type="module" src="words.js"></script>
+</body>
+</html>
