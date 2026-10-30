@@ -5,7 +5,7 @@ export const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const MAX_SHORT_COOLDOWN_MS = 60 * 60 * 1000;
 export const MAX_RETRY_MS = 24 * 60 * 60 * 1000;
 export const MODEL_IDS = new Set(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
-export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'key_rejected', 'request_failed', 'storage_failed', 'local_budget', 'ok']);
+export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'key_rejected', 'request_failed', 'storage_failed', 'local_budget', 'key_isolation_unavailable', 'ok']);
 const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
 const COOLDOWN_KINDS = new Set(['daily', 'short', 'overloaded', 'transient']);
 
@@ -166,6 +166,7 @@ export function statusLabel(status, now = Date.now()) {
   const safe = safeModelStatus(status);
   if (!safe || safe.category === 'ok') return '';
   if (safe.category === 'key_rejected') return 'Gemini rejected this key. Paste a new one.';
+  if (safe.category === 'key_isolation_unavailable') return 'This browser cannot keep the key private. Update Chrome to 140 or newer.';
   if (safe.category === 'local_budget') return 'Daily local model-call budget reached.';
   const guided = Number.isFinite(now) && safe.retryAt > now && safe.retryAt <= now + MAX_RETRY_MS;
   const retry = guided ? ` Retry after ${new Date(safe.retryAt).toLocaleString([], {

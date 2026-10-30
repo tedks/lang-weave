@@ -121,6 +121,8 @@ test('package: two builds are byte-identical; --store applies only the delta tab
   expect(s.path).not.toBe(a.path);
   const plain = readZip(a.bytes).find((e) => e.name === 'manifest.json');
   const stored = readZip(s.bytes).find((e) => e.name === 'manifest.json');
+  expect(JSON.parse(plain.data.toString()).minimum_chrome_version).toBe('140');
+  expect(JSON.parse(stored.data.toString()).minimum_chrome_version).toBe('140');
   expect(JSON.parse(stored.data.toString())).toEqual(storeManifest(JSON.parse(plain.data.toString())));
   expect(readZip(s.bytes).map((e) => e.name)).toEqual([...readZip(a.bytes).map((e) => e.name), 'src/content-bundle.js'].sort());
   for (const e of readZip(s.bytes)) {

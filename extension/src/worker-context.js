@@ -17,11 +17,12 @@ export const publicContext = ({ words, allWords, legacyWords, legacyAllWords, pe
 export const personalScope = (language) => scopedStorage(chromeStorage, `personal:${language}`);
 export const laterDay = (a, b) => a > b ? a : b; // ISO local dates or empty string
 
-export function createContext({ store, ready }) {
+export function createContext({ store, ready, worker }) {
   // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
   async function context() {
     await ready;
-    const data = await store.get(['settings', 'apiKey', 'epoch', PACKS_KEY, PERSONAL_KEY]);
+    const data = await store.get(['settings', 'epoch', PACKS_KEY, PERSONAL_KEY,
+      ...(!worker.keyIsolationUnavailable ? ['apiKey'] : [])]);
     const saved = cleanSettings(data.settings);
     const packs = cleanPacks(data[PACKS_KEY]);
     if (saved.language !== 'es' && !packs[saved.language]) saved.language = 'es';
