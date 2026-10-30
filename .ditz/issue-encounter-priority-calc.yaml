@@ -1,0 +1,18 @@
+id: encounter-priority-calc
+title: Avoid duplicate under-exposure calculation
+desc: 'Council nit: adaptive selectWorkingSet computes underExposed twice for each
+  active candidate. Cache the pure result if ranking code is revisited; current bounded
+  candidate set makes this cosmetic.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:53:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:53:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
