@@ -24,3 +24,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T21:06:01-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Classification on pristine origin/main 81f88d2 in fresh main-probe worktree:
+    quota-status Chromium e2e run 1 PASS, run 2 PASS, run 3 FAIL at line 116 (''Restarted
+    worker did not process the second page''). Synthetic Gemini, throwaway profile;
+    no runtime files changed. This is pre-existing on main. CTO renewed authority
+    for a separate startup-registration-race branch, failing-first immediate post-restart
+    test, bounded sites.js/background repair, full gates plus three quota runs, light
+    two-seat council, then merge before calmer-cues rebase. Attempt budget three repairs.'
