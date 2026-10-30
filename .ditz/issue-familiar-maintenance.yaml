@@ -6,8 +6,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T16:56:41-00:00
 references: []
 log_events:
@@ -19,3 +19,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T22:14:49-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged PR #35 as b70074e; council CLEAN and all gates passed on merge
+    commit'
