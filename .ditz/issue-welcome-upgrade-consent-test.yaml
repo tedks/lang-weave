@@ -18,3 +18,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T20:06:59-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Convergence-round test nits added: exercise the defensive testKey path
+    where consentShown becomes false between its initial read and locked dispatch,
+    and restore a backup targetFresh case for a new profile with consentShown:false/newSitesEnabled:null
+    before any welcome choice. The current explicit false/true choice cases remain
+    covered.'
