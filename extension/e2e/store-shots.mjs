@@ -2,7 +2,7 @@
 // The article and Gemini reply are synthetic; DNS and proxy rules fail closed for every host.
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,13 +22,17 @@ const shots = [
   ['small-promo.png', 440, 280],
 ];
 
-async function checkDimensions() {
+async function checkDimensions(directory = assets) {
   for (const [name, width, height] of shots) {
-    const bytes = await readFile(join(assets, name));
+    const bytes = await readFile(join(directory, name));
     assert.ok(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), `${name}: PNG signature`);
     assert.equal(bytes.toString('ascii', 12, 16), 'IHDR', `${name}: IHDR`);
     assert.equal(bytes.readUInt32BE(16), width, `${name}: width`);
     assert.equal(bytes.readUInt32BE(20), height, `${name}: height`);
+    assert.equal(bytes[24], 8, `${name}: 8-bit channels`);
+    assert.equal(bytes[25], 2, `${name}: RGB without alpha`);
+    assert.ok(bytes.subarray(-12).equals(Buffer.from([0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130])),
+      `${name}: complete IEND chunk`);
   }
   console.log('PASS: five 1280x800 PNGs and one 440x280 PNG have the required IHDR dimensions.');
 }
@@ -37,8 +41,10 @@ if (process.argv.includes('--check')) {
   await checkDimensions();
 } else {
   const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-store-shots-'));
+  const rendered = join(scratch, 'shots');
   let browser;
   try {
+    await mkdir(rendered);
     const built = packageExtension({ store: true, outDir: join(scratch, 'dist') });
     const extension = join(scratch, 'extension');
     await mkdir(extension);
@@ -65,9 +71,8 @@ if (process.argv.includes('--check')) {
     await welcome.locator('#demo .fw-word').first().waitFor();
     assert.equal(await welcome.locator('#demo .fw-word').count(), 9);
     assert.equal(await welcome.locator('#onlySites').isVisible(), true);
-    await mkdir(assets, { recursive: true });
     await welcome.evaluate(() => window.scrollTo(0, 165));
-    await welcome.screenshot({ path: join(assets, shots[0][0]) });
+    await welcome.screenshot({ path: join(rendered, shots[0][0]) });
 
     await welcome.locator('#onlySites').click();
     await welcome.locator('#choiceStatus').getByText(/Only sites you turn on selected/).waitFor();
@@ -142,11 +147,11 @@ if (process.argv.includes('--check')) {
     await hoverWord.hover();
     await reading.locator('.fw-gloss.fw-gloss-on').waitFor();
     assert.match(await reading.locator('.fw-gloss.fw-gloss-on').textContent(), /y · and/);
-    await reading.screenshot({ path: join(assets, shots[1][0]) });
+    await reading.screenshot({ path: join(rendered, shots[1][0]) });
     await hoverWord.click();
     assert.equal(await hoverWord.textContent(), 'and');
     assert.match(await hoverWord.getAttribute('aria-label'), /Show Spanish/);
-    await reading.screenshot({ path: join(assets, shots[2][0]) });
+    await reading.screenshot({ path: join(rendered, shots[2][0]) });
     assert.ok(await worker.evaluate(() => globalThis.storeShotCalls > 0), 'synthetic responder was used');
 
     // Seed via the real review messages, then capture the real page halfway through a session.
@@ -161,19 +166,19 @@ if (process.argv.includes('--check')) {
     await review.waitForFunction(() => document.querySelector('#progress')?.textContent === 'Card 2 of 5');
     await review.locator('#reveal').click();
     await review.locator('#solution').waitFor({ state: 'visible' });
-    await review.screenshot({ path: join(assets, shots[3][0]) });
+    await review.screenshot({ path: join(rendered, shots[3][0]) });
 
     const progress = await browser.newPage();
     await progress.goto(url('words'));
     await progress.locator('#words li[data-id]').first().waitFor();
     await progress.locator('#today').getByText(/introduced/).waitFor();
     assert.match(await progress.locator('#today').textContent(), /1 reviewed/);
-    await progress.screenshot({ path: join(assets, shots[4][0]) });
+    await progress.screenshot({ path: join(rendered, shots[4][0]) });
 
     // The tile is composed entirely in Chromium with the shipped icon and text.
     const tile = await browser.newPage();
     await tile.setViewportSize({ width: 440, height: 280 });
-    const icon = (await readFile(join(root, 'icons', 'icon-128.png'))).toString('base64');
+    const icon = (await readFile(join(extension, 'icons', 'icon-128.png'))).toString('base64');
     await tile.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
       *{box-sizing:border-box}body{margin:0;background:#f8f7f2;color:#203a35;font-family:system-ui,sans-serif}
       main{width:440px;height:280px;padding:28px 32px;background:linear-gradient(140deg,#f9faf5,#e6f1e9);position:relative;overflow:hidden}
@@ -182,8 +187,10 @@ if (process.argv.includes('--check')) {
       p{font-size:18px;line-height:1.25;margin:0;max-width:340px;color:#335b51}
       </style></head><body><main><img alt="" src="data:image/png;base64,${icon}"><h1>Lang Weave</h1>
       <p>Learn Spanish while you read.</p></main></body></html>`);
-    await tile.screenshot({ path: join(assets, shots[5][0]) });
-    await checkDimensions();
+    await tile.screenshot({ path: join(rendered, shots[5][0]) });
+    await checkDimensions(rendered);
+    await mkdir(assets, { recursive: true });
+    for (const [name] of shots) await copyFile(join(rendered, name), join(assets, name));
     console.log('PASS: Store package, synthetic Gemini and original article captured five listing screenshots plus promo tile.');
   } finally {
     if (browser) await browser.close();

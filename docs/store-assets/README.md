@@ -1,6 +1,6 @@
 # Chrome Web Store images
 
-These images come from `extension/e2e/store-shots.mjs`. It loads the packaged Store build in an isolated Chromium profile, grants access only to a synthetic reading host, and intercepts Gemini in the test worker. The article is original sample prose; no real account, key, personal page, or live Gemini call is used. Chromium is forced to a light theme at a 1× scale. The reading and promo images contain no browser chrome.
+These images come from `extension/e2e/store-shots.mjs`. It loads the packaged Store build in an isolated Chromium profile, adds a test-only grant for a synthetic reading host and a test-only `update_url`, and intercepts Gemini in the test worker. The article is original sample prose; no real account, key, personal page, or live Gemini call is used. Chromium is forced to a light theme at a 1× scale. The reading and promo images contain no browser chrome.
 
 | File | Dimensions | Listing caption |
 |---|---:|---|
@@ -11,7 +11,7 @@ These images come from `extension/e2e/store-shots.mjs`. It loads the packaged St
 | `05-progress.png` | 1280×800 | **Progress.** “See what you have introduced, seen and recalled. All of it stays in your browser.” |
 | `small-promo.png` | 440×280 | Lang Weave · Learn Spanish while you read. |
 
-The five screenshot captions match the draft on `listing-docs`; no caption change is needed. The review image shows a bundled-word review session. Reading encounters in this fixture contribute to the Progress page, while the review cards are introduced through the extension’s real review flow.
+The five screenshot captions match the draft on `listing-docs`; no caption change is needed. The review image shows “but,” which was swapped in the sample article. This fixture starts the review session with the page’s **Add 5 new words** control; the current gradual-learning flow can also introduce words from reading, as `extension/e2e/gradual.mjs` verifies. Reading encounters in this fixture contribute to the Progress page.
 
 From the repository root, install the locked development dependencies once, then regenerate and check the images:
 
@@ -24,4 +24,4 @@ cd ..
 node extension/e2e/store-shots.mjs --check
 ```
 
-The `--check` mode reads the PNG signature and IHDR width and height with Node’s standard library. The script uses the existing `unzip` command to load the generated Store zip. Screenshots are reproducible for the pinned Playwright Chromium build; exact PNG bytes can vary with browser or font versions.
+The `--check` mode reads the PNG signature, IHDR dimensions, bit depth and RGB color type, and final IEND chunk with Node’s standard library. The script uses the existing `unzip` command to load the generated Store zip and checks captures in scratch before copying them to this directory. Screenshots are reproducible for the pinned Playwright Chromium build; exact PNG bytes can vary with browser or font versions.
