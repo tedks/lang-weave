@@ -138,7 +138,7 @@ export function addPersonal(personal, fields, language, now = Date.now(), uuid =
 export function exportPersonal(personal) {
   const history = Object.fromEntries(Object.entries(personal.history).map(([language, state]) =>
     [language, { version: 1, cards: Object.fromEntries(Object.entries(state.cards).map(([id, card]) => {
-      const { introReceipt, ...progress } = card;
+      const { introReceipt, fsrs, ...progress } = card; // personal export format v1 is unchanged
       return [id, progress];
     })), learning: { day: state.learning.day, count: state.learning.count } }]));
   return { format: 'lang-weave-personal-vocabulary', version: 1,

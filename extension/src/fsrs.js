@@ -222,6 +222,12 @@ function consistent(state, card) {
     : card.due >= state.lastReview && card.due - state.lastReview <= DAY_MS;
 }
 
+// The card's stored FSRS state when it is valid and agrees with the card's schedule, else null.
+export function storedFsrs(card) {
+  const state = cleanFsrsState(card?.fsrs);
+  return state && consistent(state, card) ? state : null;
+}
+
 // A copy of `card` with `fsrs` attached. `due` and `interval` are authoritative: a stored state
 // that is malformed or disagrees with them (some other path moved the schedule) is replaced
 // by a derivation from them, and a card that cannot be derived keeps no state.
