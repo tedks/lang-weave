@@ -22,8 +22,11 @@ const prose = `<!doctype html><html lang="en"><head><title>Reading</title></head
 
 async function launch(label, manifest, source = root) {
   const extension = join(scratch, label, 'extension');
-  await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+  if (label === 'store') await cp(source, extension, { recursive: true });
+  else {
+    await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
+    await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+  }
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   const context = await chromium.launchPersistentContext(join(scratch, label, 'profile'), {
     channel: 'chromium', headless: true,
@@ -101,6 +104,23 @@ try {
   assert.match(await page.locator('.fw-gloss-on').textContent(), /y · and/);
   await word.click();
   assert.equal(await word.textContent(), 'and');
+  // Popup fallback injection can run again on the same document. A classic script needs the
+  // module loader's old one-evaluation semantics or duplicate listeners and observers result.
+  const tabId = await worker.evaluate(async () => (await chrome.tabs.query({ url: 'https://x.com/*' }))[0]?.id);
+  assert.ok(tabId);
+  const sameEntry = await worker.evaluate(async (tabId) => {
+    const target = { tabId };
+    const [before] = await chrome.scripting.executeScript({ target, func: () => {
+      globalThis.__storeFirstEntry = globalThis[Symbol.for('lang-weave.content-bundle')].disarmTip;
+      return !!globalThis.__storeFirstEntry;
+    } });
+    await chrome.scripting.executeScript({ target, files: ['src/content-bundle.js'] });
+    await chrome.scripting.executeScript({ target, files: ['src/content-bundle.js'] });
+    const [after] = await chrome.scripting.executeScript({ target, func: () =>
+      globalThis.__storeFirstEntry === globalThis[Symbol.for('lang-weave.content-bundle')].disarmTip });
+    return before.result && after.result;
+  }, tabId);
+  assert.equal(sameEntry, true, 'repeated popup fallback injection reuses the same document entry');
   const { reachable: storeReachable, files: storeFiles } = await checkWebAccessible(context, id, store, unpacked);
   assert.deepEqual(storeReachable, []);
   assert.ok(storeFiles.includes('src/content.js'));
@@ -109,9 +129,10 @@ try {
   // re-registers with the explicit empty list (updateContentScripts keeps omitted properties; relaunching the
   // browser would not do, since reloading an unpacked extension drops dynamic registrations).
   await worker.evaluate(() => chrome.scripting.updateContentScripts([{ id: 'weave-sites',
-    excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] }]));
+    js: ['src/content-loader.js'], excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] }]));
   const [stale] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.deepEqual([...stale.excludeMatches].sort(), ['https://twitter.com/*', 'https://x.com/*'], 'the stale exclusion is in place');
+  assert.deepEqual(stale.js, ['src/content-loader.js'], 'the stale loader is in place');
   await worker.evaluate(() => { globalThis.beforeRestart = true; });
   const cdp = await context.newCDPSession(page);
   const { targetInfos } = await cdp.send('Target.getTargets');
@@ -131,6 +152,7 @@ try {
   worker = await settle(fresh);
   const [updated] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.deepEqual(updated.excludeMatches ?? [], [], 'a restarted worker clears a stale exclusion');
+  assert.deepEqual(updated.js, ['src/content-bundle.js'], 'a restarted worker replaces a stale loader');
   await context.close();
 
   // Dev (unpacked) build: X through the manifest content script; the self-update stays armed. The X grant is

@@ -26,6 +26,30 @@ test('bundle resolves named re-exports', () => {
   expect(runInNewContext(bundleContent(files, 'src/entry.js').code).entry()).toBe(7);
 });
 
+test('bundle leaves module words in comments and template text untouched, but rejects interpolation imports', () => {
+  const source = '// export const phantom = 1;\n'
+    + 'export const entry = `before\nexport const phantom = 42;\nafter`;\n'
+    + 'export const pattern = /[`]/;\n';
+  const entry = runInNewContext(bundleContent(new Map([['src/a.js', source]]), 'src/a.js').code);
+  expect(entry.entry).toBe('before\nexport const phantom = 42;\nafter');
+  expect(Object.keys(entry).sort()).toEqual(['entry', 'pattern']);
+  expect(() => bundleContent(new Map([['src/a.js',
+    'export const entry = `${import("./dep.js")}`;']]), 'src/a.js')).toThrow(/dynamic import/);
+  expect(() => bundleContent(new Map([['src/a.js',
+    "export const entry = /https?:\\/\\//.test('http://'); import('./dep.js');"]]), 'src/a.js'))
+    .toThrow(/dynamic import/);
+});
+
+test('a second evaluation in the same document reuses the first content entry', () => {
+  const source = 'globalThis.entryRuns = (globalThis.entryRuns || 0) + 1;\nexport function entry() {}\n';
+  const { code } = bundleContent(new Map([['src/a.js', source]]), 'src/a.js');
+  const context = { entryRuns: 0 };
+  const first = runInNewContext(code, context);
+  const second = runInNewContext(code, context);
+  expect(second).toBe(first);
+  expect(context.entryRuns).toBe(1);
+});
+
 test('bundle rejects cycles, missing files and module features outside the supported subset', () => {
   expect(() => bundleContent(new Map([
     ['src/a.js', "import { b } from './b.js';\nexport const a = b;"],
@@ -46,6 +70,7 @@ test('bundle rejects cycles, missing files and module features outside the suppo
 test('the shipped content closure wraps in deterministic order with an entry function', () => {
   const dir = resolve(import.meta.dir, '../src');
   const files = new Map();
+  // Deliberate drift alarm: a new content dependency must be reviewed before shipping it.
   for (const name of ['content', 'catalog', 'events', 'fsrs', 'hash', 'language-name', 'learning', 'levels', 'page',
     'personal-capture', 'personal', 'review', 'semantic', 'settings', 'text', 'vocabulary']) {
     files.set(`src/${name}.js`, readFileSync(resolve(dir, `${name}.js`), 'utf8'));
