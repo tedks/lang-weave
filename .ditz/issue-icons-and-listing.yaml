@@ -19,3 +19,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T18:06:24-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Lead store-engineering (Claude Opus, branch store-engineering): engineering
+    half only \u2014 icon mark + 16/32/48/128 PNGs + manifest icons. Screenshots,
+    description and 18+ statement stay open."
