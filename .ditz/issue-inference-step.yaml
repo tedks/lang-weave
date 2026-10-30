@@ -1,0 +1,17 @@
+id: inference-step
+title: Opt-in guess-first step on first encounters with 3-4 candidate meanings
+desc: 'Roadmap M4. Source: learning-science rec 8 (multiple-choice glosses most effective
+  in meta-analysis; pretesting evidence mixed).'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:42-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
