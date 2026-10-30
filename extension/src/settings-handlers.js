@@ -64,6 +64,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       if (settings.language !== code) throw new Error('The selected language changed; refresh and try again');
       delete packs[code];
       settings.language = 'es';
+      if (worker.keyIsolationUnavailable && typeof current.settings?.apiKey === 'string')
+        settings.apiKey = current.settings.apiKey;
       await store.set({ epoch: crypto.randomUUID(), [PACKS_KEY]: packs, settings });
       const all = await store.get(null);
       const prefix = `lang:${code}:${pack.version}:`;

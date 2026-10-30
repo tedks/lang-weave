@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test';
 import { statusLabel } from '../src/quota-status.js';
+import { cleanPack } from '../src/languages.js';
 
 async function workerFixture({ isolation, initial = {} }) {
   const oldChrome = globalThis.chrome;
@@ -91,6 +92,21 @@ test('missing access-level API never migrates a legacy key from settings', async
     expect(f.data.settings.apiKey).toBeUndefined();
     expect(f.data.apiKey).toBe('');
     expect((await f.dispatch({ type: 'status' })).pastedKey).toBe(false);
+  } finally { f.restore(); }
+});
+
+test('removing a generated language does not silently erase a legacy key', async () => {
+  const pack = cleanPack({ words: Array.from({ length: 20 }, (_, i) => ({
+    fr: `mot${i}`, en: `gloss ${i}`, hint: `sound ${i}`, level: i < 10 ? 1 : 2,
+  })) }, 'fr');
+  const f = await workerFixture({ isolation: false, initial: {
+    settings: { language: 'fr', apiKey: 'legacy-secret' }, languagePacks: { fr: pack },
+  } });
+  try {
+    expect(await f.dispatch({ type: 'removeLanguage', code: 'fr' }, f.options)).toEqual({ ok: true });
+    expect(f.data.settings.language).toBe('es');
+    expect(f.data.settings.apiKey).toBe('legacy-secret');
+    expect(f.data.apiKey).toBeUndefined();
   } finally { f.restore(); }
 });
 
