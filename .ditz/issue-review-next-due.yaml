@@ -15,8 +15,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T17:18:47-00:00
 references: []
 log_events:
@@ -34,3 +34,7 @@ log_events:
   comment: 'Merged in PR #36 at 3c0df107e3e82040be8661ebfaa3fc50a93005f4. Encounter-core
     is concurrent; its lead has the interface to update nextDue for scheduled maintenance
     cards when rebasing.'
+- time: 2026-10-30T21:59:38-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged PR #36 (3c0df10)'
