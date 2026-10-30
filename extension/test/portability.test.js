@@ -52,6 +52,22 @@ test('old Spanish, personal and versioned pack learning round-trip into a distin
   expect(() => targetFresh(imported)).toThrow(/target has/);
 });
 
+test('site-consent marker stays local and does not block backup export or fresh import', () => {
+  for (const consentShown of [false, true]) {
+    const { source } = baseline();
+    source.consentShown = consentShown;
+    const json = createBackup(source, '0.12.9');
+    expect(json).not.toContain('consentShown');
+    for (const newSitesEnabled of [false, true]) {
+      const target = { settings: { enabled: true, newSitesEnabled }, consentShown: true };
+      expect(targetFresh(target)).toBe(true);
+      const patch = learningPatch(parseBackup(json), target.settings);
+      expect(patch.consentShown).toBeUndefined();
+      expect(patch.settings.newSitesEnabled).toBe(newSitesEnabled);
+    }
+  }
+});
+
 test('hostile and unsupported files fail closed', () => {
   const { source } = baseline();
   const raw = JSON.parse(createBackup(source, '0.11.0'));

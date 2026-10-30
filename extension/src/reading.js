@@ -190,8 +190,12 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     try {
       fresh = await modelCall(async () => {
         if ((await context()).revision !== ctx.revision) return null;
-        const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY]);
+        const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY, 'consentShown']);
         const { apiKey } = keyData;
+        // The only UI transition is false -> true. A false snapshot cannot dispatch, even
+        // if the user chooses a policy while this request is queued.
+        if (keyData.consentShown === false)
+          throw Object.assign(new Error('Choose site access on the welcome page first'), { category: 'consent_required' });
         const keyEpoch = keyData.keyEpoch || '';
         requestEpoch = keyEpoch;
         const persisted = cleanQuotaState(keyData[QUOTA_STATE_KEY], keyEpoch);
@@ -240,8 +244,10 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
         : category === 'key_rejected' ? 'Gemini rejected this key. Paste a new one.'
         : category === 'local_budget' ? 'Daily local model-call budget reached'
-        : category === 'storage_failed' ? 'Local reading storage failed' : 'Model request failed';
-      await saveModelStatus({ category, retryAt: e?.retryAt,
+        : category === 'storage_failed' ? 'Local reading storage failed'
+        : category === 'consent_required' ? 'Choose site access on the welcome page first' : 'Model request failed';
+      // A missing site choice is local policy, not a model failure or quota diagnostic.
+      if (category !== 'consent_required') await saveModelStatus({ category, retryAt: e?.retryAt,
         coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
       try {
         // Cache entries are raw validated swaps. They still need the current gradual

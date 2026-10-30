@@ -54,7 +54,9 @@ try {
           ? [{ o: 'and', f: 'y', g: 'and', h: 'ee', ctx: '' }] : [] })) }) }] } }] }),
       { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-gloss-key' });
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
+    await chrome.storage.local.set({ apiKey: 'synthetic-gloss-key', consentShown: true });
   });
   const fixture = (dark = false) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
     <title>Gloss fixture</title><style>

@@ -25,6 +25,9 @@ async function refresh() {
   $('update').hidden = !status.update;
   $('updateVersion').textContent = status.update || '';
   $('newSitesEnabled').value = String(s.newSitesEnabled);
+  $('consentNote').textContent = status.consentShown ? 'Your site policy has been chosen. You can change it below.'
+    : 'Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.';
+  $('welcomeLink').hidden = status.consentShown;
   $('grantSites').hidden = all || !s.newSitesEnabled;
   $('accessNote').textContent = s.newSitesEnabled
     ? (all ? 'On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off. Reload pages already open to start there.' : 'Chrome needs your OK before it can run on other sites.')
@@ -51,7 +54,8 @@ async function refresh() {
   $('wordInfo').textContent = `${status.words} ${status.languages.find((item) => item.code === c.language)?.name || c.language} words`;
   $('reviewInfo').textContent = String(status.review.due);
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
-  $('testKey').disabled = !status.pastedKey;
+  $('testKey').disabled = !status.pastedKey || !status.consentShown;
+  $('addLanguage').disabled = !status.consentShown;
   $('removeKey').disabled = !status.pastedKey;
   const list = $('siteList');
   list.replaceChildren();
@@ -129,7 +133,7 @@ $('testKey').addEventListener('click', () => run(async () => {
     $('keyFeedback').textContent = result.ok ? 'Key works.' : result.category === 'no_key'
       ? 'Add a Gemini key first.' : result.category === 'changed' ? 'Key or settings changed. Test again.'
       : statusLabel({ category: result.category }) || 'Model request failed. Try again later.';
-  } finally { button.disabled = !status?.pastedKey; }
+  } finally { button.disabled = !status?.pastedKey || !status?.consentShown; }
 }));
 $('removeKey').addEventListener('click', () => run(async () => {
   $('keyFeedback').textContent = '';

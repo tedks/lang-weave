@@ -7,6 +7,7 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 const PINNED = {
   popup: ['recoverBudget', 'save', 'status'],
   options: ['addLanguage', 'clearCache', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
+  welcome: ['save'],
   // learningStats (0.12.6): read-only local measurements, review page only.
   review: ['learningStats', 'reviewIntroduce', 'reviewKnown', 'reviewNext', 'reviewRate', 'reviewReveal', 'reviewStatus'],
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
@@ -24,6 +25,7 @@ const BASE = `chrome-extension://${ID}/`;
 const SENDERS = {
   popup: { id: ID, url: `${BASE}src/popup.html` },
   options: { id: ID, url: `${BASE}src/options.html` },
+  welcome: { id: ID, url: `${BASE}src/welcome.html` },
   review: { id: ID, url: `${BASE}src/review.html` },
   capture: { id: ID, url: `${BASE}src/capture.html?nonce=abc` },
   backup: { id: ID, url: `${BASE}src/backup.html` },
@@ -37,7 +39,9 @@ const NEAR_MISSES = [
   [{ id: ID, url: `${BASE}src/backup.html?x=1` }, []],
   [{ id: ID, url: `${BASE}src/options.html?x=1` }, []],
   [{ id: ID, url: `${BASE}src/options.html#top` }, []],
-  [{ id: ID, url: `${BASE}src/welcome.html` }, []],
+  [{ id: ID, url: `${BASE}src/welcome.html?x=1` }, []],
+  [{ id: ID, url: `${BASE}src/welcome.html#privacy` }, []],
+  [{ id: 'another-id', url: `${BASE}src/welcome.html` }, ['welcome']], // worker rejects the foreign ID first
   [{ id: ID, url: `${BASE}src/sidepanel.html` }, []],
   [{ id: ID, url: `${BASE}src/capture.htm` }, []],
   [{ id: ID, url: `${BASE}capture.html` }, []],
@@ -51,6 +55,7 @@ const NEAR_MISSES = [
   [{ id: ID, tab: { id: 1 }, url: 'http://example.com/' }, ['page']],
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/popup.html` }, ['popup']], // popup opened in a tab
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/options.html` }, ['options']], // Chrome options in a tab
+  [{ id: ID, tab: { id: 2 }, url: `${BASE}src/welcome.html` }, ['welcome']],
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/capture.html?nonce=x` }, ['capture']],
   [{ id: ID, url: `${BASE}src/capture.html` }, ['capture']], // personal list needs no selection nonce
   [{ id: 'another-id', url: `${BASE}src/backup.html` }, []], // backup also checks the sender id
@@ -120,8 +125,9 @@ test('near-miss senders match no surface, or only the one the old boolean matche
 }));
 
 test('unmodified sender decisions equal the pre-split boolean', () => withChrome(() => {
-  const senders = [...Object.entries(SENDERS).filter(([name]) => !['popup', 'options'].includes(name)).map(([, sender]) => sender),
-    ...NEAR_MISSES.filter(([sender, expected]) => !['popup', 'options'].includes(expected[0])).map(([sender]) => sender)];
+  const senders = [...Object.entries(SENDERS).filter(([name]) => !['popup', 'options', 'welcome'].includes(name)).map(([, sender]) => sender),
+    ...NEAR_MISSES.filter(([sender, expected]) => !sender.url?.includes('/src/welcome.html') &&
+      !['popup', 'options'].includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])

@@ -48,7 +48,7 @@ test('options works without a tab; settings, exception reset and key removal rou
   let due = 2;
   const status = () => ({ config: { settings: cleanSettings(data.settings), language: 'es',
     hasKey: !!data.apiKey, origins: [] }, update: '', languages: [{ code: 'es', name: 'Spanish' }],
-    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, modelStatus: null });
+    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, consentShown: true, modelStatus: null });
   globalThis.chrome = {
     runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.5' }),
       sendMessage: async (msg) => {

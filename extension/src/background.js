@@ -14,7 +14,7 @@ import { createGradualBudgets } from './gradual-budgets.js';
 import { createReading } from './reading.js';
 import { createReviewHandlers } from './review-handlers.js';
 import { createInlineRecall } from './inline-recall.js';
-import { createUpdate, ALARM } from './update.js';
+import { createUpdate, openWelcome, ALARM } from './update.js';
 import { createSettingsHandlers } from './settings-handlers.js';
 import { createCaptureHandlers } from './capture-handlers.js';
 import { createBackupHandlers } from './backup-handlers.js';
@@ -56,7 +56,11 @@ const ready = (async () => {
   try { validateStorageSettings(settings || {}); }
   catch { worker.startupUnsupportedSettings = true; }
   if (settings?.apiKey) await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
-  if (!worker.startupUnsupportedSettings) await store.set({ settings: cleanSettings(settings) });
+  // A stored settings object identifies an existing profile. Only a truly empty new profile
+  // needs onboarding; older profiles keep their existing access until they choose otherwise.
+  if (!worker.startupUnsupportedSettings) await store.set({
+    settings: cleanSettings(settings), ...(settings === undefined ? { consentShown: false } : {}),
+  });
   const { keyEpoch } = await store.get('keyEpoch');
   if (typeof keyEpoch !== 'string' || !keyEpoch) await store.set({ keyEpoch: crypto.randomUUID() });
   await recoverLearningImport();
@@ -127,6 +131,7 @@ chrome.permissions.onAdded.addListener(permissionsChanged);
 chrome.permissions.onRemoved.addListener(permissionsChanged);
 
 chrome.runtime.onInstalled.addListener(arm);
+chrome.runtime.onInstalled.addListener(openWelcome);
 chrome.runtime.onStartup.addListener(arm);
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name !== ALARM) return;

@@ -39,7 +39,8 @@ test('web_accessible_resources is exactly content.js and its import closure, for
   // The closure loads nothing else at runtime: a computed import, getURL, fetch or import.meta would reach files
   // this static scan cannot see.
   for (const file of entry.resources) expect(read(file)).not.toMatch(/\bgetURL\b|import\.meta|\bfetch\s*\(|\bimport\s*\(/);
-  for (const never of ['src/background.js', 'src/popup.js', 'src/update.js', 'src/router.js', 'src/content-loader.js']) {
+  for (const never of ['src/background.js', 'src/popup.js', 'src/update.js', 'src/router.js', 'src/content-loader.js',
+    'src/welcome.html', 'src/welcome.js']) {
     expect(entry.resources).not.toContain(never);
   }
 });

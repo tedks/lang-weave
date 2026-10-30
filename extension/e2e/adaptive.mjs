@@ -24,9 +24,11 @@ try {
   });
   const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
     const { settings } = await chrome.storage.local.get('settings');
     await chrome.storage.local.set({ settings: { ...settings, enabled: true, newSitesEnabled: true,
-      gradual: true, newWordsPerDay: 1 }, apiKey: 'synthetic-adaptive-key' });
+      gradual: true, newWordsPerDay: 1 }, apiKey: 'synthetic-adaptive-key', consentShown: true });
     globalThis.adaptiveCalls = [];
     const original = fetch;
     globalThis.fetch = async (url, init) => {

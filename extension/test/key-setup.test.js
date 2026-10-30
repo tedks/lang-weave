@@ -74,6 +74,21 @@ test('Test key enters modelCall once, spends one capped call, and never sends pa
   } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
 });
 
+test('a fresh profile cannot test a key or generate a pack before choosing site consent', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const f = fixture({ consentShown: false });
+  let fetches = 0;
+  globalThis.chrome = { storage: { local: f.store } };
+  globalThis.fetch = async () => { fetches++; throw new Error('No model request is allowed'); };
+  try {
+    expect(await f.handlers.testKey()).toEqual({ ok: false, category: 'consent_required' });
+    await expect(f.handlers.addLanguage({ code: 'fr' })).rejects.toThrow(/Choose site access/);
+    expect(fetches).toBe(0);
+    expect(f.data.modelCalls).toBeUndefined();
+    expect(f.data.modelStatus).toEqual({ category: 'rate_limit' });
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
 test('Test key reports rejection with fixed category and a removed key cannot receive stale status', async () => {
   const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
   const f = fixture();

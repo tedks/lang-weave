@@ -72,7 +72,9 @@ try {
           { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '3600s' },
         ] } }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-quota-key' });
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
+    await chrome.storage.local.set({ apiKey: 'synthetic-quota-key', consentShown: true });
   });
   const page = await browser.newPage();
   await page.goto('https://reading.example/first');

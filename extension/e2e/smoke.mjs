@@ -60,6 +60,8 @@ try {
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
     globalThis.smokeCalls = [];
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (url, init) => {
@@ -87,7 +89,7 @@ try {
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-smoke-key' });
+    await chrome.storage.local.set({ apiKey: 'synthetic-smoke-key', consentShown: true });
   });
   const html = `<!doctype html><html lang="en"><head><title>Spanish smoke fixture</title></head><body><main>
     <p id="reading">We read books and enjoy quiet evenings every week.</p>

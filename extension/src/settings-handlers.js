@@ -27,6 +27,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     const code = languageCode(msg.code);
     if (!code) throw new Error('Enter a valid target-language code such as fr or ja');
     const before = await store.get(['settings', 'apiKey', PACKS_KEY]);
+    if ((await store.get('consentShown')).consentShown === false) throw new Error('Choose site access on the welcome page first');
     const selected = cleanSettings(before.settings).language;
     if (!before.apiKey) throw new Error('Add your Gemini key first');
     if (cleanPacks(before[PACKS_KEY])[code]) throw new Error('This language is already available');
@@ -74,6 +75,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
 
   // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
   async function save(msg, forceKeyRotation = false) {
+    if (msg.consentShown === true && typeof msg.settings?.newSitesEnabled !== 'boolean')
+      throw new Error('Choose a site policy before confirming consent');
     worker.settingsGeneration++;
     await locked(async () => {
       const saved = await store.get(['settings', 'apiKey']);
@@ -100,7 +103,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         next.language = 'es';
       }
       // A settings round trip must not revive a result from its earlier revision.
-      const patch = { settings: next };
+      const patch = { settings: next, ...(msg.consentShown === true ? { consentShown: true } : {}) };
       if (typeof msg.apiKey === 'string') {
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();
@@ -111,7 +114,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       const before = cleanSettings(saved.settings);
       const keyChanged = forceKeyRotation || (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey);
       if (reading(next) === reading(before) && !keyChanged) {
-        if (JSON.stringify(next) !== JSON.stringify(before)) await store.set({ settings: next });
+        if (JSON.stringify(next) !== JSON.stringify(before) || msg.consentShown === true) await store.set(patch);
       } else {
         patch.epoch = crypto.randomUUID();
         if (forceKeyRotation || Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
@@ -137,6 +140,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     return modelCall(async () => {
       const settingsGeneration = worker.settingsGeneration;
       const before = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY]);
+      if ((await store.get('consentShown')).consentShown === false) return { ok: false, category: 'consent_required' };
       if (!before.apiKey) return { ok: false, category: 'no_key' };
       const epoch = before.keyEpoch || '';
       const model = cleanSettings(before.settings).model;
@@ -149,7 +153,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       try {
         // The locked boundary prevents a key change between the final check, call count, and dispatch.
         ({ response } = await locked(async () => {
-          const current = await store.get(['apiKey', 'keyEpoch', 'settings']);
+          const current = await store.get(['apiKey', 'keyEpoch', 'settings', 'consentShown']);
+          if (current.consentShown === false) return { response: 'consent' };
           if (worker.settingsGeneration !== settingsGeneration || current.keyEpoch !== epoch || current.apiKey !== before.apiKey ||
               cleanSettings(current.settings).model !== model) return { response: null };
           if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { response: 'budget' };
@@ -167,6 +172,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         }));
       } catch { return { ok: false, category: 'storage_failed' }; }
       if (response === 'budget') return { ok: false, category: 'local_budget' };
+      if (response === 'consent') return { ok: false, category: 'consent_required' };
       if (!response) return { ok: false, category: 'changed' };
       let category = 'ok';
       let failure;
@@ -200,7 +206,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
 
   async function status() {
     const config = await context();
-    const data = await store.get(['apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY]);
+    const data = await store.get(['apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown']);
     const { state } = await reviewState(config);
     const quota = cleanQuotaState(data[QUOTA_STATE_KEY], data.keyEpoch);
     let modelStatus = safeModelStatus(data[STATUS_KEY]);
@@ -214,7 +220,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         (!Number.isFinite(modelStatus.at) || modelStatus.at > Date.now() || Date.now() - modelStatus.at > 3600000)) modelStatus = null;
     return { config: publicContext(config), words: config.words.length,
       languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
-      pastedKey: !!data.apiKey, modelStatus,
+      pastedKey: !!data.apiKey, consentShown: data.consentShown !== false, modelStatus,
       budgetWarning: laterDay(futureBudgetDay(state.learning, localDay()),
         futureBudgetDay(personalReview(config).state.learning, localDay())),
       review: await reviewStatus(config),
