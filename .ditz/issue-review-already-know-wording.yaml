@@ -1,0 +1,20 @@
+id: review-already-know-wording
+title: 'Review finish card: decide whether Already know counts as a review'
+desc: 'Source: PR #20 council (Claude seat, nit). The finish card says ''You completed
+  N reviews'' and counts Already know decisions and repeated Again cards in N. Defensible
+  as completed review actions, but ''cards'' or a split (''6 reviewed, 1 retired'')
+  may read more truthfully. Low priority; decide with the review-finish-deck-next-due
+  ruling.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:18:04-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:18:04-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
