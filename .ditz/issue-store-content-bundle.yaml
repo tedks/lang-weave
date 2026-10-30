@@ -19,8 +19,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T19:06:34-00:00
 references: []
 log_events:
@@ -32,3 +32,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T21:02:23-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #30 merged as 81f88d2; Store zip bundles content closure and removes
+    web-accessible resources'
