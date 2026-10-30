@@ -21,6 +21,8 @@ export const MAX_BACKUP_BYTES = 1024 * 1024;
 // One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
 // cards, packs or personal entries under MAX_BACKUP_BYTES.
 export const LOG_BUDGET_BYTES = 512 * 1024;
+// Room kept for per-scope log wrappers and state.logOmitted, which fitLog does not count.
+const LOG_MARGIN_BYTES = 16 * 1024;
 export const IMPORT_JOURNAL_KEY = 'learningImportJournalV1';
 export const IMPORT_RECEIPT_KEY = 'learningImportReceiptV1';
 const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY];
@@ -396,11 +398,11 @@ function storageEntries(all) {
 // personal) can reach this point: a historical pack scope has no catalog to verify its words,
 // so ruling B already left its log out. Everything left out, here or by ruling B during
 // validation, is counted in state.logOmitted.
-function fitLog(st, m) {
+function fitLog(st, m, budget) {
   const encoder = new TextEncoder();
   const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
   let used = 0, droppedRetrievals = 0, droppedWords = 0;
-  const fit = (size) => used + size <= LOG_BUDGET_BYTES && ((used += size), true);
+  const fit = (size) => used + size <= budget && ((used += size), true);
   for (const fields of Object.values(st.scopes)) {
     if (fields.exposures && !fit(bytes(fields.exposures))) {
       droppedWords += Object.keys(fields.exposures.words).length;
@@ -451,7 +453,16 @@ export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
     scopes } };
   const m = mode(true, schema);
   const clean = { ...raw, state: state(raw.state, m) };
-  if (schema >= 2) fitLog(clean.state, m);
+  if (schema >= 2) {
+    // The log is the only optional part of a backup, so it gets at most LOG_BUDGET_BYTES and never
+    // more than the room the rest of the file leaves under MAX_BACKUP_BYTES.
+    const scopesWithoutLog = Object.fromEntries(Object.entries(clean.state.scopes).map(([id, fields]) => {
+      const { retrievals, exposures, ...rest } = fields;
+      return [id, rest];
+    }));
+    const base = new TextEncoder().encode(JSON.stringify({ ...clean, state: { ...clean.state, scopes: scopesWithoutLog } })).length;
+    fitLog(clean.state, m, Math.max(0, Math.min(LOG_BUDGET_BYTES, MAX_BACKUP_BYTES - base - LOG_MARGIN_BYTES)));
+  }
   // Schema 2 is written compactly: indentation would roughly triple the learning log.
   const json = schema >= 2 ? JSON.stringify(clean) : JSON.stringify(clean, null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('supported learning state exceeds file limit');

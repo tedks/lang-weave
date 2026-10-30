@@ -2,12 +2,15 @@
 // installations that predate the tolerant reader (0.12.3).
 import { test, expect } from 'bun:test';
 import { createBackup, parseBackup, learningPatch, targetFresh, backupPreview, BACKUP_SCHEMA, MAX_BACKUP_BYTES,
+  LOG_BUDGET_BYTES,
   READ_SCHEMAS } from '../src/portability.js';
 import { alreadyImported } from '../src/backup-handlers.js';
 import { cleanReview, nextReview, revealReview, rateReview, AGAIN_MS, DAY_MS } from '../src/review.js';
 import { cleanSettings, DEFAULT_SETTINGS } from '../src/settings.js';
 import { storedFsrs } from '../src/fsrs.js';
 import { personalId, baseline } from './backup-fixture.js';
+import { wordsForLevel } from '../src/levels.js';
+import { hashKey } from '../src/hash.js';
 
 // Storage as a schema 2 writer will leave it: FSRS state on cards, logs in three scopes,
 // a desired retention, and one orphan log word that no catalog can verify.
@@ -246,4 +249,61 @@ test('full logs in three scopes export under 1 MiB: newest retrievals kept, the 
   // Storage order within a scope is preserved (oldest first), only the old tail is cut.
   const es = scopes.es.retrievals?.retrievals || [];
   expect(es.every((t, i) => i === 0 || es[i - 1][1] < t[1])).toBe(true);
+});
+
+// Maximal valid non-log state (fixture adapted from the council's Anthropic seat): every Spanish
+// card, five full packs with long glosses, 300 personal entries, 500 events in every scope.
+function maximalStorage() {
+  const { source } = baseline();
+  const all = structuredClone(source);
+  for (const key of Object.keys(all)) if (key.startsWith('lang:')) delete all[key];
+  delete all.readingEvents; delete all.seenSent; delete all.vocabularyEncounters;
+  const es = wordsForLevel(2);
+  const card = (i) => ({ due: 1000 * DAY_MS + i, interval: 300, reviews: 9999, introducedDay: '2026-10-01',
+    introGateDay: '2026-10-01', easyStreak: 2,
+    fsrs: { stability: 300.123456789, difficulty: 5.123456789012, lastReview: 1000 * DAY_MS + i - 300 * DAY_MS, lapses: 3 } });
+  all.recallReview.cards = Object.fromEntries(es.map((w, i) => [w.fr, card(i)]));
+  all.languagePacks = {};
+  for (const code of ['fr', 'de', 'it', 'pt', 'nl']) {
+    const words = Array.from({ length: 80 }, (_, i) => ({ fr: `${code}${i}`.padEnd(12, 'x'),
+      en: `word${i}`.padEnd(60, 'y'), hint: `h${i}`.padEnd(60, 'z'), level: i < 40 ? 1 : 2 }));
+    const version = hashKey(JSON.stringify(words));
+    all.languagePacks[code] = { version, words };
+    all[`lang:${code}:${version}:recallReview`] = { version: 1, cards: Object.fromEntries(words.map((w, i) => [w.fr, card(i)])),
+      current: null, inline: null, learning: { day: '2026-10-20', count: 1, pending: [] } };
+  }
+  const entries = [], history = {};
+  for (let i = 0; i < 300; i++) {
+    const id = `${i.toString(16).padStart(8, '0')}-1111-4111-8111-111111111111`;
+    entries.push({ uuid: id, id: `personal:fr:${id}`, language: 'fr', source: 'a'.repeat(80), target: 'b'.repeat(40),
+      sense: 'c'.repeat(80), direction: 'en-to-target', archived: false, provenance: 'manual', createdAt: 1234 + i });
+    history[`personal:fr:${id}`] = card(i);
+  }
+  all.personalVocabularyV1 = { version: 1, revision: 9, entries, history: { fr: { version: 1, cards: history,
+    current: null, inline: null, learning: { day: '2026-10-20', count: 1, pending: [] } } } };
+  const events = (prefix, ids) => { all[`${prefix}readingEvents`] = Array.from({ length: 500 },
+    (_, i) => ({ word: ids[i % ids.length].toLowerCase(), kind: 'flip', day: '2026-10-28' })); };
+  events('', es.map((w) => w.fr));
+  for (const code of Object.keys(all.languagePacks))
+    events(`lang:${code}:${all.languagePacks[code].version}:`, all.languagePacks[code].words.map((w) => w.fr));
+  events('lang:personal:fr:', entries.map((e) => e.id));
+  return { all, es, entries };
+}
+
+test('the log budget shrinks to the room left by maximal learning state, so export still succeeds', () => {
+  const { all, es, entries } = maximalStorage();
+  const size = (json) => new TextEncoder().encode(json).length;
+  const withoutLog = size(createBackup(all, '0.12.4'));
+  const entry = (word, at) => [word, at, 'inline', 'productive', 'medium', 9999, 600000, 36500, 365, 0.8765];
+  all.learningRetrievals = { version: 1, retrievals: Array.from({ length: 5000 }, (_, i) => entry(es[i % es.length].fr, 1e12 + i)) };
+  all['lang:personal:fr:learningRetrievals'] = { version: 1, retrievals: Array.from({ length: 5000 }, (_, i) => entry(entries[i % 300].id, 1e12 + i)) };
+  all.learningExposures = { version: 1, words: Object.fromEntries(es.map((w) => [w.fr, [1000000, 1000000, 200, '2026-01-01', '2026-10-01']])) };
+  // The non-log state alone leaves less than LOG_BUDGET_BYTES of room under the 1 MiB file limit.
+  expect(MAX_BACKUP_BYTES - withoutLog).toBeLessThan(LOG_BUDGET_BYTES);
+  const json = createBackup(all, '0.12.4');
+  expect(size(json)).toBeLessThanOrEqual(MAX_BACKUP_BYTES);
+  const parsed = parseBackup(json);
+  const kept = Object.values(parsed.state.scopes).flatMap((scope) => scope.retrievals?.retrievals || []);
+  expect(kept.length).toBeGreaterThan(0);
+  expect(kept.length + parsed.state.logOmitted.retrievals).toBe(10000);
 });
