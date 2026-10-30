@@ -9,8 +9,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T16:56:41-00:00
 references: []
 log_events:
@@ -22,3 +22,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T19:29:39-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Landed PR #25 as normal merge 8d5cae6; council CLEAN and exact merge-commit
+    gates pass'
