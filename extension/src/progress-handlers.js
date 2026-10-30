@@ -150,8 +150,9 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       const now = Date.now();
       const introduced = !t.state.cards[t.word.fr] && introduce(t.state, [t.word], now, 1) === 1;
       if (t.other.current) { t.other.current = null; await t.persistOther(); }
+      // The grant names the card's current due time: any later write to the card voids it.
       t.state.current = { word: t.word.fr, ticket: crypto.randomUUID(), revealed: false,
-        ...(t.state.cards[t.word.fr].due > now ? { practice: true } : {}) };
+        practice: t.state.cards[t.word.fr].due };
       await t.persist();
       return { ok: true, introduced };
     });

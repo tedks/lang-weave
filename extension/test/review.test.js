@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
-import { DAY_MS, cleanReview, introduce, nextReview, revealReview, rateReview, reviewCounts, markFamiliar } from '../src/review.js';
+import { DAY_MS, cleanReview, introduce, nextReview, revealReview, rateReview, reviewCounts, markFamiliar, askable } from '../src/review.js';
 import { initialState, nextState, intervalDays } from '../src/fsrs.js';
 
 test('explicit introduction, clock scheduling, and one revealed rating per ticket', () => {
@@ -132,25 +132,36 @@ test('a lower desired retention schedules longer intervals; the default is 0.9',
   expect(() => rate(0.8)).toThrow(RangeError);
 });
 
-test('a practice ticket may be served before due, survives cleaning, and never serves a familiar card', () => {
+test('a practice ticket may be served before due, is voided by any card write, and never serves a familiar card', () => {
   const now = Date.parse('2026-10-20T12:00:00Z');
   const words = [{ fr: 'pero', en: 'but', hint: '' }, { fr: 'y', en: 'and', hint: '' }];
-  const raw = { version: 1, cards: { pero: { due: now + 86400000, interval: 1, reviews: 1 }, y: { due: now - 1, interval: 1, reviews: 1 } },
-    current: { word: 'pero', ticket: '11111111-2222-3333-4444-555555555555', revealed: false, practice: true } };
+  const due = now + 86400000;
+  const raw = { version: 1, cards: { pero: { due, interval: 1, reviews: 1, easyStreak: 2 }, y: { due: now - 1, interval: 1, reviews: 1 } },
+    current: { word: 'pero', ticket: '11111111-2222-3333-4444-555555555555', revealed: false, practice: due } };
   const state = cleanReview(raw, words, now);
-  expect(state.current).toEqual({ word: 'pero', ticket: raw.current.ticket, revealed: false, practice: true });
-  expect(cleanReview({ ...raw, current: { ...raw.current, practice: 'yes' } }, words, now).current.practice).toBeUndefined();
+  expect(state.current).toEqual({ word: 'pero', ticket: raw.current.ticket, revealed: false, practice: due });
+  for (const bad of [true, 'yes', -1, 1.5]) expect(cleanReview({ ...raw, current: { ...raw.current, practice: bad } }, words, now).current.practice).toBeUndefined();
+  expect(askable(state, state.current, now)).toBe(true);
   expect(nextReview(state, words, now)).toEqual({ ticket: raw.current.ticket, en: 'but', revealed: false });
   expect(state.current.shownAt).toBe(now);
   expect(revealReview(state, words, raw.current.ticket, now + 5).fr).toBe('pero');
-  const rated = rateReview(state, raw.current.ticket, 'medium', now + 10);
-  expect(rated.record).toMatchObject({ word: 'pero', latencyMs: 10, prior: 1 });
+  // An early Easy is scheduled by FSRS but leaves the Easy streak alone: no automatic familiarity.
+  const rated = rateReview(state, raw.current.ticket, 'easy', now + 10, true);
+  expect(rated.record).toMatchObject({ word: 'pero', latencyMs: 10, prior: 1, outcome: 'easy' });
+  expect(state.cards.pero.easyStreak).toBe(2);
+  expect(state.cards.pero.familiar).toBeUndefined();
+  expect(state.cards.pero.reviews).toBe(2);
   expect(state.current).toBeNull();
-  // Without the flag the same not-due card is skipped for the due one.
-  const plain = cleanReview({ ...raw, current: { ...raw.current, practice: false } }, words, now);
+  // Any other write to the card (an inline rating, a reset and re-introduction) moves its due
+  // time and voids the grant, so the not-due card is skipped for the due one.
+  const moved = cleanReview({ ...raw, cards: { ...raw.cards, pero: { ...raw.cards.pero, due: due + 3600000 } } }, words, now);
+  expect(askable(moved, moved.current, now)).toBe(false);
+  expect(nextReview(moved, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');
+  const plain = cleanReview({ ...raw, current: { ...raw.current, practice: undefined } }, words, now);
   expect(nextReview(plain, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');
   // A familiar card is never served, even with a practice ticket.
   const familiar = cleanReview({ ...raw, cards: { ...raw.cards, pero: { ...raw.cards.pero, familiar: true } } }, words, now);
+  expect(askable(familiar, familiar.current, now)).toBe(false);
   expect(nextReview(familiar, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');
   expect(markFamiliar(familiar, raw.current.ticket, now)).toBe(false);
 });

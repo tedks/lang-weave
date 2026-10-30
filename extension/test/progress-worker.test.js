@@ -77,16 +77,20 @@ test('words actions: Practice now serves the chosen card first, Reset is guarded
     const chosen = list.rows.find((row) => row.practise && !data[REVIEW_KEY].cards[row.id]);
     const W = chosen.id, G = chosen.gloss;
     expect(await dispatch({ type: 'wordPractice', id: W, scope: 'es' }, words)).toEqual({ ok: true, introduced: true });
+    clock.now += 1000;
     let next = await dispatch({ type: 'reviewNext' }, review);
     expect(next.card.en).toBe(G);
+    clock.now += 4000;
     await dispatch({ type: 'reviewReveal', ticket: next.card.ticket }, review);
     expect((await dispatch({ type: 'reviewRate', ticket: next.card.ticket, rating: 'medium' }, review)).interval).toBe(2);
+    // A new word chosen with Practice now still measures its latency from when the page showed it.
+    expect(data[RETRIEVALS_KEY].retrievals.at(-1).slice(0, 7)).toEqual([W, clock.now, 'standalone', 'productive', 'medium', 0, 4000]);
 
     // A card not due for two days: Practice now makes it an early review scheduled by FSRS.
     clock.now += DAY_MS;
     expect(data[REVIEW_KEY].cards[W].due).toBeGreaterThan(clock.now);
     expect(await dispatch({ type: 'wordPractice', id: W, scope: 'es' }, words)).toEqual({ ok: true, introduced: false });
-    expect(data[REVIEW_KEY].current).toMatchObject({ word: W, practice: true, revealed: false });
+    expect(data[REVIEW_KEY].current).toMatchObject({ word: W, practice: data[REVIEW_KEY].cards[W].due, revealed: false });
     expect(data[REVIEW_KEY].current.shownAt).toBeUndefined();
     clock.now += 2000;
     next = await dispatch({ type: 'reviewNext' }, review);
