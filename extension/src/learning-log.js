@@ -47,7 +47,7 @@ const has = (allowed, id) => {
 const PERSONAL_ID = /^personal:[a-z]{2,3}(?:-[a-z0-9]{2,8})*:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function validWordId(id) {
   if (typeof id !== 'string') return false;
-  if (PERSONAL_ID.test(id)) return true;
+  if (PERSONAL_ID.test(id)) return id.length <= 100;
   return id.length > 0 && id.length <= 50 && id.trim() === id && id.split(/\s+/).length <= 5 &&
     !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
     !/\.[\p{L}\p{N}]/u.test(id);
