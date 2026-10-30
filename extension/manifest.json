@@ -40,7 +40,21 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/*.js"
+        "src/catalog.js",
+        "src/content.js",
+        "src/events.js",
+        "src/hash.js",
+        "src/language-name.js",
+        "src/learning.js",
+        "src/levels.js",
+        "src/page.js",
+        "src/personal-capture.js",
+        "src/personal.js",
+        "src/review.js",
+        "src/semantic.js",
+        "src/settings.js",
+        "src/text.js",
+        "src/vocabulary.js"
       ],
       "matches": [
         "http://*/*",
