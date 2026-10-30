@@ -16,3 +16,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T18:40:43-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Popup/options PR #25 adds My words and Personal entries links to bare
+    capture.html without a nonce. The sender path and personalList work, verified
+    in Chromium smoke. Direct opening still shows an empty #selected box and a Capture
+    a word title above the entries list (capture.html:6,13); this is the UX audit
+    A5 empty state and belongs to this later my-words surface work, outside the popup/options
+    repair boundary.'
