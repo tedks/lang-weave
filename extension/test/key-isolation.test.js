@@ -45,7 +45,10 @@ async function workerFixture({ isolation, initial = {} }) {
     if (!listeners.some((listener) => listener(msg, sender, done))) done(undefined);
   });
   return { data, writes, dispatch, popup, options, page,
-    releaseIsolation() { releaseIsolation?.(); },
+    releaseIsolation() {
+      expect(typeof releaseIsolation).toBe('function');
+      releaseIsolation();
+    },
     restore() { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; } };
 }
 
@@ -81,6 +84,9 @@ test('missing access-level API never migrates a legacy key from settings', async
     expect(await f.dispatch({ type: 'save', settings: { density: 'heavy' } }, f.options)).toEqual({ ok: true });
     expect(f.data.settings.apiKey).toBe('legacy-secret');
     expect((await f.dispatch({ type: 'status' })).pastedKey).toBe(true);
+    expect(await f.dispatch({ type: 'save', consentShown: true,
+      settings: { newSitesEnabled: false } }, f.options)).toEqual({ ok: true });
+    expect(f.data.settings.apiKey).toBe('legacy-secret');
     expect(await f.dispatch({ type: 'removeKey' }, f.options)).toEqual({ ok: true });
     expect(f.data.settings.apiKey).toBeUndefined();
     expect(f.data.apiKey).toBe('');
@@ -105,7 +111,7 @@ test('a key save arriving during startup waits for the isolation probe', async (
     let settled = false;
     const pending = f.dispatch({ type: 'save', apiKey: 'new-secret' }, f.options);
     pending.then(() => { settled = true; });
-    await Promise.resolve();
+    await new Promise((done) => setTimeout(done, 0));
     expect(settled).toBe(false);
     f.releaseIsolation();
     expect(await pending).toEqual({ ok: true });
