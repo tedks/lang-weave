@@ -35,3 +35,12 @@ log_events:
     Not wired in. Phase 2 (after worker-split): integrate per docs/LEARNING-CORE-MISSION.md
     (scheduleCard -> reviewCard, cleanReview keeps fsrs, backup schema 2 with a tolerant-reader
     release first, desiredRetention setting). Issue stays open.'
+- time: 2026-10-30T19:10:52-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Phase 2 LANDED: tolerant reader #24 merged as f99e475 (0.12.5), writer
+    #26 merged as d7acbb9 (0.12.6). review.js schedules with FSRS-6 (fsrs.js, verified
+    against py-fsrs v6.3.2 / ts-fsrs v6.0.0) at desired retention 0.9 (settable 0.85-0.9),
+    migrating cards at their next rating; backups carry FSRS state in schema 2. Falsification
+    test available via learningStats calibration once a few hundred reviews are logged
+    (follow-up: fsrs-7-evaluation).'
