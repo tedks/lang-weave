@@ -1,0 +1,21 @@
+id: hostsource-ships-in-zip
+title: Inherited src/hostsource.js ships in the Store payload and is web-accessible
+desc: 'Council nit on PR #21: the package payload is all of extension/src/, so src/hostsource.js
+  (inherited French native-host source module; quota.js imports localDay from it)
+  ships in the zip and is web-accessible through the src/*.js pattern. Pre-existing,
+  not introduced by the split. Follow-up: move localDay out of hostsource.js and drop
+  the module from the payload, or narrow web_accessible_resources to the content modules
+  that need it.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:36:44-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:36:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
