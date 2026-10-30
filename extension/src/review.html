@@ -43,12 +43,12 @@
       <div id="answer"></div>
       <div id="hint" class="muted"></div>
       <p id="rating-question" class="muted">How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.</p>
-      <div role="group" aria-labelledby="rating-question" aria-describedby="answer hint">
-        <button data-rating="again" aria-keyshortcuts="1"><kbd aria-hidden="true">1</kbd> Again</button>
-        <button data-rating="hard" aria-keyshortcuts="2"><kbd aria-hidden="true">2</kbd> Hard</button>
-        <button data-rating="medium" aria-keyshortcuts="3"><kbd aria-hidden="true">3</kbd> Medium</button>
-        <button data-rating="easy" aria-keyshortcuts="4"><kbd aria-hidden="true">4</kbd> Easy</button>
-        <button id="known">Already know</button>
+      <div role="group" aria-labelledby="rating-question" aria-describedby="rating-help">
+        <button data-rating="again" aria-keyshortcuts="1" aria-describedby="answer hint"><kbd aria-hidden="true">1</kbd> Again</button>
+        <button data-rating="hard" aria-keyshortcuts="2" aria-describedby="answer hint"><kbd aria-hidden="true">2</kbd> Hard</button>
+        <button data-rating="medium" aria-keyshortcuts="3" aria-describedby="answer hint"><kbd aria-hidden="true">3</kbd> Medium</button>
+        <button data-rating="easy" aria-keyshortcuts="4" aria-describedby="answer hint"><kbd aria-hidden="true">4</kbd> Easy</button>
+        <button id="known" aria-describedby="answer hint">Already know</button>
       </div>
       <p id="rating-help" class="muted">Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more. Already know stops reviewing the word, and with gradual learning on, a third Easy in a row does too.</p>
     </div>

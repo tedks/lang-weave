@@ -243,6 +243,11 @@ test('Space or Enter reveals and keys 1 to 4 rate Again, Hard, Medium and Easy',
     // A digit works while the focused control is a rating button, and the
     // physical key counts on layouts where the digit needs Shift (AZERTY).
     expect(page.doc.activeElement.dataset.rating).toBe('medium');
+    // The numpad with NumLock off sends navigation keys; they must not rate.
+    page.press('ArrowDown', { code: 'Numpad2' });
+    page.press('End', { code: 'Numpad1' });
+    await settle();
+    expect(queue.ratings()).toEqual([]);
     page.press('&', { code: 'Digit1' });
     await settle();
     expect(page.$('prompt').textContent).toBe('but');
@@ -327,6 +332,23 @@ test('a stale card offers Reload queue instead of leaving the page stuck', async
     expect(page.$('retry').hidden).toBe(true);
     expect(page.$('notice').textContent).toBe('');
     expect(page.doc.activeElement).toBe(page.$('reveal'));
+
+    // A transient failure followed by a success clears the reload offer, so
+    // focus goes to the rating and Enter rates instead of reloading.
+    let dropped = true;
+    const original = globalThis.chrome.runtime.sendMessage;
+    globalThis.chrome.runtime.sendMessage = async (message) => {
+      if (message.type === 'reviewReveal' && dropped) { dropped = false; throw new Error('Receiving end does not exist.'); }
+      return original(message);
+    };
+    page.$('reveal').click();
+    await settle();
+    expect(page.$('retry').hidden).toBe(false);
+    page.$('reveal').click();
+    await settle();
+    expect(page.$('solution').hidden).toBe(false);
+    expect(page.$('retry').hidden).toBe(true);
+    expect(page.doc.activeElement.dataset.rating).toBe('medium');
   } finally {
     await page.restore();
   }
@@ -377,4 +399,23 @@ test('the rating help states the scheduler\'s intervals for a new card', () => {
   expect(after('easy')).toBe(7 * SCHEDULER_DAY_MS);
   const help = body.match(/<p id="rating-help"[^>]*>([^<]*)<\/p>/)[1];
   expect(help).toContain('Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more.');
+});
+
+test('the finish card withholds a next-review claim an Easy card could falsify', async () => {
+  // A mature card rated Medium can come back after a fresh card rated Easy.
+  const queue = fakeQueue(WORDS.slice(0, 2), { returns: { ...RETURNS, medium: 8 * DAY_MS } });
+  const page = await mount('easy-withhold', queue.sendMessage);
+  try {
+    await settle();
+    for (const rating of ['medium', 'easy']) {
+      page.$('reveal').click();
+      await settle();
+      page.doc.querySelector(`[data-rating="${rating}"]`).click();
+      await settle();
+    }
+    expect(page.$('finish-summary').textContent).toBe('You completed 2 reviews.');
+    expect(page.$('finish-next').textContent).toBe('');
+  } finally {
+    await page.restore();
+  }
 });

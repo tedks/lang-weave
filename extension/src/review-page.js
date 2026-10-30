@@ -3,10 +3,12 @@ const DAY_MS = 86400000;
 const AUTO_RELOAD_MS = 60 * 60 * 1000;
 // Number keys follow the on-screen order. "Already know" has no key: retiring a
 // word should take a deliberate click, never a stray keystroke.
-// event.code covers layouts such as AZERTY, where the digit row needs Shift.
 const RATING_KEYS = { 1: 'again', 2: 'hard', 3: 'medium', 4: 'easy' };
-const RATING_CODES = { Digit1: 'again', Digit2: 'hard', Digit3: 'medium', Digit4: 'easy',
-  Numpad1: 'again', Numpad2: 'hard', Numpad3: 'medium', Numpad4: 'easy' };
+// The physical digit row also counts, for layouts such as AZERTY where an
+// unshifted digit key types a symbol. Only printable keys qualify, so the
+// numpad with NumLock off (End, ArrowDown, ...) never rates a card; with
+// NumLock on the numpad already sends the digits themselves.
+const RATING_CODES = { Digit1: 'again', Digit2: 'hard', Digit3: 'medium', Digit4: 'easy' };
 let card = null;
 let busy = false;
 let loadGeneration = 0;
@@ -14,7 +16,7 @@ let refreshQueued = false;
 let returnTimer = null;
 // Page-local session summary. It holds only counts and the due times the worker
 // returned for ratings made in this tab; nothing here is stored.
-let session = { language: null, reviewed: 0, returns: [] };
+let session = { language: null, reviewed: 0, returns: [], easy: [] };
 
 async function send(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, ...fields });
@@ -47,8 +49,8 @@ function midnight(time) {
 // Due times from this session that are still ahead. A past one has already come
 // back and was either re-rated here (a newer due time was recorded) or handled
 // on another surface, so it no longer describes a future review.
-function upcoming(now = Date.now()) {
-  return session.returns.filter((due) => due > now);
+function upcoming(now = Date.now(), list = session.returns) {
+  return list.filter((due) => due > now);
 }
 
 // When the earliest card rated in this session comes back, and how many of this
@@ -59,6 +61,10 @@ function nextReturn(now = Date.now()) {
   const first = Math.min(...returns);
   const day = midnight(first);
   const count = returns.filter((due) => midnight(due) === day).length;
+  // An Easy card may or may not have been retired (see the rating handler). If
+  // one could come back on or before that day, neither the date nor the count
+  // can be stated truthfully, so say nothing.
+  if (upcoming(now, session.easy).some((due) => midnight(due) <= day)) return '';
   const days = Math.round((day - midnight(now)) / DAY_MS);
   const when = days <= 0
     ? `today from ${new Date(first).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
@@ -107,7 +113,7 @@ async function load() {
   const response = await send('reviewNext');
   if (generation !== loadGeneration) return;
   $('retry').hidden = true;
-  if (response.language !== session.language) session = { language: response.language, reviewed: 0, returns: [] };
+  if (response.language !== session.language) session = { language: response.language, reviewed: 0, returns: [], easy: [] };
   $('language').textContent = `Reviewing ${response.language}`;
   for (const name of document.querySelectorAll('.language-name')) name.textContent = response.language;
   showQueue(response);
@@ -147,8 +153,10 @@ async function run(action, { follow = true } = {}) {
   main?.setAttribute('aria-busy', 'true');
   $('notice').textContent = '';
   for (const button of document.querySelectorAll('button')) button.disabled = true;
-  try { await action(); }
-  catch (error) {
+  try {
+    await action();
+    $('retry').hidden = true;
+  } catch (error) {
     $('notice').textContent = error.message || 'Review failed';
     // A failed load, or a card the worker no longer accepts ("Reload the
     // queue."), leaves the page stale; offer the reload the error asks for.
@@ -191,9 +199,11 @@ for (const button of document.querySelectorAll('[data-rating]')) {
     const result = await send('reviewRate', { ticket: card.ticket, rating: button.dataset.rating });
     session.reviewed++;
     // With gradual learning on, a third Easy in a row retires the word, and the
-    // worker's reply does not say whether that happened. Leave Easy out rather
-    // than promise a return that may never come.
-    if (button.dataset.rating !== 'easy' && Number.isSafeInteger(result.due)) session.returns.push(result.due);
+    // worker's reply does not say whether that happened. Easy returns are kept
+    // apart: never promised, only used to withhold a claim they could falsify.
+    if (Number.isSafeInteger(result.due)) {
+      (button.dataset.rating === 'easy' ? session.easy : session.returns).push(result.due);
+    }
     await load();
   }));
 }
@@ -220,7 +230,7 @@ document.addEventListener('keydown', (event) => {
     $('reveal').click();
     return;
   }
-  const rating = RATING_KEYS[event.key] || RATING_CODES[event.code];
+  const rating = RATING_KEYS[event.key] || (event.key?.length === 1 ? RATING_CODES[event.code] : undefined);
   if (!rating || event.repeat || !card || $('solution').hidden) return;
   event.preventDefault();
   document.querySelector(`[data-rating="${rating}"]`)?.click();
