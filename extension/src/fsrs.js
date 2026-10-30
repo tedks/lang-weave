@@ -9,8 +9,9 @@
 // this change, so the tests pin them and the formulas to hand-computed values.
 //
 // Deliberate differences from the reference schedulers, all of which are product choices:
-// - Elapsed time is whole local calendar days (`elapsedDays`); the same day uses FSRS's
-//   short-term (same-day) stability formula.
+// - Elapsed time is whole 24-hour periods since the last review (`elapsedDays`), as py-fsrs
+//   counts it; under one day uses FSRS's short-term (same-day) stability formula. Calendar
+//   days would turn a ten-minute retry across midnight into a one-day review.
 // - No interval fuzz: scheduling is deterministic so the worker tests can pin it.
 // - No learning-step state machine. Again schedules a fixed retry step (10 minutes, as the
 //   existing review.js does) and records the FSRS post-lapse stability.
@@ -132,11 +133,10 @@ export function intervalDays(stability, retention = DEFAULT_RETENTION,
   return Math.min(maxInterval, Math.max(1, Math.round(raw)));
 }
 
-// Whole local calendar days from `fromMs` to `toMs`; a clock rollback counts as 0.
+// Whole 24-hour periods from `fromMs` to `toMs`; a clock rollback counts as 0.
 export function elapsedDays(fromMs, toMs) {
   if (!Number.isSafeInteger(fromMs) || !Number.isSafeInteger(toMs)) throw new RangeError('FSRS: invalid timestamp');
-  const day = (ms) => { const d = new Date(ms); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY_MS; };
-  return Math.max(0, Math.round(day(toMs) - day(fromMs)));
+  return Math.max(0, Math.floor((toMs - fromMs) / DAY_MS));
 }
 
 // Stored per-card FSRS state: { stability, difficulty, lastReview (ms), lapses }.
@@ -152,13 +152,16 @@ export function cleanFsrsState(raw) {
 
 // One scheduler step. `fsrs` is the card's stored state, or null for a card never rated.
 // Returns the new stored state plus the values the learning log records. A lapse is an
-// Again on a rated card at least one calendar day after its last review; repeated same-day
-// Agains during the retry step are not further lapses.
+// Again on a rated card at least one day (24 hours) after its last review; repeated Agains
+// during the retry step are not further lapses.
 export function reviewCard(fsrs, rating, now, { retention = DEFAULT_RETENTION, maxInterval = MAX_INTERVAL_DAYS,
   againStepMs = AGAIN_STEP_MS, parameters = DEFAULT_PARAMETERS } = {}) {
   if (!Number.isSafeInteger(now) || now < 0) throw new RangeError('FSRS: invalid review time');
   if (!Number.isSafeInteger(againStepMs) || againStepMs < 0 || againStepMs > DAY_MS)
     throw new RangeError('FSRS: invalid Again step');
+  // Stored cards and log entries are validated at <= 365 days; never schedule past that.
+  if (!Number.isSafeInteger(maxInterval) || maxInterval < 1 || maxInterval > MAX_INTERVAL_DAYS)
+    throw new RangeError('FSRS: invalid maximum interval');
   const g = grade(rating);
   const prior = fsrs == null ? null : cleanFsrsState(fsrs);
   if (fsrs != null && !prior) throw new RangeError('FSRS: invalid stored state');
@@ -171,6 +174,10 @@ export function reviewCard(fsrs, rating, now, { retention = DEFAULT_RETENTION, m
   }
   const lapses = Math.min(MAX_LAPSES, (prior?.lapses || 0) + (prior && g === 1 && elapsed >= 1 ? 1 : 0));
   const interval = g === 1 ? 0 : intervalDays(state.stability, retention, { maxInterval, parameters });
+  // Rollback policy: the current clock is trusted, as a correction. A review before the stored
+  // last review counts 0 elapsed days and becomes the new last review, so due >= lastReview
+  // always holds (withFsrs relies on it). A temporary rollback that later reverts makes the
+  // next gap look longer by the rollback; that is the accepted cost.
   return { fsrs: { ...state, lastReview: now, lapses }, interval,
     due: g === 1 ? now + againStepMs : now + interval * DAY_MS, elapsedDays: elapsed, predictedRecall: predicted };
 }
@@ -201,11 +208,12 @@ export function migrateCard(card, w = DEFAULT_PARAMETERS) {
     difficulty: clampDifficulty(initialDifficultyRaw(grade(last), w)), lastReview, lapses: 0 };
 }
 
-// A copy of `card` with `fsrs` attached when it is derivable and not already valid.
+// A copy of `card` with `fsrs` attached when it is derivable and not already valid. A stored
+// state whose last review is after the card's due time is stale and is re-derived.
 export function withFsrs(card, w = DEFAULT_PARAMETERS) {
   if (!card || typeof card !== 'object' || Array.isArray(card)) return card;
-  const existing = cleanFsrsState(card?.fsrs);
-  if (existing) return { ...card, fsrs: existing };
+  const existing = cleanFsrsState(card.fsrs);
+  if (existing && !(Number.isSafeInteger(card.due) && existing.lastReview > card.due)) return { ...card, fsrs: existing };
   const { fsrs: _invalid, ...rest } = card;
   const derived = migrateCard(rest, w);
   return derived ? { ...rest, fsrs: derived } : rest;

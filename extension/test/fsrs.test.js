@@ -94,37 +94,51 @@ test('invalid states, elapsed days and parameters fail closed', () => {
   expect(() => retrievability(10, 1, [...DEFAULT_PARAMETERS.slice(0, 20), 0])).toThrow(RangeError);
 });
 
-test('elapsed days count local calendar days and treat a clock rollback as zero', () => {
-  const evening = new Date(2026, 9, 17, 22, 0).getTime();
-  expect(elapsedDays(evening, new Date(2026, 9, 18, 7, 0).getTime())).toBe(1);
-  expect(elapsedDays(evening, new Date(2026, 9, 17, 23, 59).getTime())).toBe(0);
-  expect(elapsedDays(evening, new Date(2026, 10, 17, 1, 0).getTime())).toBe(31);
+test('elapsed days are whole 24-hour periods, as py-fsrs counts them; a rollback is zero', () => {
+  const evening = Date.parse('2026-10-17T22:00:00Z');
+  expect(elapsedDays(evening, evening + 9 * 3600000)).toBe(0); // across midnight
+  expect(elapsedDays(evening, evening + DAY - 1)).toBe(0);
+  expect(elapsedDays(evening, evening + DAY)).toBe(1);
+  expect(elapsedDays(evening, evening + 25 * 3600000)).toBe(1);
+  expect(elapsedDays(evening, evening + 31 * DAY + 3600000)).toBe(31);
   expect(elapsedDays(evening, evening - DAY)).toBe(0);
   expect(() => elapsedDays(1.5, evening)).toThrow(RangeError);
 });
 
+test('a ten-minute retry across midnight is a same-day step, not a review or a second lapse', () => {
+  const lateNight = new Date(2026, 9, 11, 23, 58).getTime(); // 23:58 local time
+  const card = reviewCard(null, 'medium', lateNight - 10 * DAY).fsrs;
+  const lapse = reviewCard(card, 'again', lateNight);
+  expect(lapse.fsrs.lapses).toBe(1);
+  const retry = reviewCard(lapse.fsrs, 'medium', lateNight + 11 * 60000); // 00:09 the next local day
+  expect(retry.elapsedDays).toBe(0);
+  expect(retry.fsrs.stability).toBe(nextState(lapse.fsrs, 'medium', 0).stability);
+  expect(retry.interval).toBe(reviewCard(lapse.fsrs, 'medium', lateNight + 60000).interval);
+  expect(reviewCard(lapse.fsrs, 'again', lateNight + 11 * 60000).fsrs.lapses).toBe(1);
+});
+
 test('reviewCard schedules on actual elapsed time and returns what the log records', () => {
-  const t0 = new Date(2026, 9, 1, 9, 0).getTime();
+  const t0 = Date.parse('2026-10-01T09:00:00Z');
   const first = reviewCard(null, 'medium', t0);
   expect(first).toEqual({ fsrs: { stability: 2.3065, difficulty: first.fsrs.difficulty, lastReview: t0, lapses: 0 },
     interval: 2, due: t0 + 2 * DAY, elapsedDays: null, predictedRecall: null });
   // Reviewed five days late: the elapsed time, not the scheduled interval, drives the update.
-  const late = new Date(2026, 9, 8, 9, 0).getTime();
+  const late = t0 + 7 * DAY;
   const second = reviewCard(first.fsrs, 'medium', late);
   expect(second.elapsedDays).toBe(7);
   close(second.predictedRecall, retrievability(2.3065, 7));
   close(second.fsrs.stability, nextState(first.fsrs, 'medium', 7).stability);
   expect(second.due).toBe(late + second.interval * DAY);
-  const onTime = reviewCard(first.fsrs, 'medium', new Date(2026, 9, 3, 9, 0).getTime());
+  const onTime = reviewCard(first.fsrs, 'medium', t0 + 2 * DAY);
   expect(second.fsrs.stability).toBeGreaterThan(onTime.fsrs.stability);
 });
 
 test('Again keeps memory across a lapse, uses the retry step and counts one lapse per forgetting', () => {
-  const t0 = new Date(2026, 9, 1, 9, 0).getTime();
+  const t0 = Date.parse('2026-10-01T09:00:00Z');
   let card = reviewCard(null, 'easy', t0).fsrs;
-  card = reviewCard(card, 'easy', new Date(2026, 9, 9, 9, 0).getTime()).fsrs;
+  card = reviewCard(card, 'easy', t0 + 8 * DAY).fsrs;
   const before = card.stability;
-  const at = new Date(2026, 10, 20, 9, 0).getTime();
+  const at = t0 + 50 * DAY;
   const lapse = reviewCard(card, 'again', at);
   expect(lapse).toMatchObject({ interval: 0, due: at + AGAIN_STEP_MS });
   expect(lapse.fsrs.lapses).toBe(1);
@@ -135,7 +149,15 @@ test('Again keeps memory across a lapse, uses the retry step and counts one laps
   expect(retry.fsrs.lapses).toBe(1); // same-day retry is not another lapse
   expect(reviewCard(null, 'again', t0).fsrs.lapses).toBe(0); // a new card cannot lapse
   expect(() => reviewCard({ stability: -1 }, 'again', at)).toThrow(RangeError);
+  // Clock rollback: the current clock is trusted, elapsed is 0 and due never precedes the last review.
+  const rolledBack = reviewCard(card, 'medium', card.lastReview - 3 * DAY);
+  expect(rolledBack.elapsedDays).toBe(0);
+  expect(rolledBack.fsrs.lastReview).toBe(card.lastReview - 3 * DAY);
+  expect(rolledBack.due).toBeGreaterThanOrEqual(rolledBack.fsrs.lastReview);
+  expect(withFsrs({ due: rolledBack.due, interval: rolledBack.interval, reviews: 3, fsrs: rolledBack.fsrs }).fsrs)
+    .toEqual(rolledBack.fsrs);
   expect(() => reviewCard(null, 'again', -1)).toThrow(RangeError);
+  for (const maxInterval of [0, 366, 1.5]) expect(() => reviewCard(card, 'medium', at, { maxInterval })).toThrow(RangeError);
   expect(reviewCard(card, 'medium', at, { retention: 0.85 }).interval)
     .toBeGreaterThan(reviewCard(card, 'medium', at).interval);
 });
@@ -179,5 +201,30 @@ test('migration derives FSRS state from the existing card shape and preserves ev
   const kept = { stability: 40, difficulty: 3, lastReview: 7, lapses: 1 };
   expect(withFsrs({ ...card, fsrs: kept }).fsrs).toEqual(kept);
   expect(withFsrs({ ...card, fsrs: { stability: 'x' } }).fsrs).toEqual(fsrs);
+  // A stored state reviewed after the card's due time is stale and is re-derived.
+  expect(withFsrs({ ...card, fsrs: { ...kept, lastReview: due + 1 } }).fsrs).toEqual(fsrs);
+  expect(withFsrs({ ...card, fsrs: { ...kept, lastReview: due } }).fsrs).toEqual({ ...kept, lastReview: due });
   expect(withFsrs({ due, interval: 0, reviews: 0 })).toEqual({ due, interval: 0, reviews: 0 });
+});
+
+test('matches py-fsrs 6.3.0 on 24 recorded review sequences (fixture generated from upstream)', async () => {
+  const reference = await Bun.file(new URL('./fsrs-reference.json', import.meta.url)).json();
+  expect(reference.source).toStartWith('py-fsrs 6.3.0');
+  expect(reference.parameters).toEqual([...DEFAULT_PARAMETERS]);
+  const names = [null, 'again', 'hard', 'medium', 'easy'];
+  let checked = 0;
+  for (const [[first, , s0, d0, i0], ...steps] of reference.sequences) {
+    let state = initialState(names[first]);
+    expect(state.stability).toBeCloseTo(s0, 12);
+    expect(state.difficulty).toBeCloseTo(d0, 12);
+    expect(intervalDays(state.stability)).toBe(i0);
+    for (const [g, elapsed, s, d, interval] of steps) {
+      state = nextState(state, names[g], elapsed);
+      expect(Math.abs(state.stability - s) / s).toBeLessThan(1e-12);
+      expect(state.difficulty).toBeCloseTo(d, 12);
+      expect(intervalDays(state.stability)).toBe(interval);
+      checked++;
+    }
+  }
+  expect(checked).toBe(24 * 12);
 });
