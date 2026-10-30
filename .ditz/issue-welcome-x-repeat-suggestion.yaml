@@ -1,0 +1,21 @@
+id: welcome-x-repeat-suggestion
+title: 'Hide or update the Store welcome X suggestion after x.com is already granted
+  and enabled. PR #36 council nit: revisiting Welcome shows Allow x.com again, and
+  clicking it can explicitly turn a later off override back on. Current behavior requires
+  a click and is safe; proper suppression must consider both the actual optional host
+  grant and the site override, including an all-sites grant with only-sites policy.
+  Nonblocking UI follow-up.'
+desc: ""
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:49:13-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:49:13-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
