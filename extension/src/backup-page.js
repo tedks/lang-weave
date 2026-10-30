@@ -74,7 +74,10 @@ function renderPreview(preview) {
   const preferences = preview.preferences || {};
   $('sourceVersion').textContent = `Exported by Lang Weave ${String(preview.exportedByVersion ?? '?')}.`;
   $('counts').textContent = `Languages: ${languages || 'none'} · Generated packs: ${count(preview.packs)} · Review cards: ${count(preview.cards)} · Personal entries: ${count(preview.personal)}.`;
-  $('preferences').textContent = `Learning preferences: language ${String(preferences.language ?? '?')}, level ${String(preferences.levelOverride ?? '?')}, gradual ${String(preferences.gradual ?? '?')}, new words/day ${String(preferences.newWordsPerDay ?? '?')}, density ${String(preferences.density ?? '?')}, inline recall ${String(preferences.inlineRecall ?? '?')}.`;
+  $('preferences').textContent = `Learning preferences: language ${String(preferences.language ?? '?')}, level ${String(preferences.levelOverride ?? '?')}, gradual ${String(preferences.gradual ?? '?')}, new words/day ${String(preferences.newWordsPerDay ?? '?')}, density ${String(preferences.density ?? '?')}, inline recall ${String(preferences.inlineRecall ?? '?')}${Object.hasOwn(preferences, 'desiredRetention') ? `, target recall ${String(preferences.desiredRetention)}` : ''}.`;
+  const omitted = [preview.omittedRetrievals, preview.omittedExposureWords].some((n) => n !== 0);
+  $('measurements').textContent = `Learning measurements: ${count(preview.retrievals)} logged reviews, exposure counts for ${count(preview.exposureWords)} words.` +
+    (omitted ? ` Left out because their words are no longer in any installed catalog: ${count(preview.omittedRetrievals)} reviews and exposure counts for ${count(preview.omittedExposureWords)} words.` : '');
   $('summary').hidden = false;
 }
 

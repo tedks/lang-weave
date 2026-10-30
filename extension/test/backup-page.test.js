@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
 
 const markup = `<button id="export"></button><input id="file" type="file"><button id="preview"></button>
-  <section id="summary" hidden><p id="sourceVersion"></p><p id="counts"></p><p id="preferences"></p>
+  <section id="summary" hidden><p id="sourceVersion"></p><p id="counts"></p><p id="preferences"></p><p id="measurements"></p>
     <input id="confirm" type="checkbox"><button id="import" disabled></button></section><p id="notice"></p>`;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 

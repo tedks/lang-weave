@@ -7,13 +7,29 @@ import { REVIEW_KEY } from './review.js';
 import { PENDING_KEY, SENT_KEY } from './events.js';
 import { ENCOUNTERS_KEY } from './encounters.js';
 import { entryId } from './catalog.js';
+import { cleanFsrsState, storedFsrs, MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
+import { RETRIEVALS_KEY, EXPOSURES_KEY, MAX_RETRIEVALS, MAX_EXPOSURE_WORDS, cleanRetrievals,
+  cleanExposures } from './learning-log.js';
 
 export const BACKUP_FORMAT = 'lang-weave-learning-backup';
+// The schema this build writes, and the schemas it reads. Schema 2 adds per-card FSRS state,
+// the learning log (retrievals, exposures) and desiredRetention. A build must read a schema
+// before any build writes it (docs/LEARNING-CORE-MISSION.md, "Release order").
 export const BACKUP_SCHEMA = 1;
+export const READ_SCHEMAS = Object.freeze([1, 2]);
 export const MAX_BACKUP_BYTES = 1024 * 1024;
 export const IMPORT_JOURNAL_KEY = 'learningImportJournalV1';
 export const IMPORT_RECEIPT_KEY = 'learningImportReceiptV1';
-const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY];
+const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY];
+// Storage suffix -> backup scope field. Every list of learning keys derives from this one.
+const SCOPE_FIELDS = Object.freeze({ [REVIEW_KEY]: 'review', [PENDING_KEY]: 'events', [SENT_KEY]: 'shown',
+  [ENCOUNTERS_KEY]: 'encounters', [RETRIEVALS_KEY]: 'retrievals', [EXPOSURES_KEY]: 'exposures' });
+export const LEARNING_STORAGE_KEYS = Object.freeze(['languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
+const LOG_FIELDS = ['retrievals', 'exposures'];
+// Validation context: `source` is local storage (export, target checks) rather than a file;
+// `schema` is the file's schema (or, for storage, the schema being written); `omitted`
+// counts unverified log entries dropped under the CTO's ruling B.
+const mode = (source, schema) => ({ source, schema, omitted: { retrievals: 0, exposures: 0 } });
 const DIRECT_KEYS = new Set(['settings', 'languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
 const NON_LEARNING_KEYS = new Set(['apiKey', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus',
   'quotaState', 'reloadedFor', IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
@@ -24,7 +40,7 @@ const BAD_KEY = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_SCOPES = 80;
 const MAX_CARDS = 5000;
 const SETTINGS_FIELDS = ['enabled', 'model', 'levelOverride', 'language', 'gradual',
-  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey'];
+  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'desiredRetention'];
 
 function fail(reason) { throw new Error(`Learning backup: ${reason}`); }
 function object(value, name) {
@@ -89,9 +105,9 @@ function cardId(value, scope, known = false) {
   } else if (!known) fail('unverified historical card; old installation remains unchanged');
   return value;
 }
-function card(value) {
-  keys(value, ['due', 'interval', 'reviews', 'familiar', 'easyStreak', 'introducedDay', 'introGateDay', 'introReceipt'],
-    'card', ['due', 'interval', 'reviews']);
+function card(value, m) {
+  keys(value, ['due', 'interval', 'reviews', 'familiar', 'easyStreak', 'introducedDay', 'introGateDay', 'introReceipt',
+    ...(m.source || m.schema >= 2 ? ['fsrs'] : [])], 'card', ['due', 'interval', 'reviews']);
   const result = { due: integer(value.due, 0, Number.MAX_SAFE_INTEGER, 'due time'),
     interval: integer(value.interval, 0, 365, 'interval'), reviews: integer(value.reviews, 0, 10000, 'review count') };
   if (Object.hasOwn(value, 'familiar')) { if (value.familiar !== true) fail('invalid familiarity'); result.familiar = true; }
@@ -99,10 +115,17 @@ function card(value) {
   if (Object.hasOwn(value, 'introducedDay')) result.introducedDay = day(value.introducedDay);
   if (Object.hasOwn(value, 'introGateDay')) result.introGateDay = day(value.introGateDay);
   // The one-use receipt belongs to an installation/document and is deliberately omitted.
+  if (Object.hasOwn(value, 'fsrs')) {
+    if (!cleanFsrsState(value.fsrs)) fail('invalid FSRS state');
+    // State that no longer agrees with due/interval is stale and re-derived later; schema 1
+    // never carries it.
+    const fsrs = m.schema >= 2 ? storedFsrs({ ...result, fsrs: value.fsrs }) : null;
+    if (fsrs) result.fsrs = fsrs;
+  }
   return result;
 }
-function review(value, scope, source = false, installed = {}) {
-  keys(value, source ? ['version', 'cards', 'current', 'inline', 'learning'] : ['version', 'cards', 'learning'],
+function review(value, scope, m, installed = {}) {
+  keys(value, m.source ? ['version', 'cards', 'current', 'inline', 'learning'] : ['version', 'cards', 'learning'],
     'review', ['version', 'cards', 'learning']);
   if (value.version !== 1) fail('unsupported review version');
   const cards = Object.create(null);
@@ -115,8 +138,8 @@ function review(value, scope, source = false, installed = {}) {
     if (unverified) fail(`${unverified} unverified historical card ID(s); old installation remains unchanged`);
   }
   for (const [id, valueCard] of Object.entries(sourceCards))
-    cards[cardId(id, scope, known.has(id))] = card(valueCard);
-  keys(value.learning, source ? ['day', 'count', 'pending'] : ['day', 'count'], 'learning', ['day', 'count']);
+    cards[cardId(id, scope, known.has(id))] = card(valueCard, m);
+  keys(value.learning, m.source ? ['day', 'count', 'pending'] : ['day', 'count'], 'learning', ['day', 'count']);
   return { version: 1, cards, learning: { day: day(value.learning.day, true),
     count: integer(value.learning.count, 0, 20, 'introduction count') } };
 }
@@ -141,19 +164,23 @@ function packs(value) {
   }
   return result;
 }
-function preferences(value, installed) {
-  keys(value, ['language', 'levelOverride', 'gradual', 'newWordsPerDay', 'density', 'inlineRecall'],
-    'preferences', ['language', 'levelOverride', 'gradual', 'newWordsPerDay', 'density', 'inlineRecall']);
+function preferences(value, installed, m) {
+  keys(value, ['language', 'levelOverride', 'gradual', 'newWordsPerDay', 'density', 'inlineRecall',
+    ...(m.schema >= 2 ? ['desiredRetention'] : [])],
+  'preferences', ['language', 'levelOverride', 'gradual', 'newWordsPerDay', 'density', 'inlineRecall']);
   language(value.language);
   if (value.language !== 'es' && !Object.hasOwn(installed, value.language)) fail('selected language pack is missing');
   integer(value.levelOverride, 0, 4, 'level');
   integer(value.newWordsPerDay, 1, 10, 'daily budget');
   if (typeof value.gradual !== 'boolean' || typeof value.inlineRecall !== 'boolean' ||
       !['light', 'normal', 'heavy'].includes(value.density)) fail('invalid learning preference');
+  if (Object.hasOwn(value, 'desiredRetention') && !(typeof value.desiredRetention === 'number' &&
+      value.desiredRetention >= MIN_RETENTION && value.desiredRetention <= MAX_RETENTION)) fail('invalid desired retention');
   return { language: value.language, levelOverride: value.levelOverride, gradual: value.gradual,
-    newWordsPerDay: value.newWordsPerDay, density: value.density, inlineRecall: value.inlineRecall };
+    newWordsPerDay: value.newWordsPerDay, density: value.density, inlineRecall: value.inlineRecall,
+    ...(Object.hasOwn(value, 'desiredRetention') ? { desiredRetention: value.desiredRetention } : {}) };
 }
-function personal(value, source = false) {
+function personal(value, m) {
   keys(value, ['version', 'revision', 'entries', 'history'], 'personal', ['version', 'revision', 'entries', 'history']);
   if (value.version !== 1) fail('unsupported personal version');
   integer(value.revision, 0, Number.MAX_SAFE_INTEGER, 'personal revision');
@@ -177,7 +204,7 @@ function personal(value, source = false) {
   const history = Object.create(null);
   for (const [code, state] of Object.entries(map(value.history, 'personal history', 80))) {
     language(code);
-    history[code] = review(state, `personal:${code}`, source);
+    history[code] = review(state, `personal:${code}`, m);
   }
   const result = { version: 1, revision: value.revision, entries, history };
   if (cleanPersonal(result).unsupported) fail('unsupported personal data');
@@ -216,12 +243,51 @@ function feedbackId(id, allowed, scope, peek = false, encounter = false) {
   if (!allowed.forms.has(bare.toLowerCase())) fail('feedback refers to unknown word');
   return id;
 }
-function feedback(value, scope, installed, personalState, source = false) {
-  keys(value, ['review', 'events', 'shown', 'encounters'], 'scope');
+// Exact card IDs a scope's learning log may name: bundled Spanish forms, the installed pack
+// version's forms, or the personal entry IDs of that language (not orphan history cards).
+function logCatalog(scope, installed, personalState) {
+  if (scope === 'es') return new Set(wordsForLevel(2).map((word) => word.fr));
+  if (scope.startsWith('personal:'))
+    return new Set(personalState.entries.filter((entry) => entry.language === scope.slice(9)).map((entry) => entry.id));
+  const [, code, version] = scope.split(':');
+  return new Set(installed[code]?.version === version ? installed[code].words.map((word) => word.fr) : []);
+}
+// Malformed log data fails closed like every other field. Well-formed entries for words the
+// catalog cannot verify are omitted and counted (CTO ruling B, learning-log-export-unverified-ruling).
+function retrievalLog(value, catalog, m) {
+  keys(value, ['version', 'retrievals'], 'retrieval log', ['version', 'retrievals']);
+  if (value.version !== 1) fail('unsupported retrieval log version');
+  if (!Array.isArray(value.retrievals) || value.retrievals.length > MAX_RETRIEVALS) fail('invalid retrieval log');
+  const clean = cleanRetrievals(value).retrievals;
+  if (clean.length !== value.retrievals.length) fail('invalid retrieval log entry');
+  const kept = clean.filter(([word]) => catalog.has(word));
+  m.omitted.retrievals += clean.length - kept.length;
+  return { version: 1, retrievals: kept };
+}
+function exposureLog(value, catalog, m) {
+  keys(value, ['version', 'words'], 'exposure log', ['version', 'words']);
+  if (value.version !== 1) fail('unsupported exposure log version');
+  const raw = map(value.words, 'exposure log', MAX_EXPOSURE_WORDS);
+  const clean = cleanExposures(value).words;
+  if (Object.keys(clean).length !== Object.keys(raw).length) fail('invalid exposure log entry');
+  const words = Object.create(null);
+  for (const [word, counts] of Object.entries(clean)) {
+    if (catalog.has(word)) words[word] = counts;
+    else m.omitted.exposures++;
+  }
+  return { version: 1, words };
+}
+function feedback(value, scope, installed, personalState, m) {
+  keys(value, ['review', 'events', 'shown', 'encounters', ...(m.schema >= 2 ? LOG_FIELDS : [])], 'scope');
   const result = {};
   if (Object.hasOwn(value, 'review')) {
     if (scope.startsWith('personal:')) fail('personal review belongs in personal history');
-    result.review = review(value.review, scope, source, installed);
+    result.review = review(value.review, scope, m, installed);
+  }
+  if (m.schema >= 2) {
+    const catalog = logCatalog(scope, installed, personalState);
+    if (Object.hasOwn(value, 'retrievals')) result.retrievals = retrievalLog(value.retrievals, catalog, m);
+    if (Object.hasOwn(value, 'exposures')) result.exposures = exposureLog(value.exposures, catalog, m);
   }
   const allowed = knownIds(scope, installed, personalState, result);
   const unverifiedForm = (id, peek = false) => typeof id === 'string' &&
@@ -265,16 +331,16 @@ function feedback(value, scope, installed, personalState, source = false) {
   }
   return result;
 }
-function state(value, source = false) {
+function state(value, m) {
   keys(value, ['preferences', 'packs', 'personal', 'scopes'], 'state', ['preferences', 'packs', 'personal', 'scopes']);
   const installed = packs(value.packs);
-  const own = personal(value.personal, source);
+  const own = personal(value.personal, m);
   const scopes = Object.create(null);
   for (const [id, raw] of Object.entries(map(value.scopes, 'scopes', MAX_SCOPES))) {
     scopeKey(id);
-    scopes[id] = feedback(raw, id, installed, own, source);
+    scopes[id] = feedback(raw, id, installed, own, m);
   }
-  return { preferences: preferences(value.preferences, installed), packs: installed, personal: own, scopes };
+  return { preferences: preferences(value.preferences, installed, m), packs: installed, personal: own, scopes };
 }
 export function parseBackup(json) {
   if (typeof json !== 'string' || new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('file is too large');
@@ -282,11 +348,16 @@ export function parseBackup(json) {
   try { raw = JSON.parse(json); } catch { fail('file is not valid JSON'); }
   keys(raw, ['format', 'schemaVersion', 'exportedByVersion', 'state'], 'file',
     ['format', 'schemaVersion', 'exportedByVersion', 'state']);
-  if (raw.format !== BACKUP_FORMAT || raw.schemaVersion !== BACKUP_SCHEMA) fail('unsupported format or schema version');
+  if (raw.format !== BACKUP_FORMAT) fail('this is not a Lang Weave learning backup');
+  if (!READ_SCHEMAS.includes(raw.schemaVersion)) fail(Number.isSafeInteger(raw.schemaVersion) && raw.schemaVersion > 0
+    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.join(' and ')}. Update Lang Weave to import it`
+    : 'unsupported schema version');
   boundedString(raw.exportedByVersion, 40, 'export tool version');
   if (!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(raw.exportedByVersion)) fail('invalid export tool version');
-  return { format: BACKUP_FORMAT, schemaVersion: BACKUP_SCHEMA,
-    exportedByVersion: raw.exportedByVersion, state: state(raw.state) };
+  const m = mode(false, raw.schemaVersion);
+  const parsed = state(raw.state, m);
+  return { format: BACKUP_FORMAT, schemaVersion: raw.schemaVersion,
+    exportedByVersion: raw.exportedByVersion, state: parsed, omitted: m.omitted };
 }
 function storageEntries(all) {
   object(all, 'storage');
@@ -297,28 +368,30 @@ function storageEntries(all) {
     const scope = storageScopeKey(key);
     const suffix = key.slice(storageKey(scope, '').length);
     if (!LEARNING_SUFFIXES.includes(suffix)) fail('unknown learning key');
-    (scopes[scope] ||= {})[({ [REVIEW_KEY]: 'review', [PENDING_KEY]: 'events',
-      [SENT_KEY]: 'shown', [ENCOUNTERS_KEY]: 'encounters' })[suffix]] = value;
+    (scopes[scope] ||= {})[SCOPE_FIELDS[suffix]] = value;
   }
   const es = scopes.es ||= {};
-  for (const [key, field] of [[REVIEW_KEY, 'review'], [PENDING_KEY, 'events'],
-    [SENT_KEY, 'shown'], [ENCOUNTERS_KEY, 'encounters']])
+  for (const [key, field] of Object.entries(SCOPE_FIELDS))
     if (Object.hasOwn(all, key)) es[field] = all[key];
   return scopes;
 }
-export function createBackup(all, exportedByVersion) {
+export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
+  if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
   const scopes = storageEntries(all);
+  // Schema 1 has no learning log; FSRS card state is stripped by card().
+  if (schema < 2) for (const fields of Object.values(scopes)) for (const field of LOG_FIELDS) delete fields[field];
   const settings = object(all.settings || {}, 'settings');
   validateStorageSettings(settings);
-  const raw = { format: BACKUP_FORMAT, schemaVersion: BACKUP_SCHEMA, exportedByVersion,
+  const raw = { format: BACKUP_FORMAT, schemaVersion: schema, exportedByVersion,
     state: { preferences: {
       language: settings.language ?? 'es', levelOverride: settings.levelOverride ?? 0,
       gradual: settings.gradual ?? false, newWordsPerDay: settings.newWordsPerDay ?? 5,
       density: settings.density ?? 'normal', inlineRecall: settings.inlineRecall ?? false,
+      ...(schema >= 2 && Object.hasOwn(settings, 'desiredRetention') ? { desiredRetention: settings.desiredRetention } : {}),
     }, packs: all.languagePacks || {},
     personal: all.personalVocabularyV1 || { version: 1, revision: 0, entries: [], history: {} },
     scopes } };
-  const clean = { ...raw, state: state(raw.state, true) };
+  const clean = { ...raw, state: state(raw.state, mode(true, schema)) };
   const json = JSON.stringify(clean, null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('supported learning state exceeds file limit');
   return json;
@@ -329,8 +402,7 @@ export function learningPatch(backup, targetSettings) {
   out.languagePacks = backup.state.packs;
   out.personalVocabularyV1 = backup.state.personal;
   for (const [scope, fields] of Object.entries(backup.state.scopes)) {
-    for (const [field, suffix] of [['review', REVIEW_KEY], ['events', PENDING_KEY],
-      ['shown', SENT_KEY], ['encounters', ENCOUNTERS_KEY]])
+    for (const [suffix, field] of Object.entries(SCOPE_FIELDS))
       if (Object.hasOwn(fields, field)) out[storageKey(scope, suffix)] = fields[field];
   }
   return out;
@@ -340,12 +412,26 @@ export function targetFresh(all) {
   validateStorageSettings(all.settings || {});
   if (all.apiKey || all.settings?.apiKey) fail('target has a key; import into a keyless fresh installation');
   if (Object.keys(packs(all.languagePacks || {})).length) fail('target has installed language packs');
-  const own = personal(all.personalVocabularyV1 || { version: 1, revision: 0, entries: [], history: {} }, true);
+  const own = personal(all.personalVocabularyV1 || { version: 1, revision: 0, entries: [], history: {} }, mode(true, 1));
   if (own.entries.length || Object.values(own.history).some((s) => Object.keys(s.cards).length || s.learning.day || s.learning.count))
     fail('target has personal learning');
   for (const [id, raw] of Object.entries(scopes)) {
     if (id !== 'es' && Object.keys(raw).length) fail('target has a learning scope');
-    const clean = feedback(raw, id, {}, own, true);
+    // Any logged retrieval or exposure is learning progress; an unknown log shape is a conflict.
+    if (Object.hasOwn(raw, 'retrievals')) {
+      const log = raw.retrievals;
+      if (!log || typeof log !== 'object' || log.version !== 1 || !Array.isArray(log.retrievals)) fail('unknown learning log format');
+      if (log.retrievals.length) fail('target has learning progress');
+    }
+    if (Object.hasOwn(raw, 'exposures')) {
+      const log = raw.exposures;
+      if (!log || typeof log !== 'object' || log.version !== 1 || !log.words || typeof log.words !== 'object' ||
+          Array.isArray(log.words)) fail('unknown learning log format');
+      if (Object.keys(log.words).length) fail('target has learning progress');
+    }
+    const rest = { ...raw };
+    for (const field of LOG_FIELDS) delete rest[field];
+    const clean = feedback(rest, id, {}, own, mode(true, 1));
     if (Object.keys(clean.review?.cards || {}).length || clean.review?.learning.day || clean.review?.learning.count ||
         clean.events?.length || clean.shown?.words.length || Object.keys(clean.encounters?.counts || {}).length ||
         clean.encounters?.touched.length) fail('target has learning progress');
@@ -366,5 +452,8 @@ export function backupPreview(backup) {
     packs: Object.keys(s.packs).length,
     cards: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.review?.cards || {}).length, 0) +
       Object.values(s.personal.history).reduce((sum, scope) => sum + Object.keys(scope.cards).length, 0),
-    personal: s.personal.entries.length, preferences: s.preferences };
+    personal: s.personal.entries.length, preferences: s.preferences, schemaVersion: backup.schemaVersion,
+    retrievals: Object.values(s.scopes).reduce((sum, scope) => sum + (scope.retrievals?.retrievals.length || 0), 0),
+    exposureWords: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.exposures?.words || {}).length, 0),
+    omittedRetrievals: backup.omitted?.retrievals || 0, omittedExposureWords: backup.omitted?.exposures || 0 };
 }
