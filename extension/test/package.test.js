@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
-  packageExtension, storeManifest, verifyPackage, relativeImports, localHtmlRefs, globToRegExp, crc32, PackageError,
+  packageExtension, storeManifest, STORE_DELTAS, verifyPackage, relativeImports, localHtmlRefs, globToRegExp, crc32, PackageError,
   parseArgs,
 } from '../scripts/package.mjs';
 
@@ -111,7 +111,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
   }
 });
 
-test('package: two builds are byte-identical; --store is a no-op hook with a distinct name', () => {
+test('package: two builds are byte-identical; --store applies only the delta table, with a distinct name', () => {
   const a = build();
   const b = build();
   expect(Buffer.compare(a.bytes, b.bytes)).toBe(0);
@@ -121,16 +121,46 @@ test('package: two builds are byte-identical; --store is a no-op hook with a dis
   expect(s.path).not.toBe(a.path);
   const plain = readZip(a.bytes).find((e) => e.name === 'manifest.json');
   const stored = readZip(s.bytes).find((e) => e.name === 'manifest.json');
-  expect(JSON.parse(stored.data.toString())).toEqual(JSON.parse(plain.data.toString()));
+  expect(JSON.parse(stored.data.toString())).toEqual(storeManifest(JSON.parse(plain.data.toString())));
   expect(readZip(s.bytes).map((e) => e.name)).toEqual(readZip(a.bytes).map((e) => e.name));
+  for (const e of readZip(s.bytes)) {
+    if (e.name !== 'manifest.json') expect(Buffer.compare(e.data, readZip(a.bytes).find((x) => x.name === e.name).data)).toBe(0);
+  }
   expect(Buffer.compare(s.bytes, build({ store: true }).bytes)).toBe(0);
 
   const manifest = JSON.parse(plain.data.toString());
   const copy = storeManifest(manifest);
-  expect(copy).toEqual(manifest);
   expect(copy).not.toBe(manifest);
   copy.permissions.push('x');
   expect(manifest.permissions).not.toContain('x');
+});
+
+test('store manifest: differs from the dev manifest in exactly the delta-table keys', () => {
+  const dev = JSON.parse(readFileSync(join(EXT, 'manifest.json'), 'utf8'));
+  const store = storeManifest(dev);
+  const keys = [...new Set([...Object.keys(dev), ...Object.keys(store)])];
+  const changed = keys.filter((k) => JSON.stringify(dev[k]) !== JSON.stringify(store[k])).sort();
+  expect(changed).toEqual(STORE_DELTAS.map((d) => d.key).sort());
+  expect(new Set(STORE_DELTAS.map((d) => d.key)).size).toBe(STORE_DELTAS.length);
+  for (const d of STORE_DELTAS) expect(d.why.length).toBeGreaterThan(20);
+  // The rows today: no hard-coded X content script in the Store build; the dev key stays in both.
+  expect(Object.hasOwn(store, 'content_scripts')).toBe(false);
+  expect(dev.content_scripts.some((cs) => cs.matches.includes('https://x.com/*'))).toBe(true);
+  expect(store.key).toBe(dev.key);
+  expect(JSON.stringify(store)).not.toContain('x.com');
+  expect(JSON.stringify(store)).not.toContain('twitter.com');
+  expect(dev).toEqual(JSON.parse(readFileSync(join(EXT, 'manifest.json'), 'utf8'))); // input untouched
+});
+
+test('store manifest: the X row keeps other content scripts and refuses a changed precondition', () => {
+  const x = { matches: ['https://twitter.com/*', 'https://x.com/*'], js: ['src/content-loader.js'] };
+  const other = { matches: ['https://example.com/*'], js: ['src/other.js'] };
+  expect(storeManifest({ version: '1', content_scripts: [x, other] }).content_scripts).toEqual([other]);
+  expect(Object.hasOwn(storeManifest({ version: '1', content_scripts: [x] }), 'content_scripts')).toBe(false);
+  for (const content_scripts of [undefined, [], [other], [x, x],
+    [{ ...x, matches: [...x.matches, 'https://mobile.x.com/*'] }], [{ ...x, matches: ['https://x.com/*'] }]]) {
+    expect(() => storeManifest({ version: '1', content_scripts })).toThrow(PackageError);
+  }
 });
 
 test('package: stored fallback and non-ascii names round-trip', () => {
