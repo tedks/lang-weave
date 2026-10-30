@@ -27,6 +27,19 @@ test('nextDue reads offered future cards by local day in western and eastern tim
   } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
 });
 
+test('nextDue includes maintenance at its effective peek and claim gate, but excludes retired cards', () => {
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  const words = [{ fr: 'm' }, { fr: 'retired' }];
+  const state = { cards: {
+    m: { due: now + 8 * DAY_MS, peekDue: now + DAY_MS, claimDue: now + 2 * DAY_MS,
+      interval: 8, reviews: 3, familiar: true, maintenance: true },
+    retired: { due: now + 1000, interval: 8, reviews: 3, familiar: true },
+  } };
+  expect(nextDue(state, words, now)).toEqual({ nextDue: now + 2 * DAY_MS, nextCount: 1 });
+  delete state.cards.m.claimDue;
+  expect(nextDue(state, words, now)).toEqual({ nextDue: now + DAY_MS, nextCount: 1 });
+});
+
 test('explicit introduction, clock scheduling, and one revealed rating per ticket', () => {
   const now = Date.parse('2026-10-17T12:00:00Z');
   const state = cleanReview(null, L2_WORDS);
@@ -254,7 +267,7 @@ test('gradual migration keeps familiar history and schedules maintenance; off re
   expect(nextReview(on, words, now)?.en).toBe('but');
   const ticket = on.current.ticket;
   revealReview(on, words, ticket, now);
-  rateReview(on, ticket, 'medium', now, true);
+  expect(rateReview(on, ticket, 'medium', now, true)).toMatchObject({ familiar: true, returnable: true });
   expect(on.cards.pero.retiredReturn).toBe(false);
   expect(retiredReturnCount(on, words, now + DAY_MS)).toBe(0);
   const offAfterRating = cleanReview({ version: 1, cards: on.cards }, words, now, false);

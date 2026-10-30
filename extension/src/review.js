@@ -192,6 +192,7 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false, ret
   if (!askable(state, current, now)) return null;
   const result = scheduleCard(card, rating, now, autoFamiliar, retention, card.due > now);
   result.familiar = card.familiar === true;
+  result.returnable = Number.isSafeInteger(dueAt(card));
   result.record = { word: current.word, latencyMs: reviewLatency(current, now), ...result.record };
   state.current = null;
   return result;

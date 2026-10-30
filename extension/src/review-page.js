@@ -214,7 +214,8 @@ for (const button of document.querySelectorAll('[data-rating]')) {
     const result = await send('reviewRate', { ticket: card.ticket, rating: button.dataset.rating });
     session.reviewed++;
     if (Number.isSafeInteger(result.due)) {
-      if (button.dataset.rating !== 'easy' || result.familiar === false) session.returns.push(result.due);
+      if (button.dataset.rating !== 'easy' || result.returnable === true || result.familiar === false)
+        session.returns.push(result.due);
       else if (result.familiar !== true) session.easy.push(result.due); // older worker: retirement unknown
     }
     await load();

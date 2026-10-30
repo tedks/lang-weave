@@ -116,6 +116,22 @@ test('finish card reports no future review when the deck-wide worker result is e
   } finally { await page.restore(); }
 });
 
+test('Easy on maintenance remains a return in the older-worker session fallback', async () => {
+  const queue = fakeQueue(WORDS.slice(0, 1));
+  const page = await mount('maintenance-easy-fallback', async (message) => {
+    const response = await queue.sendMessage(message);
+    return message.type === 'reviewRate' ? { ...response, familiar: true, returnable: true } : response;
+  });
+  try {
+    await settle();
+    page.$('reveal').click();
+    await settle();
+    page.doc.querySelector('[data-rating="easy"]').click();
+    await settle();
+    expect(page.$('finish-next').textContent).toMatch(/^Next review from this session: .+, 1 word\.$/);
+  } finally { await page.restore(); }
+});
+
 test('an open review tab discards a revealed answer after language changes while refreshing', async () => {
   let releaseFrenchAnswer;
   let releaseSpanishQueue;
