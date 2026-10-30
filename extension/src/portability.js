@@ -126,8 +126,8 @@ function card(value, m) {
       result.maintenance = true;
     }
     if (Object.hasOwn(value, 'retiredReturn')) {
-      if (typeof value.retiredReturn !== 'boolean' ||
-          value.retiredReturn === true && (result.maintenance !== true || result.familiar !== true))
+      // A pending return survives a gradual-off write, which omits maintenance.
+      if (typeof value.retiredReturn !== 'boolean' || value.retiredReturn === true && result.familiar !== true)
         fail('invalid retired return');
       result.retiredReturn = value.retiredReturn;
     }

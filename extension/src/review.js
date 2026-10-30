@@ -86,7 +86,8 @@ export function reviewCounts(state, words, now) {
 }
 
 export const retiredReturnCount = (state, words, now) => words.filter(({ fr }) =>
-  state.cards[fr]?.retiredReturn === true && dueAt(state.cards[fr]) <= now).length;
+  state.cards[fr]?.retiredReturn === true && state.cards[fr]?.maintenance === true &&
+  dueAt(state.cards[fr]) <= now).length;
 
 export const dueAt = (card) => card && (!card.familiar || card.maintenance)
   ? Math.max(Math.min(card.due, card.peekDue ?? Infinity), card.claimDue || 0) : Infinity;

@@ -47,8 +47,8 @@ test('worker owns review access, persistence, and raced rating serialization', a
     await import('../src/background.js?review-worker');
     expect(await dispatch({ type: 'reviewIntroduce' }, page)).toBeUndefined();
     expect(await dispatch({ type: 'reviewRate', ticket: 'x', rating: 'easy' }, popup)).toBeUndefined();
-    expect(await dispatch({ type: 'reviewStatus' }, review)).toEqual({ due: 0, new: 30, language: 'Spanish',
-      nextDue: null, nextCount: 0 });
+    expect(await dispatch({ type: 'reviewStatus' }, review)).toEqual({ due: 0, new: 30, returned: 0,
+      language: 'Spanish', nextDue: null, nextCount: 0 });
     expect((await dispatch({ type: 'reviewIntroduce' }, review)).added).toBe(5);
     expect((await dispatch({ type: 'reviewIntroduce' }, review)).added).toBe(5);
     expect(Object.keys(data[REVIEW_KEY].cards)).toHaveLength(10);

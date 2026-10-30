@@ -111,6 +111,12 @@ test('schema 2 preserves additive maintenance and local-day counters; schema 1 s
     reviews: card.reviews, familiar: true } } }, [], Date.now(), true);
   all.recallReview.cards[spanish] = migrated.cards[spanish];
   expect(parseBackup(createBackup(all, '0.12.13', 2)).state.scopes.es.review.cards[spanish].retiredReturn).toBe(true);
+  const offPending = cleanReview({ version: 1, cards: migrated.cards }, [], Date.now(), false).cards[spanish];
+  expect(offPending).toMatchObject({ familiar: true, retiredReturn: true });
+  expect(offPending.maintenance).toBeUndefined();
+  all.recallReview.cards[spanish] = offPending;
+  expect(parseBackup(createBackup(all, '0.12.13', 2)).state.scopes.es.review.cards[spanish])
+    .toMatchObject({ familiar: true, retiredReturn: true });
   all.recallReview.cards[spanish].retiredReturn = false;
   const completed = parseBackup(createBackup(all, '0.12.13', 2));
   expect(completed.state.scopes.es.review.cards[spanish].retiredReturn).toBe(false);
