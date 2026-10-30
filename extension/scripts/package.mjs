@@ -133,7 +133,7 @@ function manifestFileRefs(m) {
  * recursively and kept in place, so an import() inside one is still seen, while text inside any
  * literal can never look like an import.
  */
-export function maskJsLiterals(src) {
+export function maskJsLiterals(src, { regexLiterals = true } = {}) {
   const REGEX_AFTER_WORD = /(?:^|[^\w$.])(?:return|typeof|case|in|of|delete|void|throw|new|else|do|yield|await)\s*$/;
   const literals = [];
   const n = src.length;
@@ -186,7 +186,7 @@ export function maskJsLiterals(src) {
       }
       if (c === '/') {
         // `x++ / 2` is a division: a postfix operator ends an operand.
-        const regexOk = (prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) ||
+        const regexOk = regexLiterals && (prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) ||
           (/[\w$]/.test(prev) && REGEX_AFTER_WORD.test(out))) && !/(?:\+\+|--)\s*$/.test(out);
         let j = i + 1;
         let inClass = false;
@@ -226,14 +226,20 @@ const IMPORT_PATTERNS = [
 /**
  * Relative module specifiers (./ and ../) referenced by a JS source. Only literal specifiers
  * are seen: computed ones (import(url), interpolated templates) cannot be verified statically.
+ * Telling a regex literal from a division needs a parser, so the source is masked twice, once
+ * reading regex literals and once reading every slash as division, and the results are joined:
+ * a dependency is missed only if both readings misparse it. A spurious match refuses the
+ * package (fails closed) rather than shipping it.
  */
 export function relativeImports(source) {
-  const { code, literals } = maskJsLiterals(source);
   const found = new Set();
-  for (const re of IMPORT_PATTERNS) {
-    for (const m of code.matchAll(re)) {
-      const specifier = literals[Number(m[1])];
-      if (typeof specifier === 'string' && /^\.\.?\//.test(specifier)) found.add(specifier);
+  for (const regexLiterals of [true, false]) {
+    const { code, literals } = maskJsLiterals(source, { regexLiterals });
+    for (const re of IMPORT_PATTERNS) {
+      for (const m of code.matchAll(re)) {
+        const specifier = literals[Number(m[1])];
+        if (typeof specifier === 'string' && /^\.\.?\//.test(specifier)) found.add(specifier);
+      }
     }
   }
   return [...found];

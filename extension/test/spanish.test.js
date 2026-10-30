@@ -63,10 +63,10 @@ test('fork identity and permissions cannot collide with or contact the French co
     seen.add(name);
     const source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
     expect([name, source.includes('sendNativeMessage')]).toEqual([name, false]);
-    if (WORKER_FILES.includes(name)) expect([name, relativeImports(source).includes('./hostsource.js')]).toEqual([name, false]);
     for (const specifier of relativeImports(source)) {
       const next = new URL(specifier, `file:///src/${name}`).pathname;
       expect([name, specifier, next.startsWith('/src/')]).toEqual([name, specifier, true]);
+      if (WORKER_FILES.includes(name)) expect([name, specifier, next]).not.toEqual([name, specifier, '/src/hostsource.js']);
       visit(next.slice('/src/'.length));
     }
   };

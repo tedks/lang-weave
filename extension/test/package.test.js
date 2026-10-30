@@ -297,6 +297,11 @@ test('verify: literal specifiers in backticks and interpolations are seen; compu
   expect(relativeImports("function f(i) { return `${ i++ / 2 }`; }\nimport('./after.js');")).toEqual(['./after.js']);
   expect(relativeImports("const q = a / b; import('./plain-div.js');")).toEqual(['./plain-div.js']);
   expect(relativeImports("const x = count++ / import('./postfix.js');")).toEqual(['./postfix.js']);
+  // A division the regex reading misparses is still covered by the division reading, and a
+  // quote inside a real regex is still covered by the regex reading.
+  expect(relativeImports("const x = {} / 2; import('./needed.js');")).toEqual(['./needed.js']);
+  expect(relativeImports("x = `${ function(){} / 2 }`;\nimport('./z.js');")).toEqual(['./z.js']);
+  expect(relativeImports("const q = /['\"`]/.test(s); import('./after-regex.js');")).toEqual(['./after-regex.js']);
   // A missing module behind a backtick specifier refuses the package.
   expectRefusal({ 'src/popup.js': 'import(`./missing-tick.js`);\n' }, {}, /missing-tick\.js/);
 });
