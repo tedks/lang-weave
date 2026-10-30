@@ -38,3 +38,17 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T17:01:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Implemented, not merged. Source: tedks/lang-weave#18 (draft) at c251519;
+    manifest key gives lkbkmlgogcpcacjmdmoecgacdbfddbnh, version 0.12.0, README migration
+    section, docs/STABLE-ID-MISSION.md. Fleet: tedks/dotfiles#225 (draft) at ec5d36a
+    renames to install-lang-weave at ~/.local/share/lang-weave, refuses any payload
+    without this key, never touches spanish-weave; must merge together with the pin
+    bump after #18 merges. Private key: ~/.local/share/lang-weave-keys/lang-weave.pem
+    on framework0, needs a backup. Finding: 0.11''s self-reload strands progress if
+    an old keyless directory receives 0.12.0, so export first. Store question filed
+    as store-first-upload-key. Remaining: council to fixpoint on both PRs, rebase
+    #18 onto relicense #16, pin bump, framework0 verification with Ted''s profile,
+    fleet.'
