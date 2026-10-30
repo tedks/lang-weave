@@ -1,0 +1,26 @@
+id: startup-registration-race
+title: Investigate granted-site content script availability immediately after Chromium
+  profile restart
+desc: 'During PR #31 exact-head quota-status e2e, the post-restart second page twice
+  failed to advance modelStatus.at; a bounded wait for weave-sites registration preceded
+  a passing run. Cause is not proven. Chrome''s scripting API documents persistAcrossSessions
+  default true, and sites.js updates an existing registration in place, so a true
+  registration gap needs direct evidence. Check whether the dynamic script is present
+  immediately after browser restart and whether an immediate granted page receives
+  its config request; record the observed registration and message sequence. If a
+  real user page can miss injection, repair it without loosening site consent or adding
+  permissions. The quota gate should not silently mask a user-visible startup gap.
+  PR #31''s cue/command runtime did not change sites.js.'
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:03:10-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:03:10-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
