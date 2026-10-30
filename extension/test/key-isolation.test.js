@@ -25,7 +25,7 @@ async function workerFixture({ isolation, initial = {} }) {
   globalThis.chrome = {
     storage: { local: store },
     runtime: { id: 'isolation-test', getURL: (path) => `chrome-extension://isolation-test/${path}`,
-      getManifest: () => ({ version: '0.12.13' }), onMessage: on(listeners),
+      getManifest: () => ({ version: '0.12.14' }), onMessage: on(listeners),
       onInstalled: on(), onStartup: on() },
     action: { setBadgeText: async () => {} },
     tabs: { query: async () => [], sendMessage: async () => {} },
@@ -35,7 +35,7 @@ async function workerFixture({ isolation, initial = {} }) {
   };
   globalThis.fetch = async (url) => {
     expect(url).toBe('chrome-extension://isolation-test/manifest.json');
-    return { ok: true, json: async () => ({ version: '0.12.13' }) };
+    return { ok: true, json: async () => ({ version: '0.12.14' }) };
   };
   await import(`../src/background.js?key-isolation-${isolation}-${crypto.randomUUID()}`);
   const popup = { id: 'isolation-test', url: 'chrome-extension://isolation-test/src/popup.html' };
