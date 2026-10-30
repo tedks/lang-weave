@@ -43,6 +43,7 @@
         "src/catalog.js",
         "src/content.js",
         "src/events.js",
+        "src/fsrs.js",
         "src/hash.js",
         "src/language-name.js",
         "src/learning.js",
