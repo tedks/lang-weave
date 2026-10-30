@@ -1,5 +1,6 @@
 import { statusLabel } from './quota-status.js';
-import { siteEnabled, siteOn, hasSiteAccess } from './settings.js';
+import { siteOn, hasSiteAccess } from './settings.js';
+import { readingState } from './state.js';
 
 const $ = (id) => document.getElementById(id);
 let status;
@@ -32,10 +33,12 @@ async function refresh() {
   $('today').textContent = `Today · ${due} due for review · ${available} available to add`;
   $('primary').textContent = due > 0 ? `Review ${due} due ${due === 1 ? 'word' : 'words'}`
     : available > 0 ? 'Add words' : 'Practice';
-  $('operation').textContent = !s.enabled ? 'Off'
-    : !c.hasKey ? 'Add a Gemini key to start'
-    : host && !siteEnabled(s, tab.url) ? 'Off on this site'
-    : host && !access ? 'This site needs your OK'
+  const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
+  $('operation').textContent = state === 'paused' ? 'Off'
+    : state === 'needs_setup' ? 'Finish setup in the welcome page'
+    : state === 'needs_key' ? 'Add a Gemini key to start'
+    : ['site_off', 'sensitive'].includes(state) ? 'Off on this site'
+    : state === 'needs_site' ? 'This site needs your OK'
     : statusLabel(status.modelStatus) || 'On';
 }
 

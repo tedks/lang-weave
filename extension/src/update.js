@@ -22,24 +22,44 @@ export function openWelcome(details) {
 // chrome.management call: a missing key means unpacked, so the fleet's unpacked installs keep the self-update.
 export const selfUpdating = () => !Object.hasOwn(chrome.runtime.getManifest(), 'update_url');
 
-export function createUpdate({ store, locked, modelCall }) {
-  async function checkUpdate() {
+export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {} }) {
+  let waitingVersion = '';
+  const updatePending = () => selfUpdating() && !!waitingVersion;
+  let checking;
+  async function doCheckUpdate(allowReload) {
     if (!selfUpdating()) return ''; // no disk fetch, reload, badge or popup banner for a packaged install
     try {
       const disk = await (await fetch(chrome.runtime.getURL('manifest.json'), { cache: 'no-store' })).json();
       const waiting = disk.version && disk.version !== chrome.runtime.getManifest().version ? String(disk.version) : '';
-      if (waiting && (await store.get(RELOADED_KEY))[RELOADED_KEY] !== waiting) {
+      if (allowReload && waiting && (await store.get(RELOADED_KEY))[RELOADED_KEY] !== waiting) {
         await store.set({ [RELOADED_KEY]: waiting });
         try {
           await modelCall(() => locked(() => chrome.runtime.reload()));
           return waiting; // normally not reached: the worker is gone
         } catch { /* fall back to the badge */ }
       }
-      await chrome.action.setBadgeText({ text: waiting ? 'NEW' : '' });
+      if (waitingVersion !== waiting) {
+        waitingVersion = waiting;
+        // The wake path refreshes after this check. Other paths notify tabs without
+        // making a popup status reply depend on all of their action writes.
+        if (allowReload) void Promise.resolve().then(onBadgeChange).catch(() => {});
+      }
       return waiting;
     } catch {
       return '';
     }
+  }
+
+  // A worker wake detects an update without interrupting the event that woke it.
+  // Popup and the existing alarm retain the reload attempt after queued work.
+  function checkUpdate({ allowReload = true } = {}) {
+    if (checking) {
+      if (allowReload && !checking.allowReload) return checking.promise.then(() => checkUpdate());
+      return checking.promise;
+    }
+    const promise = doCheckUpdate(allowReload).finally(() => { checking = null; });
+    checking = { promise, allowReload };
+    return promise;
   }
 
   // create() replaces an alarm of the same name, so calling it on both events is safe. Startup matters
@@ -49,5 +69,5 @@ export function createUpdate({ store, locked, modelCall }) {
     chrome.alarms.create(ALARM, { periodInMinutes: 30 });
     void checkUpdate();
   }
-  return { checkUpdate, arm };
+  return { checkUpdate, arm, updatePending };
 }

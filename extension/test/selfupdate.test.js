@@ -32,7 +32,8 @@ test('an update on disk reloads the extension once per version, after any model 
       reload: () => { log.push('reload'); if (reloadThrows) throw new Error('reload failed'); },
     },
     action: { setBadgeText: async ({ text }) => { badges.push(text); } },
-    tabs: { get: async () => ({ id: 1, title: 'Ordinary reading' }), query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async () => ({ id: 1, title: 'Ordinary reading', url: 'https://example.com/article' }),
+      query: async () => [{ id: 1, url: 'https://example.com/article' }], sendMessage: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
@@ -76,6 +77,7 @@ test('an update on disk reloads the extension once per version, after any model 
     // Still running 0.3.0 after reloading for 0.3.1 (Chrome kept the old copy): never loop, show NEW instead.
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.3.1');
     expect(log.filter((x) => x === 'reload')).toHaveLength(1);
+    for (let i = 0; i < 20 && badges.at(-1) !== 'NEW'; i++) await wait(1);
     expect(badges.at(-1)).toBe('NEW');
 
     // A newer version gets one try; if reload throws, the badge is the fallback.

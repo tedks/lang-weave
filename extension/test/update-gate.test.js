@@ -5,7 +5,7 @@ import { storeManifest } from '../scripts/package.mjs';
 
 // The self-update runs only for an unpacked install. A Store or Edge install carries update_url in its
 // installed manifest; that copy must never fetch its own manifest, reload itself, set the NEW badge or arm the alarm.
-function fakeChrome(manifest, diskVersion) {
+function fakeChrome(manifest, diskVersion, onBadgeChange) {
   const calls = [];
   globalThis.chrome = {
     runtime: {
@@ -13,7 +13,6 @@ function fakeChrome(manifest, diskVersion) {
       getURL: (path) => `chrome-extension://gate-test/${path}`,
       reload: () => { calls.push('reload'); },
     },
-    action: { setBadgeText: async ({ text }) => { calls.push(`badge:${text}`); } },
     alarms: { create: (name, info) => { calls.push(`alarm:${name}:${info.periodInMinutes}`); } },
   };
   globalThis.fetch = async (url) => {
@@ -25,7 +24,8 @@ function fakeChrome(manifest, diskVersion) {
     get: async (key) => (key in data ? { [key]: data[key] } : {}),
     set: async (values) => { Object.assign(data, values); },
   };
-  const update = createUpdate({ store, locked: (fn) => fn(), modelCall: (fn) => fn() });
+  const update = createUpdate({ store, locked: (fn) => fn(), modelCall: (fn) => fn(),
+    onBadgeChange: onBadgeChange || (() => { calls.push('badge-state-changed'); }) });
   return { calls, data, update };
 }
 
@@ -44,7 +44,27 @@ test('an unpacked install (no update_url) keeps the self-update: alarm, disk che
   expect(data[RELOADED_KEY]).toBe('1.0.1');
   // Chrome kept the old copy: the second check shows NEW instead of reloading again.
   expect(await update.checkUpdate()).toBe('1.0.1');
-  expect(calls.at(-1)).toBe('badge:NEW');
+  await settle();
+  expect(calls.at(-1)).toBe('badge-state-changed');
+  expect(update.updatePending()).toBe(true);
+}));
+
+test('worker wake detects NEW without reloading, then the normal check may reload', () => withGlobals(async () => {
+  const { calls, data, update } = fakeChrome({ version: '1.0.0' }, '1.0.1');
+  expect(await update.checkUpdate({ allowReload: false })).toBe('1.0.1');
+  expect(update.updatePending()).toBe(true);
+  expect(calls).toEqual(['fetch:chrome-extension://gate-test/manifest.json']);
+  expect(data[RELOADED_KEY]).toBeUndefined();
+  expect(await update.checkUpdate()).toBe('1.0.1');
+  expect(calls.at(-1)).toBe('reload');
+}));
+
+test('a failed action refresh does not hide a waiting update from status', () => withGlobals(async () => {
+  const { data, update } = fakeChrome({ version: '1.0.0' }, '1.0.1', () => { throw new Error('tab closed'); });
+  data[RELOADED_KEY] = '1.0.1';
+  expect(await update.checkUpdate()).toBe('1.0.1');
+  expect(update.updatePending()).toBe(true);
+  await settle(); // the rejected badge refresh was handled without an unhandled rejection
 }));
 
 test('a Store or Edge install (update_url present) never self-updates, badges or arms the alarm', () => withGlobals(async () => {

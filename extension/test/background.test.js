@@ -36,7 +36,8 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
       sendNativeMessage: async () => { throw new Error('native host must never be called'); },
     },
     action: { setBadgeText: async ({ text }) => { badges.push(text); } },
-    tabs: { get: async () => ({ id: 1, title: 'Ordinary reading' }), query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async () => ({ id: 1, title: 'Ordinary reading', url: 'https://example.com/article' }),
+      query: async () => [{ id: 1, url: 'https://example.com/article' }], sendMessage: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
@@ -57,12 +58,15 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
     // 0.2.1 regression: after a plugin update replaced the folder on disk, Chrome kept running the old copy with
     // no sign that a reload was needed. The popup's status reports the waiting version and the icon shows NEW.
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('');
+    for (let i = 0; i < 20 && badges.at(-1) !== ''; i++) await tick();
     expect(badges.at(-1)).toBe('');
     diskVersion = '0.3.1';
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('0.3.1');
+    for (let i = 0; i < 20 && badges.at(-1) !== 'NEW'; i++) await tick();
     expect(badges.at(-1)).toBe('NEW');
     diskVersion = '0.3.0'; // reloaded: the running copy matches the disk again
     expect((await dispatch({ type: 'status' }, popup)).update).toBe('');
+    for (let i = 0; i < 20 && badges.at(-1) !== ''; i++) await tick();
     expect(badges.at(-1)).toBe('');
     const revision = (await dispatch({ type: 'config' }, page)).revision;
 
