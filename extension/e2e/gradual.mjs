@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { cleanPack } from '../src/languages.js';
+import { initialState, intervalDays } from '../src/fsrs.js';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-gradual-'));
@@ -160,7 +161,7 @@ try {
   await page.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(rated.cards['la idea'].reviews, 1);
-  assert.equal(rated.cards['la idea'].interval, 7);
+  assert.equal(rated.cards['la idea'].interval, intervalDays(initialState('easy').stability));
   await page.waitForFunction(() => {
     const span = document.querySelector('#reading .fw-word');
     return span && span.textContent === 'la idea' && span.getAttribute('title') !== 'Open inline recall';
