@@ -1,0 +1,30 @@
+id: store-content-bundle
+title: Store build ships one classic content bundle so nothing is web-accessible
+desc: 'Required before the first Store upload (CTO ruling 2026-10-30, engineering
+  call: the positioning is ''your data stays in your browser'' and a probeable fixed
+  ID contradicts it). Evidence (store-engineering, PR #23, Playwright Chromium 156):
+  with use_dynamic_url, chrome.runtime.getURL in a content script returns the dynamic
+  URL and content.js loads, but its import.meta.url is the static chrome-extension://lkbkmlgogcpcacjmdmoecgacdbfddbnh/
+  URL, so its relative imports resolve to the static ID and are denied unless statically
+  web-accessible; e2e smoke times out. PR #23 narrowed web_accessible_resources to
+  content.js''s import closure (15 files, test-pinned), which still leaves them probeable.
+  Mission: package.mjs --store emits one classic content script bundling content.js''s
+  import graph, and the Store manifest lists it in place of content-loader.js (dynamic
+  registration in sites.js included) with no web_accessible_resources. Constraints:
+  unpacked and fleet builds stay modular; the module wrapper is dependency-free (no
+  third-party bundler) and tested (bundle behaves like the modular graph under e2e,
+  nothing web-accessible in the Store zip, STORE_DELTAS rows for the changed keys).
+  Supersedes content-bundle-no-war.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:06:34-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:06:34-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
