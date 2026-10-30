@@ -1,0 +1,36 @@
+id: stable-extension-id
+title: Pin a stable extension ID with a manifest key and migrate installs to the lang-weave
+  path
+desc: 'Ted asked (2026-10-30) for directories on framework0 to move from spanish-weave
+  to lang-weave. The project directory was renamed (~/Projects/lang-weave). The installed
+  payload ~/.local/share/spanish-weave/extension was NOT moved: it is loaded unpacked
+  in Ted''s Chrome Default profile (id ickfjcjpphjofojlnlhhlojplmefaakk) with stored
+  learning progress, and an unpacked extension without a manifest "key" gets its ID
+  from a hash of its path, so moving the directory creates a new extension with empty
+  storage.
+
+
+  Plan: (1) generate an RSA keypair, keep the private key out of the repo (Ted''s
+  keys; needed only for Web Store upload of a .crx or to keep the same ID on the Store),
+  and add the public "key" to extension/manifest.json so every unpacked and packaged
+  install shares one ID across paths and hosts; (2) document the one-time migration:
+  Learning backup export from the old ID, Load unpacked from the new ~/.local/share/lang-weave/extension
+  path, import into the fresh keyless install, then remove the old entry; (3) update
+  the dotfiles installer and docs (spanish-weave -> lang-weave path, marker, ref file)
+  in the same release; (4) verify on framework0 with Ted''s profile, then fleet. Blocks:
+  Store packaging (store-package-assets) benefits from a fixed ID. Risk: anyone who
+  loads unpacked before the key lands has a different ID; the backup/import contract
+  (docs/STORE-PORTABILITY-MISSION.md) is the migration path.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:48:01-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:48:01-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
