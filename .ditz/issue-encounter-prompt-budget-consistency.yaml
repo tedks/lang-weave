@@ -1,0 +1,19 @@
+id: encounter-prompt-budget-consistency
+title: Align prompt and delivered coverage budgets
+desc: 'Integration council nit: model prompt computes unknown budget from uncached
+  misses while final cap uses all requested passages. The prompt is conservative because
+  misses are a subset; a later refinement could communicate the exact remaining budget
+  after cached placements without weakening final enforcement.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T22:07:44-00:00
+references: []
+log_events:
+- time: 2026-10-30T22:07:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
