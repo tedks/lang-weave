@@ -26,3 +26,12 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T17:40:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Phase 1 LANDED: PR #19 merged as eee1bfe (head 7c1b041, version 0.12.1).
+    extension/src/fsrs.js is a pure FSRS-6 port verified against py-fsrs v6.3.2 (9446cb06)
+    and ts-fsrs v6.0.0; fixture test/fsrs-reference.json; additive migration (migrateCard/withFsrs).
+    Not wired in. Phase 2 (after worker-split): integrate per docs/LEARNING-CORE-MISSION.md
+    (scheduleCard -> reviewCard, cleanReview keeps fsrs, backup schema 2 with a tolerant-reader
+    release first, desiredRetention setting). Issue stays open.'
