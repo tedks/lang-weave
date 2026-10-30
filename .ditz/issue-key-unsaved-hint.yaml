@@ -1,0 +1,19 @@
+id: key-unsaved-hint
+title: Show unsaved key draft in popup
+desc: 'The popup now saves a pasted key through Save key or Enter so confirmation
+  is explicit. If the popup closes after typing without either action, the draft disappears.
+  Add an Unsaved hint while the input differs from stored key state, without displaying
+  or logging the key. Council nit on PR #22.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:12:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:12:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
