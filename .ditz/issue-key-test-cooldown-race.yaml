@@ -1,0 +1,20 @@
+id: key-test-cooldown-race
+title: Preserve test-key cooldown after unrelated settings change
+desc: 'If Test key receives a 429 or 503 while an unrelated popup setting changes,
+  the test result is correctly discarded as stale but its spent call does not persist
+  a provider cooldown. A second click can send another request. Persist the cooldown
+  when the tested key epoch and model still match, even if the display result is stale.
+  Council convergence nit on PR #22; narrow race, outside acceptance gate.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:13:51-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:13:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
