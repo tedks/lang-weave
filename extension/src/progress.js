@@ -41,7 +41,8 @@ export function verifiedWords(entries, cards, minDays = VERIFY_DAYS) {
     if (e.outcome === 'again') { verified.delete(e.word); continue; }
     const card = cards[e.word];
     if (!card || e.elapsedDays === null || e.elapsedDays < minDays) continue;
-    if (e.at - e.elapsedDays * DAY_MS < dayStart(card.introducedDay) - DAY_MS) continue;
+    // After a confirmed clock recovery the gate day replaces a future introduction day.
+    if (e.at - e.elapsedDays * DAY_MS < dayStart(card.introGateDay || card.introducedDay) - DAY_MS) continue;
     verified.add(e.word);
   }
   for (const word of verified) if (!cards[word]) verified.delete(word);

@@ -75,6 +75,10 @@ test('verified words need a 21+ day pass in the current card life, with no Again
   // A pass in the new life whose gap began on the introduction day verifies it again.
   const later = [...log, entry('gato', t('2026-03-03'), 'medium', 21, { prior: 0 })];
   expect([...verifiedWords(later, reborn)]).toEqual(['gato']);
+  // After a confirmed clock recovery the gate day replaces a future introduction day.
+  const skewed = { gato: { ...card, introducedDay: '2026-03-01' } };
+  expect([...verifiedWords(log, skewed)]).toEqual([]);
+  expect([...verifiedWords(log, { gato: { ...skewed.gato, introGateDay: intro } })]).toEqual(['gato']);
   // A card without an introduction day (pre-0.8 cards) has no floor.
   expect([...verifiedWords(log, { gato: { due: 0, interval: 30, reviews: 3 } })]).toEqual(['gato']);
 });
