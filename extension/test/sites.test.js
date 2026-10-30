@@ -33,6 +33,7 @@ test('dev manifest: a granted X stays with the manifest content script, never re
   expect(kind).toBe('register');
   expect(script.matches).toEqual(['https://x.com/*', 'https://example.com/*']);
   expect(script.excludeMatches).toEqual(['https://x.com/*', 'https://twitter.com/*']);
+  expect(script.persistAcrossSessions).toBe(true);
 });
 
 test('store manifest: a granted X is registered like any other site, with an explicit empty exclusion', async () => {
@@ -42,6 +43,7 @@ test('store manifest: a granted X is registered like any other site, with an exp
     expect(script.matches).toEqual(['https://x.com/*', 'https://example.com/*']);
     expect(script.excludeMatches).toEqual([]); // explicit: update must clear a stale exclusion
     expect(script.js).toEqual(['src/content-loader.js']);
+    expect(script.persistAcrossSessions).toBe(true);
   }
 });
 
