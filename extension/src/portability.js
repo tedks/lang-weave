@@ -126,9 +126,10 @@ function card(value, m) {
       result.maintenance = true;
     }
     if (Object.hasOwn(value, 'retiredReturn')) {
-      if (value.retiredReturn !== true || result.maintenance !== true || result.familiar !== true)
+      if (typeof value.retiredReturn !== 'boolean' ||
+          value.retiredReturn === true && (result.maintenance !== true || result.familiar !== true))
         fail('invalid retired return');
-      result.retiredReturn = true;
+      result.retiredReturn = value.retiredReturn;
     }
     for (const kind of ['seen', 'peek']) {
       const dayKey = `${kind}Day`, countKey = `${kind}Count`;

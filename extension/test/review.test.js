@@ -250,8 +250,14 @@ test('gradual migration keeps familiar history and schedules maintenance; off re
   const ticket = on.current.ticket;
   revealReview(on, words, ticket, now);
   rateReview(on, ticket, 'medium', now, true);
-  expect(on.cards.pero.retiredReturn).toBeUndefined();
+  expect(on.cards.pero.retiredReturn).toBe(false);
   expect(retiredReturnCount(on, words, now + DAY_MS)).toBe(0);
+  const offAfterRating = cleanReview({ version: 1, cards: on.cards }, words, now, false);
+  expect(offAfterRating.cards.pero).toMatchObject({ familiar: true, retiredReturn: false });
+  expect(offAfterRating.cards.pero.maintenance).toBeUndefined();
+  const onAgain = cleanReview({ version: 1, cards: offAfterRating.cards }, words, now, true);
+  expect(onAgain.cards.pero).toMatchObject({ familiar: true, maintenance: true, retiredReturn: false });
+  expect(retiredReturnCount(onAgain, words, now + 365 * DAY_MS)).toBe(0);
   expect(wordStage(on.cards.pero)).toBe('maintenance');
   expect(nextReview(cleanReview({ version: 1, cards: on.cards }, words, now, false), words, now)).toBeNull();
 });

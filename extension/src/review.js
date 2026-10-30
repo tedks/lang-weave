@@ -23,8 +23,9 @@ export function cleanReview(raw, words, now = Date.now(), gradual = false) {
       cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews,
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(gradual && (card.maintenance === true || card.familiar === true) ? { maintenance: true } : {}),
-        ...(gradual && card.familiar === true && (card.maintenance !== true || card.retiredReturn === true)
-          ? { retiredReturn: true } : {}),
+        ...(card.retiredReturn === false ? { retiredReturn: false }
+          : card.retiredReturn === true || gradual && card.familiar === true && card.maintenance !== true
+            ? { retiredReturn: true } : {}),
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
         ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}),
         ...(validDay(card.introGateDay) ? { introGateDay: card.introGateDay } : {}) };
@@ -223,7 +224,7 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
   card.due = step.due;
   card.reviews = Math.min(10000, card.reviews + 1);
   delete card.peekDue;
-  delete card.retiredReturn;
+  const returned = card.retiredReturn === true;
   if (rating === 'again') {
     card.easyStreak = 0;
     // Keep a failed recall unmastered if another valid route ever reaches
@@ -239,6 +240,7 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
     card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
     if (autoFamiliar && card.easyStreak >= 3) { card.familiar = true; card.maintenance = true; }
   }
+  if (returned || card.maintenance) card.retiredReturn = false;
   // A first rating has no prior FSRS review, so its gap is counted from the introduction day.
   const elapsedDays = step.elapsedDays ?? (reviewsBefore === 0 ? daysSinceIntroduction(card.introducedDay, now) : null);
   return { due: card.due, interval: card.interval, record: { prior: reviewsBefore, outcome: rating, elapsedDays,
