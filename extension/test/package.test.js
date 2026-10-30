@@ -292,6 +292,11 @@ test('verify: literal specifiers in backticks and interpolations are seen; compu
   expect(relativeImports('import(`./${name}.js`);')).toEqual([]);
   expect(relativeImports("const r = /import ['\"]\\.\\/x.js/; import './real.js';")).toEqual(['./real.js']);
   expect(relativeImports("const s = 'import(`./not-code.js`)'; const u = \"export * from './nor.js'\";")).toEqual([]);
+  // A division the scanner cannot close as a regex must not hide the rest of the line.
+  expect(relativeImports("let n = i++ / 2; import('./after-div.js');")).toEqual(['./after-div.js']);
+  expect(relativeImports("function f(i) { return `${ i++ / 2 }`; }\nimport('./after.js');")).toEqual(['./after.js']);
+  expect(relativeImports("const q = a / b; import('./plain-div.js');")).toEqual(['./plain-div.js']);
+  expect(relativeImports("const x = count++ / import('./postfix.js');")).toEqual(['./postfix.js']);
   // A missing module behind a backtick specifier refuses the package.
   expectRefusal({ 'src/popup.js': 'import(`./missing-tick.js`);\n' }, {}, /missing-tick\.js/);
 });

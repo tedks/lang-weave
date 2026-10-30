@@ -65,7 +65,7 @@ export function collectFiles({ extensionDir = DEFAULT_EXTENSION_DIR, licenseDir 
   const regularFile = (abs, name, where) => {
     const info = kind(abs);
     if (!info) throw new PackageError(`required file ${name} not found in ${where}`);
-    if (!info.isFile()) throw new PackageError(`unsupported file type (symlink or special file) in payload: ${name}`);
+    if (!info.isFile()) throw new PackageError(`not a regular file (directory, symlink or special file) in payload: ${name}`);
     return readFileSync(abs);
   };
   files.push({ name: 'manifest.json', data: regularFile(join(extensionDir, 'manifest.json'), 'manifest.json', extensionDir) });
@@ -185,17 +185,20 @@ export function maskJsLiterals(src) {
         continue;
       }
       if (c === '/') {
-        const regexOk = prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) || (/[\w$]/.test(prev) && REGEX_AFTER_WORD.test(out));
-        if (regexOk) {
-          let j = i + 1;
-          let inClass = false;
-          while (j < n && src[j] !== '\n') {
-            if (src[j] === '\\') { j += 2; continue; }
-            if (src[j] === '[') inClass = true;
-            else if (src[j] === ']') inClass = false;
-            else if (src[j] === '/' && !inClass) break;
-            j++;
-          }
+        // `x++ / 2` is a division: a postfix operator ends an operand.
+        const regexOk = (prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) ||
+          (/[\w$]/.test(prev) && REGEX_AFTER_WORD.test(out))) && !/(?:\+\+|--)\s*$/.test(out);
+        let j = i + 1;
+        let inClass = false;
+        while (regexOk && j < n && src[j] !== '\n') {
+          if (src[j] === '\\') { j += 2; continue; }
+          if (src[j] === '[') inClass = true;
+          else if (src[j] === ']') inClass = false;
+          else if (src[j] === '/' && !inClass) break;
+          j++;
+        }
+        // Blank a regex body only when it closes on this line; otherwise it was a division.
+        if (regexOk && j < n && src[j] === '/') {
           out += ' '; // regex bodies never hold a specifier
           i = j + 1;
           prev = '/';
