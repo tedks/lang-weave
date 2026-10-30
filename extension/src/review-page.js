@@ -76,7 +76,7 @@ function nextReturn(now = Date.now()) {
 
 function deckReturn(response, now = Date.now()) {
   if (!Object.hasOwn(response, 'nextDue') || !Object.hasOwn(response, 'nextCount')) return null;
-  if (response.nextDue === null) return 'No reviews scheduled.';
+  if (response.nextDue === null) return 'No future reviews in this deck.';
   if (!Number.isSafeInteger(response.nextDue) || !Number.isSafeInteger(response.nextCount) || response.nextCount < 1) return null;
   const day = midnight(response.nextDue);
   const days = Math.round((day - midnight(now)) / DAY_MS);

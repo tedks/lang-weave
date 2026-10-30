@@ -131,6 +131,11 @@ test('production menu listener, one-use save, stable review history and archive/
     expect(await send({ type: 'reviewNext' }, reviewer)).toMatchObject({
       card: null, nextDue: personalDue, nextCount: 1,
     });
+    data.recallReview = { version: 1, cards: { y: { due: personalDue, interval: 1, reviews: 1 } } };
+    expect(await send({ type: 'reviewStatus' }, reviewer)).toMatchObject({
+      nextDue: personalDue, nextCount: 2,
+    });
+    delete data.recallReview;
 
     // Save with a configured model must not start a reading retry or provider request.
     data.apiKey = 'synthetic-key';

@@ -112,7 +112,7 @@ test('finish card reports no future review when the deck-wide worker result is e
     await settle();
     page.doc.querySelector('[data-rating="easy"]').click();
     await settle();
-    expect(page.$('finish-next').textContent).toBe('No reviews scheduled.');
+    expect(page.$('finish-next').textContent).toBe('No future reviews in this deck.');
   } finally { await page.restore(); }
 });
 
