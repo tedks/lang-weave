@@ -46,6 +46,8 @@ test('popup shows one action and grants this site before saving or injecting', a
     const $ = (id) => window.document.getElementById(id);
     await waitFor(() => $('primary').textContent === 'Review 3 due words');
     expect($('enabled').getAttribute('role')).toBe('switch');
+    expect($('enabled').getAttribute('aria-label')).toBe('Lang Weave enabled');
+    expect($('enabledLabel').getAttribute('aria-hidden')).toBe('true');
     expect($('enabledLabel').textContent).toBe('On');
     expect($('siteName').textContent).toBe('Turn on for this site');
     expect($('operation').textContent).toBe('This site needs your OK');
@@ -69,6 +71,7 @@ test('popup shows one action and grants this site before saving or injecting', a
     state.available = 0;
     $('enabled').checked = false;
     $('enabled').dispatchEvent(new window.Event('change'));
+    expect($('enabledLabel').textContent).toBe('Off');
     await waitFor(() => $('primary').textContent === 'Practice');
     expect($('enabledLabel').textContent).toBe('Off');
   } finally {

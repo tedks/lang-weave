@@ -54,8 +54,9 @@ async function inject() {
 }
 
 $('enabled').addEventListener('change', (e) => run(async () => {
-  await send({ type: 'save', settings: { enabled: e.target.checked } });
-  await refresh();
+  $('enabledLabel').textContent = e.target.checked ? 'On' : 'Off';
+  try { await send({ type: 'save', settings: { enabled: e.target.checked } }); }
+  finally { await refresh(); }
 }));
 $('siteEnabled').addEventListener('change', (e) => run(async () => {
   if (!host || !tab?.url) return;
