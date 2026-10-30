@@ -213,3 +213,31 @@ test('personal words: practice, archive refusal, and linked entries share the bu
     globalThis.fetch = saved.fetch;
   }
 });
+
+test('gradual My words claim waits for verification and maintenance can be practised later', async () => {
+  const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const data = { settings: { enabled: false, levelOverride: 1, gradual: true } };
+  const { clock, dispatch, restore } = await boot('progress-maintenance-claim', data);
+  const words = sender('words'), review = sender('review');
+  try {
+    expect(await dispatch({ type: 'wordKnown', id: 'y', scope: 'es' }, words)).toEqual({ ok: true });
+    const claimed = structuredClone(data[REVIEW_KEY].cards.y);
+    expect(claimed).toMatchObject({ familiar: true, maintenance: true, claimAt: clock.now,
+      claimDue: clock.now + 21 * DAY_MS });
+    expect((await dispatch({ type: 'wordPractice', id: 'y', scope: 'es' }, words)).error)
+      .toMatch(/later verification/);
+    expect((await dispatch({ type: 'progress' }, words)).verifiedKnown).toBe(0);
+    expect((await dispatch({ type: 'reviewNext' }, review)).card).toBeNull();
+    clock.now = claimed.claimDue;
+    const next = await dispatch({ type: 'reviewNext' }, review);
+    expect(next.card.en).toBe('and');
+    await dispatch({ type: 'reviewReveal', ticket: next.card.ticket }, review);
+    expect((await dispatch({ type: 'reviewRate', ticket: next.card.ticket, rating: 'medium' }, review)).ok).toBe(true);
+    expect((await dispatch({ type: 'progress' }, words)).verifiedKnown).toBe(1);
+    expect((await dispatch({ type: 'wordPractice', id: 'y', scope: 'es' }, words)).ok).toBe(true);
+  } finally {
+    restore();
+    globalThis.chrome = saved.chrome;
+    globalThis.fetch = saved.fetch;
+  }
+});

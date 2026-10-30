@@ -1,5 +1,5 @@
 // Review page handlers: the voluntary local recall queue.
-import { REVIEW_KEY, reviewCounts, nextDue, introduce, nextReview, revealReview, rateReview, markFamiliar,
+import { REVIEW_KEY, reviewCounts, nextDue, introduce, nextReview, revealReview, rateReview, markFamiliar, dueAt,
   reviewLatency, askable } from './review.js';
 import { DEFAULT_RETENTION } from './fsrs.js';
 import { logRetrieval } from './learning-records.js';
@@ -40,10 +40,8 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
       const { state, words, scoped, language } = await reviewState(ctx);
       const own = personalReview(ctx);
       const now = Date.now();
-      const legacyDue = words.filter((w) => state.cards[w.fr]?.due <= now && !state.cards[w.fr]?.familiar)
-        .reduce((due, w) => Math.min(due, state.cards[w.fr].due), Infinity);
-      const personalDue = own.words.filter((w) => own.state.cards[w.fr]?.due <= now && !own.state.cards[w.fr]?.familiar)
-        .reduce((due, w) => Math.min(due, own.state.cards[w.fr].due), Infinity);
+      const legacyDue = words.reduce((due, w) => Math.min(due, dueAt(state.cards[w.fr])), Infinity);
+      const personalDue = own.words.reduce((due, w) => Math.min(due, dueAt(own.state.cards[w.fr])), Infinity);
       // A ticket already on offer (the card on screen, or one chosen with Practice now) keeps its
       // place across scopes, as nextReview keeps it within one scope.
       const keepsCurrent = (s, ws) => !!s.current && ws.some(({ fr }) => fr === s.current.word) && askable(s, s.current, now);
@@ -110,7 +108,8 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
       const current = target.current;
       const claim = current && { word: current.word, prior: target.cards[current.word]?.reviews ?? 0,
         outcome: 'known', latencyMs: reviewLatency(current, now), elapsedDays: null, intervalDays: null, predicted: null };
-      const ok = current && eligible.some(({ fr }) => fr === current.word) && markFamiliar(target, msg.ticket, now);
+      const ok = current && eligible.some(({ fr }) => fr === current.word) &&
+        markFamiliar(target, msg.ticket, now, ctx.settings.gradual);
       if (!ok) return { error: 'Reveal the current due card before marking it familiar.' };
       if (personal) await store.set({ [PERSONAL_KEY]: ctx.personal });
       else await scoped.set({ [REVIEW_KEY]: state });

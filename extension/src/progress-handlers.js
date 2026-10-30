@@ -2,7 +2,7 @@
 // and three word actions for the words page. Local data only; nothing is sent anywhere.
 // Writes go through the worker lock and the same scoped stores the review handlers use, and each
 // one names the scope the page listed, so a language or pack change in between is refused.
-import { REVIEW_KEY, reviewCounts, introduce } from './review.js';
+import { REVIEW_KEY, reviewCounts, introduce, claimKnown } from './review.js';
 import { DEFAULT_RETENTION, withFsrs } from './fsrs.js';
 import { RETRIEVALS_KEY, EXPOSURES_KEY, cleanRetrievals, cleanExposures, retrievalEntries } from './learning-log.js';
 import { PENDING_KEY, SENT_KEY, localDay } from './events.js';
@@ -148,8 +148,11 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       const t = await target(ctx, msg);
       if (t.error) return t;
       if (!t.queue) return { error: t.entry?.archived ? 'Unarchive this word to practise it.' : 'This word is above your current reading level.' };
-      if (t.state.cards[t.word.fr]?.familiar) return { error: 'You marked this word known. Reset it to practise again.' };
+      if (!ctx.settings.gradual && t.state.cards[t.word.fr]?.familiar)
+        return { error: 'You marked this word known. Reset it to practise again.' };
       const now = Date.now();
+      if ((t.state.cards[t.word.fr]?.claimDue || 0) > now)
+        return { error: 'This word has a later verification due. Return when it is ready.' };
       const introduced = !t.state.cards[t.word.fr] && introduce(t.state, [t.word], now, 1) === 1;
       if (t.other.current) { t.other.current = null; await t.persistOther(); }
       // The grant names the card's current due time: any later write to the card voids it.
@@ -171,9 +174,22 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       if (t.entry?.archived) return { error: 'Unarchive this word first.' };
       const now = Date.now();
       const card = t.state.cards[t.word.fr];
-      if (card?.familiar) return { ok: true };
-      if (card) card.familiar = true;
-      else t.state.cards[t.word.fr] = { due: now, interval: 0, reviews: 0, introducedDay: localDay(new Date(now)), familiar: true };
+      if (!ctx.settings.gradual) {
+        if (card?.familiar) return { ok: true };
+        if (card) card.familiar = true;
+        else t.state.cards[t.word.fr] = { due: now, interval: 0, reviews: 0,
+          introducedDay: localDay(new Date(now)), familiar: true };
+        dropTickets(t.state, t.word.fr);
+        await t.persist();
+        return { ok: true };
+      }
+      if (card?.claimDue) return { ok: true };
+      if (card) claimKnown(card, now);
+      else {
+        t.state.cards[t.word.fr] = { due: now, interval: 0, reviews: 0,
+          introducedDay: localDay(new Date(now)) };
+        claimKnown(t.state.cards[t.word.fr], now);
+      }
       dropTickets(t.state, t.word.fr);
       await t.persist();
       return { ok: true };
