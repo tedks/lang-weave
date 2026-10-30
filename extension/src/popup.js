@@ -18,6 +18,7 @@ async function refresh() {
   const s = c.settings;
   const access = !!host && hasSiteAccess(tab.url, c.origins);
   $('enabled').checked = s.enabled;
+  $('enabledLabel').textContent = s.enabled ? 'On' : 'Off';
   $('siteEnabled').checked = !!host && siteOn(s, host) && access;
   $('siteEnabled').disabled = !host;
   $('siteName').textContent = !host ? 'This page is not a website'

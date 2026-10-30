@@ -46,6 +46,7 @@ test('popup shows one action and grants this site before saving or injecting', a
     const $ = (id) => window.document.getElementById(id);
     await waitFor(() => $('primary').textContent === 'Review 3 due words');
     expect($('enabled').getAttribute('role')).toBe('switch');
+    expect($('enabledLabel').textContent).toBe('On');
     expect($('siteName').textContent).toBe('Turn on for this site');
     expect($('operation').textContent).toBe('This site needs your OK');
     expect($('today').textContent).toContain('3 due for review');
@@ -66,8 +67,10 @@ test('popup shows one action and grants this site before saving or injecting', a
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('primary').textContent === 'Add words');
     state.available = 0;
+    $('enabled').checked = false;
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('primary').textContent === 'Practice');
+    expect($('enabledLabel').textContent).toBe('Off');
   } finally {
     globalThis.document = oldDocument;
     globalThis.chrome = oldChrome;
