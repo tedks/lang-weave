@@ -1,0 +1,23 @@
+id: popup-switch-race
+title: Harden popup switch when messaging fails or toggles overlap
+desc: 'Council convergence nits on PR #25: if a save and its fallback status refresh
+  both fail, the refresh error replaces the save error; while the worker is unreachable
+  the switch cannot reconcile to stored state. Rapid consecutive toggles can also
+  interleave because the popup run() helper does not serialize/disable the switch;
+  this behavior predates the dynamic label but is more visible now. The ordinary failed-save
+  path is covered by popup.test.js and reverts correctly. Recommendation: reproduce
+  these rare cases before adding serialization or error-priority machinery. No current
+  merge block.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:44:37-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:44:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
