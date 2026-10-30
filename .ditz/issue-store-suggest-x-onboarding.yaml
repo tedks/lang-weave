@@ -1,0 +1,20 @@
+id: store-suggest-x-onboarding
+title: Suggest enabling X during onboarding in the Store build
+desc: 'Council round 1 on PR #23 (Claude seat, nit). The Store build no longer injects
+  on x.com/twitter.com without a grant (store-x-content-script-ruling option A). docs/ROADMAP.md
+  pairs dropping it with ''suggest X during onboarding''; nothing in the popup or
+  a welcome page does that yet, so Store users who read on X get no prompt. Belongs
+  with welcome-page / the UX lane.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:54:55-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:54:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
