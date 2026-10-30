@@ -1,0 +1,20 @@
+id: key-rejection-fast-fail
+title: Avoid repeat calls after a key is rejected
+desc: 'After an HTTP 400 API_KEY_INVALID, 401 or 403, modelStatus is key_rejected
+  for the current key epoch, but later reading batches can keep spending calls on
+  that key. Short-circuit model dispatch for the current key epoch until replacement/removal,
+  without treating an unrelated stale status as authoritative. Council nit on PR #22;
+  outside the bounded key setup mission.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:12:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:12:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
