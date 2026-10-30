@@ -26,7 +26,10 @@ function closure(entry) {
 
 test('web_accessible_resources is exactly content.js and its import closure, for http(s) pages only', () => {
   const manifest = JSON.parse(read('manifest.json'));
-  expect(read('src/content-loader.js')).toContain("import(chrome.runtime.getURL('src/content.js'))");
+  // The loader reaches exactly one extension URL, content.js, and loads nothing else.
+  const loader = read('src/content-loader.js');
+  expect(loader).toContain("import(chrome.runtime.getURL('src/content.js'))");
+  expect(loader.match(/\bgetURL\b|import\.meta|\bfetch\s*\(|\bimport\s*\(/g)).toEqual(['import(', 'getURL']);
   expect(manifest.web_accessible_resources).toHaveLength(1);
   const [entry] = manifest.web_accessible_resources;
   expect(Object.keys(entry).sort()).toEqual(['matches', 'resources']);

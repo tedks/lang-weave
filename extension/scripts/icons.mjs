@@ -34,6 +34,10 @@ export function parseIconSvg(svg) {
   const rootAttrs = Object.fromEntries([...root[1].matchAll(/\s+([a-zA-Z:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
   for (const k of Object.keys(rootAttrs)) if (!['xmlns', 'viewBox', 'width', 'height'].includes(k)) bad(`unsupported <svg> attribute ${k}`);
   if (rootAttrs.viewBox !== '0 0 16 16') bad('viewBox must be "0 0 16 16"');
+  if (rootAttrs.xmlns !== 'http://www.w3.org/2000/svg') bad('xmlns must be the SVG namespace');
+  // A display size changes nothing the PNGs encode only when it is square and positive.
+  for (const k of ['width', 'height']) if (k in rootAttrs && !/^[1-9]\d*$/.test(rootAttrs[k])) bad(`${k} must be a positive integer`);
+  if ((rootAttrs.width ?? rootAttrs.height) !== (rootAttrs.height ?? rootAttrs.width)) bad('width and height must be equal');
   const body = root[2];
   const rects = [];
   const rest = body.replace(/<rect\b([^>]*)\/>/g, (_, attrs) => {
