@@ -1,30 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="ui-compact">
 <head>
 <meta charset="utf-8">
 <title>Lang Weave</title>
+<link rel="stylesheet" href="ui.css">
 <style>
   * { box-sizing: border-box; }
-  body { width: 300px; margin: 0; padding: 12px 14px; font: 13px/1.4 system-ui, sans-serif; color: #111; background: #fff; }
+  body { width: 300px; margin: 0; padding: 12px 14px; font: 13px/1.4 system-ui, sans-serif; color: var(--ui-text); background: var(--ui-bg); }
   h1 { font-size: 14px; margin: 0; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0; }
   .row > span:first-child { flex: 0 0 auto; }
-  section { border-top: 1px solid #ddd; margin-top: 10px; padding-top: 6px; }
+  section { border-top: 1px solid var(--ui-border); margin-top: 10px; padding-top: 6px; }
   input[type=password], select { width: 150px; padding: 3px 5px; font: inherit; }
   input[type=checkbox] { width: 18px; height: 18px; }
   button { font: inherit; padding: 3px 9px; }
-  .small { color: #666; font-size: 12px; overflow-wrap: anywhere; }
-  .error { color: #a32b22; }
+  .small { color: var(--ui-muted); font-size: 12px; overflow-wrap: anywhere; }
+  .error { color: var(--ui-danger); }
   #siteName { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #siteList { max-height: 95px; overflow: auto; }
   #siteList .row { margin: 4px 0; }
   #notice:empty { display: none; }
   summary { cursor: pointer; margin: 6px 0; }
   @media (prefers-color-scheme: dark) {
-    body { color: #eee; background: #15181c; }
-    section { border-color: #333; }
-    input, select, button { color: #eee; background: #23272e; border: 1px solid #444; }
-    .small { color: #aaa; } .error { color: #ffb4a8; }
+    section { border-color: var(--ui-border); }
+    input, select, button { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
   }
 </style>
 </head>

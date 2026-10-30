@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { validateSwaps, glossMatches, normalizeFr, L1_WORDS, L2_WORDS } from '../src/levels.js';
 import { queueEvents, shownToday, PENDING_KEY } from '../src/events.js';
 import { memoryStorage } from '../src/cache.js';
+import { relativeImports } from '../scripts/package.mjs';
 
 test('Spanish accents are restored when safe; ñ and accent homographs are distinct', () => {
   const swap = (o, f, level = 2) => validateSwaps(level, [{ o, f }])[0]?.f;
@@ -50,9 +51,27 @@ test('fork identity and permissions cannot collide with or contact the French co
   expect(id).toBe('lkbkmlgogcpcacjmdmoecgacdbfddbnh');
   expect(manifest.permissions).not.toContain('nativeMessaging');
   expect(manifest.background.service_worker).toBe('src/background.js');
-  const worker = readFileSync(new URL('../src/background.js', import.meta.url), 'utf8');
-  expect(worker).not.toContain('sendNativeMessage');
-  expect(worker).not.toContain("from './hostsource.js'");
+  // The worker is background.js plus its static imports; scan all of it, not just the entry file.
+  // The hostsource check covers the files that were background.js before the split.
+  const WORKER_FILES = ['background.js', 'router.js', 'worker-context.js', 'review-state.js', 'gradual-budgets.js',
+    'reading.js', 'review-handlers.js', 'inline-recall.js', 'update.js', 'settings-handlers.js',
+    'capture-handlers.js', 'backup-handlers.js', 'sites.js'];
+  const seen = new Set();
+  // Paths are relative to src/; the package script's scanner ignores comments and literal text.
+  const visit = (name) => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
+    expect([name, source.includes('sendNativeMessage')]).toEqual([name, false]);
+    for (const specifier of relativeImports(source)) {
+      const next = new URL(specifier, `file:///src/${name}`).pathname;
+      expect([name, specifier, next.startsWith('/src/')]).toEqual([name, specifier, true]);
+      if (WORKER_FILES.includes(name)) expect([name, specifier, next]).not.toEqual([name, specifier, '/src/hostsource.js']);
+      visit(next.slice('/src/'.length));
+    }
+  };
+  visit('background.js');
+  expect(WORKER_FILES.filter((name) => !seen.has(name))).toEqual([]);
 });
 
 test('plural English anchors cannot become singular Spanish nouns, while listed plurals and verbs still work', () => {

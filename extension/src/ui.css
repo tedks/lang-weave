@@ -1,0 +1,49 @@
+/* Shared colour tokens for extension pages. Link this before a page's own styles.
+   Light values on :root, dark values under prefers-color-scheme. Pages use
+   var(--ui-*) for colours; a page may override a token with its own literal
+   in its own stylesheet (capture.css does). The default palette is the document
+   palette (capture, backup, review). The compact popup sets class "ui-compact"
+   on <html> for its own values. */
+:root {
+  --ui-text: #182027;
+  --ui-bg: #faf9f5;
+  --ui-surface: #fff;      /* cards and panels */
+  --ui-border: #cbd2d5;
+  --ui-divider: #e0e4e5;   /* list separators */
+  --ui-muted: #59636b;
+  --ui-danger: #9b221b;    /* error text */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ui-text: #f3f3f3;
+    --ui-bg: #15181c;
+    --ui-surface: #22282d;
+    --ui-border: #52606a;
+    --ui-muted: #bbc3c9;
+    --ui-danger: #ffb4a8;
+    /* Dark-only: light mode keeps the browser's native control look. */
+    --ui-control-text: #f3f3f3;
+    --ui-control-bg: #343d45;
+    --ui-control-border: #7a8790;
+  }
+}
+/* Popup palette. */
+html.ui-compact {
+  --ui-text: #111;
+  --ui-bg: #fff;
+  --ui-border: #ddd;
+  --ui-muted: #666;
+  --ui-danger: #a32b22;
+}
+@media (prefers-color-scheme: dark) {
+  html.ui-compact {
+    --ui-text: #eee;
+    --ui-bg: #15181c;
+    --ui-border: #333;
+    --ui-muted: #aaa;
+    --ui-danger: #ffb4a8;
+    --ui-control-text: #eee;
+    --ui-control-bg: #23272e;
+    --ui-control-border: #444;
+  }
+}
