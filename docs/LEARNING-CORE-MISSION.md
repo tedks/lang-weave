@@ -1,26 +1,26 @@
 # Learning core: FSRS scheduler and local learning log
 
-State: phase 1 (standalone modules) merged in PR #19 at `eee1bfe`. Phase 2 is a two-PR stack. The bottom PR is the tolerant-reader release, 0.12.3 on branch `learning-core-reader`. The top PR is the writer release on branch `learning-core-writer`. Ditz issues `fsrs-scheduler` and `learning-event-log` stay open until the writer merges.
+State: phase 1 (standalone modules) merged in PR #19 at `eee1bfe`. Phase 2 is a two-PR stack. The bottom PR is the tolerant-reader release, 0.12.5 on branch `learning-core-reader`. The top PR is the writer release on branch `learning-core-writer`. Ditz issues `fsrs-scheduler` and `learning-event-log` stay open until the writer merges.
 
-## Phase 2, step 1: tolerant reader (0.12.3)
+## Phase 2, step 1: tolerant reader (0.12.5)
 
 This release reads everything the writer will produce and changes nothing a user sees:
-- **Backups.** `parseBackup` accepts schema 1 and schema 2. Export still writes schema 1, without FSRS state, log or `desiredRetention`, so 0.12.2 can still import its files.
+- **Backups.** `parseBackup` accepts schema 1 and schema 2. Export still writes schema 1, without FSRS state, log or `desiredRetention`, so 0.12.4 and earlier can still import its files.
 - **Unknown future schemas** fail with a message naming the schema and telling the user to update.
 - **Schema 2 content.** `fsrs` on cards is validated with `cleanFsrsState`. It is kept only while it agrees with the card's `due` and `interval`, and dropped as stale otherwise. `learningRetrievals` and `learningExposures` in any scope are validated strictly, so malformed data fails closed. Well-formed entries whose word is not in the scope's catalog are omitted and counted in the preview. That is ruling B on `learning-log-export-unverified-ruling`.
 - **`desiredRetention`** is accepted between 0.85 and 0.9.
 - **Storage.** The two log keys are known learning keys everywhere a key list exists: `storageEntries`, `learningPatch`, `alreadyImported` and `targetFresh`. They now derive from one table, `SCOPE_FIELDS`. A target with logged progress is not fresh, and an unknown log shape conflicts.
 - **Cards.** `cleanReview` keeps a stored `fsrs` only while it agrees with the schedule. This build schedules without FSRS, so a card it rates loses the stale state at the next load. No new field is ever created.
-- **Settings.** `cleanSettings` keeps `desiredRetention` when it is valid and never adds a default. A downgrade to 0.12.2 therefore stays possible unless the user imported a schema 2 file with that preference.
+- **Settings.** `cleanSettings` keeps `desiredRetention` when it is valid and never adds a default. A downgrade to 0.12.4 or earlier therefore stays possible unless the user imported a schema 2 file with that preference.
 - **Old scheduler.** This build's scheduler deletes a card's `fsrs` whenever it rates the card, Again included, because the state no longer describes the card. A stored state also needs at least one review and no more lapses than reviews.
 - **Schema 1 export** ignores stored `fsrs` without validating it, and drops a scope that held only log data instead of exporting it empty. It silently omits FSRS state, the log and `desiredRetention`, which is inherent to schema 1. That only matters after a schema 2 import into this build.
 - **Repeat imports.** A fresh target may already hold an empty log. `alreadyImported` accepts an empty log of exactly the version 1 shape that the import did not write. `targetFresh` treats any other log shape as a conflict.
 - **Known limit.** An exposure word spelled exactly `constructor` or `prototype` fails the whole import as an unsafe key, as review cards already do.
 - **Interpretation.** Migration on read in this step means accepting and validating persisted state, not deriving it. Derivation with `withFsrs` starts in the writer, which is also the first build to persist it.
 
-Verified against 0.12.2's own `portability.js`, extracted from `origin/main`:
+Verified against 0.12.2's own `portability.js`, extracted from `origin/main` at `13533f3`. Releases 0.12.3 and 0.12.4 (worker split follow-ups and key setup) did not change `portability.js`, `settings.js` or `review.js`, so the result holds for every release before 0.12.5:
 - It refuses a schema 2 file with "unsupported format or schema version".
-- It refuses to export once any log key exists, with "unknown storage format". That cannot be fixed retroactively, so the writer's release notes must say to update to 0.12.3 or later first.
+- It refuses to export once any log key exists, with "unknown storage format". That cannot be fixed retroactively, so the writer's release notes must say to update to 0.12.5 or later first.
 - It imports this build's schema 1 export.
 
 ## Intent
@@ -93,7 +93,7 @@ Today any new key or card field breaks the learning backup:
 - `card()` rejects any unknown card field.
 - `cleanReview` silently drops unknown card fields on every load.
 
-**Release order.** Ship a tolerant reader one release before the first writer. In the event, 0.12.3 went further than this plan's first draft, which only skipped and stripped the new data: it reads and validates all of it. "Phase 2, step 1" above describes what it does. A user who then downgrades from the writer to 0.12.3 can still export schema 1, and startup does not set `startupUnsupportedSettings`. Older builds such as 0.12.2 fail their export as soon as a log key exists. That cannot be fixed retroactively, so the writer's release notes must say to install 0.12.3 or later first.
+**Release order.** Ship a tolerant reader one release before the first writer. In the event, 0.12.5 went further than this plan's first draft, which only skipped and stripped the new data: it reads and validates all of it. "Phase 2, step 1" above describes what it does. A user who then downgrades from the writer to 0.12.5 can still export schema 1, and startup does not set `startupUnsupportedSettings`. Older builds, 0.12.4 and earlier, fail their export as soon as a log key exists. That cannot be fixed retroactively, so the writer's release notes must say to install 0.12.5 or later first.
 
 The first phase 2 release that writes any of these keys or the `fsrs` field must include all of the following in the same PR:
 
