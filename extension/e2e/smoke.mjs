@@ -153,10 +153,19 @@ try {
   await review.locator('#answer').getByText('y').waitFor();
   await review.locator('[data-rating="hard"]').click();
   await review.locator('#prompt').getByText('but').waitFor();
-  assert.equal(await review.locator('#counts').textContent(), '4 due · 25 available to add');
+  await review.waitForFunction(() => document.activeElement?.id === 'reveal');
+  assert.equal(await review.locator('#progress').textContent(), 'Card 2 of 5');
+  await review.keyboard.press('Enter');
+  await review.locator('#answer').getByText('pero').waitFor();
+  await review.waitForFunction(() => document.activeElement?.dataset.rating === 'medium');
+  await review.keyboard.press('2');
+  await review.locator('#prompt').getByText('or').waitFor();
+  await review.waitForFunction(() => document.activeElement?.id === 'reveal');
+  assert.equal(await review.locator('#counts').textContent(), '3 due · 25 available to add');
   const savedReview = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((s) => s.recallReview));
   assert.equal(savedReview.cards.y.interval, 1);
   assert.equal(savedReview.cards.y.reviews, 1);
+  assert.equal(savedReview.cards.pero.interval, 1); // rated Hard with the 2 key
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length); // review never calls Gemini
   await popup.getByText('Add a language').click();
   await popup.locator('#newLanguage').fill('fr');
@@ -179,7 +188,7 @@ try {
   assert.equal(await popup.locator('#language option[value=ja]').count(), 0);
   await page.locator('#reading .fw-word').getByText('y').waitFor();
   await review.locator('#language').getByText('Reviewing Spanish').waitFor();
-  await review.locator('#counts').getByText('4 due · 25 available to add').waitFor();
+  await review.locator('#counts').getByText('3 due · 25 available to add').waitFor();
   const afterLanguages = await worker.evaluate(() => globalThis.smokeCalls.length);
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);
