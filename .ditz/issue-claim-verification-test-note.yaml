@@ -1,0 +1,18 @@
+id: claim-verification-test-note
+title: Clarify claim Easy worker test intent
+desc: 'Final council nit: progress-worker claim test rates Easy at claimDue after
+  advancing the clock by 21 days, primarily asserting returnable propagation. Add
+  a one-line intent comment if revisiting the test.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T22:09:16-00:00
+references: []
+log_events:
+- time: 2026-10-30T22:09:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
