@@ -39,9 +39,10 @@ test('options works without a tab; settings, exception reset and key removal rou
   const messages = [];
   let storageChanged;
   let generateFails = false;
+  let due = 2;
   const status = () => ({ config: { settings: cleanSettings(data.settings), language: 'es',
     hasKey: !!data.apiKey, origins: [] }, update: '', languages: [{ code: 'es', name: 'Spanish' }],
-    pastedKey: !!data.apiKey, modelStatus: null });
+    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, modelStatus: null });
   globalThis.chrome = {
     runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.5' }),
       sendMessage: async (msg) => {
@@ -67,6 +68,8 @@ test('options works without a tab; settings, exception reset and key removal rou
     await import('../src/options.js?options-roundtrip');
     const $ = (id) => window.document.getElementById(id);
     await waitFor(() => $('version').textContent === '0.12.5');
+    expect($('wordInfo').textContent).toBe('30 Spanish words');
+    expect($('reviewInfo').textContent).toBe('2');
     expect(window.document.querySelector('a[href="https://aistudio.google.com/apikey"]')).not.toBeNull();
     expect($('siteList').textContent).toContain('example.com: off');
     $('density').value = 'heavy';
@@ -89,6 +92,9 @@ test('options works without a tab; settings, exception reset and key removal rou
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('density').value === 'light');
     expect($('apiKey').value).toBe('unsaved-draft');
+    due = 5;
+    storageChanged({ recallReview: {} }, 'local');
+    await waitFor(() => $('reviewInfo').textContent === '5');
     $('apiKey').value = 'synthetic-key';
     $('saveKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Saved ✓');

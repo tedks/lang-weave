@@ -48,6 +48,8 @@ async function refresh() {
   $('language').value = c.language;
   $('removeLanguage').hidden = c.language === 'es';
   $('model').value = s.model;
+  $('wordInfo').textContent = `${status.words} ${status.languages.find((item) => item.code === c.language)?.name || c.language} words`;
+  $('reviewInfo').textContent = String(status.review.due);
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
   $('testKey').disabled = !status.pastedKey;
   $('removeKey').disabled = !status.pastedKey;
@@ -153,7 +155,9 @@ const refreshAfterExternalChange = () => {
   void refresh().catch((e) => { $('notice').textContent = e.message || 'Could not refresh settings'; });
 };
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && ['settings', 'apiKey', 'languagePacks'].some((key) => Object.hasOwn(changes, key))) {
+  if (area === 'local' && Object.keys(changes).some((key) =>
+    ['settings', 'apiKey', 'languagePacks', 'recallReview', 'personalVocabularyV1'].includes(key) ||
+    key.endsWith(':recallReview'))) {
     refreshAfterExternalChange();
   }
 });
