@@ -1,0 +1,20 @@
+id: key-isolation-probe-timeout
+title: Bound the worker startup wait for setAccessLevel
+desc: 'Council nit on key-isolation-fail-closed PR #34: if storage.local.setAccessLevel
+  never settles, worker ready never resolves. A timeout could keep isolation unavailable
+  and surface fixed guidance instead of leaving the UI unresponsive. This is not a
+  key leak, and no hanging Chrome implementation was observed. Follow-up outside the
+  bounded PR to keep the security change small.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:25:29-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:25:29-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
