@@ -1,0 +1,19 @@
+id: cue-revealed-control-order
+title: Review Dismiss placement after inline cue reveal
+desc: 'Council nit on PR #31: after reveal, Dismiss remains in the actions block above
+  the four-rating row and before Again in tab order. Decide whether to move Dismiss
+  below the row or otherwise de-emphasize it while preserving focus trap and Reveal-first
+  flow. Current acceptance only requires one four-rating row and quieter Already know.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:27:50-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:27:50-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
