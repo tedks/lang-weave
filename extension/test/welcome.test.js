@@ -1,10 +1,22 @@
 import { test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
+import { readFileSync } from 'node:fs';
 import { openWelcome } from '../src/update.js';
 import { L1_WORDS } from '../src/vocabulary.js';
 import { applySwaps, toggle } from '../src/text.js';
 import { demoSwaps, chooseSitePolicy } from '../src/welcome.js';
 import { hashKey } from '../src/hash.js';
+
+test('welcome and options state the 18+ Gemini API requirement', () => {
+  for (const name of ['welcome', 'options']) {
+    const html = readFileSync(new URL(`../src/${name}.html`, import.meta.url), 'utf8');
+    const win = new Window();
+    win.document.write(html);
+    const section = win.document.querySelector(name === 'welcome' ? '[aria-labelledby="privacyHeading"]' : '[aria-labelledby="sitesHeading"]');
+    expect(section.textContent).toContain('The Gemini API requires users to be 18 or older.');
+    win.close();
+  }
+});
 
 test('only an install opens the first-run page', () => {
   const old = globalThis.chrome;

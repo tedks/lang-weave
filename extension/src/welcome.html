@@ -34,12 +34,18 @@
     <h2 id="privacyHeading">2. Choose where it may read</h2>
     <p>When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.</p>
     <p>Google may use requests made with a free key to improve its products, and human reviewers may see them. A billed key avoids that use. Provider quotas and charges can still apply.</p>
+    <p>The Gemini API requires users to be 18 or older.</p>
     <p>Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.</p>
     <div class="choices">
       <button id="onlySites" type="button">Only sites I turn on · recommended</button>
       <button id="allSites" type="button">All sites except sensitive ones</button>
     </div>
     <p id="choiceStatus" role="status" aria-live="polite"></p>
+    <div id="suggestX" hidden>
+      <p>Read on X? You can allow x.com explicitly.</p>
+      <button id="allowX" type="button">Allow x.com</button>
+      <p id="xStatus" role="status" aria-live="polite"></p>
+    </div>
   </section>
   <section aria-labelledby="learnHeading">
     <h2 id="learnHeading">3. Add a key and start learning</h2>

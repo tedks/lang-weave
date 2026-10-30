@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { hashKey } from '../src/hash.js';
 import { L2_WORDS } from '../src/vocabulary.js';
 import { localDay } from '../src/events.js';
+import { REVIEW_KEY } from '../src/review.js';
 
 test('production menu listener, one-use save, stable review history and archive/export', async () => {
   const prior = { chrome: globalThis.chrome, fetch: globalThis.fetch };
@@ -124,6 +125,19 @@ test('production menu listener, one-use save, stable review history and archive/
     expect(rated.interval).toBe(0);
     expect(data.personalVocabularyV1.history.es.cards[saved.id].reviews).toBe(1);
     expect(data.personalVocabularyV1.history.es.cards[saved.id].due).toBeGreaterThan(Date.now());
+    const personalDue = data.personalVocabularyV1.history.es.cards[saved.id].due;
+    expect(await send({ type: 'reviewStatus' }, reviewer)).toMatchObject({
+      nextDue: personalDue, nextCount: 1,
+    });
+    expect(await send({ type: 'reviewNext' }, reviewer)).toMatchObject({
+      card: null, nextDue: personalDue, nextCount: 1,
+    });
+    const previousLegacy = data[REVIEW_KEY];
+    data[REVIEW_KEY] = { version: 1, cards: { y: { due: personalDue, interval: 1, reviews: 1 } } };
+    expect(await send({ type: 'reviewStatus' }, reviewer)).toMatchObject({
+      nextDue: personalDue, nextCount: 2,
+    });
+    data[REVIEW_KEY] = previousLegacy;
 
     // Save with a configured model must not start a reading retry or provider request.
     data.apiKey = 'synthetic-key';

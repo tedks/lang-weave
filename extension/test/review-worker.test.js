@@ -47,7 +47,8 @@ test('worker owns review access, persistence, and raced rating serialization', a
     await import('../src/background.js?review-worker');
     expect(await dispatch({ type: 'reviewIntroduce' }, page)).toBeUndefined();
     expect(await dispatch({ type: 'reviewRate', ticket: 'x', rating: 'easy' }, popup)).toBeUndefined();
-    expect(await dispatch({ type: 'reviewStatus' }, review)).toEqual({ due: 0, new: 30, language: 'Spanish' });
+    expect(await dispatch({ type: 'reviewStatus' }, review)).toEqual({ due: 0, new: 30, language: 'Spanish',
+      nextDue: null, nextCount: 0 });
     expect((await dispatch({ type: 'reviewIntroduce' }, review)).added).toBe(5);
     expect((await dispatch({ type: 'reviewIntroduce' }, review)).added).toBe(5);
     expect(Object.keys(data[REVIEW_KEY].cards)).toHaveLength(10);
@@ -119,13 +120,15 @@ test('worker owns review access, persistence, and raced rating serialization', a
     const ordinary = (await dispatch({ type: 'reviewNext' }, review)).card;
     expect(ordinary.en).toBe('and');
     await dispatch({ type: 'reviewReveal', ticket: ordinary.ticket }, review);
-    expect((await dispatch({ type: 'reviewRate', ticket: ordinary.ticket, rating: 'easy' }, review)).ok).toBe(true);
+    expect(await dispatch({ type: 'reviewRate', ticket: ordinary.ticket, rating: 'easy' }, review))
+      .toMatchObject({ ok: true, familiar: false });
     expect(data[REVIEW_KEY].cards.y.familiar).toBeUndefined();
     data.settings.gradual = true;
     data[REVIEW_KEY].cards.y.due = now;
     const opted = (await dispatch({ type: 'reviewNext' }, review)).card;
     await dispatch({ type: 'reviewReveal', ticket: opted.ticket }, review);
-    expect((await dispatch({ type: 'reviewRate', ticket: opted.ticket, rating: 'easy' }, review)).ok).toBe(true);
+    expect(await dispatch({ type: 'reviewRate', ticket: opted.ticket, rating: 'easy' }, review))
+      .toMatchObject({ ok: true, familiar: true });
     expect(data[REVIEW_KEY].cards.y.familiar).toBe(true);
 
     // A legacy card can miss after prior success without losing history or

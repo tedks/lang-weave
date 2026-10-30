@@ -1,5 +1,5 @@
 // Review page handlers: the voluntary local recall queue.
-import { REVIEW_KEY, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
+import { REVIEW_KEY, reviewCounts, nextDue, introduce, nextReview, revealReview, rateReview, markFamiliar,
   reviewLatency, askable } from './review.js';
 import { DEFAULT_RETENTION } from './fsrs.js';
 import { logRetrieval } from './learning-records.js';
@@ -16,10 +16,13 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
     ctx ||= await context();
     const { state, words, language } = await reviewState(ctx);
     const own = personalReview(ctx);
-    const oldCounts = reviewCounts(state, words, Date.now());
-    const ownCounts = reviewCounts(own.state, own.words, Date.now());
+    const now = Date.now();
+    const oldCounts = reviewCounts(state, words, now);
+    const ownCounts = reviewCounts(own.state, own.words, now);
+    // Personal IDs carry a colon and never overlap catalog forms, so this is one offered deck.
+    const upcoming = nextDue({ cards: { ...state.cards, ...own.state.cards } }, [...words, ...own.words], now);
     return { due: oldCounts.due + ownCounts.due, new: oldCounts.new,
-      language: languageName(language) };
+      language: languageName(language), ...upcoming };
   }
 
   async function reviewIntroduce() {

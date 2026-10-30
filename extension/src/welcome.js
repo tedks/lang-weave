@@ -1,5 +1,6 @@
 import { L1_WORDS } from './vocabulary.js';
 import { applySwaps, toggle, isSwap } from './text.js';
+import { declaredMatches } from './sites.js';
 
 // Keep the example fixed and sense-safe. Each entry must come from the bundled Beginner pack.
 const DEMO_ENGLISH = ['Today', 'with', 'and', 'important', 'always', 'because', 'difficult', 'but', 'possible'];
@@ -14,6 +15,13 @@ export function demoSwaps() {
 export function chooseSitePolicy(all, { request, save }) {
   // request() must be the first action on the all-sites click to retain Chrome's user gesture.
   return all ? request().then((granted) => granted ? save(true) : false) : save(false);
+}
+
+export const suggestX = () => !declaredMatches().includes('https://x.com/*');
+
+export function allowSuggestedX({ request, save }) {
+  // The permission request starts in the click gesture, before any async work.
+  return request().then((granted) => granted ? save() : false);
 }
 
 if (typeof document !== 'undefined' && document.getElementById('demo')) {
@@ -84,5 +92,26 @@ if (typeof document !== 'undefined' && document.getElementById('demo')) {
   };
   buttons[0].addEventListener('click', () => { void choose(false); });
   buttons[1].addEventListener('click', () => { void choose(true); });
+  if (suggestX()) {
+    const suggestion = document.getElementById('suggestX');
+    const allow = document.getElementById('allowX');
+    const xStatus = document.getElementById('xStatus');
+    suggestion.hidden = false;
+    allow.addEventListener('click', () => {
+      allow.disabled = true;
+      xStatus.textContent = '';
+      void allowSuggestedX({
+        request: () => chrome.permissions.request({ origins: ['https://x.com/*'] }),
+        save: async () => {
+          const result = await chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'x.com', enabled: true } });
+          if (!result?.ok) throw new Error(result?.error || 'Could not enable x.com');
+          return true;
+        },
+      }).then((saved) => { xStatus.textContent = saved ? 'x.com allowed. After setup, reload any open X page to start there.'
+        : 'Chrome did not grant x.com access.'; })
+        .catch((error) => { xStatus.textContent = error.message || 'Could not enable x.com'; })
+        .finally(() => { allow.disabled = false; });
+    });
+  }
   document.getElementById('openSettings').addEventListener('click', () => { void chrome.runtime.openOptionsPage(); });
 }

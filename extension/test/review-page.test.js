@@ -83,6 +83,39 @@ const WORDS = [
   { en: 'now', fr: 'ahora' }, { en: 'here', fr: 'aquí' },
 ];
 
+test('finish card uses deck-wide next due time and count when the worker supplies them', async () => {
+  const queue = fakeQueue(WORDS.slice(0, 1));
+  const due = Date.now() + 3 * DAY_MS;
+  const page = await mount('deck-wide-next', async (message) => {
+    const response = await queue.sendMessage(message);
+    return message.type === 'reviewNext' ? { ...response, nextDue: due, nextCount: 3 } : response;
+  });
+  try {
+    await settle();
+    page.$('reveal').click();
+    await settle();
+    page.doc.querySelector('[data-rating="hard"]').click();
+    await settle();
+    expect(page.$('finish-next').textContent).toMatch(/^Nothing due until .+ \(3 words\)\.$/);
+  } finally { await page.restore(); }
+});
+
+test('finish card reports no future review when the deck-wide worker result is empty', async () => {
+  const queue = fakeQueue(WORDS.slice(0, 1));
+  const page = await mount('deck-wide-empty', async (message) => {
+    const response = await queue.sendMessage(message);
+    return message.type === 'reviewNext' ? { ...response, nextDue: null, nextCount: 0 } : response;
+  });
+  try {
+    await settle();
+    page.$('reveal').click();
+    await settle();
+    page.doc.querySelector('[data-rating="easy"]').click();
+    await settle();
+    expect(page.$('finish-next').textContent).toBe('No future reviews in this deck.');
+  } finally { await page.restore(); }
+});
+
 test('an open review tab discards a revealed answer after language changes while refreshing', async () => {
   let releaseFrenchAnswer;
   let releaseSpanishQueue;
