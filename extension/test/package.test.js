@@ -308,7 +308,11 @@ test('verify: pure helpers', () => {
 });
 
 test('package: the real extension verifies cleanly', () => {
-  expect(() => build()).not.toThrow();
+  const packaged = build();
+  expect(packaged.files).toContain('src/options.html');
+  expect(packaged.files).toContain('src/options.js');
+  expect(JSON.parse(readZip(packaged.bytes).find((entry) => entry.name === 'manifest.json').data.toString())
+    .options_ui).toEqual({ page: 'src/options.html', open_in_tab: true });
 });
 
 test('package: --out needs a non-empty directory in both spellings', () => {

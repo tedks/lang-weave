@@ -6,85 +6,39 @@
 <link rel="stylesheet" href="ui.css">
 <style>
   * { box-sizing: border-box; }
-  body { width: 300px; margin: 0; padding: 12px 14px; font: 13px/1.4 system-ui, sans-serif; color: var(--ui-text); background: var(--ui-bg); }
-  h1 { font-size: 14px; margin: 0; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0; }
-  .row > span:first-child { flex: 0 0 auto; }
-  section { border-top: 1px solid var(--ui-border); margin-top: 10px; padding-top: 6px; }
-  input[type=password], select { width: 150px; padding: 3px 5px; font: inherit; }
-  input[type=checkbox] { width: 18px; height: 18px; }
-  button { font: inherit; padding: 3px 9px; }
+  body { width: 300px; margin: 0; padding: 14px; font: 13px/1.45 system-ui, sans-serif; color: var(--ui-text); background: var(--ui-bg); }
+  h1 { font-size: 16px; margin: 0; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .row label { display: flex; align-items: center; gap: 6px; }
+  section { border-top: 1px solid var(--ui-border); margin-top: 12px; padding-top: 10px; }
+  p { margin: 8px 0; }
   .small { color: var(--ui-muted); font-size: 12px; overflow-wrap: anywhere; }
   .error { color: var(--ui-danger); }
   #siteName { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #siteList { max-height: 95px; overflow: auto; }
-  #siteList .row { margin: 4px 0; }
+  #primary { width: 100%; padding: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+  #links { display: flex; justify-content: space-between; margin-top: 12px; }
+  #links a { color: inherit; }
   #notice:empty { display: none; }
-  summary { cursor: pointer; margin: 6px 0; }
+  button { font: inherit; }
   @media (prefers-color-scheme: dark) {
-    section { border-color: var(--ui-border); }
-    input, select, button { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
+    input, button { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
   }
 </style>
 </head>
 <body>
-  <div class="row"><h1>Lang Weave</h1><label>On <input type="checkbox" id="enabled"></label></div>
-  <div id="operation" class="small" role="status"></div>
-  <div id="update" class="small" hidden>Update <span id="updateVersion"></span> didn't load by itself: click the
-    reload arrow on Lang Weave in the extensions page. <button id="openExtensions">Open extensions page</button></div>
+  <div class="row"><h1>Lang Weave</h1><label for="enabled"><span id="enabledLabel" aria-hidden="true">On</span><input type="checkbox" id="enabled" role="switch" aria-label="Lang Weave enabled"></label></div>
+  <p id="operation" class="small" role="status"></p>
   <section>
-    <label class="row"><span id="siteName">This site</span><input type="checkbox" id="siteEnabled" aria-label="On for this site"></label>
-    <label class="row"><span>Other sites</span><select id="newSitesEnabled"><option value="true">On by default</option><option value="false">Only sites I turn on</option></select></label>
-    <button id="grantSites" hidden>Allow all websites</button>
-    <p class="small" id="accessNote"></p>
-    <details><summary>Site exceptions</summary><div id="siteList" class="small"></div></details>
+    <label class="row" for="siteEnabled"><span id="siteName">This site</span><input type="checkbox" id="siteEnabled"></label>
+    <p id="today" class="small"></p>
+    <button id="primary" type="button">Practice</button>
   </section>
-  <section>
-    <label class="row"><span>Learning</span><select id="language" aria-label="Learning language"></select></label>
-    <button id="removeLanguage" hidden>Remove this generated language and its local progress</button>
-    <details><summary>Add a language</summary>
-      <p class="small">Generated vocabulary is experimental. Add your Gemini key below first. Use a language code such as fr or ja.</p>
-      <label class="row"><span>Language code</span><input id="newLanguage" maxlength="20" placeholder="fr" autocomplete="off"></label>
-      <button id="addLanguage">Generate vocabulary</button>
-    </details>
-    <div class="row"><span>Level</span><span id="levelInfo" class="small"></span></div>
-    <label class="row"><span>Reading level</span>
-      <select id="levelOverride">
-        <option value="0">Beginner (default)</option>
-        <option value="1">1 · Beginner</option>
-        <option value="2">2 · Expanded</option>
-      </select>
-    </label>
-    <label class="row"><span>Gradual learning</span><input type="checkbox" id="gradual"></label>
-    <label class="row"><span>New words per day</span><select id="newWordsPerDay">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-      <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-      <option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
-    </select></label>
-    <div id="budgetRecovery" class="small" hidden role="status">
-      <p id="budgetWarning"></p>
-      <button id="recoverBudget" type="button">Reset today's introduction budget</button>
-      <button id="cancelBudget" type="button">Keep paused</button>
-    </div>
-    <label class="row"><span>Translation density</span><select id="density">
-      <option value="light">Light</option><option value="normal">Normal</option><option value="heavy">Heavy</option>
-    </select></label>
-    <label class="row"><span>Inline recall</span><input type="checkbox" id="inlineRecall"></label>
-    <p class="small">Gradual learning introduces only words that fit what you read. Due words come first. Inline recall opens when you activate a marked word; reveal before rating.</p>
-    <label class="row"><span>Model</span><select id="model"></select></label>
-    <label class="row"><span>Gemini key</span><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"></label>
-    <p class="small"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Gemini key</a>: open AI Studio, create a key, then paste it here.</p>
-    <p class="small">Use a billed key: Google may use free-tier text to improve products, and EEA, UK and Swiss users need paid services.</p>
-    <div class="row"><button id="saveKey" type="button">Save key</button><button id="testKey" type="button">Test key</button><button id="removeKey" type="button">Remove key</button></div>
-    <div id="keyFeedback" class="small" role="status" aria-live="polite"></div>
-    <div class="row"><span>Words</span><span id="wordInfo" class="small"></span></div>
-    <div class="row"><span>Recall reviews</span><span id="reviewInfo" class="small"></span></div>
-    <button id="openReview">Open review</button>
-    <button id="openBackup">Learning backup</button>
-    <div class="row"><span>Hover for meaning; click for English.</span></div>
-    <button id="clearCache">Clear cache</button>
-  </section>
-  <p class="small">Sites where it's on send readable page text to Gemini with your key. With a free key, Google may use it to improve its products; a paid key avoids that. Links and inline code go with their sentence but are never changed; code blocks, forms and editable text are skipped.</p>
+  <div id="budgetRecovery" class="small" hidden role="status">
+    <p id="budgetWarning"></p>
+    <button id="recoverBudget" type="button">Reset today's introduction budget</button>
+    <button id="cancelBudget" type="button">Keep paused</button>
+  </div>
+  <nav id="links" aria-label="More"><a id="openSettings" href="options.html">Settings</a><a id="openWords" href="capture.html">My words</a><a id="openHelp" href="https://github.com/tedks/lang-weave#controls-and-privacy" target="_blank" rel="noopener noreferrer">Help</a></nav>
   <div id="notice" class="small error" role="alert"></div>
   <script type="module" src="popup.js"></script>
 </body>

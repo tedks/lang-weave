@@ -42,6 +42,7 @@ test('worker owns review access, persistence, and raced rating serialization', a
   const review = { id: 'fw-test', url: 'chrome-extension://fw-test/src/review.html' };
   const page = { id: 'fw-test', url: 'https://example.com/', tab: { id: 1 } };
   const popup = { id: 'fw-test', url: 'chrome-extension://fw-test/src/popup.html' };
+  const options = { id: 'fw-test', url: 'chrome-extension://fw-test/src/options.html' };
   try {
     await import('../src/background.js?review-worker');
     expect(await dispatch({ type: 'reviewIntroduce' }, page)).toBeUndefined();
@@ -73,7 +74,7 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect((await dispatch({ type: 'reviewReveal', ticket: first.ticket }, review)).error).toMatch(/no longer/);
     data['c:synthetic'] = { s: [], t: now };
     const beforeClear = structuredClone(data[REVIEW_KEY]);
-    expect((await dispatch({ type: 'clearCache' }, popup)).removed).toBe(1);
+    expect((await dispatch({ type: 'clearCache' }, options)).removed).toBe(1);
     expect(data['c:synthetic']).toBeUndefined();
     expect(data[REVIEW_KEY]).toEqual(beforeClear); // model cache controls cannot erase recall history
     expect((await dispatch({ type: 'reviewNext' }, review)).card.en).toBe('but');

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lang Weave · Settings</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  * { box-sizing: border-box; }
+  body { max-width: 760px; margin: 2rem auto; padding: 0 1.25rem 3rem; font: 16px/1.5 system-ui, sans-serif; color: var(--ui-text); background: var(--ui-bg); }
+  h1 { margin-bottom: .25rem; }
+  h2 { margin-top: 0; }
+  section { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; padding: 1.25rem; margin: 1.25rem 0; }
+  .muted { color: var(--ui-muted); }
+  .error { color: var(--ui-danger); }
+  .field { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(170px, 1fr); gap: .25rem 1rem; margin: 1rem 0; align-items: center; }
+  .field .hint { grid-column: 1 / -1; margin: 0; }
+  .field select, .field input:not([type=checkbox]) { min-width: 0; width: 100%; padding: .4rem; font: inherit; }
+  .field input[type=checkbox] { justify-self: start; width: 20px; height: 20px; }
+  .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0; }
+  button { font: inherit; padding: .4rem .7rem; cursor: pointer; }
+  button:disabled { cursor: default; opacity: .55; }
+  #siteList .row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--ui-divider); padding: .4rem 0; }
+  #notice { min-height: 1.5em; }
+  @media (max-width: 520px) { .field { grid-template-columns: 1fr; } }
+  @media (prefers-color-scheme: dark) {
+    input, select, button { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Settings</h1>
+  <p class="muted">Choose how Lang Weave learns from the sites you allow.</p>
+  <p id="operation" class="muted" role="status"></p>
+  <section aria-labelledby="learningHeading">
+    <h2 id="learningHeading">Learning</h2>
+    <div class="field"><label for="language">Language</label><select id="language"></select><p class="hint muted">Spanish is bundled; generated languages are experimental and stored locally.</p></div>
+    <button id="removeLanguage" type="button" hidden>Remove this generated language and its local progress</button>
+    <details><summary>Add a language</summary>
+      <p class="muted">Generated vocabulary is experimental. Add your Gemini key below first. Use a language code such as fr or ja.</p>
+      <div class="field"><label for="newLanguage">Language code</label><input id="newLanguage" maxlength="20" placeholder="fr" autocomplete="off"><p class="hint muted">A new pack is generated with Gemini and stored only in this extension.</p></div>
+      <button id="addLanguage" type="button">Generate vocabulary</button>
+    </details>
+    <p class="muted">Current effective level: <span id="levelInfo"></span></p>
+    <div class="field"><label for="levelOverride">Reading level</label><select id="levelOverride"><option value="0">Beginner (default)</option><option value="1">1 · Beginner</option><option value="2">2 · Expanded</option></select><p class="hint muted">Choose which vocabulary levels may appear; these are not CEFR grades.</p></div>
+    <div class="field"><label for="gradual">Gradual learning</label><input type="checkbox" id="gradual"><p class="hint muted">Introduce only words that fit what you read, with due words first.</p></div>
+    <div class="field"><label for="newWordsPerDay">New words per day</label><select id="newWordsPerDay"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><p class="hint muted">The daily introduction budget applies when gradual learning is on.</p></div>
+    <div class="field"><label for="density">Translation density</label><select id="density"><option value="light">Light</option><option value="normal">Normal</option><option value="heavy">Heavy</option></select><p class="hint muted">Control how many eligible words are woven into a passage.</p></div>
+    <div class="field"><label for="inlineRecall">Inline recall</label><input type="checkbox" id="inlineRecall"><p class="hint muted">Activate a marked word to reveal and rate recall within the page.</p></div>
+    <p class="muted">Eligible vocabulary: <span id="wordInfo"></span> (not words learned). Recall reviews due: <span id="reviewInfo"></span>.</p>
+    <p class="muted">While reading, hover for meaning; click a woven word to flip it or open inline recall when available.</p>
+  </section>
+  <section aria-labelledby="sitesHeading">
+    <h2 id="sitesHeading">Sites and privacy</h2>
+    <div class="field"><label for="newSitesEnabled">Other sites</label><select id="newSitesEnabled"><option value="true">On by default</option><option value="false">Only sites I turn on</option></select><p class="hint muted">Choose whether new permitted sites start on; sensitive sites still start off.</p></div>
+    <button id="grantSites" type="button" hidden>Allow all websites</button>
+    <p id="accessNote" class="muted"></p>
+    <h3>Site exceptions</h3><div id="siteList"></div>
+    <p class="muted">Sites where it's on send readable page text to Gemini with your key. With a free key, Google may use it to improve its products; a paid key avoids that. Links and inline code go with their sentence but are never changed; code blocks, forms and editable text are skipped.</p>
+  </section>
+  <section aria-labelledby="geminiHeading">
+    <h2 id="geminiHeading">Gemini</h2>
+    <div class="field"><label for="model">Model</label><select id="model"></select><p class="hint muted">Choose the Gemini model that selects words in context.</p></div>
+    <div class="field"><label for="apiKey">Gemini key</label><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"><p class="hint muted"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Gemini key</a>: open AI Studio, create a key, then paste it here.</p></div>
+    <p class="muted">Use a billed key: Google may use free-tier text to improve products, and EEA, UK and Swiss users need paid services.</p>
+    <p class="muted">Lang Weave allows up to 1,000 model calls per local day. This is a request cap, not a spending limit; provider quotas and pricing still apply.</p>
+    <div class="actions"><button id="saveKey" type="button">Save key</button><button id="testKey" type="button">Test key</button><button id="removeKey" type="button">Remove key</button></div>
+    <div id="keyFeedback" class="muted" role="status" aria-live="polite"></div>
+  </section>
+  <section aria-labelledby="dataHeading">
+    <h2 id="dataHeading">Your data</h2>
+    <p><a id="openBackup" href="backup.html">Learning backup</a> exports or restores learning progress without keys or site grants.</p>
+    <p><a id="openWords" href="capture.html">Personal entries</a> lets you find, archive and export your own words.</p>
+    <button id="clearCache" type="button">Clear cache</button>
+    <p class="muted">Forget cached replacement choices so the next eligible reading request asks Gemini again. Learning progress stays saved.</p>
+  </section>
+  <section aria-labelledby="aboutHeading">
+    <h2 id="aboutHeading">About</h2>
+    <p>Lang Weave version <span id="version"></span> · <a href="https://github.com/tedks/lang-weave/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0-or-later license</a> · <a href="https://github.com/tedks/lang-weave/blob/main/NOTICE" target="_blank" rel="noopener noreferrer">NOTICE and upstream credits</a></p>
+    <p class="muted">Based on Jackie Oliver's French Weave, with attribution and the inherited MIT license retained. The Spanish starter vocabulary is not a certified curriculum or native-speaker review. Generated packs are experimental; contextual or grammatical mistakes remain possible.</p>
+    <div id="update" hidden><p>Update <span id="updateVersion"></span> didn't load by itself: click the reload arrow on Lang Weave in the extensions page.</p><button id="openExtensions" type="button">Open extensions page</button></div>
+  </section>
+  <div id="notice" class="error" role="alert"></div>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>
