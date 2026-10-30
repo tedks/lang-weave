@@ -1,11 +1,13 @@
 import { statusLabel } from './quota-status.js';
 import { siteOn, hasSiteAccess } from './settings.js';
 import { readingState } from './state.js';
+import { todayLine, weekLine, headline, primaryAction } from './progress-text.js';
 
 const $ = (id) => document.getElementById(id);
 let status;
 let tab;
 let host = '';
+let primary = { page: 'review.html' };
 
 const send = async (msg) => {
   const res = await chrome.runtime.sendMessage(msg);
@@ -14,7 +16,10 @@ const send = async (msg) => {
 };
 
 async function refresh() {
-  status = await send({ type: 'status' });
+  let progress;
+  // Progress is informational: if it fails, the site controls still work and the button falls
+  // back to the status reply's review counts.
+  [status, progress] = await Promise.all([send({ type: 'status' }), send({ type: 'progress' }).catch(() => null)]);
   const c = status.config;
   const s = c.settings;
   const access = !!host && hasSiteAccess(tab.url, c.origins);
@@ -28,11 +33,10 @@ async function refresh() {
   $('budgetRecovery').hidden = !status.budgetWarning;
   $('budgetWarning').textContent = status.budgetWarning
     ? `The saved introduction date (${status.budgetWarning}) is over seven days ahead of your local date. New introductions stay paused. Reset only today's introduction budget? Your reviews and progress stay saved.` : '';
-  const due = status.review.due;
-  const available = status.review.new;
-  $('today').textContent = `Today · ${due} due for review · ${available} available to add`;
-  $('primary').textContent = due > 0 ? `Review ${due} due ${due === 1 ? 'word' : 'words'}`
-    : available > 0 ? 'Add words' : 'Practice';
+  $('today').textContent = progress ? todayLine(progress.today) : '';
+  $('week').textContent = progress ? `${weekLine(progress.practisedThisWeek)} · ${headline(progress.verifiedKnown)}` : '';
+  primary = primaryAction(progress || status.review);
+  $('primary').textContent = primary.label;
   const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
   $('operation').textContent = state === 'paused' ? 'Off'
     : state === 'needs_setup' ? 'Finish setup in the welcome page'
@@ -80,7 +84,7 @@ $('recoverBudget').addEventListener('click', () => run(async () => {
   await refresh();
 }));
 $('primary').addEventListener('click', () => run(async () => {
-  await chrome.tabs.create({ url: chrome.runtime.getURL('src/review.html') });
+  await chrome.tabs.create({ url: chrome.runtime.getURL(`src/${primary.page}`) });
 }));
 $('openSettings').addEventListener('click', (e) => {
   e.preventDefault();
@@ -88,7 +92,7 @@ $('openSettings').addEventListener('click', (e) => {
 });
 $('openWords').addEventListener('click', (e) => {
   e.preventDefault();
-  void run(() => chrome.tabs.create({ url: chrome.runtime.getURL('src/capture.html') }));
+  void run(() => chrome.tabs.create({ url: chrome.runtime.getURL('src/words.html') }));
 });
 
 void run(async () => {

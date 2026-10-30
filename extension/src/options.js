@@ -1,6 +1,7 @@
 import { statusLabel } from './quota-status.js';
 import { resolveLevel } from './levels.js';
 import { MODELS } from './gemini.js';
+import { weekLine, headline } from './progress-text.js';
 
 const $ = (id) => document.getElementById(id);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
@@ -17,6 +18,7 @@ async function refresh() {
   const generation = ++refreshGeneration;
   const next = await send({ type: 'status' });
   const all = await chrome.permissions.contains({ origins: ALL_SITES });
+  const progress = await send({ type: 'progress' }).catch(() => null); // informational only
   if (generation !== refreshGeneration) return;
   status = next;
   const c = status.config;
@@ -53,6 +55,7 @@ async function refresh() {
   $('model').value = s.model;
   $('wordInfo').textContent = `${status.words} ${status.languages.find((item) => item.code === c.language)?.name || c.language} words`;
   $('reviewInfo').textContent = String(status.review.due);
+  $('progressSummary').textContent = progress ? `${headline(progress.verifiedKnown)} · ${weekLine(progress.practisedThisWeek)}` : '';
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
   $('testKey').disabled = !status.pastedKey || !status.consentShown;
   $('addLanguage').disabled = !status.consentShown;

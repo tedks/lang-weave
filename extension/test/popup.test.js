@@ -17,7 +17,8 @@ test('popup shows one action and grants this site before saving or injecting', a
   globalThis.document = window.document;
   const events = [];
   let failSave = false;
-  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null };
+  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null, progressFails: false };
+  const today = { day: '2026-10-30', introduced: 2, seen: 14, peeked: 3, flipped: 0, reviewed: 5 };
   const pageUrl = 'https://example.com/article';
   globalThis.chrome = {
     runtime: { getURL: (path) => `chrome-extension://fw-popup/${path}`,
@@ -28,6 +29,11 @@ test('popup shows one action and grants this site before saving or injecting', a
             siteOverrides: state.siteOverride === null ? {} : { 'example.com': state.siteOverride } },
           language: 'es', hasKey: true, origins: state.access ? ['https://example.com/*'] : [],
         }, review: { due: state.due, new: state.available }, budgetWarning: '', modelStatus: null };
+        if (msg.type === 'progress') {
+          if (state.progressFails) throw new Error('Progress unavailable');
+          // Deliberately different from status.review: the button must follow this reply.
+          return { due: state.due, new: state.available, today, practisedThisWeek: 3, verifiedKnown: 1 };
+        }
         if (msg.type === 'save') {
           events.push('save');
           if (failSave) throw new Error('Save failed');
@@ -53,12 +59,13 @@ test('popup shows one action and grants this site before saving or injecting', a
     expect($('enabledLabel').textContent).toBe('On');
     expect($('siteName').textContent).toBe('Turn on for this site');
     expect($('operation').textContent).toBe('This site needs your OK');
-    expect($('today').textContent).toContain('3 due for review');
-    expect($('openWords').getAttribute('href')).toBe('capture.html');
+    expect($('today').textContent).toBe('Today: 2 introduced · 14 seen · 3 peeked · 5 reviewed');
+    expect($('week').textContent).toBe('Practised on 3 days of the last 7 · 1 word verified known');
+    expect($('openWords').getAttribute('href')).toBe('words.html');
     $('openSettings').click();
     await waitFor(() => events.includes('options-tab'));
     $('openWords').click();
-    await waitFor(() => events.includes('chrome-extension://fw-popup/src/capture.html'));
+    await waitFor(() => events.includes('chrome-extension://fw-popup/src/words.html'));
     events.length = 0;
     $('siteEnabled').checked = true;
     $('siteEnabled').dispatchEvent(new window.Event('change'));
@@ -76,6 +83,18 @@ test('popup shows one action and grants this site before saving or injecting', a
     expect($('enabledLabel').textContent).toBe('Off');
     await waitFor(() => $('primary').textContent === 'Practice');
     expect($('enabledLabel').textContent).toBe('Off');
+    events.length = 0;
+    $('primary').click(); // nothing due or new: practise any word from My words
+    await waitFor(() => events.includes('chrome-extension://fw-popup/src/words.html'));
+    // A failed progress reply leaves the site controls working and falls back to status counts.
+    state.progressFails = true;
+    state.due = 2;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => $('primary').textContent === 'Review 2 due words');
+    expect($('today').textContent).toBe('');
+    expect($('notice').textContent).toBe('');
+    state.progressFails = false;
+    state.due = 0;
     failSave = true;
     $('enabled').checked = true;
     $('enabled').dispatchEvent(new window.Event('change'));
