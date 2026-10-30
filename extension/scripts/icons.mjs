@@ -31,7 +31,10 @@ export function parseIconSvg(svg) {
   const text = svg.replace(/<!--[\s\S]*?-->/g, '');
   const root = text.match(/^\s*<svg((?:\s+[a-zA-Z:]+="[^"]*")*)\s*>([\s\S]*)<\/svg>\s*$/);
   if (!root) bad('must be a single <svg> element with nothing before or after it but comments');
-  const rootAttrs = Object.fromEntries([...root[1].matchAll(/\s+([a-zA-Z:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+  // The root pattern above admits only double-quoted attributes, so every root attribute is parsed here.
+  const rootPairs = [...root[1].matchAll(/\s+([a-zA-Z:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]);
+  const rootAttrs = Object.fromEntries(rootPairs);
+  if (Object.keys(rootAttrs).length !== rootPairs.length) bad('duplicate <svg> attribute');
   for (const k of Object.keys(rootAttrs)) if (!['xmlns', 'viewBox', 'width', 'height'].includes(k)) bad(`unsupported <svg> attribute ${k}`);
   if (rootAttrs.viewBox !== '0 0 16 16') bad('viewBox must be "0 0 16 16"');
   if (rootAttrs.xmlns !== 'http://www.w3.org/2000/svg') bad('xmlns must be the SVG namespace');

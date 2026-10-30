@@ -66,7 +66,10 @@ test('icons: the SVG subset is strict', () => {
     '<svg viewBox="0 0 16 16" preserveAspectRatio="none">', '<svg viewBox="0 0 16 16">',
     '<svg xmlns="http://example.com/ns" viewBox="0 0 16 16">', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="0" height="0">',
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="128" height="64">',
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="12.5">']) {
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="12.5">',
+    // Every root attribute must be double-quoted (so it is parsed and checked) and appear once.
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width=\'0\'>', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width=0>',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" width="0" height="16">']) {
     expect(() => parseIconSvg(`${bad}<rect x="0" y="0" width="1" height="1" fill="#000000"/></svg>`)).toThrow();
   }
   expect(() => parseIconSvg(`<?xml-stylesheet href="x.css"?>${wrap('<rect x="0" y="0" width="1" height="1" fill="#000000"/>')}`)).toThrow();
