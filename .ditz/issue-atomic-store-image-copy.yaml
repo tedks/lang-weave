@@ -1,0 +1,22 @@
+id: atomic-store-image-copy
+title: Make multi-image Store screenshot publication atomic
+desc: 'Convergence nit on store-screenshots PR #37: captures are validated together
+  in a private scratch directory before copying, but the final six copyFile calls
+  are sequential. A filesystem failure during that loop could leave a mixture of old
+  and new committed PNGs. This is a developer-only regeneration path and does not
+  affect runtime or Store package contents. Consider a whole-directory swap that preserves
+  README, or an explicit manifest/checksum transaction, if cross-run atomicity becomes
+  important. Not a Store upload blocker.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T22:14:09-00:00
+references: []
+log_events:
+- time: 2026-10-30T22:14:09-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
