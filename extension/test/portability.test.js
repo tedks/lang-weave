@@ -58,10 +58,13 @@ test('site-consent marker stays local and does not block backup export or fresh 
     source.consentShown = consentShown;
     const json = createBackup(source, '0.12.9');
     expect(json).not.toContain('consentShown');
-    const target = { settings: { enabled: true, newSitesEnabled: null }, consentShown: false };
-    expect(targetFresh(target)).toBe(true);
-    const patch = learningPatch(parseBackup(json), target.settings);
-    expect(patch.consentShown).toBeUndefined();
+    for (const newSitesEnabled of [false, true]) {
+      const target = { settings: { enabled: true, newSitesEnabled }, consentShown: true };
+      expect(targetFresh(target)).toBe(true);
+      const patch = learningPatch(parseBackup(json), target.settings);
+      expect(patch.consentShown).toBeUndefined();
+      expect(patch.settings.newSitesEnabled).toBe(newSitesEnabled);
+    }
   }
 });
 

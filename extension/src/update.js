@@ -12,7 +12,7 @@ export const RELOADED_KEY = 'reloadedFor';
 export function openWelcome(details) {
   if (details?.reason === 'install') {
     // Pending gradual-default-on-install-ruling: this is the sole install-time hook for gradual:true.
-    void chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome.html') });
+    void Promise.resolve(chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome.html') })).catch(() => {});
   }
 }
 

@@ -216,7 +216,6 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
             if (!(await stillSafe())) {
               throw Object.assign(new Error('Page context changed before model request'), { stale: true });
             }
-            // New installs must choose a site policy before their first Gemini dispatch.
             // Counting can yield to a browser permission change; keep the second check.
             try { await countCall(chromeStorage); }
             catch { throw Object.assign(new Error('Local reading storage failed'), { category: 'storage_failed' }); }
@@ -247,7 +246,8 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         : category === 'local_budget' ? 'Daily local model-call budget reached'
         : category === 'storage_failed' ? 'Local reading storage failed'
         : category === 'consent_required' ? 'Choose site access on the welcome page first' : 'Model request failed';
-      await saveModelStatus({ category, retryAt: e?.retryAt,
+      // A missing site choice is local policy, not a model failure or quota diagnostic.
+      if (category !== 'consent_required') await saveModelStatus({ category, retryAt: e?.retryAt,
         coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
       try {
         // Cache entries are raw validated swaps. They still need the current gradual

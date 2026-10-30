@@ -41,7 +41,9 @@ test('site choice requests all-site permission before save; denial saves nothing
   const calls = [];
   const request = async () => { calls.push('request'); return false; };
   const save = async (enabled) => { calls.push(`save:${enabled}`); return true; };
-  expect(await chooseSitePolicy(true, { request, save })).toBe(false);
+  const denied = chooseSitePolicy(true, { request, save });
+  expect(calls).toEqual(['request']); // before the first await, while the click gesture is live
+  expect(await denied).toBe(false);
   expect(calls).toEqual(['request']);
   calls.length = 0;
   expect(await chooseSitePolicy(false, { request, save })).toBe(true);
@@ -97,6 +99,7 @@ test('fresh profile blocks reading Gemini dispatch until welcome save, while an 
     expect((await request()).error).toContain('Choose site access');
     expect(fetches).toBe(0);
     expect(data.modelCalls).toBeUndefined();
+    expect(data.modelStatus).toBeUndefined();
     expect(await send({ type: 'save', consentShown: true, settings: { newSitesEnabled: true } }, welcome)).toEqual({ ok: true });
     expect(data.consentShown).toBe(true);
     expect((await request()).results).toBeDefined();

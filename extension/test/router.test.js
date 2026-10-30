@@ -126,8 +126,8 @@ test('near-miss senders match no surface, or only the one the old boolean matche
 
 test('unmodified sender decisions equal the pre-split boolean', () => withChrome(() => {
   const senders = [...Object.entries(SENDERS).filter(([name]) => !['popup', 'options', 'welcome'].includes(name)).map(([, sender]) => sender),
-    ...NEAR_MISSES.filter(([sender]) => !sender.url?.includes('/src/welcome.html') &&
-      !['popup', 'options'].includes(sender.url?.split('/').at(-1)?.split('.')[0])).map(([sender]) => sender)];
+    ...NEAR_MISSES.filter(([sender, expected]) => !sender.url?.includes('/src/welcome.html') &&
+      !['popup', 'options'].includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])

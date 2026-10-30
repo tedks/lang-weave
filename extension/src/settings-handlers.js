@@ -154,7 +154,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         // The locked boundary prevents a key change between the final check, call count, and dispatch.
         ({ response } = await locked(async () => {
           const current = await store.get(['apiKey', 'keyEpoch', 'settings', 'consentShown']);
-          if (current.consentShown === false) return { response: null };
+          if (current.consentShown === false) return { response: 'consent' };
           if (worker.settingsGeneration !== settingsGeneration || current.keyEpoch !== epoch || current.apiKey !== before.apiKey ||
               cleanSettings(current.settings).model !== model) return { response: null };
           if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { response: 'budget' };
@@ -172,6 +172,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         }));
       } catch { return { ok: false, category: 'storage_failed' }; }
       if (response === 'budget') return { ok: false, category: 'local_budget' };
+      if (response === 'consent') return { ok: false, category: 'consent_required' };
       if (!response) return { ok: false, category: 'changed' };
       let category = 'ok';
       let failure;
