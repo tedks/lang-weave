@@ -36,7 +36,7 @@ const LOG_FIELDS = ['retrievals', 'exposures'];
 // counts unverified log entries dropped under the CTO's ruling B.
 const mode = (source, schema) => ({ source, schema, omitted: { retrievals: 0, exposures: 0 } });
 const DIRECT_KEYS = new Set(['settings', 'languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
-const NON_LEARNING_KEYS = new Set(['apiKey', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus',
+const NON_LEARNING_KEYS = new Set(['apiKey', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus', 'consentShown',
   'quotaState', 'reloadedFor', IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
 const VERSION = /^[0-9a-f]{16}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
