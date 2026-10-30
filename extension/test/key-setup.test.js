@@ -94,3 +94,35 @@ test('Test key reports rejection with fixed category and a removed key cannot re
     expect(f.data.modelStatus).toBeNull();
   } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
 });
+
+test('Test key respects a default 429 cooldown without a second request', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const f = fixture();
+  let calls = 0;
+  globalThis.chrome = { storage: { local: f.store } };
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 429,
+    headers: { get: () => null }, text: async () => '' }; };
+  try {
+    expect(await f.handlers.testKey()).toEqual({ ok: false, category: 'rate_limit' });
+    expect(f.data.quotaState.cooldowns['gemini-3.5-flash-lite'].kind).toBe('short');
+    expect(await f.handlers.testKey()).toEqual({ ok: false, category: 'rate_limit' });
+    expect(calls).toBe(1);
+    expect(f.data.modelCalls.count).toBe(1);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('a model change during Test key discards the old model result', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const f = fixture();
+  let release;
+  globalThis.chrome = { storage: { local: f.store } };
+  globalThis.fetch = async () => new Promise((done) => { release = done; });
+  try {
+    const pending = f.handlers.testKey();
+    while (!release) await new Promise((done) => setTimeout(done, 0));
+    await f.handlers.save({ settings: { model: 'gemini-3.8-flash' } });
+    release({ ok: true, status: 200 });
+    expect(await pending).toEqual({ ok: false, category: 'changed' });
+    expect(f.data.modelStatus.category).toBe('rate_limit'); // old status is untouched by stale result
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});

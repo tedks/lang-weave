@@ -138,15 +138,21 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
           const current = await store.get(['apiKey', 'keyEpoch', 'settings']);
           if (worker.settingsGeneration !== settingsGeneration || current.keyEpoch !== epoch || current.apiKey !== before.apiKey ||
               cleanSettings(current.settings).model !== model) return { response: null };
+          if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { response: 'budget' };
           await countCall(chromeStorage);
           if (worker.settingsGeneration !== settingsGeneration) return { response: null };
           const url = `${API_BASE}${model}:generateContent`;
-          return { response: fetch(url, { method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': before.apiKey },
-            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply OK.' }] }],
-              generationConfig: { maxOutputTokens: 1 } }), signal: AbortSignal.timeout(8000) }) };
+          let request;
+          try {
+            request = fetch(url, { method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': before.apiKey },
+              body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply OK.' }] }],
+                generationConfig: { maxOutputTokens: 1 } }), signal: AbortSignal.timeout(8000) });
+          } catch (error) { request = Promise.reject(error); }
+          return { response: request };
         }));
       } catch { return { ok: false, category: 'storage_failed' }; }
+      if (response === 'budget') return { ok: false, category: 'local_budget' };
       if (!response) return { ok: false, category: 'changed' };
       let category = 'ok';
       let failure;
@@ -160,8 +166,11 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         }
       } catch { category = 'request_failed'; }
       return locked(async () => {
-        const current = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY]);
-        if (current.keyEpoch !== epoch || current.apiKey !== before.apiKey) return { ok: false, category: 'changed' };
+        const current = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY]);
+        if (worker.settingsGeneration !== settingsGeneration || current.keyEpoch !== epoch ||
+            current.apiKey !== before.apiKey || cleanSettings(current.settings).model !== model) {
+          return { ok: false, category: 'changed' };
+        }
         const patch = { [STATUS_KEY]: safeModelStatus({ category, at: Date.now(), model }) };
         if (failure?.retryAfterMs && ['daily_quota', 'rate_limit', 'overloaded'].includes(category)) {
           const state = cleanQuotaState(current[QUOTA_STATE_KEY], epoch);

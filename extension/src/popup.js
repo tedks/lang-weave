@@ -133,6 +133,7 @@ $('removeLanguage').addEventListener('click', () => run(async () => {
 }));
 $('model').addEventListener('change', (e) => run(() => save({ settings: { model: e.target.value } })));
 const saveKey = () => run(async () => {
+  $('keyFeedback').textContent = '';
   const key = $('apiKey').value.trim();
   if (!key) { $('keyFeedback').textContent = 'Paste a key first.'; return; }
   await save({ apiKey: key });
@@ -150,11 +151,12 @@ $('testKey').addEventListener('click', () => run(async () => {
     const result = await send({ type: 'testKey' });
     await refresh();
     $('keyFeedback').textContent = result.ok ? 'Key works.' : result.category === 'no_key'
-      ? 'Add a Gemini key first.' : result.category === 'changed' ? 'Key changed. Test again.'
+      ? 'Add a Gemini key first.' : result.category === 'changed' ? 'Key or settings changed. Test again.'
       : statusLabel({ category: result.category }) || 'Model request failed. Try again later.';
   } finally { button.disabled = !status?.pastedKey; }
 }));
 $('removeKey').addEventListener('click', () => run(async () => {
+  $('keyFeedback').textContent = '';
   await send({ type: 'removeKey' });
   await refresh();
   $('keyFeedback').textContent = 'Key removed.';
