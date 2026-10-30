@@ -11,8 +11,11 @@ import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { policyWords, remaining } from './learning.js';
 import { scopedStorage } from './scope.js';
 import { catalogEntries, matchingEntries } from './catalog.js';
-import { selectWorkingSet } from './adaptive.js';
+import { selectWorkingSet, capUnknownSwaps } from './adaptive.js';
 import { ENCOUNTERS_KEY, cleanEncounters, countEncounters } from './encounters.js';
+import { EXPOSURES_KEY, cleanExposures } from './learning-log.js';
+import { REVIEW_KEY, countCardEncounter } from './review.js';
+import { PERSONAL_KEY } from './personal.js';
 import { activeOn, personalScope } from './worker-context.js';
 import { logExposure } from './learning-records.js';
 
@@ -106,16 +109,23 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       const matches = matchingEntries(items, entries);
       if (!matches.length) return locked(async () => await stillSafe()
         ? { results: Object.fromEntries(items.map((i) => [i.key, []])) } : { results: {}, stale: true });
-      let counts;
+      let counts, exposures;
       try {
         counts = await locked(async () => {
           if (!(await stillSafe())) return null;
           const scoped = scopedStorage(chromeStorage, ctx.scope);
           const ownScoped = personalScope(ctx.language);
-          const [{ [ENCOUNTERS_KEY]: raw }, { [ENCOUNTERS_KEY]: ownRaw }] = await Promise.all([
-            scoped.get([ENCOUNTERS_KEY]), ownScoped.get([ENCOUNTERS_KEY])]);
+          const [{ [ENCOUNTERS_KEY]: raw, [EXPOSURES_KEY]: exposureRaw },
+            { [ENCOUNTERS_KEY]: ownRaw, [EXPOSURES_KEY]: ownExposureRaw }] = await Promise.all([
+            scoped.get([ENCOUNTERS_KEY, EXPOSURES_KEY]), ownScoped.get([ENCOUNTERS_KEY, EXPOSURES_KEY])]);
           if (!(await stillSafe())) return null;
           const ownIds = new Set(ctx.activePersonal.map(({ entry }) => entry.id));
+          exposures = { ...cleanExposures(exposureRaw).words };
+          const ownExposures = cleanExposures(ownExposureRaw).words;
+          for (const { entry } of ctx.activePersonal) {
+            const aggregate = ownExposures[entry.id];
+            if (aggregate) exposures[entry.target] = aggregate;
+          }
           const aggregate = cleanEncounters(raw, allEntries.filter((entry) => !ownIds.has(entry.id))
             .map((entry) => entry.id), day);
           const ownAggregate = cleanEncounters(ownRaw, ctx.personal.entries.filter((entry) =>
@@ -140,7 +150,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       if (!(await stillSafe())) return { results: {}, stale: true };
       candidates = selectWorkingSet({ batch: items, words: ctx.words,
         scope: ctx.scope, state, settings: ctx.settings, now, day, revision: ctx.revision,
-        encounters: counts, sender, level: ctx.level, language: ctx.language, density: ctx.settings.density,
+        encounters: counts, exposures, sender, level: ctx.level, language: ctx.language, density: ctx.settings.density,
         shownToday: shown });
     } else {
       candidates = policyWords(ctx.words, null, ctx.settings, now, day, ctx.revision);
@@ -177,7 +187,12 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       if (!(await stillSafe())) return { results: {}, stale: true };
       if (latest.revision !== ctx.revision) return { results: {}, stale: true };
       let output;
-      try { output = await commitAdaptive(latest, raw, sender, stillSafe); }
+      try {
+        const current = await adaptiveReviewState(latest, day, Date.now());
+        if (!(await stillSafe())) return { results: {}, stale: true };
+        output = await commitAdaptive(latest,
+          capUnknownSwaps(raw, items, candidates, current.state.cards), sender, stillSafe);
+      }
       catch (error) {
         if (error?.stale) return { results: {}, stale: true };
         throw error;
@@ -227,7 +242,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
           return response;
         };
         return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
-          density: ctx.settings.density, words: candidates, fetchImpl, cooldownKinds,
+          density: ctx.settings.density, unknownLimit: ctx.settings.gradual, words: candidates, fetchImpl, cooldownKinds,
           shownToday: shown || await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })),
           onFailure: async (model, category, wait, startedAt) => {
             cooldownKinds.set(model, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
@@ -299,8 +314,21 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       // of the English, not an exposure.
       if (msg.event !== 'flip') {
         const latest = await context();
-        if (latest.revision === ctx.revision && activeOn(latest, sender.url) && worker.permissionGeneration === consent)
+        if (latest.revision === ctx.revision && activeOn(latest, sender.url) && worker.permissionGeneration === consent) {
+          if (ctx.settings.gradual) {
+            const now = Date.now(), day = localDay(new Date(now));
+            const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
+            const card = personal ? own.state.cards[personal.id] : legacy.state.cards[word.fr];
+            if (countCardEncounter(card, msg.event, day, now)) {
+              const fresh = await context();
+              if (fresh.revision !== ctx.revision || !activeOn(fresh, sender.url) ||
+                  worker.permissionGeneration !== consent) return { ok: false };
+              if (personal) await store.set({ [PERSONAL_KEY]: ctx.personal });
+              else await legacy.scoped.set({ [REVIEW_KEY]: legacy.state });
+            }
+          }
           await logExposure(ctx, !!personal, personal?.id || word.fr, msg.event, Date.now());
+        }
       }
       return { ok: true };
     });

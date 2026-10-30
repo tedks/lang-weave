@@ -95,6 +95,8 @@ export function commitLearning(state, results, settings, sender, revision, now =
     output[key] = [];
     for (const swap of swaps) {
       const card = state.cards[swap.word];
+      // Recheck after model/cache awaits: another tab may have recorded the third sighting.
+      if (card && !card.maintenance && card.seenDay === day && card.seenCount >= 3) continue;
       if (card?.familiar) {
         // Familiar filler is bounded per passage independently of model generosity.
         if (output[key].filter((s) => s.status === 'known').length >= 1) continue;

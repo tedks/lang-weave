@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { catalogEntries, englishAnchors, matchingEntries, entryId } from '../src/catalog.js';
 import { BACKLOG_THROTTLE, MAX_CANDIDATES, MAX_REQUEST_CHARS, MAX_VOCABULARY_CHARS,
-  requestChars, reviewBacklog, selectWorkingSet, vocabularyChars } from '../src/adaptive.js';
+  requestChars, reviewBacklog, selectWorkingSet, vocabularyChars, capUnknownSwaps,
+  underExposed, cognate } from '../src/adaptive.js';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
 import { cleanReview, rateReview } from '../src/review.js';
 import { commitLearning, introductionOwner } from '../src/learning.js';
@@ -10,7 +11,7 @@ import { scopedStorage } from '../src/scope.js';
 import { cleanEncounters, countEncounters, ENCOUNTERS_KEY, MAX_ENCOUNTER_COUNT, MAX_ENCOUNTER_IDS } from '../src/encounters.js';
 import { hashKey } from '../src/hash.js';
 import { buildRequest } from '../src/gemini.js';
-import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from '../src/prompt.js';
+import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA, unknownBudget } from '../src/prompt.js';
 
 const now = Date.parse('2026-10-27T14:00:00Z');
 const day = '2026-10-27';
@@ -31,6 +32,48 @@ test('catalog IDs retain exact legacy forms and local matching skips ambiguous a
   expect(matchingEntries([{ text: 'We discussed a bright' }, { text: 'idea with friends' }],
     catalogEntries([{ fr: 'x', en: 'bright idea' }], 'es'))).toEqual([]);
   expect(select({ batch: batch('Zebras orbit quartz; distant galaxies shimmer.') })).toEqual([]);
+});
+
+test('under-exposed learning follows due and weak; a third sighting excludes that word', () => {
+  const words = [{ fr: 'hospital', en: 'hospital' }, { fr: 'ventana', en: 'window' },
+    { fr: 'libro', en: 'book' }, { fr: 'gato', en: 'cat' }];
+  const state = cleanReview({ version: 1, cards: {
+    hospital: { due: now + 10 * 86400000, interval: 10, reviews: 2, introducedDay: day },
+    ventana: { due: now - 1, interval: 5, reviews: 2 },
+    libro: { due: now + 86400000, interval: 1, reviews: 1 },
+  } }, words, now, true);
+  const passage = batch('The hospital window has a book and a cat nearby.');
+  const exposures = { hospital: [4, 0, 2, day, day] };
+  expect(select({ batch: passage, words, state, exposures }).map((w) => w.fr))
+    .toEqual(['ventana', 'libro', 'hospital', 'gato']);
+  expect(underExposed(state.cards.hospital, exposures.hospital, day)).toBe(true);
+  expect(underExposed(state.cards.hospital, [8, 0, 8, day, day], day)).toBe(false);
+  expect(underExposed(state.cards.hospital, exposures.hospital, '2026-11-17')).toBe(false);
+  state.cards.hospital.seenDay = day;
+  state.cards.hospital.seenCount = 3;
+  expect(select({ batch: passage, words, state, exposures }).map((w) => w.fr))
+    .toEqual(['ventana', 'libro', 'gato']);
+  expect(select({ batch: passage, words, state, exposures, day: '2026-10-28' })
+    .some((w) => w.fr === 'hospital')).toBe(true);
+});
+
+test('new Spanish cognates rank first and the final 2% cap counts placements across passages', () => {
+  expect(cognate({ fr: 'hospital', en: 'hospital' })).toBe(true);
+  expect(cognate({ fr: 'hospital', en: 'hospital' }, 'fr')).toBe(false);
+  expect(cognate({ fr: 'ventana', en: 'window' })).toBe(false);
+  const words = [{ fr: 'ventana', en: 'window' }, { fr: 'hospital', en: 'hospital' }];
+  expect(select({ batch: batch('The window stood beside the hospital today.'), words })
+    .map((w) => w.fr)).toEqual(['hospital', 'ventana']);
+  const long = [{ id: 'a', text: Array(50).fill('reading').join(' ') },
+    { id: 'b', text: Array(50).fill('reading').join(' ') }];
+  const candidates = [{ fr: 'due', status: 'due' }, { fr: 'new', status: 'new' },
+    { fr: 'active', status: 'active' }, { fr: 'known', status: 'known' }];
+  const swaps = { a: [{ word: 'active' }, { word: 'known' }],
+    b: [{ word: 'new' }, { word: 'due' }, { word: 'due' }] };
+  expect(capUnknownSwaps(swaps, long, candidates)).toEqual({ a: [{ word: 'known' }],
+    b: [{ word: 'due' }, { word: 'due' }] });
+  expect(capUnknownSwaps(swaps, batch('six short words can still show one'), candidates))
+    .toEqual({ a: [{ word: 'known' }], b: [{ word: 'due' }] });
 });
 
 test('due and recent difficulty lead active and new with stable ties and passage relevance', () => {
@@ -95,7 +138,7 @@ test('full request measurement includes every worker key as the dispatched passa
     return { key: `rev:${hashKey(text)}`, text };
   });
   const actualChars = (batch) => JSON.stringify(buildRequest({
-    system: buildSystemPrompt(1, [{ ...word, status: 'new' }], [], 'es', 'normal'),
+    system: buildSystemPrompt(1, [{ ...word, status: 'new' }], [], 'es', 'normal', unknownBudget(batch)),
     user: buildUserContent(batch.map(({ key, text }) => ({ id: key, text }))), schema: RESPONSE_SCHEMA,
   })).length;
   const withoutIds = (batch) => JSON.stringify(buildRequest({
