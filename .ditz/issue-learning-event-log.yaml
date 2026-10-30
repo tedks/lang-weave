@@ -25,3 +25,12 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T17:40:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Phase 1 LANDED: PR #19 merged as eee1bfe (head 7c1b041, version 0.12.1).
+    extension/src/learning-log.js: bounded catalog-ID-only retrieval log and exposure
+    aggregates plus section 9 measurements (summarize). Not wired in; no storage written
+    yet. Phase 2: worker writes, latency, view, and backup schema 2 per docs/LEARNING-CORE-MISSION.md.
+    Open ruling: learning-log-export-unverified-ruling. Follow-up: learning-log-form-contract.
+    Issue stays open.'
