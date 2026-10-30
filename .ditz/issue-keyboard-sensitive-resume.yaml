@@ -1,0 +1,24 @@
+id: keyboard-sensitive-resume
+title: Rule shortcut resume on sensitive-site false overrides
+desc: 'Product question from PR #31 council: a sensitive site is off by default but
+  an explicit false site override could have been imported or written without ever
+  being on. The pause shortcut currently resumes a granted site with explicit false,
+  allowing an edge-case enable without popup. Options: (A) keep current toggle, treating
+  explicit false as prior pause (recommended for this mission because normal popup
+  path only writes false on an on site); (B) require popup to resume sensitive defaults,
+  losing shortcut resume after an earlier opt-in; (C) track previous explicit opt-in
+  separately, which expands settings schema. CEO decides. Does not block PR #31 under
+  current explicit-override consent contract; revisit with backup/import evidence.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:27:50-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:27:50-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
