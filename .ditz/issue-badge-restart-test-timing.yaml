@@ -1,0 +1,21 @@
+id: badge-restart-test-timing
+title: Make badge worker restart ordering test deterministic
+desc: 'PR #27''s worker restart test waits until both tab IDs receive a new badge
+  write, then waits 5 ms before checking that every post-restart write was NEW. The
+  first two writes establish the regression, but the fixed delay is only a weak guard
+  against a later stale overwrite under heavy load. Improve the test with an explicit
+  completion signal for the startup refresh or an instrumented action-write barrier;
+  keep the production path unchanged. Nonblocking council nit, 2026-10-30.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:59:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:59:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
