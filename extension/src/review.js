@@ -101,6 +101,9 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false) {
 }
 
 function scheduleCard(card, rating, now, autoFamiliar = false) {
+  // This build schedules without FSRS, so any stored FSRS memory state no longer describes the
+  // card after this rating; a later build re-derives it from due/interval.
+  delete card.fsrs;
   if (rating === 'again') {
     // A ten-minute retry is not a day interval; keeping interval at zero also
     // prevents a miss from carrying forward an old Easy/Medium interval.

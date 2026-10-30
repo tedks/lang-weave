@@ -220,7 +220,7 @@ test('migration derives FSRS state from the existing card shape and preserves ev
   let state = null, now = due;
   for (const rating of ['medium', 'again', 'hard', 'easy', 'again', 'medium']) {
     const step = reviewCard(state, rating, now);
-    expect(withFsrs({ due: step.due, interval: step.interval, reviews: 1, fsrs: step.fsrs }).fsrs).toEqual(step.fsrs);
+    expect(withFsrs({ due: step.due, interval: step.interval, reviews: 10, fsrs: step.fsrs }).fsrs).toEqual(step.fsrs);
     state = step.fsrs; now = step.due;
   }
   expect(withFsrs({ due, interval: 0, reviews: 0 })).toEqual({ due, interval: 0, reviews: 0 });
