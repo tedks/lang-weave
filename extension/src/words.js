@@ -22,8 +22,10 @@ function dueText(row, now) {
   if (row.familiar) return 'Not scheduled';
   if (row.due === null) return 'Not started';
   if (row.due <= now) return 'Due now';
-  const days = Math.round((row.due - now) / DAY_MS);
-  if (days < 1) return `Due in ${plural(Math.max(1, Math.round((row.due - now) / 3600000)), 'hour')}`;
+  // Local calendar days, so "tomorrow" means the next local date, not 24 hours away.
+  const midnight = (time) => { const d = new Date(time); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+  const days = Math.round((midnight(row.due) - midnight(now)) / DAY_MS);
+  if (days < 1) return `Due today in ${plural(Math.max(1, Math.round((row.due - now) / 3600000)), 'hour')}`;
   return days === 1 ? 'Due tomorrow' : `Due in ${plural(days, 'day')}`;
 }
 
@@ -57,7 +59,9 @@ function drawProgress(p) {
   }));
 }
 
-const fold = (value) => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase().trim();
+// Fold Latin accents only (U+0300-U+036F): other scripts' combining marks change the letter.
+const fold = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC')
+  .toLocaleLowerCase().trim();
 function matching() {
   const query = fold($('search').value);
   const stage = $('stage').value;
@@ -148,9 +152,16 @@ function rowItem(row) {
   return li;
 }
 
+// One row is the list's single Tab stop (roving tabindex); arrow keys move it.
+function rove(row) {
+  for (const li of $('words').querySelectorAll('li[tabindex="0"]')) li.tabIndex = -1;
+  if (row) row.tabIndex = 0;
+}
+
 function renderMore() {
   const next = shown.slice(rendered, rendered + BATCH);
   $('words').append(...next.map(rowItem));
+  if (!$('words').querySelector('li[tabindex="0"]')) rove($('words').querySelector('li[data-id]'));
   rendered += next.length;
   $('more').hidden = rendered >= shown.length;
   $('more').textContent = `Show more (${shown.length - rendered} left)`;
@@ -198,6 +209,10 @@ function moveFocus(from, step) {
   if (index >= rows.length && rendered < shown.length) { renderMore(); moveFocus(from, step); return; }
   rows[Math.min(index, rows.length - 1)].focus();
 }
+$('words').addEventListener('focusin', (event) => {
+  const row = event.target.closest?.('li[data-id]');
+  if (row) rove(row);
+});
 
 const STEPS = { ArrowDown: 1, ArrowUp: -1, Home: -Infinity, End: Infinity };
 $('words').addEventListener('keydown', (event) => {

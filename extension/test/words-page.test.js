@@ -72,6 +72,9 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     expect(items()).toHaveLength(120);
     expect(window.document.body.textContent).not.toMatch(/https?:/);
 
+    // One row is the list's only Tab stop.
+    expect($('words').querySelectorAll('li[tabindex="0"]')).toHaveLength(1);
+    expect($('words').querySelector('li[tabindex="0"]').dataset.id).toBe('w0');
     // Keyboard: ArrowDown from search enters the list; End renders everything; Home and ArrowUp go back.
     $('search').focus();
     $('search').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -79,6 +82,7 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     const key = (k) => window.document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true }));
     key('ArrowDown');
     expect(window.document.activeElement.dataset.id).toBe('w1');
+    expect([...$('words').querySelectorAll('li[tabindex="0"]')].map((li) => li.dataset.id)).toEqual(['w1']);
     key('End');
     expect(items()).toHaveLength(151);
     expect(window.document.activeElement.dataset.id).toBe('personal:es:x');
