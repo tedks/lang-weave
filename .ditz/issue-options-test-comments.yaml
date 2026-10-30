@@ -1,0 +1,21 @@
+id: options-test-comments
+title: Clarify options navigation and bare-capture test assumptions
+desc: 'Council convergence nits on PR #25: the smoke test waits for a new options
+  tab and assumes none is already open at that point; add a comment or robust lookup
+  if the flow changes. The router test comment for bare capture could clarify that
+  the sender receives the capture surface message set while one-use tickets still
+  protect draft/save operations. Both are test-maintenance clarity issues, with no
+  current merge block.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:38:54-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:38:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
