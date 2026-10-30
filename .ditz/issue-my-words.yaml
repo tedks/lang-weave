@@ -7,8 +7,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T16:56:42-00:00
 references: []
 log_events:
@@ -29,3 +29,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T21:07:19-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'LANDED PR #28 c4bbd46 (0.12.12): src/words.html My words page (search,
+    stage filter, keyboard, batched), Practice now (practice grant bound to due),
+    Already know, guarded Reset, archive, export link; popup and options link it.
+    Follow-ups: words-known-claim-log, practice-now-review-tab, words-search-greek-fold.'
