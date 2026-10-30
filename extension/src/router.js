@@ -19,7 +19,8 @@ export function capturePageSender(sender) {
 const surface = (name, matches, messages) => Object.freeze({ name, matches, messages: Object.freeze(messages) });
 export const SURFACES = Object.freeze([
   surface('popup', (sender) => sender.url === chrome.runtime.getURL('src/popup.html'),
-    ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget']),
+    ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget',
+      'removeKey', 'testKey']),
   surface('review', (sender) => sender.url === chrome.runtime.getURL('src/review.html'),
     ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown']),
   surface('capture', capturePageSender,

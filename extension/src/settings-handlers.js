@@ -1,6 +1,8 @@
 // Popup handlers: settings, key, language packs, cache and status.
 import { chromeStorage } from './cache.js';
-import { cleanQuotaState, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, readBoundedBody,
+  safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+import { API_BASE } from './gemini.js';
 import { cleanSettings } from './settings.js';
 import { localDay } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
@@ -70,7 +72,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
   }
 
   // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
-  async function save(msg) {
+  async function save(msg, forceKeyRotation = false) {
     worker.settingsGeneration++;
     await locked(async () => {
       const saved = await store.get(['settings', 'apiKey']);
@@ -95,10 +97,10 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();
       }
-      if (JSON.stringify(next) !== JSON.stringify(cleanSettings(saved.settings)) ||
+      if (JSON.stringify(next) !== JSON.stringify(cleanSettings(saved.settings)) || forceKeyRotation ||
           (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey)) {
         patch.epoch = crypto.randomUUID();
-        if (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
+        if (forceKeyRotation || Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
           patch.keyEpoch = crypto.randomUUID();
           patch[QUOTA_STATE_KEY] = { keyEpoch: patch.keyEpoch, cooldowns: {} };
           patch[STATUS_KEY] = null;
@@ -110,6 +112,76 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     });
     await broadcast();
     return { ok: true };
+  }
+
+  async function removeKey() {
+    await save({ apiKey: '' }, true); // the key-change path rotates both epochs and clears all diagnostics
+    return { ok: true };
+  }
+
+  async function testKey() {
+    return modelCall(async () => {
+      const settingsGeneration = worker.settingsGeneration;
+      const before = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY]);
+      if (!before.apiKey) return { ok: false, category: 'no_key' };
+      const epoch = before.keyEpoch || '';
+      const model = cleanSettings(before.settings).model;
+      if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { ok: false, category: 'local_budget' };
+      const cooldowns = cleanQuotaState(before[QUOTA_STATE_KEY], epoch).cooldowns;
+      const blocked = cooldowns[model];
+      if (blocked?.until > Date.now()) return { ok: false, category: blocked.kind === 'daily' ? 'daily_quota'
+        : blocked.kind === 'overloaded' ? 'overloaded' : blocked.kind === 'short' ? 'rate_limit' : 'request_failed' };
+      let response;
+      try {
+        // The locked boundary prevents a key change between the final check, call count, and dispatch.
+        ({ response } = await locked(async () => {
+          const current = await store.get(['apiKey', 'keyEpoch', 'settings']);
+          if (worker.settingsGeneration !== settingsGeneration || current.keyEpoch !== epoch || current.apiKey !== before.apiKey ||
+              cleanSettings(current.settings).model !== model) return { response: null };
+          if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { response: 'budget' };
+          await countCall(chromeStorage);
+          if (worker.settingsGeneration !== settingsGeneration) return { response: null };
+          const url = `${API_BASE}${model}:generateContent`;
+          let request;
+          try {
+            request = fetch(url, { method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': before.apiKey },
+              body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply OK.' }] }],
+                generationConfig: { maxOutputTokens: 1 } }), signal: AbortSignal.timeout(8000) });
+          } catch (error) { request = Promise.reject(error); }
+          return { response: request };
+        }));
+      } catch { return { ok: false, category: 'storage_failed' }; }
+      if (response === 'budget') return { ok: false, category: 'local_budget' };
+      if (!response) return { ok: false, category: 'changed' };
+      let category = 'ok';
+      let failure;
+      try {
+        const result = await response;
+        if (!result.ok) {
+          const body = await readBoundedBody(result);
+          failure = classifyProviderFailure({ status: result.status, body,
+            retryAfter: result.headers?.get?.('retry-after') });
+          category = failure.category;
+        }
+      } catch { category = 'request_failed'; }
+      return locked(async () => {
+        const current = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY]);
+        if (worker.settingsGeneration !== settingsGeneration || current.keyEpoch !== epoch ||
+            current.apiKey !== before.apiKey || cleanSettings(current.settings).model !== model) {
+          return { ok: false, category: 'changed' };
+        }
+        const patch = { [STATUS_KEY]: safeModelStatus({ category, at: Date.now(), model }) };
+        if (failure?.retryAfterMs && ['daily_quota', 'rate_limit', 'overloaded'].includes(category)) {
+          const state = cleanQuotaState(current[QUOTA_STATE_KEY], epoch);
+          const kind = category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded' : 'short';
+          const entry = newCooldownEntry(kind, failure.retryAfterMs, Date.now());
+          if (entry) { state.cooldowns[model] = entry; patch[QUOTA_STATE_KEY] = state; }
+        }
+        await store.set(patch);
+        return { ok: category === 'ok', category };
+      });
+    });
   }
 
   async function status() {
@@ -134,5 +206,5 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       review: await reviewStatus(config),
       update: await checkUpdate() };
   }
-  return { clearCache, addLanguage, removeLanguage, save, status };
+  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status };
 }

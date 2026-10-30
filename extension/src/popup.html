@@ -73,6 +73,10 @@
     <p class="small">Gradual learning introduces only words that fit what you read. Due words come first. Inline recall opens when you activate a marked word; reveal before rating.</p>
     <label class="row"><span>Model</span><select id="model"></select></label>
     <label class="row"><span>Gemini key</span><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"></label>
+    <p class="small"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Gemini key</a>: open AI Studio, create a key, then paste it here.</p>
+    <p class="small">Use a billed key: Google may use free-tier text to improve products, and EEA, UK and Swiss users need paid services.</p>
+    <div class="row"><button id="saveKey" type="button">Save key</button><button id="testKey" type="button">Test key</button><button id="removeKey" type="button">Remove key</button></div>
+    <div id="keyFeedback" class="small" role="status" aria-live="polite"></div>
     <div class="row"><span>Words</span><span id="wordInfo" class="small"></span></div>
     <div class="row"><span>Recall reviews</span><span id="reviewInfo" class="small"></span></div>
     <button id="openReview">Open review</button>

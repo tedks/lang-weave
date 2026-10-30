@@ -65,6 +65,13 @@ describe('engine', () => {
     await expect(requestSwaps({ apiKey: 'K', model: 'gemini-3.5-flash-lite', level: 1, batch: [], fetchImpl })).rejects.toThrow();
     expect(n).toBe(1);
   });
+  test('a rejected key fails without spending a fallback request', async () => {
+    let calls = 0;
+    const failure = await requestSwaps({ apiKey: 'synthetic', model: 'gemini-3.8-flash', level: 1,
+      batch: [], fetchImpl: async () => { calls++; return { ok: false, status: 403 }; } }).catch((e) => e);
+    expect(calls).toBe(1);
+    expect(failure.category).toBe('key_rejected');
+  });
   test('rate-limited models cool down: the next batch skips them, and an all-cooling batch fails fast with a retry time', async () => {
     let clock = 1000;
     const now = () => clock;

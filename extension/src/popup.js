@@ -55,6 +55,8 @@ async function refresh() {
   $('model').value = s.model;
   $('apiKey').value = '';
   $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
+  $('testKey').disabled = !status.pastedKey;
+  $('removeKey').disabled = !status.pastedKey;
   $('wordInfo').textContent = `${status.words} ${status.languages.find((item) => item.code === c.language)?.name || c.language} words`;
   $('reviewInfo').textContent = `${status.review.due} due`;
   $('operation').textContent = !s.enabled ? 'Off'
@@ -130,7 +132,35 @@ $('removeLanguage').addEventListener('click', () => run(async () => {
   await refresh();
 }));
 $('model').addEventListener('change', (e) => run(() => save({ settings: { model: e.target.value } })));
-$('apiKey').addEventListener('change', (e) => run(() => save({ apiKey: e.target.value })));
+const saveKey = () => run(async () => {
+  $('keyFeedback').textContent = '';
+  const key = $('apiKey').value.trim();
+  if (!key) { $('keyFeedback').textContent = 'Paste a key first.'; return; }
+  await save({ apiKey: key });
+  $('keyFeedback').textContent = 'Saved ✓';
+});
+$('saveKey').addEventListener('click', saveKey);
+$('apiKey').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); void saveKey(); }
+});
+$('testKey').addEventListener('click', () => run(async () => {
+  const button = $('testKey');
+  button.disabled = true;
+  $('keyFeedback').textContent = 'Testing key…';
+  try {
+    const result = await send({ type: 'testKey' });
+    await refresh();
+    $('keyFeedback').textContent = result.ok ? 'Key works.' : result.category === 'no_key'
+      ? 'Add a Gemini key first.' : result.category === 'changed' ? 'Key or settings changed. Test again.'
+      : statusLabel({ category: result.category }) || 'Model request failed. Try again later.';
+  } finally { button.disabled = !status?.pastedKey; }
+}));
+$('removeKey').addEventListener('click', () => run(async () => {
+  $('keyFeedback').textContent = '';
+  await send({ type: 'removeKey' });
+  await refresh();
+  $('keyFeedback').textContent = 'Key removed.';
+}));
 $('siteEnabled').addEventListener('change', (e) => run(async () => {
   const enabled = e.target.checked;
   if (enabled && !hasSiteAccess(tab.url, status.config.origins)) {

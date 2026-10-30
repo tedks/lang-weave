@@ -237,6 +237,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       const category = e?.category || 'request_failed';
       const error = category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
+        : category === 'key_rejected' ? 'Gemini rejected this key. Paste a new one.'
         : category === 'local_budget' ? 'Daily local model-call budget reached'
         : category === 'storage_failed' ? 'Local reading storage failed' : 'Model request failed';
       await saveModelStatus({ category, retryAt: e?.retryAt,
