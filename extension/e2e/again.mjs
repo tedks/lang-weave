@@ -89,17 +89,21 @@ try {
     if (!Number.isSafeInteger(globalThis.virtualNow)) throw new Error('Synthetic worker clock was lost');
     globalThis.virtualNow += 10 * 60 * 1000 - 1;
   });
-  await review.locator('#refresh').click();
+  await review.reload(); // the page has no refresh button; reopening reloads the queue
   await review.locator('#counts').getByText(/^0 due/).waitFor();
   await worker.evaluate(() => {
     if (!Number.isSafeInteger(globalThis.virtualNow)) throw new Error('Synthetic worker clock was lost');
     globalThis.virtualNow++;
   });
-  await review.locator('#refresh').click();
+  await review.reload(); // the page has no refresh button; reopening reloads the queue
   await review.locator('#prompt').getByText('the idea').waitFor();
   assert.equal(await review.locator('#solution').isHidden(), true);
-  await review.locator('#reveal').click();
+  // Real Chromium drops focus to <body> when a focused button is disabled; the
+  // page must hand it to the next control instead.
+  await review.waitForFunction(() => document.activeElement?.id === 'reveal');
+  await review.keyboard.press('Space');
   await review.locator('#solution').waitFor({ state: 'visible' });
+  await review.waitForFunction(() => document.activeElement?.dataset.rating === 'medium');
   assert.equal(await review.locator('[data-rating="again"]').isVisible(), true);
   assert.equal(await worker.evaluate(() => globalThis.modelCalls), callsBeforeRating);
   console.log('PASS: guarded MV3 synthetic inline Again retains history/budget, waits exact virtual ten minutes, then permits standalone review without another model call or immediate cue.');

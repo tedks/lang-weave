@@ -14,35 +14,48 @@
   #answer { font-size: 1.6rem; font-weight: 600; }
   button { font: inherit; padding: .5rem .8rem; margin: .25rem .35rem .25rem 0; cursor: pointer; }
   button:disabled { cursor: default; opacity: .5; }
+  kbd { font: .8em ui-monospace, monospace; border: 1px solid currentColor; border-radius: 4px; padding: 0 .3em; margin: 0 .15em; opacity: .75; }
+  #progress { margin: 0 0 .5rem; }
+  #finish h2 { font-size: 1.3rem; margin: 0 0 .5rem; }
+  #finish:focus, #empty:focus { outline: 2px solid currentColor; outline-offset: 6px; border-radius: 4px; }
   #notice { color: #9b221b; min-height: 1.5em; }
   @media (prefers-color-scheme: dark) { body { color: #f3f3f3; background: #15181c; } .muted { color: #bbc3c9; } .card { background: #22282d; border-color: #52606a; } button { color: #f3f3f3; background: #343d45; border: 1px solid #7a8790; } #notice { color: #ffb4a8; } }
 </style>
 </head>
 <body>
 <h1>Recall practice</h1>
-<p class="muted">Think of the selected language for the English prompt, then reveal and rate your recall. Reading sightings do not count as reviews.</p>
+<p class="muted">Say each English prompt in <span class="language-name">your target language</span>, then reveal the answer and rate your recall. Reading sightings do not count as reviews.</p>
 <p id="language" class="muted"></p>
 <p id="counts" class="muted" role="status"></p>
 <main class="card">
-  <p id="empty">Loading your review queue…</p>
+  <p id="empty" tabindex="-1">Loading your review queue…</p>
+  <div id="finish" tabindex="-1" hidden>
+    <h2>Done for now</h2>
+    <p id="finish-summary"></p>
+    <p id="finish-next" class="muted"></p>
+  </div>
   <div id="question" hidden>
-    <div class="muted">Say this in the selected language:</div>
+    <p id="progress" class="muted"></p>
+    <div class="muted">Say this in <span class="language-name">your target language</span>:</div>
     <p id="prompt"></p>
-    <button id="reveal">Reveal answer</button>
+    <button id="reveal" aria-keyshortcuts="Space Enter" aria-describedby="progress prompt">Reveal answer <kbd aria-hidden="true">Space</kbd></button>
     <div id="solution" hidden>
       <div id="answer"></div>
       <div id="hint" class="muted"></div>
-      <p class="muted">How well did you recall it?</p>
-      <button data-rating="again">Again</button>
-      <button data-rating="hard">Hard</button>
-      <button data-rating="medium">Medium</button>
-      <button data-rating="easy">Easy</button>
-      <button id="known">Already know</button>
+      <p id="rating-question" class="muted">How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.</p>
+      <div role="group" aria-labelledby="rating-question" aria-describedby="rating-help">
+        <button data-rating="again" aria-keyshortcuts="1" aria-describedby="answer hint"><kbd aria-hidden="true">1</kbd> Again</button>
+        <button data-rating="hard" aria-keyshortcuts="2" aria-describedby="answer hint"><kbd aria-hidden="true">2</kbd> Hard</button>
+        <button data-rating="medium" aria-keyshortcuts="3" aria-describedby="answer hint"><kbd aria-hidden="true">3</kbd> Medium</button>
+        <button data-rating="easy" aria-keyshortcuts="4" aria-describedby="answer hint"><kbd aria-hidden="true">4</kbd> Easy</button>
+        <button id="known" aria-describedby="answer hint">Already know</button>
+      </div>
+      <p id="rating-help" class="muted">Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more. Already know stops reviewing the word, and with gradual learning on, a third Easy in a row does too.</p>
     </div>
   </div>
 </main>
 <button id="introduce" hidden>Add 5 new words</button>
-<button id="refresh">Refresh queue</button>
+<button id="retry" hidden>Reload queue</button>
 <p id="notice" role="alert"></p>
 <script type="module" src="review-page.js"></script>
 </body>
