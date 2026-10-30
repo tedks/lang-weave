@@ -2,6 +2,8 @@
 
 State: PR #28 on branch `progress-words`. Ditz issues `today-progress` and `my-words`, plus the user-facing half of `learning-event-log`.
 
+Encounter-core update (2026-10-30): [ENCOUNTER-MISSION.md](ENCOUNTER-MISSION.md) supersedes the earlier permanent-familiar behavior below when gradual learning is on. A third Easy is maintenance and remains scheduled under FSRS; an Already know claim is verified only by a later 21+-day retrieval at or after its claim due. In gradual mode Practice now can choose maintenance cards, but cannot bypass a pending claim's verification date. Legacy behavior below remains for gradual-off profiles. The My words claim still has no retrieval-log entry; the card's additive claim fields carry its verification gate.
+
 ## Intent
 
 The learner can see their words and whether learning is happening, from local data only. Sources: roadmap M2 `today-progress` and `my-words`; UX audit #11, #12 and #16; learning-science recommendations 1, 5 and 11 and section 9, "What to measure".
