@@ -472,6 +472,9 @@ export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
       return [id, rest];
     }));
     const base = new TextEncoder().encode(JSON.stringify({ ...clean, state: { ...clean.state, scopes: scopesWithoutLog } })).length;
+    // If the rest of the file alone sits within a few dozen bytes of the limit, even
+    // state.logOmitted does not fit and the export fails closed below, rather than dropping the
+    // log without saying so.
     fitLog(clean.state, m, Math.max(0, Math.min(LOG_BUDGET_BYTES, MAX_BACKUP_BYTES - base - LOG_MARGIN_BYTES)));
   }
   // Schema 2 is written compactly: indentation would roughly triple the learning log.
