@@ -105,6 +105,33 @@ try {
   assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /js: \['src\/content-bundle\.js'\]/);
   assert.match(await readFile(join(unpacked, 'src/popup.js'), 'utf8'), /files: \['src\/content-bundle\.js'\]/);
   store.update_url = 'https://update.invalid/service/update2/crx';
+  // In a fresh Store install, the suggested X button must obtain a per-site grant from its click.
+  open = await launch('store-onboarding', store, unpacked);
+  {
+    const { context: onboarding, worker: onboardingWorker, id: onboardingId } = open;
+    const welcomeUrl = `chrome-extension://${onboardingId}/src/welcome.html`;
+    const welcome = onboarding.pages().find((p) => p.url() === welcomeUrl) ||
+      await onboarding.waitForEvent('page', { predicate: (p) => p.url() === welcomeUrl });
+    await welcome.locator('#allowX').waitFor();
+    assert.equal(await welcome.locator('#suggestX').isVisible(), true);
+    assert.equal(await onboardingWorker.evaluate(() => chrome.permissions.contains({ origins: ['https://x.com/*'] })), false);
+    // Headless Chromium leaves the optional-host prompt pending. Stub only that prompt's result;
+    // the separate granted Store run below exercises actual registration and injection.
+    await welcome.evaluate(() => { chrome.permissions.request = (details) => {
+      globalThis.__xRequest = details;
+      return Promise.resolve(true);
+    }; });
+    await welcome.locator('#allowX').click();
+    await welcome.waitForFunction(() => document.getElementById('xStatus').textContent.trim());
+    assert.match(await welcome.locator('#xStatus').textContent(), /x.com allowed/);
+    assert.deepEqual(await welcome.evaluate(() => globalThis.__xRequest), { origins: ['https://x.com/*'] });
+    assert.equal(await onboardingWorker.evaluate(() => chrome.permissions.contains({ origins: ['https://x.com/*'] })), false);
+    const saved = await onboardingWorker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown']));
+    assert.equal(saved.settings.siteOverrides['x.com'], true);
+    assert.equal(saved.consentShown, true); // launch() supplied test consent; the X button did not change it
+    await onboarding.close();
+    open = undefined;
+  }
   store.host_permissions.push(...store.optional_host_permissions); // test-only stand-in for the user's grant
   open = await launch('store', store, unpacked);
   let { context, worker, id } = open;
@@ -175,6 +202,9 @@ try {
   open = await launch('dev', devGranted);
   ({ context, worker, id } = open);
   await settle(worker);
+  const devWelcome = context.pages().find((p) => p.url() === `chrome-extension://${id}/src/welcome.html`);
+  assert.ok(devWelcome);
+  assert.equal(await devWelcome.locator('#suggestX').isHidden(), true);
   assert.deepEqual(await alarms(worker), ['updates'], 'an unpacked install keeps the self-update alarm');
   // Chrome reports the manifest's X hosts as granted origins, so a registration exists, but it excludes
   // every host it matches: X gets the loader once, from the manifest.
