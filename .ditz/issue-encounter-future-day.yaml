@@ -1,0 +1,19 @@
+id: encounter-future-day
+title: Review future-dated encounter counters
+desc: 'Council nit: a future seenDay/peekDay from an imported card or a fast device
+  clock suppresses new daily counts until that day. Current behavior is conservative
+  against rollback. Evaluate a bounded recovery rule without minting extra placements
+  and pin timezone tests.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:50:07-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:50:07-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
