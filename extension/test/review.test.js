@@ -173,7 +173,8 @@ test('a practice ticket may be served before due, is voided by any card write, a
   expect(fresh.ticket).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
   expect(later.current).toEqual({ word: 'pero', ticket: fresh.ticket, revealed: false, shownAt: due + 7200000 });
   // An unchanged grant stays valid after the card falls due on its own.
-  expect(askable(state.current ? state : cleanReview(raw, words, now), cleanReview(raw, words, now).current, due + 1)).toBe(true);
+  const unchanged = cleanReview(raw, words, now);
+  expect(askable(unchanged, unchanged.current, due + 1)).toBe(true);
   expect(nextReview(moved, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');
   const plain = cleanReview({ ...raw, current: { ...raw.current, practice: undefined } }, words, now);
   expect(nextReview(plain, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');
