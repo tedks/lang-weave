@@ -94,6 +94,15 @@ const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalL
   createCaptureHandlers({ store, locked, worker, captureDrafts, completedCaptures, contentDocuments,
     context, broadcast, reviewState });
 const { registerSites, permissionsChanged } = createSites({ store, locked, worker, broadcast });
+// The first routed reply must not run ahead of restoring a granted site's
+// content script after an MV3 worker wake. A page loaded before this reply
+// can still miss injection (see startup-injection-gap).
+const sitesReady = ready.then(async () => {
+  try { await registerSites(); }
+  catch (e) { console.warn('Site registration failed:', e); }
+});
+// Registration failures do not block settings and permission recovery. Startup
+// storage recovery failures still reject sitesReady and block routed handlers.
 
 // Each sender surface may send only the messages router.js lists for it.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -134,7 +143,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     learningImport: () => learningImport(msg, sender),
   };
   if (!handlers[msg.type] || !surfaceAllows(surfaces, msg.type)) return false;
-  ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
+  sitesReady.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
 
@@ -168,7 +177,7 @@ chrome.tabs.onRemoved?.addListener((tabId) => {
 });
 chrome.runtime.onInstalled.addListener(registerCaptureMenu);
 chrome.runtime.onStartup.addListener(registerCaptureMenu);
-void ready.then(registerSites).catch(() => {});
+void sitesReady.catch(() => {});
 // On an MV3 wake, Chrome can retain the previous action badge. Resolve the
 // unpacked update first so a pending NEW is never replaced by reading state.
 void ready.then(async () => { await checkUpdate({ allowReload: false }); await badge.refreshAll(); }).catch(() => {});

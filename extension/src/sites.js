@@ -23,7 +23,7 @@ export function createSites({ store, locked, worker, broadcast }) {
         return;
       }
       const script = { id: 'weave-sites', matches, js: ['src/content-loader.js'], css: ['src/content.css'], runAt: 'document_idle',
-        excludeMatches: declaredMatches() };
+        excludeMatches: declaredMatches(), persistAcrossSessions: true };
       if (existing.length) await chrome.scripting.updateContentScripts([script]);
       else await chrome.scripting.registerContentScripts([script]);
     });
