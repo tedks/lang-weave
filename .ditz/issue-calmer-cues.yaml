@@ -1,0 +1,19 @@
+id: calmer-cues
+title: Calmer practice markers and inline cue layout
+desc: 'Roadmap M2. Source: ux-audit #14. English with dashed underline and small superscript
+  ?, at most 1-2 cues per viewport, cue placed by available space like placeTip, one
+  row of four ratings with Already know quieter, first focus on Reveal, Escape returns
+  to the word.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:42-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
