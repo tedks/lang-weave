@@ -1,0 +1,23 @@
+id: key-isolation-ui-followup
+title: Refine key-isolation guidance and Settings controls
+desc: 'Council nits from PR #34: fixed guidance says to update Chrome 140+ even if
+  an already-current browser rejects setAccessLevel for another reason; Settings leaves
+  Test key and Add language enabled when isolation is unavailable; a refresh can overwrite
+  unrelated keyFeedback with the isolation message. These are copy/interaction improvements,
+  not a key leak or merge blocker. Preserve the allowlisted fixed-copy model and explicit
+  Remove key action. Recommendation: give browser-neutral advice after the version-specific
+  sentence and make impossible actions visibly unavailable, while retaining the removal
+  control.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:35:30-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:35:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
