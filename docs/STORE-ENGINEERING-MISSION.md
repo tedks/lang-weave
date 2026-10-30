@@ -1,6 +1,6 @@
 # Store readiness: engineering half
 
-State: implemented on `store-engineering`, [PR #23](https://github.com/tedks/lang-weave/pull/23); council review and merge evidence are on the PR. Lead: Claude Opus 5.5 native subagent `lead-store-engineering`. Issues: `icons-and-listing`, `privacy-and-fingerprinting` and `gate-self-update` (engineering halves only), plus `store-x-content-script-ruling` option A. The fingerprint itself is not removed. Item 2 below explains why, and the fix awaits a ruling (`content-bundle-no-war`).
+State: implemented on `store-engineering`, [PR #23](https://github.com/tedks/lang-weave/pull/23); council review and merge evidence are on the PR. Lead: Claude Opus 5.5 native subagent `lead-store-engineering`. Issues: `icons-and-listing`, `privacy-and-fingerprinting` and `gate-self-update` (engineering halves only), plus `store-x-content-script-ruling` option A. The fingerprint itself is not removed. Item 2 below explains why, and the fix awaits a ruling (`store-content-bundle`).
 
 ## Intent and boundary
 
@@ -12,7 +12,8 @@ Make the extension's own engineering ready for a Chrome Web Store build without 
    - *Why a Node renderer, not Chromium:* Skia's anti-aliasing and PNG output can change between the Chromium builds Playwright installs. Here every size is an integer scale of the grid, so only the rounded tile corners need anti-aliasing, done with a fixed 16×16 supersample. Pixels are exact, and the checks compare pixels rather than deflate bytes, which differ between zlib builds.
    - The SVG lives outside `icons/` so the package ships only the PNGs.
 2. **Web-accessible surface.** `web_accessible_resources` no longer exposes every `src/*.js` to every origin. It lists exactly `content.js` and its static import closure, 15 of 47 files, with no globs. A test derives the closure with the package script's import scanner and requires equality. Worker, popup, router and update code are no longer probeable. The 15 listed files still are, at `chrome-extension://lkbkmlgogcpcacjmdmoecgacdbfddbnh/src/content.js`, so the fingerprint remains.
-   - *Why not `use_dynamic_url`:* in Chromium 156, `chrome.runtime.getURL` in a content script returns the per-session dynamic URL, and `content.js` loads from it. But the loaded module's `import.meta.url` is the static-ID URL, so every relative import resolves to the static ID and Chrome denies it. Smoke times out. This was reproduced with a two-file probe extension and with the e2e smoke. That is the brief's stop condition, so it was reported as NEEDS RULING with options. Option A, this narrowing, landed. A Store-only classic content bundle is recommended before the first upload (`content-bundle-no-war`).
+   - The CTO asked for a manifest comment explaining this. `manifest.json` is parsed as strict JSON by `package.mjs`, the tests and the fleet installer, and an unknown key draws a Chrome warning. So the explanation lives in the header of `extension/test/web-accessible.test.js` and here instead (a logged bend).
+   - *Why not `use_dynamic_url`:* in Chromium 156, `chrome.runtime.getURL` in a content script returns the per-session dynamic URL, and `content.js` loads from it. But the loaded module's `import.meta.url` is the static-ID URL, so every relative import resolves to the static ID and Chrome denies it. Smoke times out. This was reproduced with a two-file probe extension and with the e2e smoke. That is the brief's stop condition, so it was reported as NEEDS RULING with options. Option A, this narrowing, landed. A Store-only classic content bundle is recommended before the first upload (`store-content-bundle`).
 3. **Log tag.** `content-loader.js` logs `[lang-weave]`. Other inherited French identifiers in shipped `src/` stay as they are, for the reasons in the decision log.
 4. **Self-update gate.** `update.js` runs the disk-manifest check, `chrome.runtime.reload()`, the NEW badge and the 30-minute alarm only when the running manifest has no `update_url`. Without them the status reply's `update` stays empty, so the popup banner stays hidden with no popup change. The Chrome Web Store and Edge Add-ons write `update_url` into the manifest they install. Unpacked loads, including the fleet's, read the source manifest, which has none, and a test pins that.
 5. **Store manifest delta.** `package.mjs` `STORE_DELTAS` is a table with one row per top-level manifest key the Store build changes, each with its reason. `storeManifest()` applies exactly those rows. A test requires that the Store manifest differs from the dev manifest in exactly the table's keys. The one row today removes the x.com/twitter.com `content_scripts` entry, but only when that entry is exactly the loader: `content-loader.js`, `content.css` and `document_idle`. A row whose precondition fails throws rather than shipping a different manifest. The dev `key` stays in both builds, because `store-manifest-key-delta` waits on a ruling.
@@ -32,7 +33,7 @@ The exact commands and the commit they ran on are on the PR. In summary:
   - **Store manifest,** with an `update_url` added to stand in for the one the Store writes at install, plus test-only grants. No `updates` alarm is armed. Granted sites are registered with an empty exclusion. A granted X page is woven through the dynamic registration. A stale X exclusion is cleared by a restarted service worker, stopped through the DevTools Protocol with the extension still loaded. Relaunching the browser would not exercise this, because reloading an unpacked extension drops dynamic registrations.
   - **Dev manifest.** The alarm is armed. A granted X page is woven from the manifest entry, while the dynamic registration excludes X.
   - **Both builds.** The `src/*.js` a web page can fetch are exactly those `web_accessible_resources` lists.
-- `e2e/smoke.mjs`, `highlights.mjs`, `personal.mjs`, `quota-status.mjs` and `gloss.mjs` pass with the narrowed resources. That shows the dynamic `import()` and the whole content graph still load. `e2e/portability.mjs` fails at the review page's `#empty` wait. It fails identically on the untouched base `ebf183c`, so the failure predates this PR; it is reported to the learning-core lane. Every e2e harness now copies `icons/`, because Chrome refuses to load an unpacked extension whose declared icons are missing. That was observed: smoke timed out waiting for the service worker before the fix. Smoke and portability can also load an alternate source tree, such as a pre-0.12.5 release with no `icons/`, so those two copy it only when it exists.
+- `e2e/smoke.mjs`, `highlights.mjs`, `personal.mjs`, `portability.mjs`, `quota-status.mjs` and `gloss.mjs` pass with the narrowed resources, which shows the dynamic `import()` and the whole content graph still load. Before the rebase onto PR #24, portability failed at the review page's `#empty` wait, identically on the untouched base. PR #24 fixed that harness. Every e2e harness now copies `icons/`, because Chrome refuses to load an unpacked extension whose declared icons are missing. That was observed: smoke timed out waiting for the service worker before the fix. Smoke and portability can also load an alternate source tree, such as an older release with no `icons/`. Those two copy `icons/` exactly when the source manifest declares icons, so a tree that declares them but lacks them fails fast.
 - `node scripts/icons.mjs --check`, `node scripts/package.mjs` and `--store`, the Python suite, the version-bump check and `git diff --check`.
 - The icon preview was inspected at 16, 32, 48 and 128 on white, light-grey, `#202124` and `#3c4043` toolbars. WCAG contrast tests check three things: the tile against light toolbars, the strands against dark toolbars, and the strands against the tile.
 
@@ -55,6 +56,20 @@ The exact commands and the commit they ran on are on the PR. In summary:
   - Claude, nit: the update path with an empty exclusion was proven only by a mock. It now has a real-Chromium restart check.
 - **Filed:** `store-drop-alarms-permission` (Claude, Important; it needs `background.js`, outside this lane's repair authority) and `store-suggest-x-onboarding`.
 - **Already recorded:** the remaining fingerprint and the fleet installer (Codex, Important).
+- **Round 2,** Claude on `d8078c2..837a4ce` and Codex on the same delta.
+  - Claude: CLEAN, with three nits that were fixed.
+  - Codex, Important: the values of the `<svg>` root attributes were unchecked. Fixed.
+  - Codex, nit: the loader itself wasn't scanned. Fixed.
+- **Round 3,** Codex on `837a4ce..17c8273`.
+  - It claimed a single-quoted `width` bypassed the root checks. That didn't reproduce, because the root pattern admits only double-quoted attributes.
+  - Tests now pin it, and duplicate root attributes are refused.
+  - Codex retracted the finding in round 4 and returned CLEAN, with one test nit that was fixed.
+- **Final:** the Claude seat's combined verdict on `d8078c2..f464427` is CLEAN.
+- **Nits fixed after it,** all by the Claude seat:
+  - a test comment;
+  - an assertion that the stale exclusion is in place before the restart;
+  - copying icons only when the source manifest declares them.
+- **CTO ruling:** option A lands here. The bundle is filed as `store-content-bundle` and is required before the first Store upload.
 
 ## Found on the way
 

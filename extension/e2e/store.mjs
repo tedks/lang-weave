@@ -87,6 +87,8 @@ try {
   // browser would not do, since reloading an unpacked extension drops dynamic registrations).
   await worker.evaluate(() => chrome.scripting.updateContentScripts([{ id: 'weave-sites',
     excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] }]));
+  const [stale] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
+  assert.deepEqual([...stale.excludeMatches].sort(), ['https://twitter.com/*', 'https://x.com/*'], 'the stale exclusion is in place');
   await worker.evaluate(() => { globalThis.beforeRestart = true; });
   const cdp = await context.newCDPSession(page);
   const { targetInfos } = await cdp.send('Target.getTargets');
