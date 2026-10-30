@@ -102,7 +102,8 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
     expect(appearances.get(1).textColor).toBe('#ffffff');
     const beforeRestart = badgeWrites.length;
     await import('../src/background.js?badge-worker-restart');
-    await until(() => badgeWrites.length > beforeRestart);
+    await until(() => new Set(badgeWrites.slice(beforeRestart).map(({ tabId }) => tabId)).size === 2);
+    await new Promise((done) => setTimeout(done, 5));
     expect(badgeWrites.slice(beforeRestart).every(({ text }) => text === 'NEW')).toBe(true);
   } finally {
     globalThis.chrome = saved.chrome;

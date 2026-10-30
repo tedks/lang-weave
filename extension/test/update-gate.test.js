@@ -48,6 +48,16 @@ test('an unpacked install (no update_url) keeps the self-update: alarm, disk che
   expect(update.updatePending()).toBe(true);
 }));
 
+test('worker wake detects NEW without reloading, then the normal check may reload', () => withGlobals(async () => {
+  const { calls, data, update } = fakeChrome({ version: '1.0.0' }, '1.0.1');
+  expect(await update.checkUpdate({ allowReload: false })).toBe('1.0.1');
+  expect(update.updatePending()).toBe(true);
+  expect(calls).toEqual(['fetch:chrome-extension://gate-test/manifest.json', 'badge-state-changed']);
+  expect(data[RELOADED_KEY]).toBeUndefined();
+  expect(await update.checkUpdate()).toBe('1.0.1');
+  expect(calls.at(-1)).toBe('reload');
+}));
+
 test('a Store or Edge install (update_url present) never self-updates, badges or arms the alarm', () => withGlobals(async () => {
   for (const update_url of ['https://clients2.google.com/service/update2/crx',
     'https://edge.microsoft.com/extensionwebstorebase/v1/crx', '']) {

@@ -166,4 +166,4 @@ chrome.runtime.onStartup.addListener(registerCaptureMenu);
 void ready.then(registerSites).catch(() => {});
 // On an MV3 wake, Chrome can retain the previous action badge. Resolve the
 // unpacked update first so a pending NEW is never replaced by reading state.
-void ready.then(async () => { await checkUpdate(); await badge.refreshAll(); }).catch(() => {});
+void ready.then(async () => { await checkUpdate({ allowReload: false }); await badge.refreshAll(); }).catch(() => {});

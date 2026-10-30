@@ -42,6 +42,7 @@ export function badgeAppearance(state, modelStatus, quotaState, keyEpoch, now = 
 export function createBadge({ context, store, updatePending }) {
   const generations = new Map();
   const writes = new Map();
+  let nextGeneration = 0; // never reuse a token after a failed or removed refresh
 
   async function snapshot() {
     const [config, data] = await Promise.all([
@@ -56,7 +57,7 @@ export function createBadge({ context, store, updatePending }) {
 
   async function refresh(tabId, sharedSnapshot) {
     if (!Number.isInteger(tabId) || tabId < 0) return;
-    const generation = (generations.get(tabId) || 0) + 1;
+    const generation = ++nextGeneration;
     generations.set(tabId, generation);
     try {
       const [tab, { config, data, status }] = await Promise.all([

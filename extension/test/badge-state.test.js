@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { readingState } from '../src/state.js';
-import { badgeAppearance, BADGE_ATTENTION, BADGE_MUTED } from '../src/badge.js';
+import { badgeAppearance, createBadge, BADGE_ATTENTION, BADGE_MUTED } from '../src/badge.js';
 import { publicContext } from '../src/worker-context.js';
 
 const statuses = [null, 'ok', 'daily_quota', 'rate_limit', 'overloaded', 'key_rejected',
@@ -92,4 +92,33 @@ test('badge text, colors and titles are allowlisted; NEW wins as its own state',
     quota, keyEpoch, now);
   expect(cooling.title).toMatch(/^Paused until .+; review still works$/);
   expect(cooling.title).not.toContain('secret.example');
+});
+
+test('a failed middle refresh cannot reuse the token of an older pending refresh', async () => {
+  const saved = globalThis.chrome;
+  let firstTab;
+  const pending = new Promise((done) => { firstTab = done; });
+  let calls = 0;
+  const texts = [];
+  let hasKey = false;
+  globalThis.chrome = {
+    tabs: { get: async () => {
+      if (++calls === 1) return pending;
+      if (calls === 2) throw new Error('tab temporarily unavailable');
+      return { url: 'https://example.com/' };
+    } },
+    action: { setBadgeText: async ({ text }) => { texts.push(text); } },
+  };
+  try {
+    const badge = createBadge({ context: async () => ({ hasKey, paused: false,
+      settings: { enabled: true, newSitesEnabled: true, siteOverrides: {} }, origins: [] }),
+      store: { get: async () => ({}) }, updatePending: () => false });
+    const old = badge.refresh(7);
+    hasKey = true;
+    await badge.refresh(7); // generation 2 fails and is released
+    await badge.refresh(7); // generation 3 writes the current needs-site state
+    firstTab({ url: 'https://example.com/' });
+    await old;
+    expect(texts).toEqual(['•']);
+  } finally { globalThis.chrome = saved; }
 });

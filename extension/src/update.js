@@ -26,12 +26,12 @@ export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {
   let waitingVersion = '';
   const updatePending = () => selfUpdating() && !!waitingVersion;
   let checking;
-  async function doCheckUpdate() {
+  async function doCheckUpdate(allowReload) {
     if (!selfUpdating()) return ''; // no disk fetch, reload, badge or popup banner for a packaged install
     try {
       const disk = await (await fetch(chrome.runtime.getURL('manifest.json'), { cache: 'no-store' })).json();
       const waiting = disk.version && disk.version !== chrome.runtime.getManifest().version ? String(disk.version) : '';
-      if (waiting && (await store.get(RELOADED_KEY))[RELOADED_KEY] !== waiting) {
+      if (allowReload && waiting && (await store.get(RELOADED_KEY))[RELOADED_KEY] !== waiting) {
         await store.set({ [RELOADED_KEY]: waiting });
         try {
           await modelCall(() => locked(() => chrome.runtime.reload()));
@@ -48,11 +48,16 @@ export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {
     }
   }
 
-  // Startup, popup and the existing update alarm can overlap. They must agree on
-  // one disk check and one reload attempt for a given worker wake.
-  function checkUpdate() {
-    if (!checking) checking = doCheckUpdate().finally(() => { checking = null; });
-    return checking;
+  // A worker wake detects an update without interrupting the event that woke it.
+  // Popup and the existing alarm retain the reload attempt after queued work.
+  function checkUpdate({ allowReload = true } = {}) {
+    if (checking) {
+      if (allowReload && !checking.allowReload) return checking.promise.then(() => checkUpdate());
+      return checking.promise;
+    }
+    const promise = doCheckUpdate(allowReload).finally(() => { checking = null; });
+    checking = { promise, allowReload };
+    return promise;
   }
 
   // create() replaces an alarm of the same name, so calling it on both events is safe. Startup matters
