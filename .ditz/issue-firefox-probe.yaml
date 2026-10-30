@@ -22,3 +22,67 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T21:13:27-00:00
+  who: Ted Smith
+  what: commented
+  comment: "FIREFOX PROBE RESULT. Real Firefox was run. No repo change; source tree
+    untouched (read-only copy under the session scratchpad firefox-probe/).\n\nEnvironment:
+    nixpkgs#firefox 158.0 (firefox-esr 153.5.0 also available, not used), nixpkgs#geckodriver
+    0.37.1, headless, throwaway profile under scratch tmpN/ dirs, never Ted's profiles.
+    Driven over WebDriver (geckodriver --allow-system-access, POST /moz/addon/install
+    temporary=true), because Playwright's Firefox cannot load extensions. web-ext
+    10.8.0 was fetched but not needed. All browser/driver/http processes started were
+    stopped.\n\nCommands (essence):\n  nix build --no-link nixpkgs#firefox nixpkgs#geckodriver
+    nixpkgs#web-ext\n  cp manifest.json src icons of extension @ main c4bbd46 -> ext-a-unmodified,
+    ext-b-upstream\n  geckodriver session -> POST /session/:id/moz/addon/install {\"path\":
+    <ext dir>, \"temporary\": true}\n  open moz-extension://<pinned uuid>/src/popup.html
+    via chrome-context gBrowser.addTrustedTab; evaluate there\n  python http.server
+    127.0.0.1:8765 serving a blank page; content script matches widened to http://127.0.0.1/*
+    in the scratch copy only\n\n(c) MV3 service_worker-only manifest: DOES NOT LOAD.
+    Unmodified manifest, exact error:\n  \"Could not install Add-on: background.service_worker
+    is currently disabled. Add background.scripts.\"\nCopy B = manifest + upstream's
+    two additions (background.scripts [\"src/background.js\"] beside service_worker,
+    type module; browser_specific_settings.gecko {id placeholder lang-weave-probe@example.invalid,
+    strict_min_version 140.0, data_collection_permissions.required [websiteContent]}):
+    installs on 158.0, policy active, real background.js runs as an event page. Sending
+    {type:'status'} from the popup page returned a normal config reply. Only manifest
+    warning: \"Reading manifest: Warning processing key: An unexpected property was
+    found\" (the Chrome `key` field; harmless, ignored).\n\n(a) storage.local.setAccessLevel:
+    ABSENT in Firefox 158. In an extension page, typeof chrome.storage.local.setAccessLevel
+    and browser.storage.local.setAccessLevel are both \"undefined\"; storage.session
+    also has no setAccessLevel (own properties of both areas: get, getBytesInUse,
+    getKeys, set, remove, clear, onChanged). Consequence verified, not inferred: with
+    the real worker running, the guard at background.js:57 is silently skipped. I
+    wrote probeSecret into storage.local from the extension page; a content script
+    on the test page read it back ({\"probeSecret\":\"S3CRET\"}). So any content script
+    can read the Gemini key, stored as `apiKey` in storage.local (settings-handlers.js),
+    and all learning data.\nMDN compatibility data (mdn/browser-compat-data webextensions/api/storage.json,
+    fetched raw; the rendered MDN pages show no compat table in text form), verbatim:\n
+    \ StorageArea.setAccessLevel firefox: {\"version_added\": false, \"impl_url\":
+    \"https://bugzil.la/1724754\"}\n  storage.session.setAccessLevel firefox: {\"version_added\":
+    false}\n  chrome: {\"version_added\": \"96\", \"notes\": [\"Supported by the `session`
+    storage area from Chrome 96.\", \"Supported by all storage areas from Chrome 140.\"]}\nMDN
+    setAccessLevel page: \"Restrict content scripts' access to `local`, `managed`,
+    and `sync` storage areas. By default, these storage areas are exposed to all extension
+    contexts, including content scripts.\"\nSide finding for Chrome: setAccessLevel
+    on storage.local only exists from Chrome 140, the manifest sets no minimum_chrome_version,
+    and the guard is also silently skipped on Chrome 96-139. Worth a separate issue.\n\n(b)
+    content-loader dynamic import: WORKS in Firefox 158. The real content-loader.js
+    (matches widened to localhost in scratch) imported src/content.js through web_accessible_resources,
+    and the real content.js ran: its first message {type:'config'} from the test page
+    tab was observed by a listener in the popup page. A separate probe content script
+    doing the same import(chrome.runtime.getURL(...)) of a web-accessible module returned
+    ok. No change needed for the loader.\n\nNot tested: real x.com pages, AMO signing/review,
+    Gemini calls, optional host permission prompts, permanent installs, event-page
+    idle restart, checkUpdate self-reload.\n\nDISPOSITION: Adapt after fix. The manifest
+    side is cheap and confirmed (upstream's two additions are necessary and sufficient
+    to load; the loader works). Blocker for shipping: the key-isolation invariant
+    is false on Firefox and the code fails open. firefox-support must first (1) make
+    the guard fail closed, i.e. do not keep apiKey in storage.local where setAccessLevel
+    is missing (options: storage in the worker's own extension-origin IndexedDB, or
+    storage.session re-entered per browser session, a product tradeoff for Ted), plus
+    migration of an existing key; (2) add a test that fails when a content-script-readable
+    area holds apiKey; (3) then add the manifest changes, the gecko id (publisher
+    ruling for Ted; id is permanent), and data_collection_permissions categories (Ted
+    rules whether authenticationInfo is also needed). Fix (1) is also worth doing
+    for Chrome < 140 independent of Firefox."
