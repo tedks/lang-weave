@@ -1,6 +1,6 @@
 # First-run welcome page
 
-State: repair verified on `welcome-page`; merge gates in progress. Issue: `welcome-page`. The earlier export failure is tracked as `welcome-portability-export-timeout`. Initial source commit: `31eb1b6`.
+State: council fixpoint CLEAN on `welcome-page`; final exact-head gates and merge remain. Issue: `welcome-page`. The earlier export failure was closed as `welcome-portability-export-timeout`. Initial source commit: `31eb1b6`.
 
 ## Decisions
 
@@ -23,4 +23,10 @@ State: repair verified on `welcome-page`; merge gates in progress. Issue: `welco
 
 ## Not verified
 
-Council review, merge and an exact-head gate run after rebase remain. No live Gemini request, real user profile, Chrome Web Store installation, or Store upload was used.
+Merge and an exact-head gate run after rebase remain. No live Gemini request, real user profile, Chrome Web Store installation, or Store upload was used.
+
+## Council
+
+- Round 1 at `816ae08`: OpenAI native Codex `gpt-6-sol` CLEAN with one copy nit; Anthropic Claude Opus found one plausible Important migration concern and nits; Google agy EMPTY (quota exhausted, no substitute).
+- The migration concern was checked against `targetFresh` and pinned with an explicit import target after either welcome choice. The copy now distinguishes page text from Settings' key-test probe. Other in-scope nits fixed: local consent refusal no longer writes model diagnostics; Test key reports consent refusal accurately inside the lock; the welcome tab creation promise is caught; the gesture test checks synchronous permission-request order; router near-miss coverage was restored; key-test and pack-generation consent gates have tests.
+- Convergence on `816ae08..2e9d3c4`: both OpenAI and Anthropic seats returned CLEAN, with no new Critical or Important findings. Anthropic's remaining nits were filed. Follow-ups: `welcome-consent-navigation`, `welcome-model-gate-centralization`, `welcome-upgrade-consent-test`, `welcome-e2e-ready-helper`, and `welcome-tab-sync-error`. The first issue also covers the Settings site-choice inconsistency explicitly.
