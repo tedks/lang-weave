@@ -1,0 +1,20 @@
+id: welcome-upgrade-consent-test
+title: Exercise startup migration of an existing profile without consentShown
+desc: 'Council PR #29 nit N-9. The welcome unit test proves an absent consentShown
+  flag allows an existing profile to read, but it does not start a fresh background
+  module with stored settings and assert startup leaves the flag absent. Add that
+  upgrade-path test; keep the fresh-install false initialization test. Current runtime
+  logic checks settings === undefined, and static review found no break.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:05:35-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:05:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
