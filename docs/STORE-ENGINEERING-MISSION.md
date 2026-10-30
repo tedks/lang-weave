@@ -79,3 +79,11 @@ The exact commands and the commit they ran on are on the PR. In summary:
 ## Rebase onto PR #24
 
 PR #24 added `fsrs.js` to `content.js`'s import graph. The closure test failed on the rebased head, and so did the e2e suites that load content. That is exactly the drift the test exists to catch. `fsrs.js` is now listed, 16 of 47 files.
+
+## Store-only content bundle follow-up (2026-10-30, PR #30)
+
+The narrowed `web_accessible_resources` list above remains correct for unpacked builds but leaves a fixed-ID probe in a Store install. The Store package now generates a classic `src/content-bundle.js` from the static `content.js` import closure in a deterministic dependency order. The wrapper accepts named static imports and exports, rejects cycles, missing bindings, `import.meta`, dynamic imports and unsupported module syntax, and compiles the result as a classic script before packaging. Its tests run the generated script in a VM, including the real content entry. No runtime dependency or source build step was added.
+
+The Store zip alone rewrites the dynamic registration in `sites.js` and the popup's fallback injection to name that bundle. `STORE_DELTAS` removes `web_accessible_resources` and `alarms`, alongside the existing X static entry. The dev manifest and source files retain the modular loader. The top-level Store manifest has no `content_scripts`; that preserves the explicit per-site grant and the earlier X ruling. The CTO clarified that the mission phrase “listed directly in content_scripts” means the dynamically registered script's `js` field. This is the recorded bend from the literal wording.
+
+`chrome.alarms` is used only by the guarded self-update path and the worker listener; both now tolerate the absent API. The Store Chromium gate loads an actual unzipped `--store` zip with test-only grants and synthetic Gemini, verifies swap, gloss and flip, and confirms every shipped `src/*.js` fails a web-origin fetch. The unpacked comparison still checks the modular X path and update alarm. This is not a Store upload or a live Gemini check.
