@@ -16,6 +16,7 @@ import {
 } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bundleContent } from './content-bundle.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_EXTENSION_DIR = resolve(HERE, '..');
@@ -69,6 +70,26 @@ export const STORE_DELTAS = Object.freeze([
       }
       const rest = scripts.filter((cs) => !isX(cs));
       return rest.length ? rest : undefined;
+    },
+  }),
+  Object.freeze({
+    key: 'permissions',
+    why: 'The Store has no self-update alarm; keep alarms only in unpacked builds.',
+    apply(permissions) {
+      if (!Array.isArray(permissions) || permissions.filter((p) => p === 'alarms').length !== 1)
+        throw new PackageError('store delta permissions: expected exactly one alarms permission');
+      return permissions.filter((p) => p !== 'alarms');
+    },
+  }),
+  Object.freeze({
+    key: 'web_accessible_resources',
+    why: 'The classic content bundle loads without page-accessible extension modules.',
+    apply(resources) {
+      if (!Array.isArray(resources) || resources.length !== 1 ||
+          !sameSet(resources[0]?.matches, ['http://*/*', 'https://*/*']) ||
+          !Array.isArray(resources[0]?.resources) || !resources[0].resources.includes('src/content.js'))
+        throw new PackageError('store delta web_accessible_resources: unexpected content module resources');
+      return undefined;
     },
   }),
 ]);
@@ -491,6 +512,26 @@ export function packageExtension({
     throw new PackageError(`manifest.json is not valid JSON: ${err.message}`);
   }
   if (store) {
+    const sources = new Map(files.filter((f) => f.name.endsWith('.js')).map((f) => [f.name, f.data.toString('utf8')]));
+    const { code, order } = bundleContent(sources);
+    const exposed = manifest.web_accessible_resources?.[0]?.resources;
+    if (manifest.web_accessible_resources?.length !== 1 || !sameSet(exposed, order))
+      throw new PackageError('store bundle: web_accessible_resources is not exactly the content import closure');
+    // Only the Store payload changes these two injection paths. The source/dev tree keeps
+    // its modular loader, while the dynamically registered script and popup fallback name
+    // the generated classic script directly. Refuse source drift instead of missing a path.
+    for (const [name, before, after] of [
+      ['src/sites.js', "js: ['src/content-loader.js']", "js: ['src/content-bundle.js']"],
+      ['src/popup.js', "files: ['src/content-loader.js']", "files: ['src/content-bundle.js']"],
+    ]) {
+      const file = files.find((f) => f.name === name);
+      const source = file?.data.toString('utf8');
+      if (!source || source.split(before).length !== 2)
+        throw new PackageError(`store bundle: expected one ${before} in ${name}`);
+      file.data = Buffer.from(source.replace(before, after), 'utf8');
+    }
+    files.push({ name: 'src/content-bundle.js', data: Buffer.from(code, 'utf8') });
+    files.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     const shipped = storeManifest(manifest);
     // Keep the original bytes when no delta changes anything; re-serialise only for real deltas.
     if (JSON.stringify(shipped) !== JSON.stringify(manifest)) {

@@ -151,7 +151,7 @@ chrome.storage.onChanged?.addListener((changes, area) => {
 chrome.runtime.onInstalled.addListener(arm);
 chrome.runtime.onInstalled.addListener(openWelcome);
 chrome.runtime.onStartup.addListener(arm);
-chrome.alarms.onAlarm.addListener((a) => {
+chrome.alarms?.onAlarm?.addListener((a) => {
   if (a.name !== ALARM) return;
   void checkUpdate();
 });

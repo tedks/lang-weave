@@ -122,10 +122,15 @@ test('package: two builds are byte-identical; --store applies only the delta tab
   const plain = readZip(a.bytes).find((e) => e.name === 'manifest.json');
   const stored = readZip(s.bytes).find((e) => e.name === 'manifest.json');
   expect(JSON.parse(stored.data.toString())).toEqual(storeManifest(JSON.parse(plain.data.toString())));
-  expect(readZip(s.bytes).map((e) => e.name)).toEqual(readZip(a.bytes).map((e) => e.name));
+  expect(readZip(s.bytes).map((e) => e.name)).toEqual([...readZip(a.bytes).map((e) => e.name), 'src/content-bundle.js'].sort());
   for (const e of readZip(s.bytes)) {
-    if (e.name !== 'manifest.json') expect(Buffer.compare(e.data, readZip(a.bytes).find((x) => x.name === e.name).data)).toBe(0);
+    if (!['manifest.json', 'src/content-bundle.js', 'src/sites.js', 'src/popup.js'].includes(e.name))
+      expect(Buffer.compare(e.data, readZip(a.bytes).find((x) => x.name === e.name).data)).toBe(0);
   }
+  const storeFiles = Object.fromEntries(readZip(s.bytes).map((e) => [e.name, e.data.toString()]));
+  expect(storeFiles['src/sites.js']).toContain("js: ['src/content-bundle.js']");
+  expect(storeFiles['src/popup.js']).toContain("files: ['src/content-bundle.js']");
+  expect(storeFiles['src/content-bundle.js']).toContain('src/content.js');
   expect(Buffer.compare(s.bytes, build({ store: true }).bytes)).toBe(0);
 
   const manifest = JSON.parse(plain.data.toString());
@@ -143,8 +148,10 @@ test('store manifest: differs from the dev manifest in exactly the delta-table k
   expect(changed).toEqual(STORE_DELTAS.map((d) => d.key).sort());
   expect(new Set(STORE_DELTAS.map((d) => d.key)).size).toBe(STORE_DELTAS.length);
   for (const d of STORE_DELTAS) expect(d.why.length).toBeGreaterThan(20);
-  // The rows today: no hard-coded X content script in the Store build; the dev key stays in both.
+  // The Store has no static injection, page-accessible modules or unused alarm permission.
   expect(Object.hasOwn(store, 'content_scripts')).toBe(false);
+  expect(Object.hasOwn(store, 'web_accessible_resources')).toBe(false);
+  expect(store.permissions).not.toContain('alarms');
   expect(dev.content_scripts.some((cs) => cs.matches.includes('https://x.com/*'))).toBe(true);
   expect(store.key).toBe(dev.key);
   expect(JSON.stringify(store)).not.toContain('x.com');
@@ -156,14 +163,16 @@ test('store manifest: the X row keeps other content scripts and refuses a change
   const x = { matches: ['https://twitter.com/*', 'https://x.com/*'], js: ['src/content-loader.js'], css: ['src/content.css'],
     run_at: 'document_idle' };
   const other = { matches: ['https://example.com/*'], js: ['src/other.js'] };
-  expect(storeManifest({ version: '1', content_scripts: [x, other] }).content_scripts).toEqual([other]);
-  expect(Object.hasOwn(storeManifest({ version: '1', content_scripts: [x] }), 'content_scripts')).toBe(false);
+  const full = (scripts) => ({ version: '1', content_scripts: scripts, permissions: ['storage', 'alarms'],
+    web_accessible_resources: [{ matches: ['http://*/*', 'https://*/*'], resources: ['src/content.js'] }] });
+  expect(storeManifest(full([x, other])).content_scripts).toEqual([other]);
+  expect(Object.hasOwn(storeManifest(full([x])), 'content_scripts')).toBe(false);
   for (const content_scripts of [undefined, [], [other], [x, x],
     [{ ...x, matches: [...x.matches, 'https://mobile.x.com/*'] }], [{ ...x, matches: ['https://x.com/*'] }],
     // The rest of the entry must be exactly the loader, so nothing else rides out with it.
     [{ ...x, js: [...x.js, 'src/other.js'] }], [{ ...x, css: [] }], [{ ...x, run_at: 'document_end' }],
     [{ ...x, all_frames: true }], [(({ css, ...rest }) => rest)(x)]]) {
-    expect(() => storeManifest({ version: '1', content_scripts })).toThrow(PackageError);
+    expect(() => storeManifest(full(content_scripts))).toThrow(PackageError);
   }
 });
 
