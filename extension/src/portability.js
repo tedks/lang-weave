@@ -112,13 +112,40 @@ function cardId(value, scope, known = false) {
 }
 function card(value, m) {
   keys(value, ['due', 'interval', 'reviews', 'familiar', 'easyStreak', 'introducedDay', 'introGateDay', 'introReceipt',
-    ...(m.source || m.schema >= 2 ? ['fsrs'] : [])], 'card', ['due', 'interval', 'reviews']);
+    ...(m.source || m.schema >= 2 ? ['fsrs', 'maintenance', 'retiredReturn', 'claimAt', 'claimDue', 'peekDue',
+      'seenDay', 'seenCount', 'peekDay', 'peekCount'] : [])], 'card', ['due', 'interval', 'reviews']);
   const result = { due: integer(value.due, 0, Number.MAX_SAFE_INTEGER, 'due time'),
     interval: integer(value.interval, 0, 365, 'interval'), reviews: integer(value.reviews, 0, 10000, 'review count') };
   if (Object.hasOwn(value, 'familiar')) { if (value.familiar !== true) fail('invalid familiarity'); result.familiar = true; }
   if (Object.hasOwn(value, 'easyStreak')) result.easyStreak = integer(value.easyStreak, 0, 3, 'easy streak');
   if (Object.hasOwn(value, 'introducedDay')) result.introducedDay = day(value.introducedDay);
   if (Object.hasOwn(value, 'introGateDay')) result.introGateDay = day(value.introGateDay);
+  if (m.schema >= 2) {
+    if (Object.hasOwn(value, 'maintenance')) {
+      if (value.maintenance !== true) fail('invalid maintenance');
+      result.maintenance = true;
+    }
+    if (Object.hasOwn(value, 'retiredReturn')) {
+      // A pending return survives a gradual-off write, which omits maintenance.
+      if (typeof value.retiredReturn !== 'boolean' || value.retiredReturn === true && result.familiar !== true)
+        fail('invalid retired return');
+      result.retiredReturn = value.retiredReturn;
+    }
+    for (const kind of ['seen', 'peek']) {
+      const dayKey = `${kind}Day`, countKey = `${kind}Count`;
+      if (Object.hasOwn(value, dayKey) || Object.hasOwn(value, countKey)) {
+        if (!Object.hasOwn(value, dayKey) || !Object.hasOwn(value, countKey)) fail('incomplete daily counter');
+        result[dayKey] = day(value[dayKey]);
+        result[countKey] = integer(value[countKey], 0, 3, 'daily count');
+      }
+    }
+    if (Object.hasOwn(value, 'claimAt') || Object.hasOwn(value, 'claimDue')) {
+      if (!Object.hasOwn(value, 'claimAt') || !Object.hasOwn(value, 'claimDue')) fail('incomplete known claim');
+      result.claimAt = integer(value.claimAt, 0, Number.MAX_SAFE_INTEGER, 'claim time');
+      result.claimDue = integer(value.claimDue, result.claimAt, Number.MAX_SAFE_INTEGER, 'claim due');
+    }
+    if (Object.hasOwn(value, 'peekDue')) result.peekDue = integer(value.peekDue, 0, result.due, 'peek due');
+  }
   // The one-use receipt belongs to an installation/document and is deliberately omitted.
   // Schema 1 output never carries FSRS state, so storage state is simply not exported.
   if (Object.hasOwn(value, 'fsrs') && m.schema >= 2) {

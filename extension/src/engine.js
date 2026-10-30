@@ -1,5 +1,5 @@
 // One batch, one model call (fallback model once on failure), validated swaps out.
-import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from './prompt.js';
+import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA, unknownBudget } from './prompt.js';
 import { buildRequest, callGemini, FALLBACK_MODEL } from './gemini.js';
 import { validateSwaps, capSwaps } from './levels.js';
 
@@ -11,8 +11,9 @@ export const PRIMARY_TIMEOUT_MS = 8000;
 export const timeoutFor = (m, models, timeoutMs) =>
   models.length > 1 && m === models[0] ? Math.min(timeoutMs || 20000, PRIMARY_TIMEOUT_MS) : timeoutMs;
 
-export async function requestSwaps({ apiKey, model, level, batch, words, language, density = 'normal', shownToday, fetchImpl, timeoutMs, cooldown = new Map(), cooldownKinds = new Map(), now = Date.now, onFailure }) {
-  const body = buildRequest({ system: buildSystemPrompt(level, words, shownToday, language, density), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
+export async function requestSwaps({ apiKey, model, level, batch, words, language, density = 'normal', unknownLimit = false, shownToday, fetchImpl, timeoutMs, cooldown = new Map(), cooldownKinds = new Map(), now = Date.now, onFailure }) {
+  const body = buildRequest({ system: buildSystemPrompt(level, words, shownToday, language, density,
+    unknownLimit ? unknownBudget(batch) : null), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
   const candidates = [model];
   if (FALLBACK_MODEL[model]) candidates.push(FALLBACK_MODEL[model]);
   const models = candidates.filter((m) => !(cooldown.get(m) > now()));

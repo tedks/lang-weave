@@ -40,7 +40,8 @@ export function verifiedWords(entries, cards, minDays = VERIFY_DAYS) {
     if (e.outcome === 'known') continue; // a claim is never a recall
     if (e.outcome === 'again') { verified.delete(e.word); continue; }
     const card = cards[e.word];
-    if (!card || e.elapsedDays === null || e.elapsedDays < minDays) continue;
+    if (!card || e.elapsedDays === null || e.elapsedDays < minDays ||
+        (card.claimDue && e.at < card.claimDue)) continue;
     // After a confirmed clock recovery the gate day replaces a future introduction day.
     if (e.at - e.elapsedDays * DAY_MS < dayStart(card.introGateDay || card.introducedDay) - DAY_MS) continue;
     verified.add(e.word);
@@ -51,14 +52,16 @@ export function verifiedWords(entries, cards, minDays = VERIFY_DAYS) {
 
 // One word's stage. `card` is a cleaned review card or undefined.
 // - new: no card (never introduced, or reset).
-// - known: marked "Already know" (a claim) and not verified.
+// - known: an "Already know" claim awaiting its later maintenance retrieval.
 // - verified: recalled at a gap of 21+ days in this card's life, with no Again since.
 // - maintenance: FSRS stability of 21+ days (a migrated card's stability is its interval).
 // - learning: everything else that has a card, including introduced but not yet rated.
 export function wordStage(card, verified = false) {
   if (!card) return 'new';
   if (verified) return 'verified';
-  if (card.familiar) return 'known';
+  if (card.claimDue) return 'known';
+  if (card.familiar && !card.maintenance) return 'known';
+  if (card.maintenance) return 'maintenance';
   const stability = withFsrs(card).fsrs?.stability ?? 0;
   return stability >= MAINTENANCE_DAYS ? 'maintenance' : 'learning';
 }

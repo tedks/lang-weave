@@ -11,7 +11,7 @@ const waitFor = async (predicate) => {
 };
 
 const progress = {
-  language: 'Spanish', due: 1, new: 3, verifiedKnown: 2, practisedThisWeek: 3,
+  language: 'Spanish', due: 1, new: 3, returned: 2, verifiedKnown: 2, practisedThisWeek: 3,
   today: { day: '2026-10-30', introduced: 1, seen: 4, peeked: 0, flipped: 0, reviewed: 2 },
   stages: { new: 140, learning: 6, maintenance: 2, known: 1, verified: 2 },
   activity: Array.from({ length: 30 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`, retrievals: i % 3 ? 0 : 2 })),
@@ -36,6 +36,9 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     practise: true, reason: '' }));
   rows[3] = { ...rows[3], target: 'pájaro', gloss: 'bird', stage: 'learning', due: now + 2 * 86400000, reviews: 2,
     exposures: 5, days: 3, version: { due: now + 2 * 86400000, reviews: 2, familiar: false } };
+  rows[4] = { ...rows[4], stage: 'maintenance', due: now + 2 * 86400000,
+    familiar: true, maintenance: true, practise: true,
+    version: { due: now + 2 * 86400000, reviews: 3, familiar: true, claimAt: null, claimDue: null } };
   rows.push({ id: 'personal:es:x', kind: 'personal', target: 'brillar', gloss: 'shimmer', sense: 'glimmer', hint: '',
     stage: 'known', due: null, reviews: 0, familiar: true, lapses: 0, exposures: 0, days: 0,
     version: { due: now, reviews: 0, familiar: true }, archived: false, practise: false,
@@ -60,7 +63,10 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     const items = () => [...$('words').children].filter((li) => li.dataset.id);
     await waitFor(() => items().length === 60);
     expect($('count').textContent).toBe('151 words');
-    expect($('headline').textContent).toBe('2 words verified known');
+    expect($('headline').textContent).toBe('2 words verified known · 2 words returned from retirement to be verified');
+    expect(items().find((li) => li.dataset.id === 'w4').textContent).toContain('Maintenance · Due in 2 days');
+    expect([...items().find((li) => li.dataset.id === 'w4').querySelectorAll('button')]
+      .map((b) => [b.textContent, b.disabled])).toEqual([['Practice now', false], ['Reset', false]]);
     expect($('today').textContent).toBe('Today: 1 introduced · 4 seen · 2 reviewed');
     expect($('week').textContent).toBe('Practised on 3 days of the last 7');
     expect($('strip').children).toHaveLength(30);

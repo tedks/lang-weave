@@ -30,7 +30,8 @@ function plural(count, word) {
 }
 
 function counts(data) {
-  $('counts').textContent = `${data.due} due · ${data.new} available to add`;
+  $('counts').textContent = `${data.due} due · ${data.new} available to add` +
+    (data.returned ? ` · ${plural(data.returned, 'word')} returned from retirement to be verified` : '');
   $('introduce').hidden = data.new === 0;
   $('introduce').textContent = `Add ${plural(Math.min(5, data.new), 'new word')}`;
 }
@@ -213,7 +214,8 @@ for (const button of document.querySelectorAll('[data-rating]')) {
     const result = await send('reviewRate', { ticket: card.ticket, rating: button.dataset.rating });
     session.reviewed++;
     if (Number.isSafeInteger(result.due)) {
-      if (button.dataset.rating !== 'easy' || result.familiar === false) session.returns.push(result.due);
+      if (button.dataset.rating !== 'easy' || result.returnable === true || result.familiar === false)
+        session.returns.push(result.due);
       else if (result.familiar !== true) session.easy.push(result.due); // older worker: retirement unknown
     }
     await load();

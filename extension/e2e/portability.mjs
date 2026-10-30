@@ -126,6 +126,11 @@ try {
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText('y').waitFor();
   await review.locator('[data-rating="hard"]').click();
+  // The imported familiar card now has a due maintenance review in gradual mode.
+  await review.locator('#prompt').getByText('but').waitFor();
+  await review.locator('#reveal').click();
+  await review.locator('#answer').getByText('pero').waitFor();
+  await review.locator('[data-rating="hard"]').click();
   // review-flow (#20) shows #finish after a rating in a session, #empty otherwise. Wait for
   // whichever appears, then require the finish card, which is what this scenario must reach.
   await review.locator('#finish:visible, #empty:visible').first().waitFor();
@@ -136,9 +141,14 @@ try {
   assert.ok(rated.recallReview.cards.y.interval >= 1);
   assert.equal(rated.recallReview.cards.y.reviews, 3);
   assert.equal(typeof rated.recallReview.cards.y.fsrs?.stability, 'number');
+  assert.equal(rated.recallReview.cards.pero.reviews, 6);
+  assert.equal(rated.recallReview.cards.pero.maintenance, true);
   const logged = await fresh.worker.evaluate(() => chrome.storage.local.get('learningRetrievals'));
-  const last = logged.learningRetrievals.retrievals.at(-1);
-  assert.deepEqual([last[0], last[2], last[3], last[4], last[5]], ['y', 'standalone', 'productive', 'hard', 2]);
+  const [firstReview, last] = logged.learningRetrievals.retrievals.slice(-2);
+  assert.deepEqual([firstReview[0], firstReview[2], firstReview[3], firstReview[4], firstReview[5]],
+    ['y', 'standalone', 'productive', 'hard', 2]);
+  assert.deepEqual([last[0], last[2], last[3], last[4], last[5]],
+    ['pero', 'standalone', 'productive', 'hard', 5]);
   assert.ok(!JSON.stringify(logged).includes('http'));
   assert.equal(await fresh.worker.evaluate(() => chrome.storage.local.get('apiKey').then((v) => !!v.apiKey)), false);
   console.log(`portability MV3 PASS: keyless ${old.id} -> stable ${fresh.id}; file preview/import and keyless review`);
