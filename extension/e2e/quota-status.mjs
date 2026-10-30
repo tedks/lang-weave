@@ -108,6 +108,11 @@ try {
   await route(browser);
   worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   assert.equal(await worker.evaluate(() => 'syntheticCalls' in globalThis), false);
+  // A saved grant must still have its content script at the first worker wake
+  // after a profile restart, before another page is opened.
+  const registeredOnWake = await worker.evaluate(() =>
+    chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
+  assert.equal(registeredOnWake.length, 1, 'granted script was not retained across restart');
   const second = await browser.newPage();
   await second.goto('https://reading.example/second');
   for (let attempt = 0; attempt < 80; attempt++) {
