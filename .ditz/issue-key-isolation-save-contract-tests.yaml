@@ -1,0 +1,21 @@
+id: key-isolation-save-contract-tests
+title: Pin blank-save behavior in the supported-browser fixture
+desc: 'Council nit from PR #34 convergence: blank and whitespace-only save(apiKey)
+  now refuse before mutation in the unsupported-browser worker fixture, while removeKey
+  remains the explicit deletion path. The supported-browser fixture does not separately
+  assert this same contract. options.js saves ordinary settings without apiKey and
+  refuses empty key input; null is ignored by the worker. Add a positive fixture if
+  the save API is refactored. This is a nonblocking test-maintenance follow-up.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:35:30-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:35:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
