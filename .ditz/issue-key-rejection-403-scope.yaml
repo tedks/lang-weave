@@ -1,0 +1,23 @@
+id: key-rejection-403-scope
+title: Decide whether all Gemini 403 responses mean key rejected
+desc: 'PR #22 follows the directed requirement that every HTTP 401/403 maps to key_rejected.
+  Some 403 responses may instead mean a model or project is unavailable, where replacing
+  the key or suppressing fallback is misleading. Options: (A) retain the simple fixed
+  category for all 403s; (B) split allowlisted structured SERVICE_DISABLED/PERMISSION_DENIED
+  reasons into separate fixed copy and permit fallback where appropriate. Recommend
+  B after synthetic fixtures establish actual provider reason shapes. CEO/product
+  owner decides. This does not block PR #22 because the current package explicitly
+  requires all 403s.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:12:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:12:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
