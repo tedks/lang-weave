@@ -1,12 +1,16 @@
 // FSRS-6 memory model and scheduler: pure, dependency-free, no clock or storage access.
 //
-// Source: the Free Spaced Repetition Scheduler, algorithm version FSRS-6 (21 weights), as
-// published by open-spaced-repetition in "The Algorithm"
-// (https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm) and implemented by
-// py-fsrs 6.x and ts-fsrs 5.x (both MIT). This file is an independent port of the published
-// formulas, not vendored code. DEFAULT_PARAMETERS are the FSRS-6 published defaults; the
-// numeric constants are attributed in NOTICE. They were transcribed without network access in
-// this change, so the tests pin them and the formulas to hand-computed values.
+// Source: the Free Spaced Repetition Scheduler, algorithm version FSRS-6 (21 weights), by
+// open-spaced-repetition (MIT). Checked on 2026-10-30 against:
+// - py-fsrs v6.3.2, fsrs/scheduler.py, commit 9446cb06605c597a063aeee49f7d188d42e34dc2
+//   https://github.com/open-spaced-repetition/py-fsrs/blob/v6.3.2/fsrs/scheduler.py
+//   (DEFAULT_PARAMETERS and the _initial_*, _next_*, _short_term_stability and
+//   _next_interval methods);
+// - ts-fsrs v6.0.0, packages/fsrs/src/models/fsrs-6/{constants,algorithm}.ts
+//   https://github.com/open-spaced-repetition/ts-fsrs/tree/v6.0.0/packages/fsrs/src/models/fsrs-6
+// Both carry the same 21 default weights as DEFAULT_PARAMETERS below. This file is an
+// independent port of the formulas, not vendored code; NOTICE attributes the constants.
+// test/fsrs-reference.json pins the port to py-fsrs v6.3.2 output.
 //
 // Deliberate differences from the reference schedulers, all of which are product choices:
 // - Elapsed time is whole 24-hour periods since the last review (`elapsedDays`), as py-fsrs
@@ -93,9 +97,11 @@ function nextDifficulty(d, g, w) {
 
 function nextStability(s, d, g, elapsedDays, w) {
   if (elapsedDays < 1) {
-    // Same-day review: FSRS-6 short-term stability; a pass never lowers stability.
+    // Same-day review: FSRS-6 short-term stability; a pass (Hard, Good or Easy) never lowers
+    // stability. py-fsrs floored only Good and Easy before v6.3.2 ("Fix same-day Hard
+    // stability floor", #155); ts-fsrs v6.0.0 floors Hard as well.
     let increase = Math.exp(w[17] * (g - 3 + w[18])) * s ** -w[19];
-    if (g >= 3) increase = Math.max(increase, 1);
+    if (g >= 2) increase = Math.max(increase, 1);
     return clampStability(s * increase);
   }
   const r = retrievability(s, elapsedDays, w);

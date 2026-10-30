@@ -3,7 +3,10 @@ import { AGAIN_STEP_MS, DEFAULT_PARAMETERS, FSRS_VERSION, cleanFsrsState, elapse
   intervalDays, migrateCard, nextState, predictedRecall, retrievability, reviewCard, withFsrs } from '../src/fsrs.js';
 
 const DAY = 86400000;
-// Reference values computed separately in Python from the published FSRS-6 formulas.
+// Reference values computed separately in Python from the published FSRS-6 formulas, as
+// implemented in py-fsrs v6.3.2 (https://github.com/open-spaced-repetition/py-fsrs/blob/v6.3.2/fsrs/scheduler.py,
+// commit 9446cb06) and ts-fsrs v6.0.0 (packages/fsrs/src/models/fsrs-6). The default weights
+// below are FSRS6_DEFAULT_WEIGHTS / DEFAULT_PARAMETERS in both.
 const close = (actual, expected) => expect(Math.abs(actual - expected)).toBeLessThan(1e-9);
 
 test('FSRS-6 published default parameters are pinned', () => {
@@ -63,6 +66,9 @@ test('rating order is monotone: Again < Hard < Medium < Easy stability, reverse 
   const expected = [[1.3919869729546932, 8.341762369296838], [23.246875110466817, 6.665995369296838],
     [32.02672948198673, 4.9902283692968386], [51.25386164681294, 3.3144613692968385]];
   next.forEach((n, i) => { close(n.stability, expected[i][0]); close(n.difficulty, expected[i][1]); });
+  // A same-day Hard is a pass and never lowers stability (py-fsrs v6.3.2 #155, ts-fsrs v6.0.0).
+  expect(nextState(from, 'hard', 0).stability).toBe(10);
+  expect(nextState({ stability: 0.5, difficulty: 5 }, 'hard', 0).stability).toBe(0.5);
   // Same-day Again lowers stability through the short-term formula.
   close(nextState({ stability: 0.212, difficulty: 6.4133 }, 'again', 0).stability, 0.08335671711031603);
   // A forgotten weak card cannot come out of a lapse stronger than it went in (long-term 0.2109).
@@ -207,9 +213,9 @@ test('migration derives FSRS state from the existing card shape and preserves ev
   expect(withFsrs({ due, interval: 0, reviews: 0 })).toEqual({ due, interval: 0, reviews: 0 });
 });
 
-test('matches py-fsrs 6.3.0 on 24 recorded review sequences (fixture generated from upstream)', async () => {
+test('matches py-fsrs 6.3.2 on 24 recorded review sequences (fixture generated from upstream)', async () => {
   const reference = await Bun.file(new URL('./fsrs-reference.json', import.meta.url)).json();
-  expect(reference.source).toStartWith('py-fsrs 6.3.0');
+  expect(reference.source).toStartWith('py-fsrs 6.3.2');
   expect(reference.parameters).toEqual([...DEFAULT_PARAMETERS]);
   const names = [null, 'again', 'hard', 'medium', 'easy'];
   let checked = 0;
