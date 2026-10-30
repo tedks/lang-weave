@@ -1,0 +1,30 @@
+id: tabs-permission-ruling
+title: Should Lang Weave request tabs permission for exact badge state on ungranted
+  sites?
+desc: "Chrome hides a tab URL from the Lang Weave service worker on a site without
+  a host grant or activeTab gesture. The badge-state Chromium probe observed a tab
+  id/status but no url. Thus the worker cannot distinguish needs-site, site-off, sensitive,
+  or internal-page state before the popup opens. The popup already answers this question
+  in one click.\n\nA. Add the tabs permission, giving the worker all tab URLs and
+  exact pre-click per-tab badge states. This broadens access and adds a Chrome Web
+  Store install warning/product decision.\nB. Keep current permissions and show a
+  generic muted badge, \u201COpen Lang Weave to check this page\u201D, where Chrome
+  withholds the URL; show exact states on known-URL tabs and after a popup grant.
+  Recommended; CTO ruled B for the badge-state mission.\nC. Show the needs-site bullet
+  on every unknown URL; this may mislabel sensitive or explicitly disabled sites,
+  not recommended.\n\nDecision owner: Ted for any future permission expansion. Current
+  B implementation does not block badge-state merge. Source: badge-state mission ruling,
+  2026-10-30."
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:41:51-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:41:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
