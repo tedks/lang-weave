@@ -1,0 +1,21 @@
+id: words-search-greek-fold
+title: 'My words search: fold Greek tonos as well as Latin accents'
+desc: "Council round 3 nit on PR #28 (Anthropic seat): My words search folds combining
+  accents only after Latin base letters (so Cyrillic \u0439/\u0438 stay distinct).
+  Greek tonos is a stress mark like a Latin accent, so '\u03B1\u03B3\u03B1\u03C0\u03B7'
+  no longer finds '\u03B1\u03B3\u03AC\u03C0\u03B7'. Add \\p{Script=Greek} to the base
+  class in extension/src/words.js fold() with a test. Not blocking: Spanish is the
+  bundled language."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:24:57-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:24:57-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
