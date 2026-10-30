@@ -1,0 +1,18 @@
+id: effective-due-shared-vector
+title: Pin effective due helper parity
+desc: 'Integration council nit: learning.js has a local effective due helper to avoid
+  a review/learning import cycle. A shared test vector could pin parity with review.js
+  dueAt across peek, claim and familiar cases if these formulas evolve.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T22:07:44-00:00
+references: []
+log_events:
+- time: 2026-10-30T22:07:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
