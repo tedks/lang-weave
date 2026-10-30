@@ -1,0 +1,19 @@
+id: historical-claim-marker
+title: Audit pre-release claim marker migration
+desc: 'Final council nit: if a pre-release branch with gradual claim cards but without
+  the retiredReturn:false fix was installed, its claimAt card could be counted as
+  a migrated retirement after gradual off/on. No such release is known; audit only
+  if branch installs need migration.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T22:09:16-00:00
+references: []
+log_events:
+- time: 2026-10-30T22:09:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
