@@ -111,7 +111,9 @@ test('options works without a tab; settings, exception reset and key removal rou
     expect($('apiKey').value).toBe('unsaved-draft');
     Object.defineProperty(window.document, 'hidden', { configurable: true, value: true });
     due = 8;
+    const statusCalls = messages.filter((message) => message.type === 'status').length;
     refreshTick();
+    expect(messages.filter((message) => message.type === 'status')).toHaveLength(statusCalls);
     expect($('reviewInfo').textContent).toBe('7');
     Object.defineProperty(window.document, 'hidden', { configurable: true, value: false });
     window.document.dispatchEvent(new window.Event('visibilitychange'));
