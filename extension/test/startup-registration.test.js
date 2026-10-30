@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
+import { IMPORT_JOURNAL_KEY } from '../src/portability.js';
 
-test('the first routed message waits for registration and retries a transient startup failure', async () => {
+test('the first routed message waits for registration without blocking recovery routes on its failure', async () => {
   const previous = Object.fromEntries(['chrome', 'fetch'].map((name) => [name, globalThis[name]]));
   const data = { settings: { enabled: true, newSitesEnabled: true }, apiKey: 'synthetic-key' };
   const listeners = [];
@@ -31,11 +32,9 @@ test('the first routed message waits for registration and retries a transient st
       registerContentScripts: async () => {
         registrationStarted = true;
         registrationAttempts++;
-        if (registrationAttempts === 1) {
-          await heldRegistration;
-          throw new Error('temporary registration failure');
-        }
+        await heldRegistration;
         registrationFinished = true;
+        throw new Error('temporary registration failure');
       }, updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: '0.12.11' }) });
@@ -51,12 +50,26 @@ test('the first routed message waits for registration and retries a transient st
         answered = true; done(value);
       }))).toBe(true);
     });
-    await tick();
-    expect(answered).toBe(false); // a held registration cannot be outrun by the first reply
+    for (let i = 0; i < 3; i++) {
+      await tick();
+      expect(answered).toBe(false); // a held registration cannot be outrun by the first reply
+    }
     releaseRegistration();
     expect((await reply).revision).toBeString();
     expect(registrationFinished).toBe(true);
-    expect(registrationAttempts).toBe(2);
+    expect(registrationAttempts).toBe(1);
+    expect((await new Promise((done) => listeners[0]({ type: 'config' },
+      { id: 'startup-test', tab: { id: 1 }, url: 'https://example.com/article' }, done))).revision).toBeString();
+    expect(registrationAttempts).toBe(1);
+
+    // A failed import recovery is different from a transient script failure:
+    // no routed handler may run until startup recovery succeeds.
+    data[IMPORT_JOURNAL_KEY] = { version: 2 };
+    await import('../src/background.js?startup-registration-bad-journal');
+    const blocked = await new Promise((done) => listeners.at(-1)({ type: 'config' },
+      { id: 'startup-test', tab: { id: 1 }, url: 'https://example.com/article' }, done));
+    expect(blocked.error).toContain('Learning import journal needs attention');
+    expect(registrationAttempts).toBe(1);
   } finally {
     releaseRegistration();
     Object.assign(globalThis, previous);

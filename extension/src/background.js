@@ -97,10 +97,12 @@ const { registerSites, permissionsChanged } = createSites({ store, locked, worke
 // The first routed reply must not run ahead of restoring a granted site's
 // content script after an MV3 worker wake. A page loaded before this reply
 // can still miss injection (see startup-injection-gap).
-const sitesReady = ready.then(registerSites);
-// A transient registration failure must not poison every later routed message.
-// createSites serializes attempts, so a later reply can safely try again.
-const awaitSites = () => sitesReady.catch(() => registerSites());
+const sitesReady = ready.then(async () => {
+  try { await registerSites(); }
+  catch (e) { console.warn('Site registration failed:', e); }
+});
+// Registration failures do not block settings and permission recovery. Startup
+// storage recovery failures still reject sitesReady and block routed handlers.
 
 // Each sender surface may send only the messages router.js lists for it.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -141,7 +143,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     learningImport: () => learningImport(msg, sender),
   };
   if (!handlers[msg.type] || !surfaceAllows(surfaces, msg.type)) return false;
-  awaitSites().then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
+  sitesReady.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
 
