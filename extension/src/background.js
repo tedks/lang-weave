@@ -18,6 +18,7 @@ import { createUpdate, openWelcome, ALARM } from './update.js';
 import { createSettingsHandlers } from './settings-handlers.js';
 import { createCaptureHandlers } from './capture-handlers.js';
 import { createBackupHandlers } from './backup-handlers.js';
+import { createProgressHandlers } from './progress-handlers.js';
 import { createSites } from './sites.js';
 import { createBadge } from './badge.js';
 import { STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
@@ -78,6 +79,8 @@ const { swaps, record } = createReading({ store, cache, locked, modelCall, worke
   context, adaptiveReviewState, commitAdaptive });
 const { reviewStatus, reviewIntroduce, reviewNext, reviewReveal, reviewRate, reviewKnown, learningStats } =
   createReviewHandlers({ store, locked, context, reviewState });
+const { progress, wordsList, wordPractice, wordKnown, wordReset } =
+  createProgressHandlers({ store, locked, context, reviewState });
 const { inlineAction } = createInlineRecall({ store, locked, context, reviewState });
 let refreshBadges = () => {};
 const { checkUpdate, arm, updatePending } = createUpdate({ store, locked, modelCall,
@@ -114,6 +117,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     reviewRate: () => reviewRate(msg),
     reviewKnown: () => reviewKnown(msg),
     learningStats: () => learningStats(),
+    progress: () => progress(), wordsList: () => wordsList(),
+    wordPractice: () => wordPractice(msg), wordKnown: () => wordKnown(msg), wordReset: () => wordReset(msg),
     inlineBegin: () => inlineAction(msg, sender),
     inlineReveal: () => inlineAction(msg, sender),
     inlineRate: () => inlineAction(msg, sender),

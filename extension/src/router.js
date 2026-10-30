@@ -19,11 +19,14 @@ export function capturePageSender(sender) {
 const surface = (name, matches, messages) => Object.freeze({ name, matches, messages: Object.freeze(messages) });
 export const SURFACES = Object.freeze([
   surface('popup', (sender) => sender.url === chrome.runtime.getURL('src/popup.html'),
-    ['status', 'save', 'recoverBudget']),
+    ['status', 'save', 'recoverBudget', 'progress']),
   surface('options', (sender) => sender.url === chrome.runtime.getURL('src/options.html'),
-    ['status', 'save', 'addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey']),
+    ['status', 'save', 'addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey', 'progress']),
   surface('welcome', (sender) => sender.url === chrome.runtime.getURL('src/welcome.html'),
     ['save']),
+  // My words: read-only progress and the merged list, plus scope-guarded word actions.
+  surface('words', (sender) => sender.url === chrome.runtime.getURL('src/words.html'),
+    ['progress', 'wordsList', 'wordPractice', 'wordKnown', 'wordReset', 'personalArchive']),
   surface('review', (sender) => sender.url === chrome.runtime.getURL('src/review.html'),
     ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown', 'learningStats']),
   surface('capture', capturePageSender,
