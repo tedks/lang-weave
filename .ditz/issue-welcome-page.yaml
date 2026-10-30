@@ -11,8 +11,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T16:56:41-00:00
 references: []
 log_events:
@@ -54,3 +54,7 @@ log_events:
     rerun. No live Gemini, real user profile or Store install. Remaining nits are
     filed as welcome-consent-navigation, welcome-model-gate-centralization, welcome-upgrade-consent-test,
     welcome-e2e-ready-helper, welcome-tab-sync-error.'
+- time: 2026-10-30T20:16:23-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: ""
