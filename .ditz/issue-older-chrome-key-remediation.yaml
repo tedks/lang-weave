@@ -1,0 +1,23 @@
+id: older-chrome-key-remediation
+title: Decide whether existing pre-140 Chrome installs need a bridge update
+desc: 'PR #34 sets minimum_chrome_version 140 to enforce trusted-context storage.
+  Chrome below 140 will not install that update, so an existing 0.12.12 install there
+  may continue its previous key-storage behavior. Options: (A) ship a bridge version
+  with the old minimum that refuses key use/save without setAccessLevel, then raise
+  the minimum; (B) rely on fleet Chrome updates and the 140 minimum. Recommendation:
+  A if any existing user runs pre-140 Chrome; B if distribution is confirmed modern-only.
+  CEO/product owner decides. Blocks release strategy for affected old installs, not
+  PR #34''s local code gate. Source: 2026-10-30 council nit and key-isolation mission.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:25:30-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:25:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
