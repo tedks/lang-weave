@@ -65,3 +65,12 @@ log_events:
     conditions: back up the private key; confirm no profile loads a worktree; dotfiles
     #225 merges only with the pin bump to the merged #18 commit; never give the old
     installer a keyed pin.'
+- time: 2026-10-30T17:38:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Source merged as b1bc0cf (#18). Dotfiles #225 now pins b1bc0cf (archive
+    sha256 f5f31279...4328) and carries Ted''s runbook docs/LANG-WEAVE-0120-MIGRATION.md;
+    reviewed head 3ec17b4, council CLEAN, gates green. Offline private install: 43/43
+    files match git; Chromium smoke on installed dir passed; installed dir loads as
+    lkbkmlgogcpcacjmdmoecgacdbfddbnh; rehearsal from fleet 0.11.0 passed. Not merged,
+    not deployed: waiting for Ted (key backup is signing-key-backup-ruling).'
