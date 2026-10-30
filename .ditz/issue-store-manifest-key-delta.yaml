@@ -1,0 +1,26 @@
+id: store-manifest-key-delta
+title: 'package --store: apply the Store manifest deltas (drop the dev ''key'', gate
+  self-update) before any Store upload'
+desc: 'Council nit on PR #21 (worker-split): extension/scripts/package.mjs --store
+  currently writes the dev manifest unchanged, including the public ''key'' pinned
+  by stable-extension-id (0.12.0), but names the zip -store. The Chrome Web Store
+  handles the ''key'' field differently from unpacked installs, and whether a Store
+  build keeps or drops it ties into the open Store-ID question in docs/STABLE-ID-MISSION.md.
+  Options: (a) storeManifest() deletes ''key'' (and later gates the self-update, UX
+  audit #19/#20); (b) --store refuses or warns until the Store delta mission lands.
+  Recommendation: (a) in the Store-delta mission, with a test; until then nobody should
+  upload a -store zip. Not changed in PR #21 because the brief scoped the hook to
+  a no-op.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:36:44-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:36:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
