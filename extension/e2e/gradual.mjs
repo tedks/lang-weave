@@ -199,7 +199,9 @@ try {
 
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
-  await popup.locator('#gradual').uncheck();
+  const options = await browser.newPage();
+  await options.goto(`chrome-extension://${id}/src/options.html`);
+  await options.locator('#gradual').uncheck();
   await page.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('title') !== 'Open inline recall');
   await popup.locator('#enabled').uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
@@ -217,17 +219,17 @@ try {
   await worker.evaluate(async (pack) => {
     await chrome.storage.local.set({ languagePacks: { fr: pack } });
   }, pack);
-  await popup.reload();
-  await popup.locator('#language').selectOption('fr');
-  await popup.locator('#wordInfo').getByText(/French words/).waitFor();
+  await options.reload();
+  await options.locator('#language').selectOption('fr');
+  await options.waitForFunction(() => document.querySelector('#language')?.value === 'fr');
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   assert.equal(await worker.evaluate(() => chrome.storage.local.get('settings').then((x) => x.settings.language)), 'fr');
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
   await page.close(); // stop the earlier reading page before resetting an introduction fixture
-  await popup.locator('#language').selectOption('es');
-  await popup.locator('#gradual').check();
-  await popup.locator('#newWordsPerDay').selectOption('2');
+  await options.locator('#language').selectOption('es');
+  await options.locator('#gradual').check();
+  await options.locator('#newWordsPerDay').selectOption('2');
   await worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
     delete recallReview.cards['la pregunta'];

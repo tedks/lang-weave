@@ -87,7 +87,8 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
       return reply({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
     },
   });
-  const call = (msg) => dispatch(msg, popup);
+  const options = { id: 'fw-test', url: 'chrome-extension://fw-test/src/options.html' };
+  const call = (msg) => dispatch(msg, msg.type === 'clearCache' ? options : popup);
   const wait = (ms = 400) => new Promise((done) => setTimeout(done, ms));
   // happy-dom has no isTrusted; real user input is marked by hand, a page's dispatchEvent is left untrusted.
   const user = (e) => Object.defineProperty(e, 'isTrusted', { value: true });

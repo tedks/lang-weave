@@ -137,12 +137,19 @@ try {
   // The popup's resolved configuration confirms the real site gate, then allow discovery/debounce to settle.
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
-  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent.includes('Spanish words'));
+  await popup.waitForFunction(() => document.querySelector('#today')?.textContent.includes('available to add'));
+  const popupSize = await popup.evaluate(() => ({ width: document.body.getBoundingClientRect().width,
+    height: document.body.getBoundingClientRect().height }));
+  assert.equal(popupSize.width, 300);
+  assert.ok(popupSize.height <= 600, `popup exceeds Chrome's 600px cap: ${popupSize.height}px`);
+  const [options] = await Promise.all([context.waitForEvent('page'), popup.evaluate(() => chrome.runtime.openOptionsPage())]);
+  await options.waitForLoadState();
+  await options.waitForFunction((version) => document.querySelector('#version')?.textContent === version, manifest.version);
+  assert.equal(await options.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
   assert.equal(await popup.locator('h1').textContent(), 'Lang Weave');
-  assert.equal(await popup.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
   assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
-  assert.equal(await popup.locator('#reviewInfo').textContent(), '0 due');
-  const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#openReview').click()]);
+  assert.equal(await popup.locator('#primary').textContent(), 'Add words');
+  const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#primary').click()]);
   await review.waitForLoadState();
   await review.locator('#counts').getByText('0 due · 30 available to add').waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
@@ -171,10 +178,10 @@ try {
   assert.equal(savedReview.cards.y.reviews, 1);
   assert.equal(savedReview.cards.pero.interval, 1); // rated Hard with the 2 key
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), calls.length); // review never calls Gemini
-  await popup.getByText('Add a language').click();
-  await popup.locator('#newLanguage').fill('fr');
-  await popup.locator('#addLanguage').click();
-  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '12 French words');
+  await options.getByText('Add a language').click();
+  await options.locator('#newLanguage').fill('fr');
+  await options.locator('#addLanguage').click();
+  await options.waitForFunction(() => document.querySelector('#language')?.value === 'fr');
   await review.locator('#language').getByText('Reviewing French').waitFor();
   await review.locator('#counts').getByText('0 due · 12 available to add').waitFor();
   await page.locator('#reading .fw-word').getByText('et').waitFor();
@@ -183,13 +190,13 @@ try {
   const frenchState = await worker.evaluate(() => chrome.storage.local.get(null));
   assert.equal(frenchState.recallReview.cards.y.reviews, 1);
   assert.ok(Object.keys(frenchState).some((key) => key.startsWith('lang:fr:') && key.endsWith(':recallReview')));
-  await popup.locator('#newLanguage').fill('ja');
-  await popup.locator('#addLanguage').click();
-  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '12 Japanese words');
+  await options.locator('#newLanguage').fill('ja');
+  await options.locator('#addLanguage').click();
+  await options.waitForFunction(() => document.querySelector('#language')?.value === 'ja');
   await page.locator('#reading .fw-word').getByText('そして').waitFor();
-  await popup.locator('#removeLanguage').click();
-  await popup.waitForFunction(() => document.querySelector('#wordInfo')?.textContent === '30 Spanish words');
-  assert.equal(await popup.locator('#language option[value=ja]').count(), 0);
+  await options.locator('#removeLanguage').click();
+  await options.waitForFunction(() => document.querySelector('#language')?.value === 'es');
+  assert.equal(await options.locator('#language option[value=ja]').count(), 0);
   await page.locator('#reading .fw-word').getByText('y').waitFor();
   await review.locator('#language').getByText('Reviewing Spanish').waitFor();
   await review.locator('#counts').getByText('3 due · 25 available to add').waitFor();
@@ -197,8 +204,8 @@ try {
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);
   assert.equal(await worker.evaluate(() => globalThis.smokeCalls.length), afterLanguages);
-  await popup.locator('#levelOverride').selectOption('2');
-  await popup.waitForFunction(() => document.querySelector('#wordInfo').textContent === '226 Spanish words');
+  await options.locator('#levelOverride').selectOption('2');
+  await options.waitForFunction(() => document.querySelector('#levelInfo').textContent === 'L2');
   await page.evaluate(() => { const p = document.createElement('p'); p.id = 'curriculum';
     p.textContent = 'The window stands beside the cat and the book.';
     document.querySelector('main').append(p); });

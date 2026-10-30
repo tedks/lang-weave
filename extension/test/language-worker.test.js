@@ -134,6 +134,7 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
   };
   globalThis.fetch = async () => { throw new Error('Unexpected model request'); };
   const popup = { id: 'lang-test', url: 'chrome-extension://lang-test/src/popup.html' };
+  const options = { id: 'lang-test', url: 'chrome-extension://lang-test/src/options.html' };
   const review = { id: 'lang-test', url: 'chrome-extension://lang-test/src/review.html' };
   const page = { id: 'lang-test', url: 'https://example.com/article', tab: { id: 1 } };
   const dispatch = (msg, sender) => new Promise((resolve) => {
@@ -189,9 +190,9 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     const japanesePrefix = `lang:ja:${data.languagePacks.ja.version}:`;
     expect(data[japanesePrefix + 'recallReview']).toBeDefined();
     expect(data[japanesePrefix + 'readingEvents']).toBeDefined();
-    expect((await dispatch({ type: 'removeLanguage', code: 'es' }, popup)).error).toMatch(/generated/);
+    expect((await dispatch({ type: 'removeLanguage', code: 'es' }, options)).error).toMatch(/generated/);
     expect((await dispatch({ type: 'removeLanguage', code: 'ja' }, page))).toBeUndefined();
-    expect((await dispatch({ type: 'removeLanguage', code: 'ja' }, popup)).ok).toBe(true);
+    expect((await dispatch({ type: 'removeLanguage', code: 'ja' }, options)).ok).toBe(true);
     expect(data.settings.language).toBe('es');
     expect(data.languagePacks.ja).toBeUndefined();
     expect(Object.keys(data).filter((key) => key.startsWith(japanesePrefix))).toEqual([]);
@@ -668,20 +669,20 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ candidates: [{ content: {
       parts: [{ text: JSON.stringify({ words: words('wort').slice(0, 5) }) }],
     } }] }) });
-    expect((await dispatch({ type: 'addLanguage', code: 'de' }, popup)).error).toMatch(/validation/);
+    expect((await dispatch({ type: 'addLanguage', code: 'de' }, options)).error).toMatch(/validation/);
     expect(data.settings.language).toBe('es');
     expect(data.languagePacks.de).toBeUndefined();
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ candidates: [{ content: {
       parts: [{ text: JSON.stringify({ words: words('wort') }) }],
     } }] }) });
-    expect((await dispatch({ type: 'addLanguage', code: 'de' }, popup)).ok).toBe(true);
+    expect((await dispatch({ type: 'addLanguage', code: 'de' }, options)).ok).toBe(true);
     expect(data.settings.language).toBe('de');
     expect(data.languagePacks.de.words).toHaveLength(24);
     expect((await dispatch({ type: 'save', settings: { language: 'es' } }, popup)).ok).toBe(true);
 
     // Both generation calls may start from the same selection, but only one may commit.
     const beforeCount = Object.keys(data.languagePacks).length;
-    const addResults = await Promise.all(['it', 'nl'].map((code) => dispatch({ type: 'addLanguage', code }, popup)));
+    const addResults = await Promise.all(['it', 'nl'].map((code) => dispatch({ type: 'addLanguage', code }, options)));
     expect(addResults.filter((result) => result.ok)).toHaveLength(1);
     expect(addResults.filter((result) => result.error)).toHaveLength(1);
     expect(Object.keys(data.languagePacks)).toHaveLength(beforeCount + 1);
@@ -698,9 +699,9 @@ test('worker preserves Spanish on upgrade, isolates reviews and events, and reje
     const encounterKey = `lang:tr:${data.languagePacks.tr.version}:vocabularyEncounters`;
     data[encounterKey] = { version: 1, day: '2026-10-27', bucket: 1,
       counts: { 'tr:legacy:istanbul0': 1 }, touched: ['tr:legacy:istanbul0'] };
-    expect((await dispatch({ type: 'removeLanguage', code: 'fr' }, popup)).error).toMatch(/selected/);
+    expect((await dispatch({ type: 'removeLanguage', code: 'fr' }, options)).error).toMatch(/selected/);
     expect(data.languagePacks.fr).toBeDefined();
-    expect((await dispatch({ type: 'removeLanguage', code: 'tr' }, popup)).ok).toBe(true);
+    expect((await dispatch({ type: 'removeLanguage', code: 'tr' }, options)).ok).toBe(true);
     expect(data.settings.language).toBe('es');
     expect(data[encounterKey]).toBeUndefined();
 

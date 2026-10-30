@@ -246,7 +246,7 @@ describe('what leaves the page', () => {
     expect(applySwaps(el, [S({ o: 'and', f: 'et', ctx: 'push and then' })])).toBe(1);
     expect(el.querySelector('code').textContent).toBe('git commit and push');
     expect(el.querySelector('a').textContent).toBe('the docs and notes');
-    const note = await Bun.file(new URL('../src/popup.html', import.meta.url)).text();
+    const note = await Bun.file(new URL('../src/options.html', import.meta.url)).text();
     expect(note).not.toMatch(/links, code[^.]*skipped/i);
     expect(note).toContain('Links and inline code go with their sentence but are never changed');
   });

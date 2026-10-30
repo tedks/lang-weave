@@ -14,6 +14,7 @@ test('production menu listener, one-use save, stable review history and archive/
   const page = { id, tab: { id: 7, title: 'Reading' }, frameId: 0,
     documentId: 'document-one', documentLifecycle: 'active', url };
   const popup = { id, url: `chrome-extension://${id}/src/popup.html` };
+  const options = { id, url: `chrome-extension://${id}/src/options.html` };
   let liveUrl = url, title = 'Reading', origins = ['<all_urls>'];
   let alive = true, challenge = true, modelCalls = 0, broadcastQueries = 0,
     failPersonalWrite = false, modelEnabled = false;
@@ -242,7 +243,7 @@ test('production menu listener, one-use save, stable review history and archive/
     expect((await send({ type: 'personalIntroduce', id: frenchSaved.id }, frenchOwner)).added).toBe(true);
     const frenchCard = structuredClone(data.personalVocabularyV1.history.fr.cards[frenchSaved.id]);
     data['lang:personal:fr:readingEvents'] = [{ word: frenchSaved.id, kind: 'seen', day: localDay() }];
-    expect((await send({ type: 'removeLanguage', code: 'fr' }, popup)).ok).toBe(true);
+    expect((await send({ type: 'removeLanguage', code: 'fr' }, options)).ok).toBe(true);
     expect(data.personalVocabularyV1.entries.find((entry) => entry.id === frenchSaved.id).target).toBe('rayon');
     expect(data.personalVocabularyV1.history.fr.cards[frenchSaved.id]).toEqual(frenchCard);
     expect(data['lang:personal:fr:readingEvents'][0].word).toBe(frenchSaved.id);

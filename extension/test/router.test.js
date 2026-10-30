@@ -5,7 +5,8 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // derived by evaluating that exact expression over every handler name. A change here is a
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
-  popup: ['addLanguage', 'clearCache', 'recoverBudget', 'removeKey', 'removeLanguage', 'reviewStatus', 'save', 'status', 'testKey'],
+  popup: ['recoverBudget', 'save', 'status'],
+  options: ['addLanguage', 'clearCache', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
   // learningStats (0.12.6): read-only local measurements, review page only.
   review: ['learningStats', 'reviewIntroduce', 'reviewKnown', 'reviewNext', 'reviewRate', 'reviewReveal', 'reviewStatus'],
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
@@ -22,6 +23,7 @@ const ID = 'fw-router';
 const BASE = `chrome-extension://${ID}/`;
 const SENDERS = {
   popup: { id: ID, url: `${BASE}src/popup.html` },
+  options: { id: ID, url: `${BASE}src/options.html` },
   review: { id: ID, url: `${BASE}src/review.html` },
   capture: { id: ID, url: `${BASE}src/capture.html?nonce=abc` },
   backup: { id: ID, url: `${BASE}src/backup.html` },
@@ -33,7 +35,8 @@ const NEAR_MISSES = [
   [{ id: ID, url: `${BASE}src/popup.html#top` }, []],
   [{ id: ID, url: `${BASE}src/review.html?card=1` }, []],
   [{ id: ID, url: `${BASE}src/backup.html?x=1` }, []],
-  [{ id: ID, url: `${BASE}src/options.html` }, []],
+  [{ id: ID, url: `${BASE}src/options.html?x=1` }, []],
+  [{ id: ID, url: `${BASE}src/options.html#top` }, []],
   [{ id: ID, url: `${BASE}src/welcome.html` }, []],
   [{ id: ID, url: `${BASE}src/sidepanel.html` }, []],
   [{ id: ID, url: `${BASE}src/capture.htm` }, []],
@@ -47,6 +50,7 @@ const NEAR_MISSES = [
   [{ id: ID }, []],
   [{ id: ID, tab: { id: 1 }, url: 'http://example.com/' }, ['page']],
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/popup.html` }, ['popup']], // popup opened in a tab
+  [{ id: ID, tab: { id: 2 }, url: `${BASE}src/options.html` }, ['options']], // Chrome options in a tab
   [{ id: ID, tab: { id: 2 }, url: `${BASE}src/capture.html?nonce=x` }, ['capture']],
   [{ id: 'another-id', url: `${BASE}src/backup.html` }, []], // backup also checks the sender id
 ];
@@ -86,7 +90,7 @@ const withChrome = (fn) => {
   try { return fn(); } finally { globalThis.chrome = prior; }
 };
 
-test('router table pins exactly the pre-split messages for each surface', () => {
+test('router table pins exactly each surface message set', () => {
   expect(Object.fromEntries(SURFACES.map(({ name, messages }) => [name, [...messages].sort()]))).toEqual(PINNED);
   expect(Object.isFrozen(SURFACES)).toBe(true);
   for (const surface of SURFACES) {
@@ -112,8 +116,9 @@ test('near-miss senders match no surface, or only the one the old boolean matche
   }
 }));
 
-test('router decision equals the pre-split boolean for every existing sender and message', () => withChrome(() => {
-  const senders = [...Object.values(SENDERS), ...NEAR_MISSES.map(([sender]) => sender)];
+test('unmodified sender decisions equal the pre-split boolean', () => withChrome(() => {
+  const senders = [...Object.entries(SENDERS).filter(([name]) => !['popup', 'options'].includes(name)).map(([, sender]) => sender),
+    ...NEAR_MISSES.filter(([sender, expected]) => !['popup', 'options'].includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
