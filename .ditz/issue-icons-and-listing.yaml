@@ -25,3 +25,9 @@ log_events:
   comment: "Lead store-engineering (Claude Opus, branch store-engineering): engineering
     half only \u2014 icon mark + 16/32/48/128 PNGs + manifest icons. Screenshots,
     description and 18+ statement stay open."
+- time: 2026-10-30T19:18:37-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Icons landed in PR #23 (1fff674, 0.12.7): design/icon.svg source, icons/icon-{16,32,48,128}.png
+    via scripts/icons.mjs, manifest icons + action.default_icon. Still open: five
+    listing screenshots, Store description, 18+ statement.'
