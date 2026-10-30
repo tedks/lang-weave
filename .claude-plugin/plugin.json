@@ -1,12 +1,12 @@
 {
   "name": "french-weave",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Weaves a few French words into Claude's chat replies, at your level, and syncs your words with the French Weave Chrome extension.",
   "author": {
     "name": "Jackie Oliver"
   },
-  "repository": "https://github.com/jackieoliver/french-weave",
-  "license": "MIT",
+  "repository": "https://github.com/tedks/lang-weave",
+  "license": "AGPL-3.0-or-later",
   "keywords": [
     "french",
     "language-learning",
