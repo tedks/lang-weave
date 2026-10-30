@@ -1,6 +1,6 @@
 import { test, expect, afterAll } from 'bun:test';
 import { inflateRawSync } from 'node:zlib';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
@@ -255,8 +255,8 @@ test('verify: references that resolve are accepted; comments and strings are not
     "const dyn = () => import('./background.js');",
     "import 'pkg-bare';",
   ].join('\n');
-  expect(relativeImports(src).sort()).toEqual(['./background.js', './background.js?v=1', './in-a-string.js'].sort());
-  const { root, ext } = fixture({ 'src/popup.js': src.replace("const note = \"import x from './in-a-string.js'\";\n", '') });
+  expect(relativeImports(src).sort()).toEqual(['./background.js', './background.js?v=1'].sort());
+  const { root, ext } = fixture({ 'src/popup.js': src });
   expect(() => packageExtension({ extensionDir: ext, licenseDir: root, outDir: join(root, 'out') })).not.toThrow();
 });
 
@@ -282,4 +282,36 @@ test('package: --out needs a non-empty directory in both spellings', () => {
   expect(parseArgs(['--out=x']).outDir).toBe(resolve('x'));
   for (const argv of [['--out'], ['--out', ''], ['--out='], ['--bogus']])
     expect(() => parseArgs(argv)).toThrow(PackageError);
+});
+
+test('verify: literal specifiers in backticks and interpolations are seen; computed ones are not', () => {
+  expect(relativeImports('const m = import(`./tick.js`);')).toEqual(['./tick.js']);
+  expect(relativeImports("const t = `a${import('./inner.js')}b`;")).toEqual(['./inner.js']);
+  expect(relativeImports("const t = `a${ { a: `x${1}` }.a }b${import('./deep.js')}`; import('./after.js');"))
+    .toEqual(['./deep.js', './after.js']);
+  expect(relativeImports('import(`./${name}.js`);')).toEqual([]);
+  expect(relativeImports("const r = /import ['\"]\\.\\/x.js/; import './real.js';")).toEqual(['./real.js']);
+  expect(relativeImports("const s = 'import(`./not-code.js`)'; const u = \"export * from './nor.js'\";")).toEqual([]);
+  // A missing module behind a backtick specifier refuses the package.
+  expectRefusal({ 'src/popup.js': 'import(`./missing-tick.js`);\n' }, {}, /missing-tick\.js/);
+});
+
+test('collect: a symlinked payload root or file is refused, never followed', () => {
+  for (const target of ['src', 'icons', 'manifest.json', 'LICENSE']) {
+    const { root, ext } = fixture();
+    const outside = join(root, 'outside');
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, 'secret.txt'), 'outside the tree\n');
+    const abs = target === 'LICENSE' ? join(root, 'LICENSE') : join(ext, target);
+    rmSync(abs, { recursive: true, force: true });
+    if (target === 'src' || target === 'icons') symlinkSync(outside, abs);
+    else {
+      writeFileSync(join(outside, target), target === 'manifest.json' ? JSON.stringify(BASE_MANIFEST) : 'x\n');
+      symlinkSync(join(outside, target), abs);
+    }
+    const out = join(root, 'out');
+    expect(() => packageExtension({ extensionDir: ext, licenseDir: root, outDir: out }))
+      .toThrow(new RegExp(`symlink or special file\\) in payload: ${target.replace('.', '\\.')}`));
+    expect(existsSync(out)).toBe(false);
+  }
 });

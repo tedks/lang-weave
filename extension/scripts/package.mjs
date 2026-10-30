@@ -12,7 +12,7 @@
 
 import { deflateRawSync } from 'node:zlib';
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync,
+  lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,18 +60,23 @@ function walk(absDir, relDir, out) {
 /** The files that ship, sorted by path: [{ name, data: Buffer }]. */
 export function collectFiles({ extensionDir = DEFAULT_EXTENSION_DIR, licenseDir = DEFAULT_LICENSE_DIR } = {}) {
   const files = [];
-  const manifestPath = join(extensionDir, 'manifest.json');
-  if (!existsSync(manifestPath)) throw new PackageError(`manifest.json not found in ${extensionDir}`);
-  files.push({ name: 'manifest.json', data: readFileSync(manifestPath) });
+  // lstat, never stat: a symlinked root or file could pull content from outside the tree.
+  const kind = (abs) => { try { return lstatSync(abs); } catch { return null; } };
+  const regularFile = (abs, name, where) => {
+    const info = kind(abs);
+    if (!info) throw new PackageError(`required file ${name} not found in ${where}`);
+    if (!info.isFile()) throw new PackageError(`unsupported file type (symlink or special file) in payload: ${name}`);
+    return readFileSync(abs);
+  };
+  files.push({ name: 'manifest.json', data: regularFile(join(extensionDir, 'manifest.json'), 'manifest.json', extensionDir) });
   for (const root of TREE_ROOTS) {
     const abs = join(extensionDir, root);
-    if (existsSync(abs)) walk(abs, root, files);
+    const info = kind(abs);
+    if (!info) continue;
+    if (!info.isDirectory()) throw new PackageError(`unsupported file type (symlink or special file) in payload: ${root}`);
+    walk(abs, root, files);
   }
-  for (const name of LICENSE_FILES) {
-    const abs = join(licenseDir, name);
-    if (!existsSync(abs)) throw new PackageError(`required file ${name} not found in ${licenseDir}`);
-    files.push({ name, data: readFileSync(abs) });
-  }
+  for (const name of LICENSE_FILES) files.push({ name, data: regularFile(join(licenseDir, name), name, licenseDir) });
   files.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return files;
 }
@@ -91,12 +96,6 @@ export function globToRegExp(glob) {
   const body = glob.replace(/^\/+/, '').split('*')
     .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*');
   return new RegExp(`^${body}$`);
-}
-
-function* strings(value) {
-  if (typeof value === 'string') yield value;
-  else if (Array.isArray(value)) for (const v of value) yield* strings(v);
-  else if (value && typeof value === 'object') for (const v of Object.values(value)) yield* strings(v);
 }
 
 /** Every [label, path] the manifest requires to exist as a single packaged file. */
@@ -127,70 +126,112 @@ function manifestFileRefs(m) {
   return refs;
 }
 
-/** Remove JS comments (string- and regex-literal aware, heuristically) so examples in comments are ignored. */
-export function stripJsComments(src) {
+/**
+ * Mask a JS source for import scanning (heuristic, not a parser): comments are dropped and every
+ * string or template literal becomes a placeholder `\u0000N\u0000`, where literals[N] is its raw
+ * text, or null for a template with `${}` interpolations. Interpolated expressions are masked
+ * recursively and kept in place, so an import() inside one is still seen, while text inside any
+ * literal can never look like an import.
+ */
+export function maskJsLiterals(src) {
   const REGEX_AFTER_WORD = /(?:^|[^\w$.])(?:return|typeof|case|in|of|delete|void|throw|new|else|do|yield|await)\s*$/;
-  let out = '';
-  let prev = ''; // last significant (non-space, non-comment) character emitted
+  const literals = [];
   const n = src.length;
-  for (let i = 0; i < n;) {
-    const c = src[i];
-    const d = src[i + 1];
-    if (c === '/' && d === '/') {
-      while (i < n && src[i] !== '\n') i++;
-      continue;
-    }
-    if (c === '/' && d === '*') {
-      const end = src.indexOf('*/', i + 2);
-      i = end === -1 ? n : end + 2;
-      out += ' ';
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') {
-      let j = i + 1;
-      while (j < n && src[j] !== c && (c === '`' || src[j] !== '\n')) j += src[j] === '\\' ? 2 : 1;
-      out += src.slice(i, j + 1);
-      i = j + 1;
-      prev = c;
-      continue;
-    }
-    if (c === '/') {
-      const regexOk = prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) || (/[\w$]/.test(prev) && REGEX_AFTER_WORD.test(out));
-      if (regexOk) {
-        let j = i + 1;
-        let inClass = false;
-        while (j < n && src[j] !== '\n') {
-          if (src[j] === '\\') { j += 2; continue; }
-          if (src[j] === '[') inClass = true;
-          else if (src[j] === ']') inClass = false;
-          else if (src[j] === '/' && !inClass) break;
-          j++;
-        }
-        out += src.slice(i, j + 1);
-        i = j + 1;
-        prev = '/';
+  const placeholder = (value) => `\u0000${literals.push(value) - 1}\u0000`;
+  // Scans from i; inside an interpolation (nested) it stops at the `}` that closes it.
+  function scan(i, nested) {
+    let out = '';
+    let prev = ''; // last significant (non-space, non-comment) character emitted
+    let depth = 0;
+    while (i < n) {
+      const c = src[i];
+      const d = src[i + 1];
+      if (nested && c === '}' && depth === 0) return [out, i];
+      if (c === '/' && d === '/') {
+        while (i < n && src[i] !== '\n') i++;
         continue;
       }
+      if (c === '/' && d === '*') {
+        const end = src.indexOf('*/', i + 2);
+        i = end === -1 ? n : end + 2;
+        out += ' ';
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        let j = i + 1;
+        while (j < n && src[j] !== c && src[j] !== '\n') j += src[j] === '\\' ? 2 : 1;
+        out += placeholder(src.slice(i + 1, j));
+        i = j + 1;
+        prev = c;
+        continue;
+      }
+      if (c === '`') {
+        let j = i + 1;
+        const parts = [];
+        while (j < n && src[j] !== '`') {
+          if (src[j] === '\\') { j += 2; continue; }
+          if (src[j] === '$' && src[j + 1] === '{') {
+            const [inner, close] = scan(j + 2, true);
+            parts.push(inner);
+            j = close + 1;
+            continue;
+          }
+          j++;
+        }
+        out += placeholder(parts.length ? null : src.slice(i + 1, j));
+        for (const part of parts) out += ` (${part})`;
+        i = j + 1;
+        prev = c;
+        continue;
+      }
+      if (c === '/') {
+        const regexOk = prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) || (/[\w$]/.test(prev) && REGEX_AFTER_WORD.test(out));
+        if (regexOk) {
+          let j = i + 1;
+          let inClass = false;
+          while (j < n && src[j] !== '\n') {
+            if (src[j] === '\\') { j += 2; continue; }
+            if (src[j] === '[') inClass = true;
+            else if (src[j] === ']') inClass = false;
+            else if (src[j] === '/' && !inClass) break;
+            j++;
+          }
+          out += ' '; // regex bodies never hold a specifier
+          i = j + 1;
+          prev = '/';
+          continue;
+        }
+      }
+      if (nested && c === '{') depth++;
+      else if (nested && c === '}') depth--;
+      out += c;
+      if (!/\s/.test(c)) prev = c;
+      i++;
     }
-    out += c;
-    if (!/\s/.test(c)) prev = c;
-    i++;
+    return [out, i];
   }
-  return out;
+  return { code: scan(0, false)[0], literals };
 }
 
+const LITERAL = '\\u0000(\\d+)\\u0000';
 const IMPORT_PATTERNS = [
-  /\bimport\s*(['"])([^'"\n]+)\1/g, // import './x.js'
-  /\b(?:import|export)\s+(?:type\s+)?[\w\s{},*$]*?\bfrom\s*(['"])([^'"\n]+)\1/g, // import a from / export * from
-  /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*[,)]/g, // import('./x.js')
+  new RegExp(`\\bimport\\s*${LITERAL}`, 'g'), // import './x.js'
+  new RegExp(`\\b(?:import|export)\\s+(?:type\\s+)?[\\w\\s{},*$]*?\\bfrom\\s*${LITERAL}`, 'g'), // import a from / export * from
+  new RegExp(`\\bimport\\s*\\(\\s*${LITERAL}\\s*[,)]`, 'g'), // import('./x.js') or import(`./x.js`)
 ];
 
-/** Relative module specifiers (./ and ../) referenced by a JS source. */
+/**
+ * Relative module specifiers (./ and ../) referenced by a JS source. Only literal specifiers
+ * are seen: computed ones (import(url), interpolated templates) cannot be verified statically.
+ */
 export function relativeImports(source) {
-  const code = stripJsComments(source);
+  const { code, literals } = maskJsLiterals(source);
   const found = new Set();
   for (const re of IMPORT_PATTERNS) {
-    for (const m of code.matchAll(re)) if (/^\.\.?\//.test(m[2])) found.add(m[2]);
+    for (const m of code.matchAll(re)) {
+      const specifier = literals[Number(m[1])];
+      if (typeof specifier === 'string' && /^\.\.?\//.test(specifier)) found.add(specifier);
+    }
   }
   return [...found];
 }
