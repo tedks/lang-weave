@@ -1,0 +1,25 @@
+id: badge-expiry-refresh
+title: Refresh idle toolbar badges when cooldowns expire
+desc: "Badge status is recomputed on tab activation/navigation, settings, permissions,
+  storage status changes, startup and the existing self-update check. No storage event
+  occurs merely when a persisted provider cooldown expires or the local model-call
+  day rolls over. An idle tab can therefore retain a muted badge and a past \u201CPaused
+  until\u201D title until its next event. The popup recomputes on opening.\n\nThe
+  badge-state mission explicitly forbids new alarms and polling; a durable exact-time
+  refresh would need a new alarm, since MV3 workers can stop before a long setTimeout
+  fires. Decide whether to authorize an expiry alarm or accept eventual refresh on
+  user/browser activity. The current mission keeps the no-new-alarm boundary. Source:
+  PR #27 council review, 2026-10-30."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:54:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:54:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
