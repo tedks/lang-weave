@@ -74,7 +74,7 @@ const { reviewStatus, reviewIntroduce, reviewNext, reviewReveal, reviewRate, rev
   createReviewHandlers({ store, locked, context, reviewState });
 const { inlineAction } = createInlineRecall({ store, locked, context, reviewState });
 const { checkUpdate, arm } = createUpdate({ store, locked, modelCall });
-const { clearCache, addLanguage, removeLanguage, save, status } = createSettingsHandlers({ store, cache, locked,
+const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
   personalIntroduce, personalExportResult, registerCaptureMenu, captureMenuListener } =
@@ -94,7 +94,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     captureReady: async () => ({ ok: true }),
     swaps: () => swaps(msg, sender),
     event: () => record(msg, sender),
-    status, clearCache,
+    status, clearCache, removeKey, testKey,
     recoverBudget: () => recoverBudget(msg),
     save: () => save(msg),
     addLanguage: () => addLanguage(msg),

@@ -5,7 +5,7 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // derived by evaluating that exact expression over every handler name. A change here is a
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
-  popup: ['addLanguage', 'clearCache', 'recoverBudget', 'removeLanguage', 'reviewStatus', 'save', 'status'],
+  popup: ['addLanguage', 'clearCache', 'recoverBudget', 'removeKey', 'removeLanguage', 'reviewStatus', 'save', 'status', 'testKey'],
   review: ['reviewIntroduce', 'reviewKnown', 'reviewNext', 'reviewRate', 'reviewReveal', 'reviewStatus'],
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
     'personalExport', 'personalIntroduce', 'personalList'],
@@ -111,15 +111,15 @@ test('near-miss senders match no surface, or only the one the old boolean matche
   }
 }));
 
-test('router decision equals the pre-split boolean for every sender and message', () => withChrome(() => {
+test('router decision equals the pre-split boolean for every existing sender and message', () => withChrome(() => {
   const senders = [...Object.values(SENDERS), ...NEAR_MISSES.map(([sender]) => sender)];
   let checked = 0;
-  for (const sender of senders) for (const type of TYPES) {
+  for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);
     checked++;
   }
-  expect(checked).toBe(senders.length * TYPES.length);
+  expect(checked).toBe(senders.length * (TYPES.length - 2));
 }));
 
 // The production listener: the sender-id gate runs first, then the table; every pinned
