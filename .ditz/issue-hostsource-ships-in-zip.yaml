@@ -19,3 +19,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T17:55:28-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #21 convergence round 3 (Codex): the spanish.test.js hostsource check
+    applies only to direct imports from the files that were background.js, matching
+    the pre-split test''s scope; a transitive rule would fail today because quota.js
+    (reached from the worker) imports localDay from hostsource.js, as it did on origin/main
+    before the split. When this issue moves localDay out of hostsource.js, make that
+    check transitive over the whole worker graph.'
