@@ -35,7 +35,7 @@ Every install loaded before 0.12.0 has an ID derived from its directory, so 0.12
 
 ## Review scheduling and backups (0.12.4)
 
-Since 0.12.4, reviews are scheduled with FSRS-6 on the actual time since each review, aiming for 90% recall by default. A lapse no longer erases a word's history. Existing cards keep their due dates and switch over at their next rating. Each review and each in-page sighting or hover of a learning word is counted in a local learning log. The log holds word IDs, times and outcomes only, never pages, URLs or text, and it never leaves your browser.
+Since 0.12.4, reviews are scheduled with FSRS-6 on the actual time since each review, aiming for 90% recall by default. A lapse no longer erases a word's history. Existing cards keep their due dates and switch over at their next rating. Each review, and each time a vocabulary word is placed in a page or hovered, is counted in a local learning log. The log holds word IDs, times and outcomes only, never pages, URLs or text, and it never leaves your browser.
 
 Learning backups from 0.12.4 use format 2. Lang Weave 0.12.3 and later can import them; 0.12.2 and earlier refuse them. Once 0.12.4 has logged anything, 0.12.2 can no longer export a backup. If you ever need to go back, go back to 0.12.3, which reads everything 0.12.4 stores.
 
