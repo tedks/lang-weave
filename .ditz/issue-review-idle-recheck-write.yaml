@@ -1,0 +1,21 @@
+id: review-idle-recheck-write
+title: Review page idle recheck writes recallReview hourly
+desc: 'Source: PR #20 council round 2 (Claude seat, nit). A caught-up review tab rechecks
+  the queue at least hourly via reviewNext, and reviewNext always writes recallReview
+  (background.js reviewNext). Harmless today, since no storage listener watches that
+  key, but a future recallReview listener would see hourly churn per open tab. Option:
+  poll the read-only reviewStatus and call reviewNext only when due > 0, or make reviewNext
+  skip the write when state.current is unchanged (background.js, after worker-split).'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:22:12-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:22:12-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
