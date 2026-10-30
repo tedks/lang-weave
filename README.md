@@ -15,7 +15,22 @@ A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-
 4. X/Twitter is included in the extension's site permissions. For another site, open its page and turn on the site's checkbox in the popup, accepting Chrome's permission prompt. Alternatively, choose **Allow all websites**. Refresh an already-open page if needed.
 5. Spanish works immediately with **Beginner** (30 words) or **Expanded** (226 words, including the Beginner words). You can also enter another target's language code and explicitly generate a local experimental vocabulary pack. Select any available target from the language dropdown. Generated packs have separate progress and reviews; their quality is not certified. **Remove this generated language** frees a slot and deletes that pack's local reading and review progress. Personally saved entries and their history remain local under the target language when a generated pack is removed.
 
-In this checkout, the unpacked extension directory is `extension/` in whichever worktree contains the accepted branch. Keep that directory in place after loading it. Existing fleet installations stay at `${XDG_DATA_HOME:-$HOME/.local/share}/spanish-weave/extension`; this historical path preserves the unpacked Chrome extension ID and existing browser progress after the product rename. Lang Weave and the inherited French companion do not share browser storage.
+In this checkout, the unpacked extension directory is `extension/` in whichever worktree contains the accepted branch. Keep that directory in place after loading it. Since 0.12.0 the manifest carries a public key, so Chrome gives Lang Weave the same extension ID, `lkbkmlgogcpcacjmdmoecgacdbfddbnh`, from any directory on any machine. Fleet installations live at `${XDG_DATA_HOME:-$HOME/.local/share}/lang-weave/extension`. Two copies with this ID cannot run in one Chrome profile, so use a separate profile for a development checkout. Lang Weave and the inherited French companion do not share browser storage.
+
+## Move to the stable ID (0.12.0)
+
+Every install loaded before 0.12.0 has an ID derived from its directory, so 0.12.0 arrives as a new extension with empty storage. Your progress moves across once, with a Learning backup. Skip this section if you have never loaded an earlier version.
+
+**Do not update the old directory first.** Version 0.11 reloads itself when its files change on disk. If the old directory receives 0.12.0 it switches to the new ID, and the old progress becomes unreachable. The fleet installer writes 0.12.0 to the new `lang-weave` path and leaves the old `spanish-weave` payload untouched. If you load Lang Weave from a git checkout, export before you pull.
+
+1. In the old installation, which must be 0.11.0 or later, open **Learning backup** from the popup and download the JSON file. Then turn its **On** switch off, so the two installs do not both weave the same pages.
+2. Open `chrome://extensions`, choose **Load unpacked**, and select the new directory, for example `~/.local/share/lang-weave/extension`. It appears as a second Lang Weave entry with ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`.
+3. Do not enter a Gemini key in the new installation yet. Import only accepts a fresh target without a key.
+4. In the new installation, open **Learning backup**, choose the file, review the counts and preferences, and confirm the import.
+5. Check the restored review queue. Then enter your Gemini key and choose your sites again, because the backup excludes keys and site permissions.
+6. Only now remove the old entry in `chrome://extensions`. Removing it deletes its browser storage. The old directory stays on disk until you delete it yourself.
+
+[Stable ID mission record](docs/STABLE-ID-MISSION.md) has the verification, what the Chrome docs do and do not promise about a later Chrome Web Store release, and what remains untested.
 
 ## Controls and privacy
 
