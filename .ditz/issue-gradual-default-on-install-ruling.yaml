@@ -1,0 +1,22 @@
+id: gradual-default-on-install-ruling
+title: Decide whether gradual learning (5 words/day) is on for new installs
+desc: 'Source: docs/research/ux-audit.md #6. Today gradual defaults off, so reading
+  never creates review cards and inline recall stays disabled. Options: (A) write
+  gradual:true at install time (reason === ''install'') with 5 words/day, existing
+  profiles untouched; (B) keep off and let the welcome page recommend it; (C) on by
+  changing DEFAULT_SETTINGS (rejected: cleanSettings would flip existing profiles
+  silently). Recommendation: A, with the welcome page explaining it. Decides: Ted.
+  Blocks welcome-page copy and the first-run learning loop.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
