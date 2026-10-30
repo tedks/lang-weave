@@ -246,6 +246,15 @@ test('full logs in three scopes export under 1 MiB: newest retrievals kept, the 
   // Exposure aggregates of current scopes are kept first.
   expect(Object.keys(scopes.es.exposures.words)).toEqual([spanish]);
   expect(backupPreview(parsed)).toMatchObject({ retrievals: kept.length, omittedRetrievals: omitted.retrievals });
+  // The budget bounds the serialized log: keys, wrappers and logOmitted included.
+  const stripped = JSON.parse(json);
+  delete stripped.state.logOmitted;
+  for (const [id, fields] of Object.entries(stripped.state.scopes)) {
+    delete fields.retrievals; delete fields.exposures;
+    if (id !== 'es' && !Object.keys(fields).length) delete stripped.state.scopes[id];
+  }
+  expect(new TextEncoder().encode(json).length - new TextEncoder().encode(JSON.stringify(stripped)).length)
+    .toBeLessThanOrEqual(LOG_BUDGET_BYTES);
   // Storage order within a scope is preserved (oldest first), only the old tail is cut.
   const es = scopes.es.retrievals?.retrievals || [];
   expect(es.every((t, i) => i === 0 || es[i - 1][1] < t[1])).toBe(true);

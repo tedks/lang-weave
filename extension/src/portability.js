@@ -21,8 +21,8 @@ export const MAX_BACKUP_BYTES = 1024 * 1024;
 // One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
 // cards, packs or personal entries under MAX_BACKUP_BYTES.
 export const LOG_BUDGET_BYTES = 512 * 1024;
-// Room kept for per-scope log wrappers and state.logOmitted, which fitLog does not count.
-const LOG_MARGIN_BYTES = 16 * 1024;
+// Slack under MAX_BACKUP_BYTES for the separators fitLog's accounting may round away.
+const LOG_MARGIN_BYTES = 1024;
 export const IMPORT_JOURNAL_KEY = 'learningImportJournalV1';
 export const IMPORT_RECEIPT_KEY = 'learningImportReceiptV1';
 const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY];
@@ -403,6 +403,17 @@ function fitLog(st, m, budget) {
   const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
   let used = 0, droppedRetrievals = 0, droppedWords = 0;
   const fit = (size) => used + size <= budget && ((used += size), true);
+  // Charge the structure around the entries up front, so the budget bounds the serialized log:
+  // each log field's key and empty wrapper, the key of a scope that holds only log data, and
+  // the largest possible state.logOmitted.
+  used += bytes({ retrievals: 10000000, exposureWords: 10000000 }) + bytes('logOmitted') + 2;
+  for (const [id, fields] of Object.entries(st.scopes)) {
+    const logFields = LOG_FIELDS.filter((field) => fields[field]);
+    if (!logFields.length) continue;
+    if (Object.keys(fields).every((field) => LOG_FIELDS.includes(field))) used += bytes(id) + 3;
+    if (fields.retrievals) used += bytes('retrievals') + 2 + bytes({ version: 1, retrievals: [] });
+    if (fields.exposures) used += bytes('exposures') + 2;
+  }
   for (const fields of Object.values(st.scopes)) {
     if (fields.exposures && !fit(bytes(fields.exposures))) {
       droppedWords += Object.keys(fields.exposures.words).length;
