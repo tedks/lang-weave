@@ -1,6 +1,6 @@
 # Stable extension ID (0.12.0)
 
-State: implemented on `stable-extension-id`, based on `origin/main` `d13e30d` (0.11.0). Draft PR; not merged, not deployed. Issue: `stable-extension-id`. The fleet installer change is a separate draft PR in `tedks/dotfiles` and keeps its pin on the current source commit until this PR merges.
+State: implemented on `stable-extension-id`, rebased onto `origin/main` `1eaf3d3` (0.11.1, after the relicense). Draft PR; not merged, not deployed. Issue: `stable-extension-id`. The fleet installer change is a separate draft PR in `tedks/dotfiles` and keeps its pin on the current source commit until this PR merges.
 
 ## Intent and boundary
 
@@ -16,7 +16,8 @@ lkbkmlgogcpcacjmdmoecgacdbfddbnh
 
 - Chrome derives the ID of an extension that carries a manifest `key` from that key, not from its load path. Verified below in real Chromium from two unrelated directories.
 - Every existing unpacked install was loaded without a key, so its ID is a hash of its path. Moving to 0.12.0 gives each of them a new ID with empty storage. The only supported carry-over is the Learning backup export and import from 0.11.0 ([contract](STORE-PORTABILITY-MISSION.md)).
-- **An in-place update of a keyless install strands its progress.** 0.11.x reloads itself when the manifest version on disk changes (`checkUpdate` in `src/background.js`). In isolated Chromium, a 0.11.0 install whose directory was overwritten with 0.12.0 and then reloaded lost its old ID at once. After a browser restart only the new ID ran, with empty storage. The old ID's storage directory stayed on disk but no extension could read it. So the old directory must never receive 0.12.0 before the user exports. The fleet installer leaves the old payload untouched for this reason. A user running from a git checkout must export before pulling.
+- **An in-place update of a keyless install strands its progress.** 0.11.x reloads itself when the manifest version on disk changes (`checkUpdate` in `src/background.js`). In isolated Chromium, a 0.11.0 install whose directory was overwritten with 0.12.0 and then reloaded lost its old ID at once. After a browser restart only the new ID ran, with empty storage. The old entry stayed in the profile, disabled with reason 4 (reload), and its storage stayed on disk. Restoring the keyless files in that directory and enabling the old entry through `chrome.management.setEnabled`, the call behind the `chrome://extensions` switch, brought the old ID back with its stored progress. So the progress is stranded, not deleted, unless the user removes the disabled entry. The old directory must still never receive 0.12.0 before the user exports. The fleet installer leaves the old payload untouched for this reason. A user running from a git checkout must export before pulling.
+- Export needs 0.11.0 or later. An install still on 0.10.0 or older must first be updated in place to a keyless 0.11 release, which keeps its ID. 0.11.1 at `ac71cb7` is the last keyless release.
 - Two loaded copies now share one ID. Chrome will not run both at once, so a developer checkout and the fleet payload cannot be loaded in the same profile side by side. Use a separate profile for development.
 - The private key is the only way to sign a `.crx` with this ID, and possibly the only way to give a future Store item this ID. If it is lost, the unpacked ID keeps working because it needs only the public key, but a Store item would get a different ID.
 
@@ -85,9 +86,16 @@ How the first upload would carry the key, if outcome 1 holds: copy the private k
 - Public key: `extension/manifest.json` `key`, base64 DER SubjectPublicKeyInfo, generated with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048` and `openssl pkey -pubout -outform DER`.
 - ID derivation: take sha256 of the DER public key, keep the first 32 hex digits, and map each digit 0-f to a-p. Both identity tests recompute it this way and pin the result.
 
+## Release sequencing
+
+These are conditions on merging, not code defects:
+
+- **Until the dotfiles PR merges, dotfiles master still has the old installer, which has no key check.** Advancing the old `.spanish-weave.ref` to any commit that contains this change would write 0.12.0 into every host's old directory. That is exactly the stranding above. The pin must advance only in the companion dotfiles PR, which installs to the new path and refuses keyless builds. No release lane may run the old installer with a keyed pin.
+- **Any profile that loads a git worktree directly will strand its progress on the first pull after this merges.** Ted's profile loads the fleet path, so it is not affected. Before merging, confirm in `chrome://extensions` that no other profile loads a worktree, and export from any that does.
+
 ## Acceptance evidence
 
-On `8d5b914`, in this worktree:
+Initial implementation, on `8d5b914`, in this worktree:
 
 - `nix shell nixpkgs#bun --command bun install --frozen-lockfile` and `bun test` inside `extension/`: 193 pass, 0 fail, 3650 assertions.
 - `python3 -m unittest discover -s tests`: 91 tests OK.
@@ -95,11 +103,13 @@ On `8d5b914`, in this worktree:
 - `node e2e/smoke.mjs` inside `extension/`: PASS in Playwright Chromium. Gemini mocked; no live model call.
 - Two-path ID probe: the 0.12.0 runtime copied to two unrelated directories and loaded unpacked in headless Playwright Chromium. Both service workers ran at `chrome-extension://lkbkmlgogcpcacjmdmoecgacdbfddbnh/`.
 - In-place update probe: described under the assumptions above. The old ID was `hmgjolibpmknjfiebhnfbikfechbgecj` for that scratch path.
+- Migration rehearsal (`node e2e/portability.mjs`, added after council round 1). The source copy loads without the key and the target is the shipped keyed build. It passed with the default source and with `PORTABILITY_OLD_EXTENSION` set to the real 0.11.1 runtime: export from the keyless ID, then preview, confirmed import, restored per-language and personal progress, and a review without a key in the stable-ID install.
 
 Repaired tests: `tests/test_weave.py` and `extension/test/spanish.test.js` previously asserted that the manifest has no `key`. That kept Lang Weave from inheriting French Weave's fixed key. They now pin this key's ID, and the Python test asserts it differs from the French `EXTENSION_ID`.
 
 ## Not tested
 
+- The recovery path in a real profile. It was shown only in a throwaway headless profile.
 - Chrome's **Load unpacked** button in a real profile. The probes loaded the extension with `--load-extension` in a throwaway headless profile. That uses the same unpacked loader but not the same saved profile entry, so Ted's profile may treat the old ID differently on reload. The migration steps avoid depending on either behavior.
 - Ted's Chrome profile and the fleet hosts. Nothing here touched them.
 - Any Chrome Web Store upload.
@@ -107,10 +117,16 @@ Repaired tests: `tests/test_weave.py` and `extension/test/spanish.test.js` previ
 
 ## Migration
 
-The README's "Move to the stable ID (0.12.0)" section is the user procedure. In short: export a Learning backup from the old install, load the new path unpacked, import before entering a Gemini key, check the review queue, and only then remove the old entry. The old directory is kept until the user deletes it.
+The README's "Move to the stable ID (0.12.0)" section is the user procedure. In short: bring a pre-0.11 install up to keyless 0.11.1, switch the old install off and export a Learning backup, load the new path unpacked, import before entering a Gemini key, check the review queue, and only then remove the old entry. The old directory is kept until the user deletes it. The popup cannot clear a saved key, because its key field always starts empty. A target that already has a key or progress is reset by removing and reloading the new entry.
 
 ## Record
 
 - 2026-10-30: Lead (Claude Opus 5.5) took the mission from the CTO. Chrome docs read through a fetch agent and checked against the archived 2013 guide and the 2025 verified-uploads post. Stop condition judged not tripped; the Store question is filed for the CEO.
 - 2026-10-30: Keypair generated on framework0; private key written outside the repository with mode 600. Manifest key, version 0.12.0 and repaired identity tests committed at `8d5b914`.
 - 2026-10-30: The in-place update probe found that the extension's own self-reload strands progress when a keyless directory receives 0.12.0. The migration steps and the fleet installer keep the old directory untouched for this reason.
+- 2026-10-30: Council round 1 on source `c251519` and dotfiles `ec5d36a`. Seats: Anthropic (native Opus subagent) and OpenAI (gpt-6-sol via ask-agent). Google agy was empty because its quota was exhausted; it was not substituted. No new code Critical; the OpenAI Critical is the known dotfiles pin condition. Important findings and their fixes:
+  - Pre-0.11 installs could not export (both seats): the catch-up step is documented.
+  - The portability proof failed on 0.12.0 because both copies now share one ID, and the migration had no end-to-end rehearsal: the proof now rehearses keyless to keyed.
+  - The old dotfiles installer and worktree-loaded profiles: recorded under release sequencing.
+  - The dotfiles installer gained an alias check.
+  Nits fixed: export after switching off, the early-key reset, the recovery path (verified), a canonical base64 check, and the stale LANGUAGE-MISSION line. Rebased onto `1eaf3d3` (relicense, 0.11.1).

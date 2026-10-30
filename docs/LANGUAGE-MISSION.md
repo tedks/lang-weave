@@ -36,10 +36,11 @@ experimental local vocabulary pack with their own Gemini key. Progress,
 reviews, reading events, cache entries, and asynchronous results must not cross
 target-language or pack boundaries.
 
-The product and GitHub repository will be named Lang Weave. The existing
-unpacked installation directory remains `spanish-weave/extension` under the
-effective XDG data directory because moving it can change Chrome's extension
-identity. English remains the source language. Generated packs are not a
+The product and GitHub repository will be named Lang Weave. The unpacked
+installation directory stayed `spanish-weave/extension` until 0.12.0, because
+moving it changed Chrome's extension identity; since 0.12.0 a manifest key fixes
+the identity and installs move once to `lang-weave/extension`
+([record](STABLE-ID-MISSION.md)). English remains the source language. Generated packs are not a
 linguistic quality guarantee. Adaptive density, in-band recall, takeover,
 Duolingo import, and native hosting are outside this mission.
 

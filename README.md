@@ -21,14 +21,15 @@ In this checkout, the unpacked extension directory is `extension/` in whichever 
 
 Every install loaded before 0.12.0 has an ID derived from its directory, so 0.12.0 arrives as a new extension with empty storage. Your progress moves across once, with a Learning backup. Skip this section if you have never loaded an earlier version.
 
-**Do not update the old directory first.** Version 0.11 reloads itself when its files change on disk. If the old directory receives 0.12.0 it switches to the new ID, and the old progress becomes unreachable. The fleet installer writes 0.12.0 to the new `lang-weave` path and leaves the old `spanish-weave` payload untouched. If you load Lang Weave from a git checkout, export before you pull.
+**Do not update the old directory to 0.12.0.** Version 0.11 reloads itself when its files change on disk. If the old directory receives 0.12.0, Chrome switches it to the new ID and turns the old entry off, with its progress still stored under the old ID. To recover, put the 0.11 files back in that directory and turn the old entry on again in `chrome://extensions`. Never remove that turned-off entry, because removing it deletes its progress. The fleet installer writes 0.12.0 to the new `lang-weave` path and leaves the old `spanish-weave` payload untouched. If you load Lang Weave from a git checkout, export before you pull.
 
-1. In the old installation, which must be 0.11.0 or later, open **Learning backup** from the popup and download the JSON file. Then turn its **On** switch off, so the two installs do not both weave the same pages.
-2. Open `chrome://extensions`, choose **Load unpacked**, and select the new directory, for example `~/.local/share/lang-weave/extension`. It appears as a second Lang Weave entry with ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`.
-3. Do not enter a Gemini key in the new installation yet. Import only accepts a fresh target without a key.
-4. In the new installation, open **Learning backup**, choose the file, review the counts and preferences, and confirm the import.
-5. Check the restored review queue. Then enter your Gemini key and choose your sites again, because the backup excludes keys and site permissions.
-6. Only now remove the old entry in `chrome://extensions`. Removing it deletes its browser storage. The old directory stays on disk until you delete it yourself.
+1. Check the old installation's version in `chrome://extensions`. Export needs 0.11.0 or later. If it is older, first update the old directory to 0.11.1, the last release without the key, for example with `git checkout ac71cb7` in a checkout. A keyless update keeps the old ID and its progress.
+2. Turn the old installation's **On** switch off, so the two installs do not both weave pages. Then open **Learning backup** from its popup and download the JSON file. The switch is not part of the backup.
+3. Open `chrome://extensions`, choose **Load unpacked**, and select the new directory, for example `~/.local/share/lang-weave/extension`. It appears as a second Lang Weave entry with ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`.
+4. Do not enter a Gemini key in the new installation yet, because import only accepts a target without a key or progress of its own. If you already entered a key or read with the new entry, remove the new entry in `chrome://extensions` and load the same directory again. That resets only the new entry.
+5. In the new installation, open **Learning backup**, choose the file, review the counts and preferences, and confirm the import.
+6. Check the restored review queue. Then enter your Gemini key and choose your sites again, because the backup excludes keys and site permissions.
+7. Only now remove the old entry in `chrome://extensions`. Removing it deletes its browser storage. The old directory stays on disk until you delete it yourself.
 
 [Stable ID mission record](docs/STABLE-ID-MISSION.md) has the verification, what the Chrome docs do and do not promise about a later Chrome Web Store release, and what remains untested.
 

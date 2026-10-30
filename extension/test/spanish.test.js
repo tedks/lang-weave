@@ -43,7 +43,9 @@ test('fork identity and permissions cannot collide with or contact the French co
   expect(manifest.name).toBe('Lang Weave');
   // Lang Weave pins its own public key (0.12.0): one ID across paths and hosts, distinct from French Weave.
   // Chrome's ID is the first 128 bits of sha256(DER public key), each hex digit mapped 0-f to a-p.
-  const digest = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32);
+  const der = Buffer.from(manifest.key, 'base64');
+  expect(der.toString('base64')).toBe(manifest.key); // Buffer ignores junk; demand canonical base64
+  const digest = createHash('sha256').update(der).digest('hex').slice(0, 32);
   const id = [...digest].map(c => String.fromCharCode(97 + parseInt(c, 16))).join('');
   expect(id).toBe('lkbkmlgogcpcacjmdmoecgacdbfddbnh');
   expect(manifest.permissions).not.toContain('nativeMessaging');
