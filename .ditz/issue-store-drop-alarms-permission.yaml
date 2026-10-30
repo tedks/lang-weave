@@ -1,0 +1,25 @@
+id: store-drop-alarms-permission
+title: 'Store build: drop the unused alarms permission (guard the listener first)'
+desc: 'Council round 1 on PR #23 (Claude seat, Important; triaged to follow-up because
+  it needs background.js, outside the store-engineering repair authority). After the
+  self-update gate, chrome.alarms is used only by update.js arm() (gated off when
+  update_url is present) and the top-level listener at background.js:130. A Store
+  build therefore requests ''alarms'' without using it, and the Dashboard asks for
+  a justification per permission. Fix: guard background.js''s listener (chrome.alarms?.onAlarm?.addListener)
+  and update.js''s create, then add a ''permissions'' row to package.mjs STORE_DELTAS
+  that drops ''alarms'' (the delta-table test will require the row). Must land before
+  the first Store upload. Without the guard, dropping the permission throws at worker
+  startup.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:54:55-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:54:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
