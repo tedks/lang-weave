@@ -30,7 +30,7 @@ NOT_SHIPPED = ('extension/test/', 'extension/node_modules/', 'extension/package.
                'extension/bun.lockb')
 E2E_HARNESSES = ('extension/e2e/smoke.mjs', 'extension/e2e/gradual.mjs',
                  'extension/e2e/again.mjs', 'extension/e2e/adaptive.mjs',
-                 'extension/e2e/highlights.mjs')
+                 'extension/e2e/highlights.mjs', 'extension/e2e/badge.mjs')
 ZERO = re.compile(r'^0+$')  # GitHub's "before" SHA for a new branch
 
 
