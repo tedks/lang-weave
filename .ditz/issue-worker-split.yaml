@@ -1,0 +1,23 @@
+id: worker-split
+title: Split background.js into a declarative router and feature modules with no behaviour
+  change; shared CSS tokens; package script
+desc: 'Roadmap M2 prerequisite. Source: ux-audit #21. background.js is 1,353 lines;
+  the sender authorization is one long boolean of URL comparisons (background.js:1243-1301).
+  Extract router.js (surface -> allowed messages table), reading.js, review-handlers.js,
+  capture-handlers.js, backup-handlers.js, update.js; src/ui.css light/dark tokens;
+  scripts/package.mjs zipping manifest, src, icons, _locales and applying Store manifest
+  deltas. No bundler. Ships alone with full gates and council fixpoint; every recheck-after-await
+  guard must survive byte-for-byte in behaviour.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
