@@ -40,7 +40,7 @@ try {
   const originPort = await listen(origin);
   const proxyPort = await listen(proxy);
   await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  // Chrome refuses to load without the icons a manifest names; a pre-0.12.6 source names none. Copy exactly
+  // Chrome refuses to load without the icons a manifest names; a pre-0.12.7 source names none. Copy exactly
   // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
   const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
