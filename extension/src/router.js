@@ -43,3 +43,10 @@ export const senderSurfaces = (sender) =>
   new Set(SURFACES.filter(({ matches }) => matches(sender)).map(({ name }) => name));
 export const surfaceAllows = (surfaces, type) =>
   SURFACES.some(({ name, messages }) => surfaces.has(name) && messages.includes(type));
+
+// Chrome commands have no page sender. Keep their exact names separate from
+// message surfaces so a shortcut never gains a sender-scoped message route.
+export const COMMANDS = Object.freeze({
+  pauseSite: 'pause-on-this-page',
+  openReview: 'open-review',
+});

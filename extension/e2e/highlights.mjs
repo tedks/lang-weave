@@ -49,10 +49,15 @@ try {
       <h1 style="font-size:22px;margin:0 0 12px">${dark ? 'Dark' : 'Light'} page</h1>
       <div class="sample"><span class="label">Ordinary</span><span id="plain">ordinary</span> and <span class="fw-word" id="ordinary" tabindex="0" role="button">palabra</span></div>
       <div class="sample"><span class="label">Learning</span><span class="fw-word" id="active" data-fw-status="active" tabindex="0" role="button">aprendiendo</span></div>
-      <div class="sample"><span class="label">Practice</span><span class="fw-word fw-practice" id="practice" tabindex="0" role="button">word → [?]</span></div>
+      <div class="sample"><span class="label">Practice</span><span class="fw-word fw-practice fw-practice-cue" id="practice" tabindex="0" role="button">word<sup aria-hidden="true">?</sup></span></div>
       <div class="sample"><span class="label">Link context</span><a href="#destination" id="link">linked <span class="fw-word" id="linked" tabindex="0" role="button">palabra</span></a></div>
       <div class="sample"><span class="label">Hover hint</span><span class="fw-word fw-tip" id="hover" data-tip="word · pronunciation" tabindex="0" role="button">palabra</span></div>
       <div class="fw-gloss fw-gloss-on" aria-hidden="true">palabra = word · "pronunciation"</div>
+      <div class="fw-recall" role="group" aria-label="Inline recall" style="left:470px;top:40px">
+        <div>Recall the translation before revealing.</div><div class="fw-recall-status">la palabra</div>
+        <div class="fw-recall-ratings"><button>Again</button><button>Hard</button><button>Medium</button><button>Easy</button></div>
+        <div class="fw-recall-secondary"><button>Already know</button></div>
+      </div>
       </body></html>` });
   });
   await mkdir(screenshots, { recursive: true });
@@ -71,6 +76,12 @@ try {
         ordinary: pick('ordinary'), plain: pick('plain'),
         active: pick('active'), practice: pick('practice'), linked: pick('linked'),
         link: pick('link'), hover: pick('hover'),
+        cue: (() => { const el = document.querySelector('.fw-recall'); const style = getComputedStyle(el);
+          const ratings = el.querySelector('.fw-recall-ratings');
+          return { color: style.color, background: style.backgroundColor, border: style.borderTopColor,
+            columns: getComputedStyle(ratings).gridTemplateColumns.split(' ').length,
+            ratingTop: [...ratings.children].map((button) => Math.round(button.getBoundingClientRect().top)),
+            secondaryTop: Math.round(el.querySelector('.fw-recall-secondary button').getBoundingClientRect().top) }; })(),
         gloss: (() => { const style = getComputedStyle(document.querySelector('.fw-gloss'));
           return { display: style.display, visibility: style.visibility, position: style.position,
             color: style.color, background: style.backgroundColor, pointerEvents: style.pointerEvents }; })() };
@@ -111,6 +122,12 @@ try {
     assert.equal(otherStates[3].decorationColor, otherStates[3].color);
     assert.equal(css.practice.decorationStyle, 'dashed');
     assert.equal(css.practice.decorationColor, css.practice.color);
+    assert.equal(await page.locator('#practice').textContent(), 'word?');
+    assert.equal(await page.locator('#practice sup').getAttribute('aria-hidden'), 'true');
+    assert.equal(css.cue.columns, 4);
+    assert.equal(new Set(css.cue.ratingTop).size, 1, 'four ratings stay on one row');
+    assert.ok(css.cue.secondaryTop > css.cue.ratingTop[0]);
+    assert.ok(contrast(css.cue.color, css.cue.background) >= 7);
     assert.equal(css.linked.color, css.link.color);
     assert.match(css.link.line, /underline/); // host link decoration stays
     assert.equal(css.gloss.display, 'block');
@@ -139,6 +156,14 @@ try {
     });
     assert.notEqual(forcedGloss.color, forcedGloss.background);
     assert.equal(forcedGloss.border, forcedGloss.color);
+    const forcedCue = await page.locator('.fw-recall').evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor, border: style.borderTopColor,
+        button: getComputedStyle(el.querySelector('.fw-recall-ratings button')).color };
+    });
+    assert.notEqual(forcedCue.color, forcedCue.background);
+    assert.equal(forcedCue.border, forcedCue.color);
+    assert.notEqual(forcedCue.button, forcedCue.background);
     await page.close();
   }
   console.log('PASS: Chromium extension CSS is visible on synthetic light/dark pages; ordinary, active, practice, link, hover, keyboard focus and forced colors checked.');

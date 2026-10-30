@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice,
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
   introductionTicket, finishIntroduction, dropIntroduction } from '../src/text.js';
 
 const win = new Window();
@@ -260,17 +260,38 @@ test('a saved practice rating changes only its span and restores trusted source 
     const span = el.querySelector('.fw-word');
     expect(span.getAttribute('data-fr')).toBeNull();
     expect(span.getAttribute('data-tip')).toBeNull();
+    expect(span.getAttribute('aria-label')).toBeNull(); // waiting for a viewport slot
+    expect(span.textContent).toBe('the idea');
+    expect(setPracticeCue(span, true)).toBe(true);
     expect(span.getAttribute('aria-label')).toBe('the idea. Open inline recall');
     expect(span.getAttribute('title')).toBe('Open inline recall');
+    expect(span.textContent).toBe('the idea?');
     expect(el.textContent).not.toContain('la idea');
     span.setAttribute('data-en', 'forged');
     expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
     expect(span.textContent).toBe('la idea');
+    expect(span.classList.contains('fw-practice-cue')).toBe(false);
+    expect(span.getAttribute('role')).toBe('button');
+    expect(span.tabIndex).toBe(0);
     expect(span.getAttribute('title')).toBeNull();
     expect(toggle(span)).toBe(true);
     expect(span.textContent).toBe('the idea');
     expect(revert(el)).toBe(1);
     expect(el.textContent).toBe('We discussed the idea with friends.');
+  } finally { el.remove(); }
+});
+
+test('a waiting practice word gains normal keyboard access after its shared card is rated', () => {
+  const el = tweet('We discussed the idea with friends.');
+  document.body.append(el);
+  try {
+    applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', practice: true })]);
+    const span = el.querySelector('.fw-practice');
+    expect(span.hasAttribute('tabindex')).toBe(false);
+    expect(finishPractice(span, { fr: 'la idea', en: 'the idea' })).toBe(true);
+    expect(span.classList.contains('fw-practice')).toBe(false);
+    expect(span.getAttribute('role')).toBe('button');
+    expect(span.tabIndex).toBe(0);
   } finally { el.remove(); }
 });
 

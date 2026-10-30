@@ -8,6 +8,7 @@ import { createCache, chromeStorage } from './cache.js';
 import { cleanSettings } from './settings.js';
 import { validateStorageSettings } from './portability.js';
 import { senderSurfaces, surfaceAllows } from './router.js';
+import { createCommands } from './commands.js';
 import { createContext, publicContext } from './worker-context.js';
 import { createReviewState } from './review-state.js';
 import { createGradualBudgets } from './gradual-budgets.js';
@@ -89,6 +90,7 @@ const badge = createBadge({ store, context, updatePending });
 refreshBadges = badge.refreshAll;
 const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
+const commands = createCommands({ tabs: chrome.tabs, runtime: chrome.runtime, context, save });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
   personalIntroduce, personalExportResult, registerCaptureMenu, captureMenuListener } =
   createCaptureHandlers({ store, locked, worker, captureDrafts, completedCaptures, contentDocuments,
@@ -163,6 +165,9 @@ chrome.storage.onChanged?.addListener((changes, area) => {
 });
 
 chrome.runtime.onInstalled.addListener(arm);
+chrome.commands?.onCommand?.addListener((command, tab) => {
+  void ready.then(() => commands.handle(command, tab)).catch(() => {});
+});
 chrome.runtime.onInstalled.addListener(openWelcome);
 chrome.runtime.onStartup.addListener(arm);
 chrome.alarms?.onAlarm?.addListener((a) => {
