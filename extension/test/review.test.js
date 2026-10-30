@@ -152,10 +152,28 @@ test('a practice ticket may be served before due, is voided by any card write, a
   expect(state.cards.pero.familiar).toBeUndefined();
   expect(state.cards.pero.reviews).toBe(2);
   expect(state.current).toBeNull();
+  // An early Hard or Medium still breaks the streak, as any non-Easy pass does.
+  for (const rating of ['hard', 'medium']) {
+    const again = cleanReview(raw, words, now);
+    nextReview(again, words, now);
+    revealReview(again, words, raw.current.ticket, now);
+    rateReview(again, raw.current.ticket, rating, now + 10, true);
+    expect([rating, again.cards.pero.easyStreak]).toEqual([rating, 0]);
+  }
   // Any other write to the card (an inline rating, a reset and re-introduction) moves its due
   // time and voids the grant, so the not-due card is skipped for the due one.
   const moved = cleanReview({ ...raw, cards: { ...raw.cards, pero: { ...raw.cards.pero, due: due + 3600000 } } }, words, now);
   expect(askable(moved, moved.current, now)).toBe(false);
+  // A voided grant stays void when the card later falls due: the stale ticket (and its old
+  // latency start) is dropped, and a fresh ticket is issued for the due card.
+  expect(askable(moved, moved.current, due + 7200000)).toBe(false);
+  const later = cleanReview({ ...raw, cards: { ...raw.cards, pero: { ...raw.cards.pero, due: due + 3600000 } },
+    current: { ...raw.current, shownAt: now } }, [words[0]], now);
+  const fresh = nextReview(later, [words[0]], due + 7200000, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+  expect(fresh.ticket).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+  expect(later.current).toEqual({ word: 'pero', ticket: fresh.ticket, revealed: false, shownAt: due + 7200000 });
+  // An unchanged grant stays valid after the card falls due on its own.
+  expect(askable(state.current ? state : cleanReview(raw, words, now), cleanReview(raw, words, now).current, due + 1)).toBe(true);
   expect(nextReview(moved, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');
   const plain = cleanReview({ ...raw, current: { ...raw.current, practice: undefined } }, words, now);
   expect(nextReview(plain, words, now, () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee').en).toBe('and');

@@ -74,11 +74,14 @@ export function introduce(state, words, now, count = 5) {
   return fresh.length;
 }
 
-// Whether the ticket's card may be prompted now: due, or chosen with Practice now and unchanged
-// since (same due time). Never a familiar card.
+// Whether the ticket's card may be prompted now. Never a familiar card. A Practice now ticket is
+// valid exactly while its grant holds (the card's due time is unchanged), due or not; once any
+// write voids the grant it stays void, so a fresh ticket replaces it. Any other ticket needs a
+// due card.
 export function askable(state, current, now) {
   const card = current && state.cards[current.word];
-  return !!card && !card.familiar && (card.due <= now || current.practice === card.due);
+  if (!card || card.familiar) return false;
+  return Number.isSafeInteger(current.practice) ? current.practice === card.due : card.due <= now;
 }
 
 export function nextReview(state, words, now, ticket = () => crypto.randomUUID()) {
@@ -134,7 +137,8 @@ function daysSinceIntroduction(day, now) {
 // due/interval first. Familiar and the Easy streak are unchanged (familiar-maintenance is separate).
 // Returns the new due/interval plus the learning-log record for this retrieval.
 // `early`: a Practice now review before the due time. It is scheduled by FSRS like any other,
-// but a pass leaves the Easy streak alone, so automatic familiarity still needs spaced reviews.
+// but an early Easy never extends the Easy streak (Hard or Medium still resets it), so
+// automatic familiarity still needs three spaced Easy reviews.
 function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAULT_RETENTION, early = false) {
   // Stored state is the scheduler's own; a migrated estimate is not, so its prediction is not
   // logged (it would contaminate the calibration test of the scheduler).
@@ -151,7 +155,10 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
     // Keep a failed recall unmastered if another valid route ever reaches
     // this scheduler with a previously familiar card.
     delete card.familiar;
-  } else if (!early) {
+  } else if (early) {
+    // An early pass may break the Easy streak but never extends it.
+    if (rating !== 'easy') card.easyStreak = 0;
+  } else {
     card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
     if (autoFamiliar && card.easyStreak >= 3) card.familiar = true;
   }
