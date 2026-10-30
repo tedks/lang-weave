@@ -107,7 +107,7 @@ if (typeof document !== 'undefined' && document.getElementById('demo')) {
           if (!result?.ok) throw new Error(result?.error || 'Could not enable x.com');
           return true;
         },
-      }).then((saved) => { xStatus.textContent = saved ? 'x.com allowed. Reload an open X page to start there.'
+      }).then((saved) => { xStatus.textContent = saved ? 'x.com allowed. After setup, reload any open X page to start there.'
         : 'Chrome did not grant x.com access.'; })
         .catch((error) => { xStatus.textContent = error.message || 'Could not enable x.com'; })
         .finally(() => { allow.disabled = false; });
