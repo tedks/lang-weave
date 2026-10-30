@@ -1,0 +1,21 @@
+id: store-x-runtime-grant-browser
+title: 'Add a browser integration check for a live optional-host grant made after
+  the Store extension starts, including permission-added registration on x.com. PR
+  #36 verifies the Welcome click path with a stubbed Chrome permission result because
+  headless Chromium leaves the prompt pending, and separately verifies real X injection
+  with a test-granted origin at install. The remaining gap is the grant-to-registration
+  transition in one run. Nonblocking council verification nit; no live Gemini needed.'
+desc: ""
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:52:39-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:52:39-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
