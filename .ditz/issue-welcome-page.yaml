@@ -24,3 +24,13 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T19:47:24-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Blocked by the explicit three-failure browser-gate stop condition: e2e/portability.mjs
+    timed out waiting for the source export download in three runs, including after
+    waiting for install settings initialization. New issue welcome-portability-export-timeout
+    tracks diagnosis. Bun 295/295, Python 91/91, version check, diff check, dev and
+    Store package verification passed. Browser passes: again, adaptive, highlights,
+    personal, smoke, welcome. Remaining browser gates were not run after the stop
+    condition. Branch/PR preservation follows; no merge.'
