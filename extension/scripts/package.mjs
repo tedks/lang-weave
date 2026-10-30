@@ -35,6 +35,8 @@ export class PackageError extends Error {
 // ---------------------------------------------------------------- store hook
 
 const X_MATCHES = ['https://x.com/*', 'https://twitter.com/*'];
+// The whole entry the X row may drop; anything else on it (another script, a changed timing) must be a decision.
+const X_ENTRY = Object.freeze({ js: ['src/content-loader.js'], css: ['src/content.css'], run_at: 'document_idle' });
 const sameSet = (a, b) => Array.isArray(a) && a.length === b.length && b.every((x) => a.includes(x));
 
 /**
@@ -58,6 +60,12 @@ export const STORE_DELTAS = Object.freeze([
       const found = scripts.filter(isX).length;
       if (found !== 1) {
         throw new PackageError(`store delta content_scripts: expected exactly one entry matching only ${X_MATCHES.join(', ')}, found ${found}`);
+      }
+      const entry = scripts.find(isX);
+      const shape = Object.fromEntries(Object.entries(entry).filter(([k]) => k !== 'matches'));
+      if (JSON.stringify(Object.keys(shape).sort()) !== JSON.stringify(Object.keys(X_ENTRY).sort()) ||
+          Object.entries(X_ENTRY).some(([k, v]) => JSON.stringify(shape[k]) !== JSON.stringify(v))) {
+        throw new PackageError(`store delta content_scripts: the X entry is no longer exactly ${JSON.stringify(X_ENTRY)} plus matches`);
       }
       const rest = scripts.filter((cs) => !isX(cs));
       return rest.length ? rest : undefined;

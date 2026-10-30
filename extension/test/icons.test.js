@@ -61,6 +61,13 @@ test('icons: the SVG subset is strict', () => {
     '<rect x="0" y="0" width="1" height="1" fill="#000000" transform="scale(2)"/>', '<rect x="0" y="0" width="4" height="4" rx="3" fill="#000000"/>', '']) {
     expect(() => parseIconSvg(wrap(bad))).toThrow();
   }
+  // Root attributes and surrounding content a browser would render differently from the PNGs are refused.
+  for (const bad of ['<svg viewBox="0 0 16 16" opacity="0.5">', '<svg viewBox="0 0 16 16" transform="rotate(90)">',
+    '<svg viewBox="0 0 16 16" preserveAspectRatio="none">']) {
+    expect(() => parseIconSvg(`${bad}<rect x="0" y="0" width="1" height="1" fill="#000000"/></svg>`)).toThrow();
+  }
+  expect(() => parseIconSvg(`<?xml-stylesheet href="x.css"?>${wrap('<rect x="0" y="0" width="1" height="1" fill="#000000"/>')}`)).toThrow();
+  expect(() => parseIconSvg(`${wrap('<rect x="0" y="0" width="1" height="1" fill="#000000"/>')}<rect/>`)).toThrow();
   expect(() => parseIconSvg('<svg viewBox="0 0 32 32"><rect x="0" y="0" width="1" height="1" fill="#000000"/></svg>')).toThrow();
   expect(() => rasterize(parseIconSvg(svg), 64)).toThrow();
 });

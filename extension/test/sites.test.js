@@ -45,6 +45,14 @@ test('store manifest: a granted X is registered like any other site, with an exp
   }
 });
 
+test('only manifest loader entries are excluded; an unrelated manifest script never blocks a granted host', async () => {
+  const manifest = { ...structuredClone(dev), content_scripts: [...dev.content_scripts,
+    { matches: ['https://example.com/*'], js: ['src/other.js'] }] };
+  const [[, [script]]] = await register(manifest, { origins: granted });
+  expect(script.excludeMatches).toEqual(['https://x.com/*', 'https://twitter.com/*']);
+  expect(script.matches).toContain('https://example.com/*');
+});
+
 test('no grants: nothing registered, an earlier registration is removed', async () => {
   expect(await register(storeManifest(dev), { origins: ['https://generativelanguage.googleapis.com/*'] })).toEqual([]);
   expect(await register(dev, { origins: [], existing: [{ id: 'weave-sites' }] }))

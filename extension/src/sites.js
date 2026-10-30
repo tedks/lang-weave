@@ -1,9 +1,10 @@
 // Content-script registration for granted origins, and the permission-change epoch.
 
-// Always a list, possibly empty: updateContentScripts leaves an omitted property unchanged, so leaving it out
-// could keep a stale exclusion from an earlier registration.
-export const declaredMatches = () =>
-  [...new Set((chrome.runtime.getManifest().content_scripts ?? []).flatMap((cs) => cs.matches ?? []))];
+// The hosts where the manifest itself injects the loader. Only loader entries count: an unrelated manifest
+// script must not stop the loader reaching a granted host. Always a list, possibly empty: updateContentScripts
+// leaves an omitted property unchanged, so leaving it out could keep a stale exclusion from an earlier registration.
+export const declaredMatches = () => [...new Set((chrome.runtime.getManifest().content_scripts ?? [])
+  .filter((cs) => (cs.js ?? []).includes('src/content-loader.js')).flatMap((cs) => cs.matches ?? []))];
 
 export function createSites({ store, locked, worker, broadcast }) {
   // Granted origins (all sites, or one at a time from the popup) decide where the content script is injected.

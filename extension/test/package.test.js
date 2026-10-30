@@ -153,12 +153,16 @@ test('store manifest: differs from the dev manifest in exactly the delta-table k
 });
 
 test('store manifest: the X row keeps other content scripts and refuses a changed precondition', () => {
-  const x = { matches: ['https://twitter.com/*', 'https://x.com/*'], js: ['src/content-loader.js'] };
+  const x = { matches: ['https://twitter.com/*', 'https://x.com/*'], js: ['src/content-loader.js'], css: ['src/content.css'],
+    run_at: 'document_idle' };
   const other = { matches: ['https://example.com/*'], js: ['src/other.js'] };
   expect(storeManifest({ version: '1', content_scripts: [x, other] }).content_scripts).toEqual([other]);
   expect(Object.hasOwn(storeManifest({ version: '1', content_scripts: [x] }), 'content_scripts')).toBe(false);
   for (const content_scripts of [undefined, [], [other], [x, x],
-    [{ ...x, matches: [...x.matches, 'https://mobile.x.com/*'] }], [{ ...x, matches: ['https://x.com/*'] }]]) {
+    [{ ...x, matches: [...x.matches, 'https://mobile.x.com/*'] }], [{ ...x, matches: ['https://x.com/*'] }],
+    // The rest of the entry must be exactly the loader, so nothing else rides out with it.
+    [{ ...x, js: [...x.js, 'src/other.js'] }], [{ ...x, css: [] }], [{ ...x, run_at: 'document_end' }],
+    [{ ...x, all_frames: true }], [(({ css, ...rest }) => rest)(x)]]) {
     expect(() => storeManifest({ version: '1', content_scripts })).toThrow(PackageError);
   }
 });

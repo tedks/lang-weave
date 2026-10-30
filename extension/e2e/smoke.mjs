@@ -40,7 +40,8 @@ try {
   const originPort = await listen(origin);
   const proxyPort = await listen(proxy);
   await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
+  // The manifest names them and Chrome refuses to load without; a pre-0.12.5 source has none.
+  await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true }).catch((e) => { if (e.code !== 'ENOENT') throw e; });
   const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
   manifest.host_permissions.push(...manifest.optional_host_permissions);

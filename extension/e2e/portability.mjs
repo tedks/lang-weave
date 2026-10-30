@@ -20,7 +20,8 @@ const stableId = [...createHash('sha256').update(Buffer.from(manifest.key, 'base
 async function load(name, { keyless = false, source = root } = {}) {
   const extension = join(scratch, name, 'extension');
   await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
+  // The manifest names them and Chrome refuses to load without; a pre-0.12.5 source has none.
+  await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true }).catch((e) => { if (e.code !== 'ENOENT') throw e; });
   const shipped = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   if (keyless) delete shipped.key;
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(shipped, null, 2));

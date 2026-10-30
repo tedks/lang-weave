@@ -28,8 +28,13 @@ export const SIZES = Object.freeze({ 16: { scale: 1, pad: 0 }, 32: { scale: 2, p
 
 export function parseIconSvg(svg) {
   const bad = (why) => { throw new Error(`icon.svg: ${why}`); };
-  if (!/<svg\b[^>]*\bviewBox="0 0 16 16"/.test(svg)) bad('viewBox must be "0 0 16 16"');
-  const body = svg.replace(/<!--[\s\S]*?-->/g, '').replace(/^[\s\S]*?<svg\b[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+  const text = svg.replace(/<!--[\s\S]*?-->/g, '');
+  const root = text.match(/^\s*<svg((?:\s+[a-zA-Z:]+="[^"]*")*)\s*>([\s\S]*)<\/svg>\s*$/);
+  if (!root) bad('must be a single <svg> element with nothing before or after it but comments');
+  const rootAttrs = Object.fromEntries([...root[1].matchAll(/\s+([a-zA-Z:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+  for (const k of Object.keys(rootAttrs)) if (!['xmlns', 'viewBox', 'width', 'height'].includes(k)) bad(`unsupported <svg> attribute ${k}`);
+  if (rootAttrs.viewBox !== '0 0 16 16') bad('viewBox must be "0 0 16 16"');
+  const body = root[2];
   const rects = [];
   const rest = body.replace(/<rect\b([^>]*)\/>/g, (_, attrs) => {
     const a = {};

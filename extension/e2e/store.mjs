@@ -82,6 +82,30 @@ try {
   await page.locator('article .fw-word').waitFor();
   assert.equal(await page.locator('article .fw-word').textContent(), 'y');
   const storeReachable = await checkWebAccessible(context, id, store);
+  // The update path: a stale exclusion on the existing registration must be cleared when a restarted worker
+  // re-registers with the explicit empty list (updateContentScripts keeps omitted properties; relaunching the
+  // browser would not do, since reloading an unpacked extension drops dynamic registrations).
+  await worker.evaluate(() => chrome.scripting.updateContentScripts([{ id: 'weave-sites',
+    excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] }]));
+  await worker.evaluate(() => { globalThis.beforeRestart = true; });
+  const cdp = await context.newCDPSession(page);
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const target = targetInfos.find((t) => t.type === 'service_worker' && t.url === `chrome-extension://${id}/src/background.js`);
+  await cdp.send('Target.closeTarget', { targetId: target.targetId }); // stops the worker, keeps the extension loaded
+  const wake = await context.newPage();
+  await wake.goto(`chrome-extension://${id}/src/popup.html`); // the popup's status message wakes the worker
+  const within = (p, ms) => Promise.race([p, new Promise((done) => setTimeout(() => done('timeout'), ms))]);
+  let fresh;
+  for (let i = 0; i < 50 && !fresh; i++) {
+    for (const w of context.serviceWorkers()) {
+      if (await within(w.evaluate(() => globalThis.beforeRestart ?? false).catch(() => 'closed'), 1000) === false) fresh = w;
+    }
+    if (!fresh) await new Promise((done) => setTimeout(done, 200));
+  }
+  assert.ok(fresh, 'a fresh worker started and ran registerSites');
+  worker = await settle(fresh);
+  const [updated] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
+  assert.deepEqual(updated.excludeMatches ?? [], [], 'a restarted worker clears a stale exclusion');
   await context.close();
 
   // Dev (unpacked) build: X through the manifest content script; the self-update stays armed. The X grant is
@@ -105,7 +129,7 @@ try {
   await checkWebAccessible(context, id, devGranted);
   await context.close();
   open = undefined;
-  console.log(`PASS: real Chromium MV3, Store manifest delta (no X content script, granted X woven through the dynamic registration with an empty exclusion), no self-update alarm with update_url; dev build weaves granted X from the manifest entry (the dynamic registration excludes X) and keeps the alarm; ${storeReachable} web-accessible src/*.js exactly as listed. Gemini mocked; no Store upload.`);
+  console.log(`PASS: real Chromium MV3, Store manifest delta (no X content script, granted X woven through the dynamic registration with an empty exclusion, which also clears a stale exclusion after a worker restart), no self-update alarm with update_url; dev build weaves granted X from the manifest entry (the dynamic registration excludes X) and keeps the alarm; ${storeReachable} web-accessible src/*.js exactly as listed. Gemini mocked; no Store upload.`);
 } finally {
   try { if (open) await open.context.close(); } finally {
     // Only the exact mkdtemp directory created above, after closing its browser.
