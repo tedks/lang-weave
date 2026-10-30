@@ -91,17 +91,17 @@ The first phase 2 release that writes any of these keys or the `fsrs` field must
 6. **Size.** The indented 1 MiB file cannot hold even one full Spanish retrieval log, which is 1.15 MB indented. Raising the limit does not work on its own. The import journal stores the raw file as a string in `chrome.storage.local`, plus before-values, and then writes the patch while the journal still exists. An 8 MiB file would need about 9 MB of journal plus about 3 MB of patch, which exceeds the 10 MB quota. This is arithmetic from measured ratios, not a Chrome run. Recommendation:
    - Serialize the backup without indentation. That alone roughly triples the headroom, and the import parser does not care.
    - Give the whole log section one byte budget across all scopes of 512 KiB of compact JSON. Fill it in this order, stopping when the next item does not fit:
-     1. Exposure aggregates for the current scopes: Spanish, each installed pack and each personal language. Only catalog-verified words are exported, so orphans do not count. The bound below comes from the validators' hard limits, not from typical sizes:
+     1. Exposure aggregates for the current scopes: Spanish, each installed pack and each personal language. Only catalog-verified words are exported, so orphans do not count. The word entries have a hard bound from the validators:
         - The catalogs allow at most 926 words: 226 Spanish words, 5 packs (`MAX_PACKS`) of at most 80 words, and 300 personal entries (`MAX_PERSONAL`).
         - A form ID is at most 50 UTF-16 units. Each unit is at most 3 UTF-8 bytes, because a quote escapes to 2 bytes and `validWordId` refuses backslashes and control characters. That makes a form ID at most 150 bytes.
         - A personal ID is ASCII and at most 100 bytes.
         - Each entry adds at most 55 bytes of frame: three counters of at most 7 digits each, two quoted days, brackets, colon and commas. A form entry is therefore at most 205 bytes and a personal entry at most 155.
-        - Each scope wrapper and key takes at most 120 bytes, for at most 306 scopes. That assumes every personal entry is in a different language.
-        - The total is 211,550 bytes, about 207 KiB, which is under half the budget.
-       Step 1 therefore always fits. The exporter asserts that, and fails with an error instead of omitting if the assertion is ever false.
+        - Entries total at most 174,830 bytes.
+        - Scope keys and wrappers are not bounded by a validator. Estimating 120 bytes for each of at most 306 scopes, which assumes every personal entry is in a different language, gives about 207 KiB in all.
+       Step 1 is therefore expected to fit with room to spare, but that is not guaranteed. If it does not fit, the omitted current-scope exposure words are counted in the preview like every other omission.
      2. Retrievals, newest first across all scopes.
      3. Exposure aggregates for historical scopes, meaning old pack versions, up to 80 scopes. Take the scopes with the most recent last day first, and whole scopes only.
-   - State in the preview how many retrievals and how many historical-scope exposure words were left out. Nothing from step 1 is ever omitted, and every omission from steps 2 and 3 is counted in the preview.
+   - State in the preview how many exposure words and how many retrievals were left out, from any step. Nothing is omitted silently.
    - Size-test the worst case: maximum cards, five packs, 300 personal entries, every scope's log full. Test it against both the 1 MiB file cap and the journal's quota use.
    - Do not raise `MAX_BACKUP_BYTES` until the journal stops storing the raw file.
 7. **Preview** shows the retrieval count per language.
