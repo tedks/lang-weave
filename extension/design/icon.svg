@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="128" height="128">
+  <!-- Lang Weave: two strands, two languages, woven over and under on a 16-unit pixel grid.
+       Source of icon-16/32/48/128.png; render with node scripts/icons.mjs. Only <rect> with
+       integer x, y, width, height, optional rx and a #rrggbb fill; later rects paint over earlier ones. -->
+  <rect x="0" y="0" width="16" height="16" rx="3" fill="#0f766e"/>
+  <rect x="3" y="1" width="4" height="14" fill="#fbbf24"/>
+  <rect x="9" y="1" width="4" height="14" fill="#fbbf24"/>
+  <rect x="1" y="3" width="14" height="4" fill="#f8fafc"/>
+  <rect x="1" y="9" width="14" height="4" fill="#f8fafc"/>
+  <rect x="3" y="2" width="4" height="1" fill="#0f766e"/>
+  <rect x="3" y="7" width="4" height="1" fill="#0f766e"/>
+  <rect x="9" y="8" width="4" height="1" fill="#0f766e"/>
+  <rect x="9" y="13" width="4" height="1" fill="#0f766e"/>
+  <rect x="8" y="3" width="6" height="4" fill="#0f766e"/>
+  <rect x="9" y="3" width="4" height="4" fill="#fbbf24"/>
+  <rect x="2" y="9" width="6" height="4" fill="#0f766e"/>
+  <rect x="3" y="9" width="4" height="4" fill="#fbbf24"/>
+</svg>

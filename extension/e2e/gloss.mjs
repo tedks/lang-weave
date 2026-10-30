@@ -28,6 +28,7 @@ try {
   const originPort = await listen(origin);
   const proxyPort = await listen(proxy);
   await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
+  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
   const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
   manifest.host_permissions.push(...manifest.optional_host_permissions);
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));

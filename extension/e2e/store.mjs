@@ -20,7 +20,7 @@ const prose = `<!doctype html><html lang="en"><head><title>Reading</title></head
 async function launch(label, manifest) {
   const extension = join(scratch, label, 'extension');
   await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  for (const dir of ['icons', '_locales']) await cp(join(root, dir), join(extension, dir), { recursive: true }).catch(() => {});
+  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true });
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   const context = await chromium.launchPersistentContext(join(scratch, label, 'profile'), {
     channel: 'chromium', headless: true,
