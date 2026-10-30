@@ -137,8 +137,9 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
     return changed;
   };
 
-  // Practice now: make this word the review page's next card. A new word is introduced first
-  // (as "Add to review" does); a word not yet due becomes an early review that FSRS schedules
+  // Practice now: make this word the review page's next card. A new word is introduced first,
+  // as the review page's Add button and the capture page's "Add to review" do: an explicit
+  // manual introduction, outside the gradual reading budget, which governs automatic ones; a word not yet due becomes an early review that FSRS schedules
   // from the real elapsed time. Familiar, archived and above-level words are refused.
   async function wordPractice(msg) {
     return locked(async () => {

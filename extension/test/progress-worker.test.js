@@ -154,8 +154,8 @@ test('words actions: Practice now serves the chosen card first, Reset is guarded
     expect((await dispatch({ type: 'wordPractice', id: W, scope: 'es' }, words)).error).toMatch(/known/);
     const progress = await dispatch({ type: 'progress' }, sender('options'));
     expect(progress.stages.known).toBe(1);
-    // The five were added yesterday; today's familiar card is a claim, not an introduction.
-    expect(progress.today.introduced).toBe(0);
+    // The five were added yesterday; the word marked known today is a card added today.
+    expect(progress.today.introduced).toBe(1);
     expect(progress.today.reviewed).toBe(2);
     expect(progress.practisedThisWeek).toBe(2);
     expect(progress.activity.filter((d) => d.retrievals).map((d) => d.retrievals)).toEqual([1, 2]);

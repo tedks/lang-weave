@@ -74,7 +74,8 @@ const sentToday = (sent, day) => sent && sent.day === day && Array.isArray(sent.
 
 // Today's counts on `now`'s local day across scopes. Each scope is { cards, sent, pending }:
 // cleaned review cards, the events.js seenSent record and the readingEvents queue.
-// - introduced: cards whose introduction day is today, excluding "Already know" claims.
+// - introduced: cards whose introduction day is today, including any later marked known, so the
+//   count never drops when a word is claimed. A Reset removes the card and its introduction.
 // - seen / peeked: distinct words (events.js already counts each once per day).
 // - flipped: flip events; the queue keeps the latest 500 events, so this is a lower bound.
 // - reviewed: graded ratings (Again to Easy) logged today; "Already know" claims are excluded.
@@ -82,7 +83,7 @@ export function todayCounts(scopes, entries, now) {
   const day = localDay(new Date(now));
   let introduced = 0, seen = 0, peeked = 0, flipped = 0;
   for (const { cards = {}, sent, pending } of scopes) {
-    introduced += Object.values(cards).filter((card) => card.introducedDay === day && !card.familiar).length;
+    introduced += Object.values(cards).filter((card) => card.introducedDay === day).length;
     const tags = sentToday(sent, day);
     peeked += tags.filter((tag) => tag.startsWith('peek:')).length;
     seen += tags.filter((tag) => !tag.startsWith('peek:')).length;
@@ -93,7 +94,8 @@ export function todayCounts(scopes, entries, now) {
 }
 
 // The last `days` local days ending today, oldest first, with how many retrievals (ratings
-// and claims) each holds. Calendar arithmetic, so DST days are still one entry each. Entries
+// and claims) each holds. Days are dates in the device's current time zone: the log stores
+// instants only, so after travel past retrievals are re-bucketed into the new zone's dates. Calendar arithmetic, so DST days are still one entry each. Entries
 // from the future (a clock rollback) are ignored.
 export function activity(entries, now, days = ACTIVITY_DAYS) {
   const today = new Date(now);

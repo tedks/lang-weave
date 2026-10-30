@@ -106,7 +106,8 @@ for (const tz of ['America/Los_Angeles', 'Asia/Tokyo']) {
       { cards: { 'personal:es:x': { introducedDay: day } }, sent: { day: yesterday, words: ['old'] }, pending: 'bad' },
       { cards: {}, sent: null, pending: undefined },
     ];
-    expect(todayCounts(scopes, entries, now)).toEqual({ day, introduced: 2, seen: 2, peeked: 1, flipped: 1, reviewed: 1 });
+    // sol was introduced today and later marked known: still counted, so the count never drops.
+    expect(todayCounts(scopes, entries, now)).toEqual({ day, introduced: 3, seen: 2, peeked: 1, flipped: 1, reviewed: 1 });
     const strip = activity(entries, now);
     expect(strip).toHaveLength(30);
     expect(strip.at(-1)).toEqual({ day, retrievals: 2 });
