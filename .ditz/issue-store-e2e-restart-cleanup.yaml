@@ -1,0 +1,21 @@
+id: store-e2e-restart-cleanup
+title: Tidy Store restart test resource cleanup and final assertion
+desc: 'Anthropic council PR #30 final convergence nits: e2e/store.mjs opens a CDP
+  session per restart and relies on context.close for cleanup; a failed fresh-worker
+  assertion skips wake.close (outer context cleanup still runs); after the second
+  restart the test checks cleared exclusions but does not repeat the bundle js assertion.
+  None affects the observed passing gate or Store runtime. Clean up the helper and
+  add the final assertion when next editing this harness.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T20:55:54-00:00
+references: []
+log_events:
+- time: 2026-10-30T20:55:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
