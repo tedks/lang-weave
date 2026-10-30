@@ -1,0 +1,18 @@
+id: return-count-copy
+title: Clarify returned-card subset in review counts
+desc: 'Council nit: review header includes returned retirement cards in the due total
+  and then lists the returned subset separately. Consider copy that states the subset
+  relationship while preserving the exact migrated-card count.'
+type: task
+component: progress
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:53:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:53:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
