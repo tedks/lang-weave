@@ -38,6 +38,7 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     expect(words).toHaveLength(3); // positive control: all three due words were painted
     words.forEach((word, i) => { word.getBoundingClientRect = () => ({ left: 20, right: 80, top: 20 + i * 30, bottom: 42 + i * 30, width: 60, height: 22 }); });
     win.dispatchEvent(new win.Event('scroll'));
+    await wait(20);
     expect(words.filter((word) => word.classList.contains('fw-practice-cue'))).toHaveLength(2);
     expect(words[0].textContent).toBe('and?');
     expect(words[0].querySelector('sup')?.getAttribute('aria-hidden')).toBe('true');
@@ -45,6 +46,7 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     expect(words[2].hasAttribute('tabindex')).toBe(false);
     words[0].getBoundingClientRect = () => ({ left: 20, right: 80, top: -40, bottom: -18, width: 60, height: 22 });
     win.dispatchEvent(new win.Event('scroll'));
+    await wait(20);
     expect(words[0].classList.contains('fw-practice-cue')).toBe(false);
     expect(words[2].classList.contains('fw-practice-cue')).toBe(true);
     expect(words[2].getAttribute('role')).toBe('button');
@@ -62,9 +64,27 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     expect([...panel.querySelectorAll('.fw-recall-ratings button')].map((button) => button.textContent))
       .toEqual(['Again', 'Hard', 'Medium', 'Easy']);
     expect(panel.querySelector('.fw-recall-secondary button')?.textContent).toBe('Already know');
+    words[2].getBoundingClientRect = () => ({ left: 20, right: 80, top: -40, bottom: -18, width: 60, height: 22 });
+    win.dispatchEvent(new win.Event('scroll'));
+    await wait(20);
+    expect(words[2].tabIndex).toBe(0); // the open cue's Escape target stays focusable offscreen
     panel.dispatchEvent(trusted(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     expect(win.document.querySelector('.fw-recall')).toBeNull();
     expect(win.document.activeElement).toBe(words[2]);
+    words[2].getBoundingClientRect = () => ({ left: 20, right: 80, top: 80, bottom: 102, width: 60, height: 22 });
+    words[0].getBoundingClientRect = () => ({ left: 20, right: 80, top: 20, bottom: 42, width: 60, height: 22 });
+    win.dispatchEvent(new win.Event('scroll'));
+    await wait(20);
+    expect(words.filter((word) => word.classList.contains('fw-practice-cue'))).toHaveLength(2);
+    expect(words[2].classList.contains('fw-practice-cue')).toBe(true); // keyboard focus keeps its slot
+    const link = win.document.createElement('a');
+    link.href = '/next';
+    words[1].replaceWith(link);
+    link.append(words[1]); // the waiting word may be moved inside a host link
+    const uncuedClick = trusted(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    words[1].dispatchEvent(uncuedClick);
+    expect(uncuedClick.defaultPrevented).toBe(false);
+    expect(win.document.querySelector('.fw-recall')).toBeNull();
   } finally {
     Object.assign(globalThis, previous);
     win.happyDOM.cancelAsync();

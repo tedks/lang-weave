@@ -17,15 +17,19 @@ const owned = new WeakMap();
 const sourceEnglish = new WeakMap();
 const displaySwap = new WeakMap();
 const practice = new WeakSet();
+const cuedPractice = new WeakSet();
 const introductions = new WeakMap();
 export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
 export const isPractice = (span) => practice.has(span);
+export const isPracticeCue = (span) => cuedPractice.has(span);
 // A due word can wait for a viewport cue slot without changing its review ticket.
 export function setPracticeCue(span, active) {
   if (!practice.has(span) || !owned.has(span) || !span.isConnected) return false;
-  if (span.classList.contains('fw-practice-cue') === active) return false;
+  if (cuedPractice.has(span) === active && span.classList.contains('fw-practice-cue') === active) return false;
+  if (active) cuedPractice.add(span);
+  else cuedPractice.delete(span);
   span.classList.toggle('fw-practice-cue', active);
   span.textContent = sourceEnglish.get(span);
   if (active) {
@@ -86,8 +90,11 @@ export function finishPractice(span, answer, familiar = false) {
   const display = displaySwap.get(span);
   if (!en || !display?.f) return false;
   practice.delete(span);
-  span.classList.remove('fw-practice');
+  cuedPractice.delete(span);
+  span.classList.remove('fw-practice', 'fw-practice-cue');
   span.removeAttribute('title');
+  span.tabIndex = 0;
+  span.setAttribute('role', 'button');
   span.setAttribute('data-en', en);
   span.setAttribute('data-fr', display.f);
   span.setAttribute('data-tip', tipFor(display));

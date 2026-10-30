@@ -72,5 +72,8 @@ div.fw-gloss.fw-gloss-on {
 @media (forced-colors: active) {
   .fw-recall { color: CanvasText; background: Canvas; border-color: CanvasText; box-shadow: none; }
   .fw-recall button { color: ButtonText; background: ButtonFace; border-color: ButtonText; }
-  .fw-recall-actions button:last-child, .fw-recall-secondary button { color: CanvasText; background: Canvas; }
+  .fw-recall-actions button:last-child, .fw-recall-secondary button {
+    color: CanvasText; background: Canvas; border-color: CanvasText;
+  }
+  .fw-recall button:disabled { color: GrayText; border-color: GrayText; opacity: 1; }
 }

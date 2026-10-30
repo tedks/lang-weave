@@ -2,6 +2,7 @@ import { hasSiteAccess, siteOn } from './settings.js';
 import { COMMANDS } from './router.js';
 
 export function createCommands({ tabs, runtime, context, save }) {
+  let pauseQueue = Promise.resolve();
   async function pauseSite(tab) {
     const current = tab?.id != null ? tab : (await tabs.query({ active: true, currentWindow: true }))[0];
     if (!current?.id || !/^https?:\/\//.test(current.url || '')) return;
@@ -17,7 +18,11 @@ export function createCommands({ tabs, runtime, context, save }) {
     await save({ siteOverride: { host, enabled: !enabled } });
   }
   async function handle(command, tab) {
-    if (command === COMMANDS.pauseSite) return pauseSite(tab);
+    if (command === COMMANDS.pauseSite) {
+      const next = pauseQueue.then(() => pauseSite(tab));
+      pauseQueue = next.catch(() => {});
+      return next;
+    }
     if (command === COMMANDS.openReview)
       return tabs.create({ url: runtime.getURL('src/review.html') });
   }

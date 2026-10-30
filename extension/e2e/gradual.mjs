@@ -125,6 +125,12 @@ try {
   await page.locator('.fw-recall button', { hasText: 'Already know' }).waitFor();
   assert.deepEqual(await page.locator('.fw-recall-ratings button').allTextContents(), ['Again', 'Hard', 'Medium', 'Easy']);
   assert.equal(await page.locator('.fw-recall-secondary button').textContent(), 'Already know');
+  const actualRow = await page.locator('.fw-recall-ratings').evaluate((row) => ({
+    columns: getComputedStyle(row).gridTemplateColumns.split(' ').length,
+    tops: [...row.children].map((button) => Math.round(button.getBoundingClientRect().top)),
+  }));
+  assert.equal(actualRow.columns, 4);
+  assert.equal(new Set(actualRow.tops).size, 1);
   await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
     .find((button) => button.textContent === 'Already know').click());
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].familiar, undefined);
@@ -183,6 +189,8 @@ try {
   assert.equal(await page.locator('#reading2 .fw-word').getAttribute('title'), null);
   assert.equal(await page.locator('#reading2 .fw-word').textContent(), 'la idea');
   assert.equal(await page.locator('#reading3 .fw-word').textContent(), 'la idea');
+  assert.equal(await page.locator('.fw-practice-cue').count(), 0);
+  assert.equal(await page.locator('#reading3 .fw-word').getAttribute('role'), 'button');
   await page.waitForTimeout(750); // catches an unintended content flush after a full-page refresh
   assert.equal((await worker.evaluate(() => globalThis.calls)).length, callsBeforeRating);
   const review = await browser.newPage();

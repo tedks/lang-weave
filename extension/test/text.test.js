@@ -270,11 +270,28 @@ test('a saved practice rating changes only its span and restores trusted source 
     span.setAttribute('data-en', 'forged');
     expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
     expect(span.textContent).toBe('la idea');
+    expect(span.classList.contains('fw-practice-cue')).toBe(false);
+    expect(span.getAttribute('role')).toBe('button');
+    expect(span.tabIndex).toBe(0);
     expect(span.getAttribute('title')).toBeNull();
     expect(toggle(span)).toBe(true);
     expect(span.textContent).toBe('the idea');
     expect(revert(el)).toBe(1);
     expect(el.textContent).toBe('We discussed the idea with friends.');
+  } finally { el.remove(); }
+});
+
+test('a waiting practice word gains normal keyboard access after its shared card is rated', () => {
+  const el = tweet('We discussed the idea with friends.');
+  document.body.append(el);
+  try {
+    applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', practice: true })]);
+    const span = el.querySelector('.fw-practice');
+    expect(span.hasAttribute('tabindex')).toBe(false);
+    expect(finishPractice(span, { fr: 'la idea', en: 'the idea' })).toBe(true);
+    expect(span.classList.contains('fw-practice')).toBe(false);
+    expect(span.getAttribute('role')).toBe('button');
+    expect(span.tabIndex).toBe(0);
   } finally { el.remove(); }
 });
 

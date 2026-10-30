@@ -1,6 +1,6 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord,
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
   finishIntroduction, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
@@ -48,6 +48,7 @@ const TIP_GAP = 8;
 const FOCUS_SCROLL_MS = 250; // focus() may scroll its word just after focusin
 let cue = null;
 let cueWord = null;
+let cueFrame = null;
 // After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
 // no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
 let orphaned = false;
@@ -128,7 +129,11 @@ function hideTip(keepFocus = false) {
   tipBox?.remove(); tipBox = null;
   if (!keepFocus) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
 }
-function closeCue() { cue?.remove(); cue = null; cueWord = null; updatePracticeCues(); }
+function closeCue(focusWord = null) {
+  cue?.remove(); cue = null; cueWord = null;
+  if (focusWord?.isConnected) focusWord.focus();
+  updatePracticeCues();
+}
 
 // The worker has already selected due words. This only chooses which two visible
 // English words show an invitation; waiting words keep their existing card state.
@@ -142,13 +147,21 @@ function updatePracticeCues() {
     return span.isConnected && rect.width > 0 && rect.height > 0 &&
       rect.bottom > 0 && rect.top < height && rect.right > 0 && rect.left < width;
   });
-  const chosen = new Set(visible.slice(0, 2));
-  if (cueWord && visible.includes(cueWord) && !chosen.has(cueWord)) {
-    chosen.delete(visible[1]);
-    chosen.add(cueWord);
-  }
+  const pinned = [cueWord, document.activeElement].filter((span) =>
+    span?.isConnected && isPractice(span));
+  const chosen = new Set(pinned.filter((span) => visible.includes(span)).slice(0, 2));
+  for (const span of visible) { if (chosen.size >= 2) break; chosen.add(span); }
+  for (const span of pinned) if (!visible.includes(span)) chosen.add(span);
   for (const span of spans) setPracticeCue(span, chosen.has(span));
   observer?.takeRecords();
+}
+function queuePracticeCues() {
+  if (cueFrame != null) return;
+  cueFrame = window.requestAnimationFrame(() => {
+    cueFrame = null;
+    updatePracticeCues();
+    if (cue && cueWord?.isConnected) placeTip(cueWord, cue);
+  });
 }
 
 async function openCue(span) {
@@ -176,12 +189,11 @@ async function openCue(span) {
   panel.append(prompt, status, actions);
   panel.addEventListener('keydown', (e) => {
     if (e.isTrusted && e.key === 'Escape') {
-      e.preventDefault(); e.stopPropagation(); closeCue();
-      if (span.isConnected) span.focus();
+      e.preventDefault(); e.stopPropagation(); closeCue(span);
     }
   });
   document.documentElement.append(panel); cue = panel;
-  button(actions, 'Dismiss', () => { closeCue(); if (span.isConnected) span.focus(); });
+  button(actions, 'Dismiss', () => closeCue(span));
   placeTip(span, panel);
   const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
@@ -508,7 +520,7 @@ function mutations(records) {
   observer?.takeRecords();
   for (const el of tracked) if (!el.isConnected) { tracked.delete(el); near.unobserve(el); }
   for (const span of visibleWords) if (!span.isConnected) { visibleWords.delete(span); visible.unobserve(span); }
-  updatePracticeCues();
+  queuePracticeCues();
 }
 function start() {
   if (observer || !on()) return;
@@ -540,6 +552,8 @@ function stop() {
   observer?.disconnect(); observer = null;
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null;
+  if (cueFrame != null) window.cancelAnimationFrame(cueFrame);
+  cueFrame = null;
   pending.clear(); inflight.clear(); memo.clear(); failures.clear(); hideTip();
   introInflight.clear();
   introErrors.clear();
@@ -559,9 +573,10 @@ function reveal(e) {
   const span = swapFor(e);
   if (!span || !on() || introductionTicket(span)) return;
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
+  if (isPractice(span) && !isPracticeCue(span)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip();
-  if (isPractice(span)) { if (span.classList.contains('fw-practice-cue')) void openCue(span); return; }
+  if (isPractice(span)) { void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
   observer?.takeRecords();
 }
@@ -600,8 +615,7 @@ document.addEventListener('focusin', armTip, true);
 document.addEventListener('mouseout', disarmTip, true);
 document.addEventListener('focusout', disarmTip, true);
 window.addEventListener('scroll', () => {
-  updatePracticeCues();
-  if (cue && cueWord?.isConnected) placeTip(cueWord, cue);
+  queuePracticeCues();
   if (focusedTip && document.activeElement === focusedTip && Date.now() <= focusScrollUntil && tipEligible(focusedTip)) {
     if (tipTarget === focusedTip && tipBox) placeTip(focusedTip, tipBox);
     else if (tipTarget !== focusedTip) restoreFocusedTip();
@@ -609,7 +623,7 @@ window.addEventListener('scroll', () => {
   }
   hideTip();
 }, { passive: true, capture: true });
-window.addEventListener('resize', () => { hideTip(); updatePracticeCues(); if (cue && cueWord?.isConnected) placeTip(cueWord, cue); }, { passive: true });
+window.addEventListener('resize', () => { hideTip(); queuePracticeCues(); }, { passive: true });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') hideTip();
   if (document.visibilityState !== 'hidden' && pending.size && !timer) timer = setTimeout(flush, 0);
