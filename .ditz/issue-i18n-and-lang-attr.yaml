@@ -1,0 +1,18 @@
+id: i18n-and-lang-attr
+title: chrome.i18n scaffolding and lang attribute on swapped spans
+desc: 'Roadmap M3. Source: ux-audit #17, #22. _locales/en/messages.json with default_locale;
+  lang=target on spans with the gloss via aria-describedby; the scanner skips non-English
+  [lang] subtrees so test rescans and the churn guard carefully.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:42-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
