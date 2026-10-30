@@ -122,6 +122,8 @@ export const reviewOrder = (a, b) => Number(a?.maintenance === true) - Number(b?
 export function claimKnown(card, now) {
   card.familiar = true;
   card.maintenance = true;
+  // A fresh claim was never retired; a migrated pending return keeps its marker.
+  if (card.retiredReturn !== true) card.retiredReturn = false;
   card.claimAt = now;
   card.claimDue = Math.max(card.due, now + MAINTENANCE_MS);
 }

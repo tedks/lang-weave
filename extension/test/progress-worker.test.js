@@ -197,6 +197,12 @@ test('gradual My words exposes maintenance due and gates a claim; stale Reset ca
       maintenance: true, practise: true, reason: '' });
     expect(await dispatch({ type: 'wordPractice', id: 'pero', scope: 'es' }, words))
       .toEqual({ ok: true, introduced: false });
+    const review = sender('review');
+    const offered = await dispatch({ type: 'reviewNext' }, review);
+    expect(offered.card.en).toBe('but');
+    expect((await dispatch({ type: 'reviewReveal', ticket: offered.card.ticket }, review)).answer.fr).toBe('pero');
+    expect(await dispatch({ type: 'reviewRate', ticket: offered.card.ticket, rating: 'easy' }, review))
+      .toMatchObject({ ok: true, familiar: true, returnable: true });
   } finally {
     restore();
     globalThis.chrome = saved.chrome;

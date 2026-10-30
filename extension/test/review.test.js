@@ -317,7 +317,11 @@ test('Already know waits for a later retrieval; one long-gap pass verifies the c
   const now = Date.parse('2026-10-20T12:00:00Z');
   const card = { due: now, interval: 0, reviews: 0, introducedDay: '2026-10-20' };
   claimKnown(card, now);
-  expect(card).toMatchObject({ familiar: true, maintenance: true, claimAt: now, claimDue: now + 21 * DAY_MS });
+  expect(card).toMatchObject({ familiar: true, maintenance: true, retiredReturn: false,
+    claimAt: now, claimDue: now + 21 * DAY_MS });
+  const toggled = cleanReview({ version: 1, cards: { pero: card } }, [{ fr: 'pero', en: 'but' }], now, false);
+  expect(cleanReview({ version: 1, cards: toggled.cards }, [{ fr: 'pero', en: 'but' }], now, true)
+    .cards.pero.retiredReturn).toBe(false);
   const state = cleanReview({ version: 1, cards: { pero: card } }, [{ fr: 'pero', en: 'but' }], now, true);
   expect(nextReview(state, [{ fr: 'pero', en: 'but' }], now)).toBeNull();
   expect(wordStage(state.cards.pero)).toBe('known');
