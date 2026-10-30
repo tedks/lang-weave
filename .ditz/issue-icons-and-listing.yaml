@@ -31,3 +31,12 @@ log_events:
   comment: 'Icons landed in PR #23 (1fff674, 0.12.7): design/icon.svg source, icons/icon-{16,32,48,128}.png
     via scripts/icons.mjs, manifest icons + action.default_icon. Still open: five
     listing screenshots, Store description, 18+ statement.'
+- time: 2026-10-30T21:17:10-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Store listing draft (name, 132-char summary, description, single-purpose,
+    per-permission justifications, data-usage form answers, screenshot captions, do-not-claim
+    list): docs/STORE-LISTING.md in draft PR https://github.com/tedks/lang-weave/pull/33.
+    For Ted''s review; not submitted. Screenshots and promo tiles still open. Note:
+    no 18+ text exists in the product, so the listing''s 18+ statement is not yet
+    backed by in-product copy.'
