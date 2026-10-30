@@ -10,8 +10,9 @@ Lang Weave is a fork of French Weave by Jackie Oliver
 (https://github.com/jackieoliver/french-weave), which is licensed under the MIT
 License. The MIT license text and copyright notice are preserved in LICENSE-MIT
 and continue to apply to the portions of this work that originate upstream.
-Changes made in this repository on or after 2026-10-30, and the work as a
-whole, are distributed under the AGPL-3.0-or-later.
+The modifications made in this fork, and the combined work as a whole, are
+distributed under the AGPL-3.0-or-later. The MIT terms are not changed;
+they are satisfied by keeping LICENSE-MIT with every copy.
 
 Bundled Spanish vocabulary selection credits wordfreq by Robyn Speer (data
 CC BY-SA 4.0) for frequency ordering; see docs/UPSTREAM-CURRICULUM-MISSION.md.
