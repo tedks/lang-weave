@@ -5,7 +5,7 @@ Learn a language through the English you already read. This Chrome extension rep
 > The build passed **ahora**, **pero** the old cache still needs work.
 > ahora = now; pero = but
 
-A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-weave) by Jackie Oliver. MIT licensed, with the upstream history and license preserved. No terminal plugin, Python setup or native messaging host is required. There is no Chrome Web Store release yet.
+A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-weave) by Jackie Oliver. Lang Weave is free software under the [GNU AGPL v3 or later](LICENSE); the upstream history and its [MIT license](LICENSE-MIT) are preserved (see [NOTICE](NOTICE)). No terminal plugin, Python setup or native messaging host is required. There is no Chrome Web Store release yet.
 
 ## Install in Chrome
 

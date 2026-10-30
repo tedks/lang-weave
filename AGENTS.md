@@ -1,6 +1,6 @@
 # Agent Instructions: Lang Weave
 
-Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (MIT). Spanish is its bundled default. Global workflow rules apply from the shared agent configuration. AGENTS.md is canonical; other agent instruction files are symlinks.
+Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (MIT, preserved in LICENSE-MIT). Lang Weave itself is licensed AGPL-3.0-or-later (LICENSE, NOTICE); keep both files and the NOTICE attribution in any release payload. Spanish is its bundled default. Global workflow rules apply from the shared agent configuration. AGENTS.md is canonical; other agent instruction files are symlinks.
 
 ## Project structure
 
