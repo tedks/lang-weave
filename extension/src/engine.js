@@ -38,6 +38,7 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
     } catch (e) {
       if (e?.stale) throw e;
       if (e?.category === 'storage_failed') throw e; // no fallback after failed local call accounting
+      if (e?.category === 'key_rejected') throw e; // another model cannot repair a rejected key
       const timeout = e?.name === 'TimeoutError';
       const category = e?.category || (timeout ? 'request_failed' : e?.status === 429 ? 'rate_limit' : e?.status === 503 ? 'overloaded' : 'request_failed');
       const wait = e?.retryAfterMs || COOLDOWN_MS[timeout ? 'timeout' : e?.status];

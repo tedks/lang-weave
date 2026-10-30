@@ -34,7 +34,8 @@ export async function callGemini({ fetchImpl = globalThis.fetch, apiKey, model, 
       retryAfter: res.headers?.get?.('retry-after') });
     const error = new Error(failure.category === 'daily_quota' ? 'Daily model quota reached'
       : failure.category === 'rate_limit' ? 'Model rate limit reached'
-      : failure.category === 'overloaded' ? 'Model service is busy' : 'Model request failed');
+      : failure.category === 'overloaded' ? 'Model service is busy'
+      : failure.category === 'key_rejected' ? 'Gemini rejected this key' : 'Model request failed');
     error.status = res.status;
     error.category = failure.category;
     if (failure.retryAfterMs) error.retryAfterMs = failure.retryAfterMs;

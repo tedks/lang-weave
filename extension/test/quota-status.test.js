@@ -22,6 +22,20 @@ describe('quota status', () => {
     ] } }) }).category).toBe('daily_quota');
   });
 
+  test('rejects only API_KEY_INVALID 400s and all 401/403s with fixed, secret-free copy', () => {
+    const body = JSON.stringify({ error: { message: 'provider text with secret-key', details: [
+      { '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'API_KEY_INVALID' },
+    ] } });
+    for (const status of [400, 401, 403]) {
+      const category = classifyProviderFailure({ status, body }).category;
+      expect(category).toBe('key_rejected');
+      expect(statusLabel({ category })).toBe('Gemini rejected this key. Paste a new one.');
+      expect(JSON.stringify(safeModelStatus({ category, message: 'secret-key', body }))).not.toContain('secret-key');
+    }
+    expect(classifyProviderFailure({ status: 400, body: '{bad' }).category).toBe('request_failed');
+    expect(classifyProviderFailure({ status: 500, body }).category).toBe('request_failed');
+  });
+
   test('bounds retry values, accepts Retry-After seconds/date, and ignores oversized bodies', async () => {
     expect(classifyProviderFailure({ status: 429, body: '{bad', retryAfter: '999999999' }).retryAfterMs).toBe(3600000);
     expect(classifyProviderFailure({ status: 429, body: JSON.stringify({ error: { status: 'quota_exceeded' } }), retryAfter: '999999999' }).retryAfterMs).toBe(86400000);
