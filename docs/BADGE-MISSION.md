@@ -2,7 +2,7 @@
 
 ## Current state
 
-In progress on `badge-state`. Issue `badge-state` is started. The badge explains why reading is idle on the current tab using only worker-held settings, key presence, site grants and sanitized model status. No page text, hostname, provider message or key enters badge copy.
+Ready for final exact-head gates and normal merge in PR #27. Issue `badge-state` is started. The badge explains why reading is idle on the current tab using only worker-held settings, key presence, site grants and sanitized model status. No page text, hostname, provider message or key enters badge copy.
 
 ## Assumptions and acceptance
 
@@ -28,3 +28,9 @@ At `8dde635`, OpenAI's native Sol seat and Anthropic's Opus seat both found that
 Anthropic also flagged per-tab repeated context reads; `refreshAll` now shares one worker snapshot across its tabs. The popup's public config was verified to retain `origins`, `paused` and `hasKey`; `paused` is the existing constant `false`, with global pause in `settings.enabled`. Badge fallthrough is now generic fixed copy, site-default cases are pinned separately from the exhaustive override table, and the browser contrast assertion uses actual action colors. Google agy remains EMPTY due to quota and was not backfilled.
 
 The first fix-delta review found that deleting a per-tab generation after a failed refresh could reuse an older token and let stale work write later. Tokens now come from one monotonically increasing worker counter; a three-overlap test pins the regression. The review also raised a startup reload race: a worker wake may be handling a page or review message, so its disk check now detects `NEW` without reloading. Only the existing popup and alarm paths attempt the self-reload after queued work. The update-gate test pins that distinction.
+
+The second fix-delta round (`b7b8141..f956dd5`) was CLEAN from both available seats: no new Critical or Important issues. OpenAI reviewed with native Sol and Anthropic with Opus through ask-agent; agy was EMPTY, not backfilled. The remaining test-timing and pending-navigation nits are filed as `badge-restart-test-timing` and `badge-navigation-commit-test`. `badge-expiry-refresh` holds the no-new-alarm limitation. A mutation changing the no-key branch to `working` made two badge state tests fail, then the source was restored.
+
+## Verification scope
+
+The browser probe reads real `chrome.action` text, title and background colour per tab. Its screenshots compose those observed values beside the shipped 16 px icon on synthetic light and dark toolbar surfaces; headless Playwright cannot capture Chromium's native toolbar. Both badges use white text with calculated contrast above 4.5:1 against the observed action colours. It exercises no live Gemini call or user browser profile. The quota browser gate failed once during the full sequential run because the restarted worker did not process the second page within its attempt window; the isolated retry passed. The final exact-head gates and merge record belong in the PR comment.
