@@ -44,3 +44,8 @@ log_events:
     message (review page only) returns all section 9 measurements. Remaining: the
     user-facing ''is this working?'' view, which belongs with today-progress; this
     issue stays open until that view consumes learningStats.'
+- time: 2026-10-30T19:34:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: Lead lane progress-words (branch progress-words) is building the 'is this
+    working?' view on learningStats; will close with today-progress and my-words.
