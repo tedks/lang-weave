@@ -1,0 +1,24 @@
+id: fsrs-scheduler
+title: Replace the interval rules with FSRS default parameters scheduling on actual
+  elapsed time
+desc: 'Roadmap M1. Source: docs/research/learning-science.md rec 2. Current rules:
+  Hard -> 1 day regardless of history, Again zeroes the interval, Medium/Easy multiply
+  the scheduled interval ignoring lateness. Adopt FSRS (defaults, desired retention
+  0.85-0.90), porting the formulas or vendoring MIT ts-fsrs ESM with notice. Migrate
+  existing cards (due/interval/reviews) to stability/difficulty without losing history;
+  keep ticket/revision scope guards; keep Again/Hard/Medium/Easy mapping until objective-grading
+  lands. Falsified if calibration is no better than a constant after a few hundred
+  logged reviews.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
