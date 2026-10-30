@@ -21,3 +21,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T20:06:58-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Convergence-round nits added: the current welcome copy explains the Settings
+    key-test prompt, but Settings also sends a model request when generating a language
+    pack. Clarify that action in the disclosure. If a consent_required key-test result
+    is returned despite the disabled button, options.js currently falls through to
+    generic model-failure copy; show the consent route. This issue already includes
+    N-11: the Settings site-policy select changes the preference but does not record
+    first-run consent.'
