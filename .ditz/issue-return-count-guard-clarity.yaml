@@ -1,0 +1,18 @@
+id: return-count-guard-clarity
+title: Review returned-count guard redundancy
+desc: 'Council nit: retiredReturnCount explicitly checks maintenance although dueAt
+  already returns Infinity for familiar without maintenance. The redundancy documents
+  gradual-off intent; keep or simplify with a comment if this selector is refactored.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:57:40-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:57:40-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
