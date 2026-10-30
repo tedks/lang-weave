@@ -35,3 +35,15 @@ log_events:
   who: Ted Smith
   what: 'closed: fixed'
   comment: ""
+- time: 2026-10-30T17:41:16-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'CTO ruling 2026-10-30 (Fable): option B. Omit unverified log entries from
+    the backup and report only their count in the preview; export the rest. Rationale:
+    the 2026-10-28 orphan ruling protects against exporting an unverified string that
+    might carry page text; B exports no unverified string, only a count, so the privacy
+    intent holds, and the log is measurement data rather than learning state, so refusing
+    a whole backup over it would lose more than it protects. Option C is rejected
+    because dropping orphans on load destroys measurements that a reinstalled pack
+    could make verifiable again. Ted may overrule; this is inside the engineering
+    envelope.'
