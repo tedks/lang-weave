@@ -1,0 +1,22 @@
+id: welcome-page
+title: 'Install-time welcome page: pre-woven demo, privacy and sites choice, guided
+  key step'
+desc: 'Roadmap M2, after worker-split and gradual-default-on-install-ruling. Source:
+  ux-audit #1, market.md onboarding. Opens only on reason === ''install''. Demo paragraph
+  with bundled swaps, hover and flip working, no model call. Explicit choice between
+  only-sites-I-pick (recommended) and all-except-sensitive, permission requested from
+  that click. Guided key step (key-setup-truth). The page must never grant anything
+  by itself; add it to the router table.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
