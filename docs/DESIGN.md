@@ -10,6 +10,8 @@ English source passages; neutral Spanish with accents and approximate pronunciat
 
 Keep sensitive sites off by default and preserve exclusions for forms, editable text, code and high-stakes topics. Page text goes to Gemini only on enabled, permitted sites with a configured key. Browser storage is independent of French Weave. Language histories and asynchronous results are isolated by target and pack version. The manifest key fixes the extension identity on every path since 0.12.0; earlier path-derived installs move once through the Learning backup, and their directories are never updated in place. Do not install a browser extension or use the user's credentials as part of development verification.
 
+Message authorization is the declarative surface table in `extension/src/router.js`: each sender surface may send only its listed messages. A new page is a new table entry; never widen an existing entry to reach it.
+
 Content scripts target the top frame. Non-top-frame swap requests fail closed because the worker cannot refresh that frame's title at each asynchronous dispatch boundary. The local title and high-stakes checks are finite conservative guards; ambiguous text stays English.
 
 ## Acceptance
