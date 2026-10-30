@@ -1,0 +1,17 @@
+Lang Weave
+Copyright (C) 2026 Ted Smith
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE for the full text.
+
+Lang Weave is a fork of French Weave by Jackie Oliver
+(https://github.com/jackieoliver/french-weave), which is licensed under the MIT
+License. The MIT license text and copyright notice are preserved in LICENSE-MIT
+and continue to apply to the portions of this work that originate upstream.
+Changes made in this repository on or after 2026-10-30, and the work as a
+whole, are distributed under the AGPL-3.0-or-later.
+
+Bundled Spanish vocabulary selection credits wordfreq by Robyn Speer (data
+CC BY-SA 4.0) for frequency ordering; see docs/UPSTREAM-CURRICULUM-MISSION.md.
