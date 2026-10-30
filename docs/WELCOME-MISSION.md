@@ -1,6 +1,6 @@
 # First-run welcome page
 
-State: council fixpoint CLEAN on `welcome-page`; final exact-head gates and merge remain. Issue: `welcome-page`. The earlier export failure was closed as `welcome-portability-export-timeout`. Initial source commit: `31eb1b6`.
+State: council fixpoint CLEAN and all local gates passed for PR #29. The PR records the exact final gate SHA and merge state. Issue: `welcome-page`. The earlier export failure was closed as `welcome-portability-export-timeout`. Initial source commit: `31eb1b6`.
 
 ## Decisions
 
@@ -13,7 +13,7 @@ State: council fixpoint CLEAN on `welcome-page`; final exact-head gates and merg
 ## Verification so far
 
 - `nix shell nixpkgs#bun --command bun install --frozen-lockfile`: 11 development packages installed.
-- `nix shell nixpkgs#bun --command bun test`: 296 passed, 0 failed (47,586 assertions).
+- `nix shell nixpkgs#bun --command bun test`: 297 passed, 0 failed (47,785 assertions).
 - `python3 -m unittest discover -s tests`: 91 passed.
 - `python3 tests/check_version_bump.py --base origin/main`: 0.12.8 → 0.12.9, passed.
 - `git diff --check`: passed.
@@ -23,7 +23,7 @@ State: council fixpoint CLEAN on `welcome-page`; final exact-head gates and merg
 
 ## Not verified
 
-Merge and an exact-head gate run after rebase remain. No live Gemini request, real user profile, Chrome Web Store installation, or Store upload was used.
+No live Gemini request, real user profile, Chrome Web Store installation, or Store upload was used. The browser gates used synthetic model responses and isolated profiles.
 
 ## Council
 
