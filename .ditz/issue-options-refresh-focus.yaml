@@ -1,0 +1,23 @@
+id: options-refresh-focus
+title: Preserve options control focus during external refresh
+desc: 'Council convergence nits on PR #25: the long-lived options page rebuilds the
+  language select and exception list on each relevant external settings change, including
+  its own saves. This can close an open dropdown or lose focus on Reset buttons. Its
+  generating indicator can disappear if another settings change arrives during generation.
+  A superseded refresh also resolves before the newer snapshot applies; this currently
+  self-corrects, but merits a comment. None is a data-loss or consent defect. Recommendation:
+  reproduce focus loss before adding list diffing, and keep the indicator tied to
+  the in-flight operation. No current merge block.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:38:54-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:38:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
