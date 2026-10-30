@@ -1,8 +1,9 @@
 /* Shared colour tokens for extension pages. Link this before a page's own styles.
    Light values on :root, dark values under prefers-color-scheme. Pages use
-   var(--ui-*) and never colour literals. The default palette is the document
+   var(--ui-*) for colours; a page may override a token with its own literal
+   in its own stylesheet (capture.css does). The default palette is the document
    palette (capture, backup, review). The compact popup sets class "ui-compact"
-   on <html> for its own values. A page may override one token in its own CSS. */
+   on <html> for its own values. */
 :root {
   --ui-text: #182027;
   --ui-bg: #faf9f5;

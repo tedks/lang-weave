@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { SURFACES, senderSurfaces, surfaceAllows, backupSender, capturePageSender } from '../src/router.js';
+import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 
 // Pinned from the pre-split authorization boolean (background.js at ac71cb7, lines 1243-1289),
 // derived by evaluating that exact expression over every handler name. A change here is a
@@ -50,7 +50,18 @@ const NEAR_MISSES = [
   [{ id: 'another-id', url: `${BASE}src/backup.html` }, []], // backup also checks the sender id
 ];
 
-// The pre-split boolean, verbatim apart from the `handlers` stand-in: a differential oracle.
+// The pre-split boolean and its two predicates, verbatim apart from the `handlers` stand-in:
+// a differential oracle that shares no code with router.js.
+const backupPageUrl = () => chrome.runtime.getURL('src/backup.html');
+const backupSender = (sender) => sender?.id === chrome.runtime.id && sender.url === backupPageUrl();
+function capturePageSender(sender) {
+  try {
+    const url = new URL(sender.url);
+    const own = new URL(chrome.runtime.getURL('src/capture.html'));
+    return url.protocol === 'chrome-extension:' && url.host === own.host &&
+      url.pathname === own.pathname;
+  } catch { return false; }
+}
 function legacyAllows(msg, sender) {
   const handlers = Object.fromEntries(HANDLERS.map((type) => [type, () => {}]));
   const popup = sender.url === chrome.runtime.getURL('src/popup.html');

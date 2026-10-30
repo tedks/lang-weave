@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Build a deterministic Chrome Web Store zip of the shipped extension.
+// Build a deterministic Chrome Web Store zip of the shipped extension. Output is byte-identical
+// across runs on the same runtime; deflate output can differ between zlib builds (node vs bun).
 // Dependencies: node: built-ins only. Usage:
 //   node scripts/package.mjs [--store] [--out <dir>]
 //
@@ -434,7 +435,10 @@ export function parseArgs(argv) {
       const v = argv[++i];
       if (!v) throw new PackageError('--out requires a directory');
       opts.outDir = resolve(v);
-    } else if (a.startsWith('--out=')) opts.outDir = resolve(a.slice(6));
+    } else if (a.startsWith('--out=')) {
+      if (!a.slice(6)) throw new PackageError('--out requires a directory');
+      opts.outDir = resolve(a.slice(6));
+    }
     else throw new PackageError(`unknown argument: ${a}\nusage: node scripts/package.mjs [--store] [--out <dir>]`);
   }
   return opts;

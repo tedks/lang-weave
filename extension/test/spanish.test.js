@@ -62,7 +62,7 @@ test('fork identity and permissions cannot collide with or contact the French co
     const source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
     expect([name, source.includes('sendNativeMessage')]).toEqual([name, false]);
     if (WORKER_FILES.includes(name)) expect([name, source.includes("from './hostsource.js'")]).toEqual([name, false]);
-    for (const [, next] of source.matchAll(/from '\.\/([\w-]+\.js)'/g)) visit(next);
+    for (const [, next] of source.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*['"]\.\/([\w-]+\.js)['"]/g)) visit(next);
   };
   visit('background.js');
   expect(WORKER_FILES.filter((name) => !seen.has(name))).toEqual([]);

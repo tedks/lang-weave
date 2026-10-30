@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
   packageExtension, storeManifest, verifyPackage, relativeImports, localHtmlRefs, globToRegExp, crc32, PackageError,
+  parseArgs,
 } from '../scripts/package.mjs';
 
 const EXT = resolve(import.meta.dir, '..');
@@ -274,4 +275,11 @@ test('verify: pure helpers', () => {
 
 test('package: the real extension verifies cleanly', () => {
   expect(() => build()).not.toThrow();
+});
+
+test('package: --out needs a non-empty directory in both spellings', () => {
+  expect(parseArgs(['--store', '--out', 'x']).store).toBe(true);
+  expect(parseArgs(['--out=x']).outDir).toBe(resolve('x'));
+  for (const argv of [['--out'], ['--out', ''], ['--out='], ['--bogus']])
+    expect(() => parseArgs(argv)).toThrow(PackageError);
 });
