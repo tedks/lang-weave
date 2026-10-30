@@ -1,0 +1,29 @@
+id: key-isolation-fail-closed
+title: 'Fail closed when storage.local.setAccessLevel is unavailable: set minimum_chrome_version
+  140 and refuse to store the key otherwise'
+desc: 'Source: firefox-probe (2026-10-30, real Firefox 158 and MDN compat data). The
+  worker calls storage.local.setAccessLevel(''TRUSTED_CONTEXTS'') only `if (store.setAccessLevel)`;
+  the API exists on storage.local only from Chrome 140 (MDN: Firefox version_added
+  false, Bugzilla 1724754). On older Chrome and on Firefox the guard is silently skipped
+  and a content script can read the Gemini key from storage.local (the probe wrote
+  a secret and read it back from a content script in Firefox). Fix: (1) add "minimum_chrome_version":
+  "140" to the manifest (dev and Store; check the fleet''s Chromium versions and the
+  Playwright Chromium in use); (2) in the worker, if setAccessLevel is absent, refuse
+  to save a key and surface a fixed-copy status ("This browser cannot keep the key
+  private; update Chrome") rather than storing it; (3) tests for both. Prerequisite
+  for firefox-support (which then needs a storage model where the key never sits in
+  storage.local, e.g. storage.session plus re-entry, or worker-only memory with a
+  documented re-entry cost). Security-relevant; schedule before any Store upload.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:13:49-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:13:49-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
