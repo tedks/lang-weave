@@ -1,0 +1,20 @@
+id: badge-navigation-commit-test
+title: Pin badge after a navigation that never completes
+desc: 'Chromium may clear tab-scoped action values when a navigation commits. PR #27
+  refreshes on tab loading and complete events, including URL-hidden tabs, and its
+  real-browser flow passes for completed navigations. Add a browser fixture whose
+  navigation remains pending and verify the badge remains truthful through commit;
+  adjust event wiring only if that case fails. Nonblocking council nit, 2026-10-30.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:59:22-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:59:22-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
