@@ -38,7 +38,9 @@ async function refresh() {
   primary = primaryAction(progress || status.review);
   $('primary').textContent = primary.label;
   const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
-  $('operation').textContent = state === 'paused' ? 'Off'
+  $('operation').textContent = status.modelStatus?.category === 'key_isolation_unavailable'
+    ? statusLabel(status.modelStatus)
+    : state === 'paused' ? 'Off'
     : state === 'needs_setup' ? 'Finish setup in the welcome page'
     : state === 'needs_key' ? 'Add a Gemini key to start'
     : ['site_off', 'sensitive'].includes(state) ? 'Off on this site'

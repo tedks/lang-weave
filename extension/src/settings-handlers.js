@@ -1,7 +1,7 @@
 // Popup handlers: settings, key, language packs, cache and status.
 import { chromeStorage } from './cache.js';
 import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, readBoundedBody,
-  safeModelStatus, visibleModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+  safeModelStatus, statusLabel, visibleModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 import { API_BASE } from './gemini.js';
 import { cleanSettings } from './settings.js';
 import { MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
@@ -24,6 +24,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
   }
 
   async function addLanguage(msg) {
+    if (worker.keyIsolationUnavailable) throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
     const code = languageCode(msg.code);
     if (!code) throw new Error('Enter a valid target-language code such as fr or ja');
     const before = await store.get(['settings', 'apiKey', PACKS_KEY]);
@@ -75,6 +76,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
 
   // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
   async function save(msg, forceKeyRotation = false) {
+    if (worker.keyIsolationUnavailable && typeof msg.apiKey === 'string' && msg.apiKey.trim())
+      throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
     if (msg.consentShown === true && typeof msg.settings?.newSitesEnabled !== 'boolean')
       throw new Error('Choose a site policy before confirming consent');
     worker.settingsGeneration++;
@@ -137,6 +140,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
   }
 
   async function testKey() {
+    if (worker.keyIsolationUnavailable) return { ok: false, category: 'key_isolation_unavailable' };
     return modelCall(async () => {
       const settingsGeneration = worker.settingsGeneration;
       const before = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY]);
@@ -206,14 +210,15 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
 
   async function status() {
     const config = await context();
-    const data = await store.get(['apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown']);
+    const data = await store.get(['apiKey', 'settings', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown']);
     const { state } = await reviewState(config);
     const modelStatus = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch,
       safeModelStatus(data[STATUS_KEY])?.category === 'local_budget' &&
         await callsToday(chromeStorage) >= DAILY_MODEL_CALLS);
     return { config: publicContext(config), words: config.words.length,
       languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
-      pastedKey: !!data.apiKey, consentShown: data.consentShown !== false, modelStatus,
+      pastedKey: !!(data.apiKey || data.settings?.apiKey), consentShown: data.consentShown !== false,
+      modelStatus: worker.keyIsolationUnavailable ? { category: 'key_isolation_unavailable' } : modelStatus,
       budgetWarning: laterDay(futureBudgetDay(state.learning, localDay()),
         futureBudgetDay(personalReview(config).state.learning, localDay())),
       review: await reviewStatus(config),

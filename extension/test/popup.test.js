@@ -17,7 +17,8 @@ test('popup shows one action and grants this site before saving or injecting', a
   globalThis.document = window.document;
   const events = [];
   let failSave = false;
-  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null, progressFails: false };
+  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null, progressFails: false,
+    isolationUnavailable: false };
   const today = { day: '2026-10-30', introduced: 2, seen: 14, peeked: 3, flipped: 0, reviewed: 5 };
   const pageUrl = 'https://example.com/article';
   globalThis.chrome = {
@@ -28,7 +29,8 @@ test('popup shows one action and grants this site before saving or injecting', a
           settings: { enabled: state.enabled, newSitesEnabled: true,
             siteOverrides: state.siteOverride === null ? {} : { 'example.com': state.siteOverride } },
           language: 'es', hasKey: true, origins: state.access ? ['https://example.com/*'] : [],
-        }, review: { due: state.due, new: state.available }, budgetWarning: '', modelStatus: null };
+        }, review: { due: state.due, new: state.available }, budgetWarning: '',
+          modelStatus: state.isolationUnavailable ? { category: 'key_isolation_unavailable' } : null };
         if (msg.type === 'progress') {
           if (state.progressFails) throw new Error('Progress unavailable');
           // Deliberately different from status.review: the button must follow this reply.
@@ -59,6 +61,12 @@ test('popup shows one action and grants this site before saving or injecting', a
     expect($('enabledLabel').textContent).toBe('On');
     expect($('siteName').textContent).toBe('Turn on for this site');
     expect($('operation').textContent).toBe('This site needs your OK');
+    state.isolationUnavailable = true;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => $('operation').textContent === 'This browser cannot keep the key private. Update Chrome to 140 or newer.');
+    state.isolationUnavailable = false;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => $('operation').textContent === 'This site needs your OK');
     expect($('today').textContent).toBe('Today: 2 introduced · 14 seen · 3 peeked · 5 reviewed');
     expect($('week').textContent).toBe('Practised on 3 days of the last 7 · 1 word verified known');
     expect($('openWords').getAttribute('href')).toBe('words.html');

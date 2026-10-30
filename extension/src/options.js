@@ -60,6 +60,8 @@ async function refresh() {
   $('testKey').disabled = !status.pastedKey || !status.consentShown;
   $('addLanguage').disabled = !status.consentShown;
   $('removeKey').disabled = !status.pastedKey;
+  if (status.modelStatus?.category === 'key_isolation_unavailable')
+    $('keyFeedback').textContent = statusLabel(status.modelStatus);
   const list = $('siteList');
   list.replaceChildren();
   for (const [name, enabled] of Object.entries(s.siteOverrides)) {

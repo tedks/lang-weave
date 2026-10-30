@@ -36,6 +36,7 @@ const worker = {
   settingsGeneration: 0, // a popup change also invalidates a held dispatch before its write gets the lock
   importBlocked: false, // a failed journal commit needs startup recovery before any other mutation
   startupUnsupportedSettings: false,
+  keyIsolationUnavailable: true, // cleared only after Chrome accepts trusted-context storage
 };
 const captureDrafts = new Map(); // worker memory only; a restart invalidates every nonce
 const completedCaptures = new Map(); // short-lived idempotent receipts; no draft/page metadata
@@ -55,14 +56,20 @@ const { connectBackupPage, recoverLearningImport, learningExport, learningPrevie
 
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
-  if (store.setAccessLevel) await store.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  if (typeof store.setAccessLevel === 'function') {
+    try {
+      await store.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+      worker.keyIsolationUnavailable = false;
+    } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
+  }
   const { settings } = await store.get('settings');
   try { validateStorageSettings(settings || {}); }
   catch { worker.startupUnsupportedSettings = true; }
-  if (settings?.apiKey) await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
+  if (!worker.keyIsolationUnavailable && settings?.apiKey)
+    await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
   // A stored settings object identifies an existing profile. Only a truly empty new profile
   // needs onboarding; older profiles keep their existing access until they choose otherwise.
-  if (!worker.startupUnsupportedSettings) await store.set({
+  if (!worker.startupUnsupportedSettings && !(worker.keyIsolationUnavailable && settings?.apiKey)) await store.set({
     settings: cleanSettings(settings), ...(settings === undefined ? { consentShown: false } : {}),
   });
   const { keyEpoch } = await store.get('keyEpoch');
@@ -72,7 +79,7 @@ const ready = (async () => {
 
 chrome.runtime.onConnect?.addListener(connectBackupPage);
 
-const { context, broadcast } = createContext({ store, ready });
+const { context, broadcast } = createContext({ store, ready, worker });
 const { reviewState } = createReviewState({ context });
 const { introduction, recoverBudget, adaptiveReviewState, commitAdaptive } =
   createGradualBudgets({ store, locked, context, broadcast, reviewState });

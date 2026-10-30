@@ -46,9 +46,11 @@ test('options works without a tab; settings, exception reset and key removal rou
   let storageChanged;
   let generateFails = false;
   let due = 2;
+  let isolationUnavailable = false;
   const status = () => ({ config: { settings: cleanSettings(data.settings), language: 'es',
     hasKey: !!data.apiKey, origins: [] }, update: '', languages: [{ code: 'es', name: 'Spanish' }],
-    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, consentShown: true, modelStatus: null });
+    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, consentShown: true,
+    modelStatus: isolationUnavailable ? { category: 'key_isolation_unavailable' } : null });
   globalThis.chrome = {
     runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.5' }),
       sendMessage: async (msg) => {
@@ -75,6 +77,10 @@ test('options works without a tab; settings, exception reset and key removal rou
     const $ = (id) => window.document.getElementById(id);
     await waitFor(() => $('version').textContent === '0.12.5');
     expect($('wordInfo').textContent).toBe('30 Spanish words');
+    isolationUnavailable = true;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('keyFeedback').textContent === 'This browser cannot keep the key private. Update Chrome to 140 or newer.');
+    isolationUnavailable = false;
     expect($('reviewInfo').textContent).toBe('2');
     expect(window.document.querySelector('a[href="https://aistudio.google.com/apikey"]')).not.toBeNull();
     expect($('siteList').textContent).toContain('example.com: off');
