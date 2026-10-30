@@ -2,6 +2,8 @@
 import { REVIEW_KEY, beginInline, revealInline, finishInline } from './review.js';
 import { PERSONAL_KEY } from './personal.js';
 import { activeOn } from './worker-context.js';
+import { DEFAULT_RETENTION } from './fsrs.js';
+import { logRetrieval } from './learning-records.js';
 import { personalReview, personalForTarget } from './review-state.js';
 
 export function createInlineRecall({ store, locked, context, reviewState }) {
@@ -34,11 +36,14 @@ export function createInlineRecall({ store, locked, context, reviewState }) {
         else await scoped.set({ [REVIEW_KEY]: state });
         return { answer: personal ? { ...answer, fr: own.byId.get(answer.fr)?.target || '' } : answer };
       }
-      const result = finishInline(target, msg.ticket, sender, ctx.revision, now, msg.rating);
+      const result = finishInline(target, msg.ticket, sender, ctx.revision, now, msg.rating,
+        ctx.settings.desiredRetention ?? DEFAULT_RETENTION);
       if (!result) return { error: 'Reveal the current cue before rating it.' };
       if (personal) await store.set({ [PERSONAL_KEY]: ctx.personal });
       else await scoped.set({ [REVIEW_KEY]: state });
-      return { ok: true, ...result };
+      const { record, ...reply } = result;
+      await logRetrieval(ctx, personal, record, 'inline', now);
+      return { ok: true, ...reply };
     });
   }
   return { inlineAction };

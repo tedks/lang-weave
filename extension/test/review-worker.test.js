@@ -1,5 +1,7 @@
 import { test, expect } from 'bun:test';
 import { DAY_MS, REVIEW_KEY } from '../src/review.js';
+import { RETRIEVALS_KEY } from '../src/learning-log.js';
+import { intervalDays } from '../src/fsrs.js';
 
 test('worker owns review access, persistence, and raced rating serialization', async () => {
   const saved = { chrome: globalThis.chrome, Date: globalThis.Date, fetch: globalThis.fetch };
@@ -60,7 +62,14 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect(replies.filter((r) => r.ok)).toHaveLength(1);
     expect(replies.filter((r) => r.error)).toHaveLength(1);
     expect(data[REVIEW_KEY].cards.y.reviews).toBe(1);
-    expect(data[REVIEW_KEY].cards.y.interval).toBe(7);
+    const winner = replies.find((r) => r.ok);
+    expect(winner.record).toBeUndefined(); // the log record never reaches the page
+    const winningRating = winner.interval === 8 ? 'easy' : 'hard'; // FSRS-6 first Easy 8 days, Hard 1
+    expect(data[REVIEW_KEY].cards.y.interval).toBe(winner.interval);
+    expect(data[REVIEW_KEY].cards.y.fsrs).toMatchObject({ lastReview: now, lapses: 0 });
+    // Exactly one retrieval is logged for the one accepted rating: word ID and fixed fields only.
+    expect(data[RETRIEVALS_KEY].retrievals).toEqual([['y', now, 'standalone', 'productive', winningRating, 0, 0, 0,
+      winner.interval, null]]);
     expect((await dispatch({ type: 'reviewReveal', ticket: first.ticket }, review)).error).toMatch(/no longer/);
     data['c:synthetic'] = { s: [], t: now };
     const beforeClear = structuredClone(data[REVIEW_KEY]);
@@ -68,7 +77,7 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect(data['c:synthetic']).toBeUndefined();
     expect(data[REVIEW_KEY]).toEqual(beforeClear); // model cache controls cannot erase recall history
     expect((await dispatch({ type: 'reviewNext' }, review)).card.en).toBe('but');
-    now += 7 * DAY_MS;
+    now += 8 * DAY_MS;
     expect((await dispatch({ type: 'reviewStatus' }, review)).due).toBe(10);
     // Storage survives a page refresh or service worker suspension.
     expect((await dispatch({ type: 'reviewNext' }, review)).card.ticket).toBe(data[REVIEW_KEY].current.ticket);
@@ -130,9 +139,11 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect((await dispatch({ type: 'reviewReveal', ticket: missed.ticket }, review)).answer.fr).toBe('y');
     const beforeMiss = structuredClone(data[REVIEW_KEY]);
     failReviewWrite = true;
+    const loggedBefore = structuredClone(data[RETRIEVALS_KEY]);
     expect((await dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review)).error)
       .toMatch(/Storage failed/);
     expect(data[REVIEW_KEY]).toEqual(beforeMiss);
+    expect(data[RETRIEVALS_KEY]).toEqual(loggedBefore); // a rating that did not persist is not logged
     failReviewWrite = false;
     const missReplies = await Promise.all([
       dispatch({ type: 'reviewRate', ticket: missed.ticket, rating: 'again' }, review),
@@ -156,8 +167,36 @@ test('worker owns review access, persistence, and raced rating serialization', a
     expect(hard.en).toBe('and');
     await dispatch({ type: 'reviewReveal', ticket: hard.ticket }, review);
     expect((await dispatch({ type: 'reviewRate', ticket: hard.ticket, rating: 'hard' }, review)).ok).toBe(true);
-    expect(data[REVIEW_KEY].cards.y.due).toBe(now + DAY_MS);
-    expect(data[REVIEW_KEY].cards.y.interval).toBe(1);
+    // Same-day Hard after the retry: FSRS short-term update, never below one day.
+    const afterHard = data[REVIEW_KEY].cards.y;
+    expect(afterHard.interval).toBe(intervalDays(afterHard.fsrs.stability));
+    expect(afterHard.interval).toBeGreaterThanOrEqual(1);
+    expect(afterHard.due).toBe(now + afterHard.interval * DAY_MS);
+    expect(data[RETRIEVALS_KEY].retrievals.at(-1).slice(2, 5)).toEqual(['standalone', 'productive', 'hard']);
+    expect(data[RETRIEVALS_KEY].retrievals.at(-1)[7]).toBe(0); // same-day: zero elapsed days
+
+    // learningStats: read-only, review page only, local measurements of this scope.
+    expect(await dispatch({ type: 'learningStats' }, popup)).toBeUndefined();
+    expect(await dispatch({ type: 'learningStats' }, page)).toBeUndefined();
+    const storedBefore = JSON.stringify(data);
+    const stats = await dispatch({ type: 'learningStats' }, review);
+    expect(JSON.stringify(data)).toBe(storedBefore);
+    expect(stats).toMatchObject({ language: 'Spanish', retention: 0.9,
+      scope: { retrievals: data[RETRIEVALS_KEY].retrievals.length, leeches: { count: 0 } },
+      personal: { retrievals: 0 } });
+    expect(Object.keys(stats.scope)).toEqual(['retrievals', 'claims', 'nextDayRecall', 'longRetention', 'calibration',
+      'verifiedKnown', 'peekRate', 'exposureCoverage', 'workload', 'leeches']);
+
+    // Target recall: validated, kept without bumping the reading epoch, and used by the scheduler.
+    const epoch = data.epoch;
+    expect((await dispatch({ type: 'save', settings: { desiredRetention: 0.95 } }, popup)).error).toMatch(/between 0.85 and 0.9/);
+    expect(data.settings.desiredRetention).toBeUndefined();
+    await dispatch({ type: 'save', settings: { desiredRetention: 0.85 } }, popup);
+    expect(data.settings.desiredRetention).toBe(0.85);
+    expect(data.epoch).toBe(epoch);
+    expect((await dispatch({ type: 'learningStats' }, review)).retention).toBe(0.85);
+    await dispatch({ type: 'save', settings: { desiredRetention: null } }, popup);
+    expect(Object.hasOwn(data.settings, 'desiredRetention')).toBe(false);
   } finally {
     Object.assign(globalThis, saved);
   }

@@ -140,6 +140,14 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     ]);
     expect(raced.filter((r) => r.ok)).toHaveLength(1);
     expect(data.recallReview.cards[due].reviews).toBe(1);
+    // One inline retrieval is logged for the one accepted rating, none for the failed write.
+    const inlineLog = data.learningRetrievals.retrievals.filter((t) => t[2] === 'inline');
+    expect(inlineLog).toHaveLength(1);
+    expect(inlineLog[0][0]).toBe(due);
+    expect(inlineLog[0].slice(3, 6)).toEqual(['productive', raced.find((r) => r.ok).interval > 1 ? 'easy' : 'hard', 0]);
+    expect(Number.isSafeInteger(inlineLog[0][6])).toBe(true); // worker-measured review time
+    expect(raced.find((r) => r.ok).record).toBeUndefined();
+    expect(JSON.stringify(data.learningRetrievals)).not.toMatch(/https?:|example/);
     expect((await send({ type: 'inlineBegin', word: due, revision: restored }, page)).error).toMatch(/not due/);
     expect(await send({ type: 'reviewStatus' }, page)).toBeUndefined();
     await send({ type: 'save', settings: { enabled: false } }, popup);
