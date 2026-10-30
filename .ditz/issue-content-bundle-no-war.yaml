@@ -1,0 +1,27 @@
+id: content-bundle-no-war
+title: Eliminate the web-accessible content-script fingerprint (use_dynamic_url breaks
+  module imports)
+desc: 'From store-engineering (PR #23): use_dynamic_url does not work for the content
+  loader in Chromium 156. A module fetched through the dynamic URL gets import.meta.url
+  on the static extension ID, so its relative imports are denied unless also web-accessible
+  by static URL. So some file stays probeable at chrome-extension://lkbkmlgogcpcacjmdmoecgacdbfddbnh/
+  while content.js loads ES modules. Options: (A) narrow web_accessible_resources
+  to content.js''s import closure (surface reduced, fingerprint remains); (C) package.mjs
+  emits one classic content bundle for the Store build (dependency-free module wrapper),
+  nothing web-accessible in the Store zip, unpacked stays modular; (D) rewrite content-side
+  modules as classic content_scripts (large, shared with worker); (E) accept and disclose.
+  Recommendation: A now, C before the first Store upload. Decides: Ted. Blocks: closing
+  the fingerprinting half of privacy-and-fingerprinting.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:17:21-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:17:21-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
