@@ -1,0 +1,20 @@
+id: progress-reading-days
+title: Count reading-only days as practice (needs a per-day exposure record)
+desc: 'Days practised and the activity strip count only days with a retrieval. Reading-only
+  days (exposures) cannot be counted: learningExposures keeps per-word first/last
+  day and a distinct-day count, no per-day series. Counting reading days needs a bounded
+  per-day activity record (format change). Also enables peek rate over time (section
+  9.5). Filed by progress-words (PR #28).'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:51:08-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:51:08-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
