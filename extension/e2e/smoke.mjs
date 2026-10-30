@@ -139,7 +139,7 @@ try {
   // The popup's resolved configuration confirms the real site gate, then allow discovery/debounce to settle.
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
-  await popup.waitForFunction(() => document.querySelector('#today')?.textContent.includes('available to add'));
+  await popup.waitForFunction(() => document.querySelector('#today')?.textContent.startsWith('Today:'));
   const popupSize = await popup.evaluate(() => ({ width: document.body.getBoundingClientRect().width,
     height: document.body.getBoundingClientRect().height }));
   assert.equal(popupSize.width, 300);
@@ -151,8 +151,10 @@ try {
   assert.equal(await options.locator('#wordInfo').textContent(), '30 Spanish words');
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
+  assert.equal(new URL(words.url()).pathname, '/src/words.html');
   assert.equal(new URL(words.url()).search, '');
-  await words.locator('#entries').getByText('No personal entries yet.').waitFor();
+  await words.locator('#count').getByText('226 words').waitFor(); // the full pack, nothing started
+  assert.equal(await words.locator('#headline').textContent(), 'No words verified yet');
   assert.equal(await popup.locator('h1').textContent(), 'Lang Weave');
   assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
   assert.equal(await popup.locator('#primary').textContent(), 'Add words');

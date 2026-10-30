@@ -5,9 +5,12 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // derived by evaluating that exact expression over every handler name. A change here is a
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
-  popup: ['recoverBudget', 'save', 'status'],
-  options: ['addLanguage', 'clearCache', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
+  // progress (0.12.10): read-only local progress summary for the popup Today line and options.
+  popup: ['progress', 'recoverBudget', 'save', 'status'],
+  options: ['addLanguage', 'clearCache', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
   welcome: ['save'],
+  // My words (0.12.10): its own page entry. personalArchive is the capture page's existing handler.
+  words: ['personalArchive', 'progress', 'wordKnown', 'wordPractice', 'wordReset', 'wordsList'],
   // learningStats (0.12.6): read-only local measurements, review page only.
   review: ['learningStats', 'reviewIntroduce', 'reviewKnown', 'reviewNext', 'reviewRate', 'reviewReveal', 'reviewStatus'],
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
@@ -26,6 +29,7 @@ const SENDERS = {
   popup: { id: ID, url: `${BASE}src/popup.html` },
   options: { id: ID, url: `${BASE}src/options.html` },
   welcome: { id: ID, url: `${BASE}src/welcome.html` },
+  words: { id: ID, url: `${BASE}src/words.html` },
   review: { id: ID, url: `${BASE}src/review.html` },
   capture: { id: ID, url: `${BASE}src/capture.html?nonce=abc` },
   backup: { id: ID, url: `${BASE}src/backup.html` },
@@ -42,6 +46,13 @@ const NEAR_MISSES = [
   [{ id: ID, url: `${BASE}src/welcome.html?x=1` }, []],
   [{ id: ID, url: `${BASE}src/welcome.html#privacy` }, []],
   [{ id: 'another-id', url: `${BASE}src/welcome.html` }, ['welcome']], // worker rejects the foreign ID first
+  [{ id: ID, url: `${BASE}src/words.html?id=gato` }, []], // My words takes no parameters
+  [{ id: ID, url: `${BASE}src/words.html#top` }, []],
+  [{ id: ID, url: `${BASE}words.html` }, []],
+  [{ id: ID, url: 'chrome-extension://another-id/src/words.html' }, []],
+  [{ id: ID, url: 'https://example.com/src/words.html' }, []],
+  [{ id: ID, tab: { id: 2 }, url: `${BASE}src/words.html` }, ['words']], // the page runs in a tab
+  [{ id: 'another-id', url: `${BASE}src/words.html` }, ['words']], // worker rejects the foreign ID first
   [{ id: ID, url: `${BASE}src/sidepanel.html` }, []],
   [{ id: ID, url: `${BASE}src/capture.htm` }, []],
   [{ id: ID, url: `${BASE}capture.html` }, []],
@@ -125,9 +136,11 @@ test('near-miss senders match no surface, or only the one the old boolean matche
 }));
 
 test('unmodified sender decisions equal the pre-split boolean', () => withChrome(() => {
-  const senders = [...Object.entries(SENDERS).filter(([name]) => !['popup', 'options', 'welcome'].includes(name)).map(([, sender]) => sender),
+  // popup and options changed after the split; welcome and words are new. The oracle covers the rest.
+  const changed = ['popup', 'options', 'welcome', 'words'];
+  const senders = [...Object.entries(SENDERS).filter(([name]) => !changed.includes(name)).map(([, sender]) => sender),
     ...NEAR_MISSES.filter(([sender, expected]) => !sender.url?.includes('/src/welcome.html') &&
-      !['popup', 'options'].includes(expected[0])).map(([sender]) => sender)];
+      !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])

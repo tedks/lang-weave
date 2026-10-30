@@ -49,8 +49,12 @@ export function cleanReview(raw, words, now = Date.now()) {
     Number.isSafeInteger(inline.tabId) && Number.isSafeInteger(inline.frameId) &&
     typeof inline.revision === 'string' && inline.revision.length <= 100 &&
     typeof inline.revealed === 'boolean';
+  // `practice`: the card's due time when the learner chose it with Practice now (My words).
+  // While the card still has that due time it may be served before it is due; FSRS schedules it
+  // from the real elapsed time (an early review). Any other write to the card voids the grant.
+  const practice = (value) => Number.isSafeInteger(value?.practice) && value.practice >= 0 ? { practice: value.practice } : {};
   return { version: 1, cards, current: valid
-    ? { word: current.word, ticket: current.ticket, revealed: current.revealed, ...shown(current) } : null,
+    ? { word: current.word, ticket: current.ticket, revealed: current.revealed, ...shown(current), ...practice(current) } : null,
     learning: cleanLearning(raw?.learning, now), inline: validInline ? { word: inline.word, ticket: inline.ticket,
       documentId: inline.documentId, tabId: inline.tabId, frameId: inline.frameId,
       revision: inline.revision, revealed: inline.revealed, ...shown(inline) } : null };
@@ -70,9 +74,21 @@ export function introduce(state, words, now, count = 5) {
   return fresh.length;
 }
 
+// Whether the ticket's card may be prompted now. Never a familiar card. A Practice now ticket is
+// valid exactly while its grant holds (the card's due time is unchanged), due or not; once any
+// write voids the grant it stays void, so a fresh ticket replaces it. Any other ticket needs a
+// due card.
+export function askable(state, current, now) {
+  const card = current && state.cards[current.word];
+  if (!card || card.familiar) return false;
+  return Number.isSafeInteger(current.practice) ? current.practice === card.due : card.due <= now;
+}
+
 export function nextReview(state, words, now, ticket = () => crypto.randomUUID()) {
   const active = state.current && words.find(({ fr }) => fr === state.current.word);
-  if (!active || state.cards[active.fr]?.due > now || state.cards[active.fr]?.familiar) state.current = null;
+  if (!active || !askable(state, state.current, now)) state.current = null;
+  // A Practice now ticket is created before the review page shows it; its latency starts here.
+  if (Number.isSafeInteger(state.current?.practice) && !Number.isSafeInteger(state.current.shownAt)) state.current.shownAt = now;
   if (!state.current) {
     const due = words.filter(({ fr }) => state.cards[fr]?.due <= now && !state.cards[fr]?.familiar)
       .sort((a, b) => state.cards[a.fr].due - state.cards[b.fr].due);
@@ -84,8 +100,7 @@ export function nextReview(state, words, now, ticket = () => crypto.randomUUID()
 }
 
 export function revealReview(state, words, ticket, now) {
-  if (!state.current || state.current.ticket !== ticket || state.cards[state.current.word]?.due > now ||
-      state.cards[state.current.word]?.familiar) return null;
+  if (!state.current || state.current.ticket !== ticket || !askable(state, state.current, now)) return null;
   const word = words.find(({ fr }) => fr === state.current.word);
   if (!word) return null;
   state.current.revealed = true;
@@ -101,8 +116,8 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false, ret
   const current = state.current;
   if (!RATINGS.has(rating) || !current || current.ticket !== ticket || !current.revealed) return null;
   const card = state.cards[current.word];
-  if (!card || card.due > now || card.familiar) return null;
-  const result = scheduleCard(card, rating, now, autoFamiliar, retention);
+  if (!askable(state, current, now)) return null;
+  const result = scheduleCard(card, rating, now, autoFamiliar, retention, card.due > now);
   result.record = { word: current.word, latencyMs: reviewLatency(current, now), ...result.record };
   state.current = null;
   return result;
@@ -121,7 +136,10 @@ function daysSinceIntroduction(day, now) {
 // the ten-minute retry with interval 0. A card without consistent stored state is migrated from
 // due/interval first. Familiar and the Easy streak are unchanged (familiar-maintenance is separate).
 // Returns the new due/interval plus the learning-log record for this retrieval.
-function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAULT_RETENTION) {
+// `early`: a Practice now review before the due time. It is scheduled by FSRS like any other,
+// but an early Easy never extends the Easy streak (Hard or Medium still resets it), so
+// automatic familiarity still needs three spaced Easy reviews.
+function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAULT_RETENTION, early = false) {
   // Stored state is the scheduler's own; a migrated estimate is not, so its prediction is not
   // logged (it would contaminate the calibration test of the scheduler).
   const stored = storedFsrs(card);
@@ -137,6 +155,9 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
     // Keep a failed recall unmastered if another valid route ever reaches
     // this scheduler with a previously familiar card.
     delete card.familiar;
+  } else if (early) {
+    // An early pass may break the Easy streak but never extends it.
+    if (rating !== 'easy') card.easyStreak = 0;
   } else {
     card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
     if (autoFamiliar && card.easyStreak >= 3) card.familiar = true;
@@ -149,8 +170,7 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
 
 export function markFamiliar(state, ticket, now) {
   const current = state.current;
-  if (!current || current.ticket !== ticket || !current.revealed || state.cards[current.word]?.due > now ||
-      state.cards[current.word]?.familiar) return false;
+  if (!current || current.ticket !== ticket || !current.revealed || !askable(state, current, now)) return false;
   state.cards[current.word].familiar = true;
   state.current = null;
   return true;

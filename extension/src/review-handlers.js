@@ -1,6 +1,6 @@
 // Review page handlers: the voluntary local recall queue.
 import { REVIEW_KEY, reviewCounts, introduce, nextReview, revealReview, rateReview, markFamiliar,
-  reviewLatency } from './review.js';
+  reviewLatency, askable } from './review.js';
 import { DEFAULT_RETENTION } from './fsrs.js';
 import { logRetrieval } from './learning-records.js';
 import { RETRIEVALS_KEY, EXPOSURES_KEY, cleanRetrievals, cleanExposures, summarize } from './learning-log.js';
@@ -41,7 +41,11 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
         .reduce((due, w) => Math.min(due, state.cards[w.fr].due), Infinity);
       const personalDue = own.words.filter((w) => own.state.cards[w.fr]?.due <= now && !own.state.cards[w.fr]?.familiar)
         .reduce((due, w) => Math.min(due, own.state.cards[w.fr].due), Infinity);
-      const usePersonal = personalDue < legacyDue;
+      // A ticket already on offer (the card on screen, or one chosen with Practice now) keeps its
+      // place across scopes, as nextReview keeps it within one scope.
+      const keepsCurrent = (s, ws) => !!s.current && ws.some(({ fr }) => fr === s.current.word) && askable(s, s.current, now);
+      const keepOwn = keepsCurrent(own.state, own.words), keepLegacy = keepsCurrent(state, words);
+      const usePersonal = keepOwn !== keepLegacy ? keepOwn : personalDue < legacyDue;
       const card = usePersonal ? nextReview(own.state, own.words, now) : nextReview(state, words, now);
       if (usePersonal) {
         if (state.current) { state.current = null; await scoped.set({ [REVIEW_KEY]: state }); }
