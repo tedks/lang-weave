@@ -1,0 +1,29 @@
+id: x-content-script-needs-grant
+title: Unpacked X content script never weaves without a separate x.com grant (tab
+  title hidden)
+desc: 'Pre-existing on origin/main (found by lead-store-engineering, 2026-10-30, Playwright
+  Chromium 156). In an unpacked install with no separate x.com grant, the manifest
+  content script injects on X and sends config/swaps, but chrome.tabs.get/query return
+  no title for a host reached only through content_scripts matches, so safePageTitle()
+  in reading.js fails closed and nothing is woven. Users who granted x.com or all
+  sites are unaffected. Evidence: e2e/store.mjs dev scenario needed a test-only x.com
+  grant; without it tabs.query returned [null,null] and the swaps handler returned
+  at the safePageTitle check. Options: (a) accept: X requires the same grant as any
+  site (consistent with store-x-content-script-ruling option B: drop the manifest
+  X entry everywhere); (b) have the content script supply document.title and trust
+  it when tab.title is unavailable (weakens the guard; not recommended). Recommendation:
+  (a), folded into the store-x-content-script-ruling decision. No data leaves: the
+  worker refuses before any Gemini call.'
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T18:17:21-00:00
+references: []
+log_events:
+- time: 2026-10-30T18:17:21-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
