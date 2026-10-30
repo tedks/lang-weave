@@ -34,3 +34,13 @@ log_events:
     yet. Phase 2: worker writes, latency, view, and backup schema 2 per docs/LEARNING-CORE-MISSION.md.
     Open ruling: learning-log-export-unverified-ruling. Follow-up: learning-log-form-contract.
     Issue stays open.'
+- time: 2026-10-30T19:10:53-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Phase 2 LANDED: #24 f99e475 (0.12.5 reader) and #26 d7acbb9 (0.12.6 writer).
+    Every standalone/inline rating and ''already know'' claim logs a retrieval; reading
+    logs seen/peek exposures; logs are word-ID only, bounded, scope-local, and in
+    backup schema 2 (ruling B omissions counted). The read-only learningStats router
+    message (review page only) returns all section 9 measurements. Remaining: the
+    user-facing ''is this working?'' view, which belongs with today-progress; this
+    issue stays open until that view consumes learningStats.'
