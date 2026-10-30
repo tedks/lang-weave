@@ -13,6 +13,7 @@ export const BADGE_MUTED = '#59636b';
 export function badgeAppearance(state, modelStatus, quotaState, keyEpoch, now = Date.now()) {
   if (state === 'new') return { text: 'NEW', color: BADGE_ATTENTION, title: 'New Lang Weave version available; reload the extension' };
   if (state === 'working') return { text: '', color: BADGE_MUTED, title: 'Lang Weave is on here' };
+  if (state === 'needs_setup') return { text: '!', color: BADGE_ATTENTION, title: 'Finish setup in the welcome page' };
   if (state === 'needs_key') return { text: '!', color: BADGE_ATTENTION, title: 'Add your Gemini key' };
   if (state === 'key_rejected') return { text: '!', color: BADGE_ATTENTION, title: 'Gemini rejected this key. Paste a new one.' };
   if (state === 'needs_site') return { text: '•', color: BADGE_ATTENTION, title: 'Click to turn on here' };
@@ -46,7 +47,7 @@ export function createBadge({ context, store, updatePending }) {
 
   async function snapshot() {
     const [config, data] = await Promise.all([
-      context(), store.get(['keyEpoch', STATUS_KEY, QUOTA_STATE_KEY]),
+      context(), store.get(['keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, 'consentShown']),
     ]);
     const stored = safeModelStatus(data[STATUS_KEY]);
     const budgetReached = stored?.category === 'local_budget' &&
@@ -63,7 +64,7 @@ export function createBadge({ context, store, updatePending }) {
       const [tab, { config, data, status }] = await Promise.all([
         chrome.tabs.get(tabId), sharedSnapshot || snapshot(),
       ]);
-      const state = updatePending() ? 'new' : readingState(config, tab.url, status);
+      const state = updatePending() ? 'new' : readingState(config, tab.url, status, data.consentShown);
       const badge = badgeAppearance(state, status, data[QUOTA_STATE_KEY], data.keyEpoch);
       const options = { tabId };
       const write = (writes.get(tabId) || Promise.resolve()).catch(() => {}).then(async () => {

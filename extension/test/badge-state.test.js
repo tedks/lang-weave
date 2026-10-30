@@ -5,21 +5,21 @@ import { publicContext } from '../src/worker-context.js';
 
 const statuses = [null, 'ok', 'daily_quota', 'rate_limit', 'overloaded', 'key_rejected',
   'request_failed', 'storage_failed', 'local_budget'];
-const states = new Set(['paused', 'needs_key', 'site_off', 'sensitive', 'needs_site',
+const states = new Set(['paused', 'needs_setup', 'needs_key', 'site_off', 'sensitive', 'needs_site',
   'cooldown', 'key_rejected', 'model_error', 'local_budget', 'working', 'unavailable']);
 
 test('every reading predicate combination has exactly one pinned state', () => {
   let checked = 0;
   for (const enabled of [false, true]) for (const paused of [false, true])
-    for (const hasKey of [false, true]) for (const siteOn of [false, true])
+    for (const consentShown of [false, true]) for (const hasKey of [false, true]) for (const siteOn of [false, true])
       for (const access of [false, true]) for (const sensitive of [false, true])
         for (const category of statuses) {
           const host = sensitive ? 'mail.google.com' : 'example.com';
           const config = { settings: { enabled, newSitesEnabled: true,
             siteOverrides: { [host]: siteOn } }, paused, hasKey,
           origins: access ? [`https://${host}/*`] : [] };
-          const actual = readingState(config, `https://${host}/article`, category && { category });
-          const expected = !enabled || paused ? 'paused' : !hasKey ? 'needs_key'
+          const actual = readingState(config, `https://${host}/article`, category && { category }, consentShown);
+          const expected = !enabled || paused ? 'paused' : !consentShown ? 'needs_setup' : !hasKey ? 'needs_key'
             : !siteOn ? 'site_off' : !access ? 'needs_site'
             : category === 'key_rejected' ? 'key_rejected'
             : ['daily_quota', 'rate_limit', 'overloaded'].includes(category) ? 'cooldown'
@@ -29,7 +29,7 @@ test('every reading predicate combination has exactly one pinned state', () => {
           expect(states.has(actual)).toBe(true);
           checked++;
         }
-  expect(checked).toBe(576);
+  expect(checked).toBe(1152);
 });
 
 test('sensitive default, internal page and malformed status stay in fixed states', () => {
@@ -71,7 +71,7 @@ test('popup public config retains the worker predicates used by readingState', (
 test('badge text, colors and titles are allowlisted; NEW wins as its own state', () => {
   const cases = [
     ['new', 'NEW', BADGE_ATTENTION], ['working', '', BADGE_MUTED],
-    ['needs_key', '!', BADGE_ATTENTION], ['needs_site', '•', BADGE_ATTENTION],
+    ['needs_setup', '!', BADGE_ATTENTION], ['needs_key', '!', BADGE_ATTENTION], ['needs_site', '•', BADGE_ATTENTION],
     ['paused', '–', BADGE_MUTED], ['site_off', '–', BADGE_MUTED],
     ['sensitive', '–', BADGE_MUTED], ['unsupported', '–', BADGE_MUTED],
     ['unavailable', '–', BADGE_MUTED],

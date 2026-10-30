@@ -7,7 +7,7 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
   const fire = (name, ...args) => { for (const fn of events[name] || []) fn(...args); };
   const tabs = new Map([[1, { id: 1, url: 'https://example.com/article' }],
     [2, { id: 2, url: 'https://other.example/article' }]]);
-  const data = { settings: { enabled: true, newSitesEnabled: true } };
+  const data = { settings: { enabled: true, newSitesEnabled: true }, consentShown: false };
   const appearances = new Map();
   const badgeWrites = [];
   let origins = [];
@@ -55,7 +55,10 @@ test('worker refreshes tab-local badge on activation, URL, settings, grant, quot
   };
   try {
     await import('../src/background.js?badge-worker');
-    await until(() => appearances.get(1)?.text === '!');
+    await until(() => appearances.get(1)?.title === 'Finish setup in the welcome page');
+    data.consentShown = true;
+    fire('storage', { consentShown: { newValue: true } }, 'local');
+    await until(() => appearances.get(1)?.title === 'Add your Gemini key');
     expect(appearances.get(1).title).toBe('Add your Gemini key');
     data.apiKey = 'synthetic-key';
     fire('storage', { apiKey: { newValue: 'synthetic-key' } }, 'local');

@@ -144,7 +144,7 @@ chrome.tabs.onUpdated?.addListener((tabId, change) => {
     void badge.refresh(tabId).catch(() => {});
 });
 chrome.storage.onChanged?.addListener((changes, area) => {
-  if (area === 'local' && ['settings', 'apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY]
+  if (area === 'local' && ['settings', 'apiKey', 'keyEpoch', 'consentShown', STATUS_KEY, QUOTA_STATE_KEY]
     .some((key) => Object.hasOwn(changes, key))) void badge.refreshAll().catch(() => {});
 });
 

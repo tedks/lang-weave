@@ -33,8 +33,9 @@ async function refresh() {
   $('today').textContent = `Today · ${due} due for review · ${available} available to add`;
   $('primary').textContent = due > 0 ? `Review ${due} due ${due === 1 ? 'word' : 'words'}`
     : available > 0 ? 'Add words' : 'Practice';
-  const state = readingState(c, tab?.url, status.modelStatus);
+  const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
   $('operation').textContent = state === 'paused' ? 'Off'
+    : state === 'needs_setup' ? 'Finish setup in the welcome page'
     : state === 'needs_key' ? 'Add a Gemini key to start'
     : ['site_off', 'sensitive'].includes(state) ? 'Off on this site'
     : state === 'needs_site' ? 'This site needs your OK'

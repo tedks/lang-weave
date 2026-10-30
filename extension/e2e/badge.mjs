@@ -38,14 +38,13 @@ try {
     contentType: 'text/html', body: '<!doctype html><title>Badge fixture</title><main></main>',
   }));
   const page = await browser.newPage();
-  const action = async () => worker.evaluate(async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) return null;
-    const tabId = tab.id;
+  let tabId;
+  const action = async () => worker.evaluate(async (tabId) => {
+    if (!tabId) return null;
     return { tabId, text: await chrome.action.getBadgeText({ tabId }),
       color: await chrome.action.getBadgeBackgroundColor({ tabId }),
       title: await chrome.action.getTitle({ tabId }) };
-  });
+  }, tabId);
   const waitFor = async (text, title) => {
     for (let i = 0; i < 100; i++) {
       const value = await action();
@@ -58,7 +57,12 @@ try {
     throw new Error(`badge ${JSON.stringify(text)} did not appear on ${page.url()}: ${JSON.stringify(observed)}`);
   };
   await page.goto('https://reading.example/no-key');
-  const needsKey = await waitFor('!');
+  tabId = await worker.evaluate(async () => (await chrome.tabs.query({ url: 'https://reading.example/*' }))[0]?.id);
+  assert.ok(tabId, 'granted test page has a visible tab ID');
+  const setup = await waitFor('!', 'Finish setup in the welcome page');
+  assert.equal(setup.title, 'Finish setup in the welcome page');
+  await worker.evaluate(() => chrome.storage.local.set({ consentShown: true })); // synthetic completion of the welcome choice
+  const needsKey = await waitFor('!', 'Add your Gemini key');
   assert.equal(needsKey.title, 'Add your Gemini key');
   assert.equal(colorCss(needsKey.color), 'rgb(155, 34, 27)');
   await worker.evaluate(() => chrome.storage.local.set({ apiKey: 'synthetic-badge-key' }));

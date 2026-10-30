@@ -2,7 +2,7 @@
 
 ## Current state
 
-Ready for final exact-head gates and normal merge in PR #27. Issue `badge-state` is started. The badge explains why reading is idle on the current tab using only worker-held settings, key presence, site grants and sanitized model status. No page text, hostname, provider message or key enters badge copy.
+Ready for final exact-head gates and normal merge in PR #27 after rebasing on welcome-page PR #29. Issue `badge-state` is started. The badge explains why reading is idle on the current tab using only worker-held settings, key presence, site grants and sanitized model status. No page text, hostname, provider message or key enters badge copy.
 
 ## Assumptions and acceptance
 
@@ -34,3 +34,7 @@ The second fix-delta round (`b7b8141..f956dd5`) was CLEAN from both available se
 ## Verification scope
 
 The browser probe reads real `chrome.action` text, title and background colour per tab. Its screenshots compose those observed values beside the shipped 16 px icon on synthetic light and dark toolbar surfaces; headless Playwright cannot capture Chromium's native toolbar. Both badges use white text with calculated contrast above 4.5:1 against the observed action colours. It exercises no live Gemini call or user browser profile. The quota browser gate failed once during the full sequential run because the restarted worker did not process the second page within its attempt window; the isolated retry passed. The final exact-head gates and merge record belong in the PR comment.
+
+## Welcome-page integration at rebase
+
+Main advanced to `8b6a446` (welcome PR #29, version 0.12.9), so this branch takes 0.12.10. A fresh profile now writes `consentShown: false` and blocks Gemini dispatch until the user explicitly chooses site policy. The existing status message exposes `consentShown`; the badge reads the same worker-held marker and shares a `needs_setup` predicate with the popup, ahead of key/site/model state. It shows `!` and fixed title “Finish setup in the welcome page”. The storage event refreshes the badge after the choice. Existing profiles without the marker remain allowed. The badge browser fixture now targets its tab by ID because the install-only welcome tab can become active during the probe. This integration is reviewed and gated on the rebased head.

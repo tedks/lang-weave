@@ -3,9 +3,10 @@
 import { siteEnabled, hasSiteAccess, offByDefault } from './settings.js';
 import { safeModelStatus } from './quota-status.js';
 
-export function readingState(config, url, modelStatus) {
+export function readingState(config, url, modelStatus, consentShown = true) {
   const settings = config.settings;
   if (!settings.enabled || config.paused) return 'paused';
+  if (consentShown === false) return 'needs_setup';
   if (!config.hasKey) return 'needs_key';
   if (typeof url !== 'string') return 'unavailable'; // Chrome withholds URLs without a host grant or activeTab gesture
   let host;
