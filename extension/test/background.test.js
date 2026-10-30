@@ -3,7 +3,7 @@ import { PENDING_KEY, localDay } from '../src/events.js';
 import { EXPOSURES_KEY } from '../src/learning-log.js';
 
 // The real service worker (fresh module copy via ?background) with a minimal fake chrome: no page, no Gemini.
-test('worker: update badge follows the manifest on disk; concurrent Spanish page events stay local', async () => {
+test('worker starts without chrome.alarms; update badge follows disk and page events stay local', async () => {
   const saved = Object.fromEntries(['chrome', 'fetch', 'setTimeout'].map((k) => [k, globalThis[k]]));
   // The worker's 10 s event flush would otherwise fire during a later test file, against that file's fake chrome.
   const realTimeout = globalThis.setTimeout;
@@ -38,7 +38,6 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
     action: { setBadgeText: async ({ text }) => { badges.push(text); } },
     tabs: { get: async () => ({ id: 1, title: 'Ordinary reading', url: 'https://example.com/article' }),
       query: async () => [{ id: 1, url: 'https://example.com/article' }], sendMessage: async () => {} },
-    alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
       unregisterContentScripts: async () => {}, registerContentScripts: async () => {} },

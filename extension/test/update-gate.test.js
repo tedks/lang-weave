@@ -71,6 +71,7 @@ test('a Store or Edge install (update_url present) never self-updates, badges or
   for (const update_url of ['https://clients2.google.com/service/update2/crx',
     'https://edge.microsoft.com/extensionwebstorebase/v1/crx', '']) {
     const { calls, data, update } = fakeChrome({ version: '1.0.0', update_url }, '1.0.1');
+    delete globalThis.chrome.alarms; // the Store permission is absent, so Chrome hides the API
     expect(selfUpdating()).toBe(false);
     update.arm();
     expect(await update.checkUpdate()).toBe('');

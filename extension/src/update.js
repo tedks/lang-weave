@@ -66,7 +66,7 @@ export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {
   // because disabling and re-enabling the extension clears alarms without firing onInstalled.
   function arm() {
     if (!selfUpdating()) return;
-    chrome.alarms.create(ALARM, { periodInMinutes: 30 });
+    chrome.alarms?.create(ALARM, { periodInMinutes: 30 });
     void checkUpdate();
   }
   return { checkUpdate, arm, updatePending };
