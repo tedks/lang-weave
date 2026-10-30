@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 
-test('the first routed message waits for granted-site registration after worker wake', async () => {
+test('the first routed message waits for registration and retries a transient startup failure', async () => {
   const previous = Object.fromEntries(['chrome', 'fetch'].map((name) => [name, globalThis[name]]));
   const data = { settings: { enabled: true, newSitesEnabled: true }, apiKey: 'synthetic-key' };
   const listeners = [];
@@ -9,6 +9,7 @@ test('the first routed message waits for granted-site registration after worker 
   const heldRegistration = new Promise((done) => { releaseRegistration = done; });
   let registrationStarted = false;
   let registrationFinished = false;
+  let registrationAttempts = 0;
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
@@ -29,7 +30,11 @@ test('the first routed message waits for granted-site registration after worker 
     scripting: { getRegisteredContentScripts: async () => [],
       registerContentScripts: async () => {
         registrationStarted = true;
-        await heldRegistration;
+        registrationAttempts++;
+        if (registrationAttempts === 1) {
+          await heldRegistration;
+          throw new Error('temporary registration failure');
+        }
         registrationFinished = true;
       }, updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
@@ -51,6 +56,7 @@ test('the first routed message waits for granted-site registration after worker 
     releaseRegistration();
     expect((await reply).revision).toBeString();
     expect(registrationFinished).toBe(true);
+    expect(registrationAttempts).toBe(2);
   } finally {
     releaseRegistration();
     Object.assign(globalThis, previous);

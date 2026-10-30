@@ -109,11 +109,11 @@ try {
   worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   assert.equal(await worker.evaluate(() => 'syntheticCalls' in globalThis), false);
   // In an unpacked profile Chrome may recreate dynamic registrations after
-  // worker wake. The first routed reply must wait for that restoration.
+  // worker wake. A routed reply must wait for that restoration.
   const readinessPage = await browser.newPage();
   await readinessPage.goto(`chrome-extension://${id}/src/popup.html`);
   const firstReply = await readinessPage.evaluate(() => chrome.runtime.sendMessage({ type: 'status' }));
-  assert.ok(firstReply.config?.revision);
+  assert.ok(firstReply.config?.revision, firstReply.error || 'status reply lacked config revision');
   const registeredOnWake = await worker.evaluate(() =>
     chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.equal(registeredOnWake.length, 1, 'first worker reply outran granted-site registration');

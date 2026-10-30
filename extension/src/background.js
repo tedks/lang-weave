@@ -95,8 +95,12 @@ const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalL
     context, broadcast, reviewState });
 const { registerSites, permissionsChanged } = createSites({ store, locked, worker, broadcast });
 // The first routed reply must not run ahead of restoring a granted site's
-// content script after an MV3 worker wake or profile restart.
+// content script after an MV3 worker wake. A page loaded before this reply
+// can still miss injection (see startup-injection-gap).
 const sitesReady = ready.then(registerSites);
+// A transient registration failure must not poison every later routed message.
+// createSites serializes attempts, so a later reply can safely try again.
+const awaitSites = () => sitesReady.catch(() => registerSites());
 
 // Each sender surface may send only the messages router.js lists for it.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -137,7 +141,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     learningImport: () => learningImport(msg, sender),
   };
   if (!handlers[msg.type] || !surfaceAllows(surfaces, msg.type)) return false;
-  sitesReady.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
+  awaitSites().then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
 
