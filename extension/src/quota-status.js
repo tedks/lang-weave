@@ -138,6 +138,21 @@ export function safeModelStatus(value) {
   return out;
 }
 
+// The popup and toolbar must ignore the same expired or stale operational status.
+export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReached, now = Date.now()) {
+  let status = safeModelStatus(value);
+  if (status && ['daily_quota', 'rate_limit', 'overloaded'].includes(status.category)) {
+    const kind = status.category === 'daily_quota' ? 'daily'
+      : status.category === 'overloaded' ? 'overloaded' : 'short';
+    const quota = cleanQuotaState(quotaState, keyEpoch, now);
+    if (!Object.values(quota.cooldowns).some((entry) => entry.kind === kind)) status = null;
+  }
+  if (status?.category === 'local_budget' && !localBudgetReached) status = null;
+  if (['request_failed', 'storage_failed'].includes(status?.category) &&
+      (!Number.isFinite(status.at) || status.at > now || now - status.at > 3600000)) status = null;
+  return status;
+}
+
 export function retainedRetryAt(previous, category, now, remainingMs) {
   const safe = safeModelStatus(previous);
   if (!safe || safe.category !== category || !finite(remainingMs) || remainingMs <= 0 ||

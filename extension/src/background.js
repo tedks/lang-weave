@@ -19,6 +19,8 @@ import { createSettingsHandlers } from './settings-handlers.js';
 import { createCaptureHandlers } from './capture-handlers.js';
 import { createBackupHandlers } from './backup-handlers.js';
 import { createSites } from './sites.js';
+import { createBadge } from './badge.js';
+import { STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 export { RELOADED_KEY } from './update.js';
 
 const store = chrome.storage.local;
@@ -77,7 +79,11 @@ const { swaps, record } = createReading({ store, cache, locked, modelCall, worke
 const { reviewStatus, reviewIntroduce, reviewNext, reviewReveal, reviewRate, reviewKnown, learningStats } =
   createReviewHandlers({ store, locked, context, reviewState });
 const { inlineAction } = createInlineRecall({ store, locked, context, reviewState });
-const { checkUpdate, arm } = createUpdate({ store, locked, modelCall });
+let refreshBadges = () => {};
+const { checkUpdate, arm, updatePending } = createUpdate({ store, locked, modelCall,
+  onBadgeChange: () => refreshBadges() });
+const badge = createBadge({ store, context, updatePending });
+refreshBadges = badge.refreshAll;
 const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
@@ -129,6 +135,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
 chrome.permissions.onAdded.addListener(permissionsChanged);
 chrome.permissions.onRemoved.addListener(permissionsChanged);
+chrome.permissions.onAdded.addListener(() => void badge.refreshAll().catch(() => {}));
+chrome.permissions.onRemoved.addListener(() => void badge.refreshAll().catch(() => {}));
+chrome.tabs.onActivated?.addListener(({ tabId }) => void badge.refresh(tabId).catch(() => {}));
+chrome.tabs.onUpdated?.addListener((tabId, change) => {
+  // Chrome omits change.url on a tab whose host is not granted, but still reports loading.
+  if (change.url || change.status === 'loading' || change.status === 'complete')
+    void badge.refresh(tabId).catch(() => {});
+});
+chrome.storage.onChanged?.addListener((changes, area) => {
+  if (area === 'local' && ['settings', 'apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY]
+    .some((key) => Object.hasOwn(changes, key))) void badge.refreshAll().catch(() => {});
+});
 
 chrome.runtime.onInstalled.addListener(arm);
 chrome.runtime.onInstalled.addListener(openWelcome);
@@ -139,9 +157,11 @@ chrome.alarms.onAlarm.addListener((a) => {
 });
 chrome.contextMenus?.onClicked?.addListener(captureMenuListener);
 chrome.tabs.onRemoved?.addListener((tabId) => {
+  badge.removed(tabId);
   contentDocuments.delete(tabId);
   for (const [nonce, draft] of captureDrafts) if (draft.tabId === tabId) captureDrafts.delete(nonce);
 });
 chrome.runtime.onInstalled.addListener(registerCaptureMenu);
 chrome.runtime.onStartup.addListener(registerCaptureMenu);
 void ready.then(registerSites).catch(() => {});
+void ready.then(() => badge.refreshAll()).catch(() => {});

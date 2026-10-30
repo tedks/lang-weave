@@ -1,7 +1,7 @@
 // Popup handlers: settings, key, language packs, cache and status.
 import { chromeStorage } from './cache.js';
 import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, readBoundedBody,
-  safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+  safeModelStatus, visibleModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 import { API_BASE } from './gemini.js';
 import { cleanSettings } from './settings.js';
 import { MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
@@ -208,16 +208,9 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     const config = await context();
     const data = await store.get(['apiKey', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown']);
     const { state } = await reviewState(config);
-    const quota = cleanQuotaState(data[QUOTA_STATE_KEY], data.keyEpoch);
-    let modelStatus = safeModelStatus(data[STATUS_KEY]);
-    if (modelStatus && ['daily_quota', 'rate_limit', 'overloaded'].includes(modelStatus.category)) {
-      const kind = modelStatus.category === 'daily_quota' ? 'daily'
-        : modelStatus.category === 'overloaded' ? 'overloaded' : 'short';
-      if (!Object.values(quota.cooldowns).some((entry) => entry.kind === kind)) modelStatus = null;
-    }
-    if (modelStatus?.category === 'local_budget' && await callsToday(chromeStorage) < DAILY_MODEL_CALLS) modelStatus = null;
-    if (['request_failed', 'storage_failed'].includes(modelStatus?.category) &&
-        (!Number.isFinite(modelStatus.at) || modelStatus.at > Date.now() || Date.now() - modelStatus.at > 3600000)) modelStatus = null;
+    const modelStatus = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch,
+      safeModelStatus(data[STATUS_KEY])?.category === 'local_budget' &&
+        await callsToday(chromeStorage) >= DAILY_MODEL_CALLS);
     return { config: publicContext(config), words: config.words.length,
       languages: [{ code: 'es', name: 'Spanish', experimental: false }, ...Object.keys(cleanPacks(data[PACKS_KEY])).map((code) => ({ code, name: languageName(code), experimental: true }))],
       pastedKey: !!data.apiKey, consentShown: data.consentShown !== false, modelStatus,

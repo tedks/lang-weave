@@ -22,7 +22,9 @@ export function openWelcome(details) {
 // chrome.management call: a missing key means unpacked, so the fleet's unpacked installs keep the self-update.
 export const selfUpdating = () => !Object.hasOwn(chrome.runtime.getManifest(), 'update_url');
 
-export function createUpdate({ store, locked, modelCall }) {
+export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {} }) {
+  let waitingVersion = '';
+  const updatePending = () => selfUpdating() && !!waitingVersion;
   async function checkUpdate() {
     if (!selfUpdating()) return ''; // no disk fetch, reload, badge or popup banner for a packaged install
     try {
@@ -35,7 +37,10 @@ export function createUpdate({ store, locked, modelCall }) {
           return waiting; // normally not reached: the worker is gone
         } catch { /* fall back to the badge */ }
       }
-      await chrome.action.setBadgeText({ text: waiting ? 'NEW' : '' });
+      if (waitingVersion !== waiting) {
+        waitingVersion = waiting;
+        await onBadgeChange(); // per-tab NEW takes precedence over reading state
+      }
       return waiting;
     } catch {
       return '';
@@ -49,5 +54,5 @@ export function createUpdate({ store, locked, modelCall }) {
     chrome.alarms.create(ALARM, { periodInMinutes: 30 });
     void checkUpdate();
   }
-  return { checkUpdate, arm };
+  return { checkUpdate, arm, updatePending };
 }
