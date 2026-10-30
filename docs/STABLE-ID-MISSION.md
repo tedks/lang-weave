@@ -117,7 +117,7 @@ Repaired tests: `tests/test_weave.py` and `extension/test/spanish.test.js` previ
 
 ## Migration
 
-The README's "Move to the stable ID (0.12.0)" section is the user procedure. In short: bring a pre-0.11 install up to keyless 0.11.1, switch the old install off and export a Learning backup, load the new path unpacked, import before entering a Gemini key, check the review queue, and only then remove the old entry. The old directory is kept until the user deletes it. The popup cannot clear a saved key, because its key field always starts empty. A target that already has a key or progress is reset by removing and reloading the new entry.
+The README's "Move to the stable ID (0.12.0)" section is the user procedure. In short: bring a pre-0.11 install up to keyless 0.11.1, switch the old install off and export a Learning backup, load the new path unpacked, import before entering a Gemini key, check the review queue, and only then remove the old entry. The old directory is kept until the user deletes it. The popup has no visible way to clear a saved key: its key field always starts empty, and only an entry such as a single space stores an empty key. The procedure therefore resets a target that already has a key or progress by removing and reloading the new entry.
 
 ## Record
 
