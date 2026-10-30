@@ -1,0 +1,33 @@
+id: learning-log-export-unverified-ruling
+title: 'Ruling: should an unverified learning-log word ID block the backup export
+  or be omitted with a count?'
+desc: 'Source: docs/LEARNING-CORE-MISSION.md (PR #19), backup plan item 4. Blocks:
+  learning-event-log phase 2 (schema 2 backup).
+
+  Context: portability.js refuses the whole export when a form-keyed card or feedback
+  ID is not in the bundled or installed pack catalog (CTO ruling MSG-CTO-PORTABILITY-ORPHAN-RULING-20261028).
+  The new retrieval log and exposure aggregates keep orphan entries after a catalog
+  change (as cleanReview keeps orphan cards).
+
+  Options: (A) treat unverified log IDs like cards: refuse the export; (B) omit unverified
+  log entries, report only the count in the preview, export the rest; (C) drop orphan
+  log entries on load so they never reach export.
+
+  Recommendation: B. The log is measurement data, not learning state; blocking a whole
+  backup over a removed pack''s measurements loses more than it protects, and B never
+  exports an unverified string.
+
+  Decides: CTO/Ted.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:33:24-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:33:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
