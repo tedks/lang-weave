@@ -107,6 +107,19 @@ test('cleanReview preserves only the legacy version 1 storage contract', () => {
   expect(cleanReview({ version: 2, cards: { y: card } }, words, now).cards).toEqual({});
 });
 
+test('a migrated first FSRS rating logs no prediction; a stored state logs the scheduler\'s', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const words = [{ fr: 'y', en: 'and', hint: '' }];
+  const migrated = cleanReview({ version: 1, cards: { y: { due: now, interval: 20, reviews: 4 } } }, words, now);
+  migrated.current = { word: 'y', ticket: 't', revealed: true, shownAt: now - 4000 };
+  const first = rateReview(migrated, 't', 'medium', now);
+  expect(first.record).toMatchObject({ word: 'y', prior: 4, outcome: 'medium', elapsedDays: 20, predicted: null, latencyMs: 4000 });
+  migrated.current = { word: 'y', ticket: 'u', revealed: true };
+  const next = rateReview(migrated, 'u', 'easy', migrated.cards.y.due);
+  expect(next.record.predicted).toBeCloseTo(0.9, 2); // reviewed on its due date at 0.9 retention
+  expect(next.record.latencyMs).toBeNull(); // no prompt time recorded
+});
+
 test('a lower desired retention schedules longer intervals; the default is 0.9', () => {
   const now = Date.parse('2026-10-17T12:00:00Z');
   const rate = (retention) => {

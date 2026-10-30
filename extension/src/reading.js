@@ -285,11 +285,17 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       const word = ctx.words.find((w) => exactTarget(w.fr, ctx.language) === exactTarget(msg.word, ctx.language));
       if (!word) return { ok: false };
       const personal = ctx.personalAuto.find(({ entry }) => entry.target === word.fr)?.entry;
+      const consent = worker.permissionGeneration;
       await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
         [{ word: personal?.id || word.fr, kind: msg.event }]);
-      // Exposure aggregates for the learning log, at the same point as the reading events.
-      // A flip is a reveal of the English, not an exposure.
-      if (msg.event !== 'flip') await logExposure(ctx, !!personal, personal?.id || word.fr, msg.event, Date.now());
+      // Exposure aggregates for the learning log, at the same point as the reading events. The
+      // event write yielded, so recheck consent before this separate write. A flip is a reveal
+      // of the English, not an exposure.
+      if (msg.event !== 'flip') {
+        const latest = await context();
+        if (latest.revision === ctx.revision && activeOn(latest, sender.url) && worker.permissionGeneration === consent)
+          await logExposure(ctx, !!personal, personal?.id || word.fr, msg.event, Date.now());
+      }
       return { ok: true };
     });
   }

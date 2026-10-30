@@ -113,6 +113,8 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
   }
   // Read-only measurements (learning-science report section 9) for the active scope and its
   // personal scope, for a future "is this working?" surface. Local data only; nothing is sent.
+  // Deliberately unlocked: a read racing a rating may see either side of it, which is harmless
+  // for statistics and keeps this off the rating path's lock.
   async function learningStats() {
     const ctx = await context();
     const now = Date.now();

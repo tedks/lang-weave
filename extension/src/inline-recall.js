@@ -42,7 +42,10 @@ export function createInlineRecall({ store, locked, context, reviewState }) {
       if (personal) await store.set({ [PERSONAL_KEY]: ctx.personal });
       else await scoped.set({ [REVIEW_KEY]: state });
       const { record, ...reply } = result;
-      await logRetrieval(ctx, personal, record, 'inline', now);
+      // The card write yielded: log only if this page is still active under the same revision.
+      const latest = await context();
+      if (latest.revision === ctx.revision && activeOn(latest, sender.url))
+        await logRetrieval(ctx, personal, record, 'inline', now);
       return { ok: true, ...reply };
     });
   }

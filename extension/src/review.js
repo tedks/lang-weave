@@ -122,7 +122,10 @@ function daysSinceIntroduction(day, now) {
 // due/interval first. Familiar and the Easy streak are unchanged (familiar-maintenance is separate).
 // Returns the new due/interval plus the learning-log record for this retrieval.
 function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAULT_RETENTION) {
-  const prior = withFsrs(card).fsrs ?? null;
+  // Stored state is the scheduler's own; a migrated estimate is not, so its prediction is not
+  // logged (it would contaminate the calibration test of the scheduler).
+  const stored = storedFsrs(card);
+  const prior = stored ?? withFsrs(card).fsrs ?? null;
   const reviewsBefore = card.reviews;
   const step = reviewCard(prior, rating, now, { retention, againStepMs: AGAIN_MS });
   card.fsrs = step.fsrs;
@@ -141,7 +144,7 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
   // A first rating has no prior FSRS review, so its gap is counted from the introduction day.
   const elapsedDays = step.elapsedDays ?? (reviewsBefore === 0 ? daysSinceIntroduction(card.introducedDay, now) : null);
   return { due: card.due, interval: card.interval, record: { prior: reviewsBefore, outcome: rating, elapsedDays,
-    intervalDays: step.interval, predicted: step.predictedRecall } };
+    intervalDays: step.interval, predicted: stored ? step.predictedRecall : null } };
 }
 
 export function markFamiliar(state, ticket, now) {
