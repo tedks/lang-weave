@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice,
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
   introductionTicket, finishIntroduction, dropIntroduction } from '../src/text.js';
 
 const win = new Window();
@@ -260,8 +260,12 @@ test('a saved practice rating changes only its span and restores trusted source 
     const span = el.querySelector('.fw-word');
     expect(span.getAttribute('data-fr')).toBeNull();
     expect(span.getAttribute('data-tip')).toBeNull();
+    expect(span.getAttribute('aria-label')).toBeNull(); // waiting for a viewport slot
+    expect(span.textContent).toBe('the idea');
+    expect(setPracticeCue(span, true)).toBe(true);
     expect(span.getAttribute('aria-label')).toBe('the idea. Open inline recall');
     expect(span.getAttribute('title')).toBe('Open inline recall');
+    expect(span.textContent).toBe('the idea?');
     expect(el.textContent).not.toContain('la idea');
     span.setAttribute('data-en', 'forged');
     expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
