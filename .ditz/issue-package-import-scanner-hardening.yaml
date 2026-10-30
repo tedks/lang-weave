@@ -21,3 +21,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T17:55:29-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #21 convergence round 3 (Claude seat): relativeImports now unions a
+    regex reading and a division-only reading. The division reading can give a loud
+    false refusal when a regex with an odd number of backticks (e.g. /`([^`]+)`/g)
+    is followed by a template literal whose text contains import syntax; reproduced
+    in conv3 probes. No effect on the current tree (94 files, no differences). Add
+    a doc sentence that a refusal can be a false positive of the division reading,
+    and a test pinning that direction.'
