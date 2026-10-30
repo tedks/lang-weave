@@ -1,0 +1,18 @@
+id: review-help-legacy
+title: Explain gradual-off Already know help
+desc: 'Council nit: review help now describes Already know in gradual mode but does
+  not explain the legacy permanent retirement when gradual is off. Add context-sensitive
+  or concise help copy without altering review semantics.'
+type: task
+component: review
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:50:07-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:50:07-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
