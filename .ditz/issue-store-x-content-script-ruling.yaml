@@ -20,3 +20,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T18:06:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: Lead store-engineering implements option A (Store build only drops the
+    x.com/twitter.com content_scripts entry via package.mjs --store; unpacked and
+    fleet unchanged) per the CTO brief.
