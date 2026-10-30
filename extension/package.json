@@ -1,6 +1,6 @@
 {
   "name": "lang-weave",
-  "version": "0.12.6",
+  "version": "0.12.7",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -11,7 +11,8 @@
     "test:browser": "node e2e/smoke.mjs",
     "test:again": "node e2e/again.mjs",
     "test:adaptive": "node e2e/adaptive.mjs",
-    "test:highlights": "node e2e/highlights.mjs"
+    "test:highlights": "node e2e/highlights.mjs",
+    "test:store": "node e2e/store.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.14.5",

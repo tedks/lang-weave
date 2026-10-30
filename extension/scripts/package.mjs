@@ -34,12 +34,54 @@ export class PackageError extends Error {
 
 // ---------------------------------------------------------------- store hook
 
+const X_MATCHES = ['https://x.com/*', 'https://twitter.com/*'];
+// The whole entry the X row may drop; anything else on it (another script, a changed timing) must be a decision.
+const X_ENTRY = Object.freeze({ js: ['src/content-loader.js'], css: ['src/content.css'], run_at: 'document_idle' });
+const sameSet = (a, b) => Array.isArray(a) && a.length === b.length && b.every((x) => a.includes(x));
+
 /**
- * Store-only manifest deltas live here and nowhere else (e.g. gating the self-update).
- * Currently a no-op: returns an unchanged deep copy, never the same object.
+ * Store-only manifest deltas live here and nowhere else: one row per top-level manifest key the
+ * Store build changes. storeManifest() applies exactly these rows, and the package test checks that
+ * the Store manifest differs from the dev manifest in exactly these keys. A row's apply() gets a
+ * copy of the dev value and returns the Store value, or undefined to drop the key. A row whose
+ * precondition no longer holds throws rather than shipping a silently different manifest.
+ * The self-update needs no row: src/update.js gates it on the update_url the Store adds at install.
+ * The dev `key` stays for now (ditz store-manifest-key-delta waits on a Store ruling).
  */
+export const STORE_DELTAS = Object.freeze([
+  Object.freeze({
+    key: 'content_scripts',
+    why: 'Drop the hard-coded x.com/twitter.com content script (ditz store-x-content-script-ruling, option A): '
+      + 'it is the only install-time host warning. Store users reach X through the per-site grant like any site; '
+      + 'unpacked and fleet builds keep it.',
+    apply(scripts) {
+      if (!Array.isArray(scripts)) throw new PackageError('store delta content_scripts: the manifest has no content_scripts list');
+      const isX = (cs) => sameSet(cs?.matches, X_MATCHES);
+      const found = scripts.filter(isX).length;
+      if (found !== 1) {
+        throw new PackageError(`store delta content_scripts: expected exactly one entry matching only ${X_MATCHES.join(', ')}, found ${found}`);
+      }
+      const entry = scripts.find(isX);
+      const shape = Object.fromEntries(Object.entries(entry).filter(([k]) => k !== 'matches'));
+      if (JSON.stringify(Object.keys(shape).sort()) !== JSON.stringify(Object.keys(X_ENTRY).sort()) ||
+          Object.entries(X_ENTRY).some(([k, v]) => JSON.stringify(shape[k]) !== JSON.stringify(v))) {
+        throw new PackageError(`store delta content_scripts: the X entry is no longer exactly ${JSON.stringify(X_ENTRY)} plus matches`);
+      }
+      const rest = scripts.filter((cs) => !isX(cs));
+      return rest.length ? rest : undefined;
+    },
+  }),
+]);
+
+/** The Store build's manifest: a deep copy of the dev manifest with STORE_DELTAS applied. */
 export function storeManifest(manifest) {
-  return structuredClone(manifest);
+  const out = structuredClone(manifest);
+  for (const { key, apply } of STORE_DELTAS) {
+    const value = apply(structuredClone(out[key]));
+    if (value === undefined) delete out[key];
+    else out[key] = value;
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ file list
@@ -450,7 +492,7 @@ export function packageExtension({
   }
   if (store) {
     const shipped = storeManifest(manifest);
-    // Keep the original bytes while the hook changes nothing; re-serialise only for real deltas.
+    // Keep the original bytes when no delta changes anything; re-serialise only for real deltas.
     if (JSON.stringify(shipped) !== JSON.stringify(manifest)) {
       manifestFile.data = Buffer.from(`${JSON.stringify(shipped, null, 2)}\n`, 'utf8');
     }

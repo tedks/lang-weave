@@ -1,8 +1,16 @@
 // Content-script registration for granted origins, and the permission-change epoch.
 
+// The hosts where the manifest itself injects the loader. Only loader entries count: an unrelated manifest
+// script must not stop the loader reaching a granted host. Always a list, possibly empty: updateContentScripts
+// leaves an omitted property unchanged, so leaving it out could keep a stale exclusion from an earlier registration.
+export const declaredMatches = () => [...new Set((chrome.runtime.getManifest().content_scripts ?? [])
+  .filter((cs) => (cs.js ?? []).includes('src/content-loader.js')).flatMap((cs) => cs.matches ?? []))];
+
 export function createSites({ store, locked, worker, broadcast }) {
   // Granted origins (all sites, or one at a time from the popup) decide where the content script is injected.
-  // X is in the manifest, so it works without a grant.
+  // Hosts the manifest itself injects into are excluded so no page gets the loader twice: X in the unpacked
+  // build, where it works without a grant. The Store build declares no content script (scripts/package.mjs
+  // STORE_DELTAS), so there a granted X is registered like any other site.
   let registrations = Promise.resolve();
   function registerSites() {
     const p = registrations.then(async () => {
@@ -15,7 +23,7 @@ export function createSites({ store, locked, worker, broadcast }) {
         return;
       }
       const script = { id: 'weave-sites', matches, js: ['src/content-loader.js'], css: ['src/content.css'], runAt: 'document_idle',
-        excludeMatches: ['https://x.com/*', 'https://twitter.com/*'] };
+        excludeMatches: declaredMatches() };
       if (existing.length) await chrome.scripting.updateContentScripts([script]);
       else await chrome.scripting.registerContentScripts([script]);
     });

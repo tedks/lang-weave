@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lang Weave",
-  "version": "0.12.6",
+  "version": "0.12.7",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9kpzEBO0l5O99C+1ICkMrSDXc5mIkgo76cXghhyRtE9NekFsoE9tBb2DuQv/fQ4kyNiv1vxLQyY+QS5/jWEzPwxWl8Iq+f8HiJRAkNmBhEzYR9EkXWPN6T6bEdDezcAN+a0vGtLjHRwF5k8sUACWIYzBuzwelSCdX4gAIEXHPWOD4AseDQoXJOpcnk1amEeNhZinzYpVqQ5HtITozvxwpmx9OEFHp3GbsZI7e9WiWvKenE7VPm1+w1F0EtEKaxvO90qa24vYhOg7tyF8Wh7EHO9YSJKB/vfCB18wKLbYMV/QyHBrLzhiRYBWgIGrp/7pjQbJF6RF0FbMNShRzqTCqwIDAQAB",
   "description": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
   "permissions": [
@@ -40,7 +40,22 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/*.js"
+        "src/catalog.js",
+        "src/content.js",
+        "src/events.js",
+        "src/fsrs.js",
+        "src/hash.js",
+        "src/language-name.js",
+        "src/learning.js",
+        "src/levels.js",
+        "src/page.js",
+        "src/personal-capture.js",
+        "src/personal.js",
+        "src/review.js",
+        "src/semantic.js",
+        "src/settings.js",
+        "src/text.js",
+        "src/vocabulary.js"
       ],
       "matches": [
         "http://*/*",
@@ -48,8 +63,18 @@
       ]
     }
   ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "action": {
     "default_popup": "src/popup.html",
-    "default_title": "Lang Weave"
+    "default_title": "Lang Weave",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   }
 }
