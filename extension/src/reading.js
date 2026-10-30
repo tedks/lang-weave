@@ -190,8 +190,12 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     try {
       fresh = await modelCall(async () => {
         if ((await context()).revision !== ctx.revision) return null;
-        const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY]);
+        const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY, 'consentShown']);
         const { apiKey } = keyData;
+        // The only UI transition is false -> true. A false snapshot cannot dispatch, even
+        // if the user chooses a policy while this request is queued.
+        if (keyData.consentShown === false)
+          throw Object.assign(new Error('Choose site access on the welcome page first'), { category: 'consent_required' });
         const keyEpoch = keyData.keyEpoch || '';
         requestEpoch = keyEpoch;
         const persisted = cleanQuotaState(keyData[QUOTA_STATE_KEY], keyEpoch);
@@ -212,6 +216,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
             if (!(await stillSafe())) {
               throw Object.assign(new Error('Page context changed before model request'), { stale: true });
             }
+            // New installs must choose a site policy before their first Gemini dispatch.
             // Counting can yield to a browser permission change; keep the second check.
             try { await countCall(chromeStorage); }
             catch { throw Object.assign(new Error('Local reading storage failed'), { category: 'storage_failed' }); }
@@ -240,7 +245,8 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
         : category === 'key_rejected' ? 'Gemini rejected this key. Paste a new one.'
         : category === 'local_budget' ? 'Daily local model-call budget reached'
-        : category === 'storage_failed' ? 'Local reading storage failed' : 'Model request failed';
+        : category === 'storage_failed' ? 'Local reading storage failed'
+        : category === 'consent_required' ? 'Choose site access on the welcome page first' : 'Model request failed';
       await saveModelStatus({ category, retryAt: e?.retryAt,
         coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
       try {

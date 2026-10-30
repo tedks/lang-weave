@@ -29,6 +29,8 @@ try {
   });
   const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
     const { settings } = await chrome.storage.local.get('settings');
     await chrome.storage.local.set({ settings: { ...settings, enabled: true, newSitesEnabled: true,
       gradual: true, newWordsPerDay: 1, inlineRecall: true } });
@@ -95,7 +97,7 @@ try {
   const id = saved.entries[0].id;
   assert.equal(saved.history.es?.cards?.[id], undefined); // Save alone did not introduce
   assert.equal(await worker.evaluate(() => chrome.storage.local.get('apiKey').then((data) => !!data.apiKey)), false);
-  await worker.evaluate(() => chrome.storage.local.set({ apiKey: 'synthetic-personal-key' }));
+  await worker.evaluate(() => chrome.storage.local.set({ apiKey: 'synthetic-personal-key', consentShown: true }));
   await reading.reload(); // the content script now receives a key-enabled reading config
   await reading.bringToFront();
   await reading.locator('#reading').scrollIntoViewIfNeeded();

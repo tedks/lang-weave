@@ -34,6 +34,11 @@ async function load(name, { keyless = false, source = root } = {}) {
       '--proxy-server=127.0.0.1:9'],
   });
   const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  // The fixture writes storage directly; wait for the install's default settings write first.
+  await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
+  });
   const id = await worker.evaluate(() => chrome.runtime.id);
   const backup = await browser.newPage();
   await backup.goto(`chrome-extension://${id}/src/backup.html`);

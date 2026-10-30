@@ -43,11 +43,14 @@ try {
     function assertSynthetic(init) {
       if (init.headers['x-goog-api-key'] !== 'synthetic-again-key') throw new Error('Unexpected key');
     }
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
     const { settings } = await chrome.storage.local.get('settings');
     await chrome.storage.local.set({
       settings: { ...settings, enabled: true, newSitesEnabled: true, gradual: true,
         inlineRecall: true, newWordsPerDay: 1 },
       apiKey: 'synthetic-again-key',
+      consentShown: true,
       recallReview: { version: 1, cards: { 'la idea': { due: globalThis.virtualNow - 1000,
         interval: 21, reviews: 7, easyStreak: 2, introducedDay: '2000-01-01' } },
         current: null, inline: null, learning: { day: '2000-01-01', count: 1, pending: [] } },

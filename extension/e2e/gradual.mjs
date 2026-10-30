@@ -29,9 +29,11 @@ try {
   const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
     const { settings } = await chrome.storage.local.get('settings');
     await chrome.storage.local.set({ settings: { ...settings, gradual: true, inlineRecall: true,
-      newWordsPerDay: 1, newSitesEnabled: true }, apiKey: 'synthetic-gradual-key' });
+      newWordsPerDay: 1, newSitesEnabled: true }, apiKey: 'synthetic-gradual-key', consentShown: true });
     globalThis.calls = [];
     const original = fetch;
     globalThis.fetch = async (url, init) => {

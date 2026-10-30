@@ -30,6 +30,8 @@ async function launch(label, manifest) {
   await context.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: prose }));
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (url, init) => {
       if (!String(url).startsWith('https://generativelanguage.googleapis.com/')) return originalFetch(url, init);
@@ -38,7 +40,7 @@ async function launch(label, manifest) {
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-store-key' });
+    await chrome.storage.local.set({ apiKey: 'synthetic-store-key', consentShown: true });
   });
   return { context, worker, id: new URL(worker.url()).host };
 }
