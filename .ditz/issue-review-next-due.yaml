@@ -1,0 +1,26 @@
+id: review-next-due
+title: 'Review finish card: report the deck-wide next due date and count from the
+  worker'
+desc: 'Follow-up to PR #20 (review page). Lead ruling 2026-10-30: ship the session-scoped
+  finish card now; land this after the worker-split lane merges, since reviewStatus
+  is moving into a module. Change: add a pure read-only nextDue(state, words, now)
+  accessor in review.js returning the earliest future due time and the count due that
+  local day, familiar cards excluded; have reviewStatus/reviewNext report {nextDue,
+  nextCount} across legacy plus personal cards; add familiar to the reviewRate reply
+  so the page knows when gradual mode''s third Easy retired a word. No scheduling
+  change. Then the finish card can say ''Next review tomorrow, 3 words'' deck-wide,
+  and Easy ratings can rejoin the session return list (PR #20 leaves them out because
+  a retirement is invisible to the page).'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:18:47-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:18:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
