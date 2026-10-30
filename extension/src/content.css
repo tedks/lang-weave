@@ -46,16 +46,31 @@ div.fw-gloss.fw-gloss-on {
     box-shadow: none !important;
   }
 }
-.fw-word.fw-practice { text-decoration-style: dashed; }
+.fw-word.fw-practice:not(.fw-practice-cue) { cursor: inherit; text-decoration: none; }
+.fw-word.fw-practice-cue { text-decoration-style: dashed; }
+.fw-practice-cue sup { font: 600 .65em/1 system-ui, sans-serif; margin-left: 1px; vertical-align: super; }
 .fw-recall {
-  position: fixed; z-index: 2147483647; width: min(292px, calc(100vw - 16px));
+  position: fixed; z-index: 2147483647; box-sizing: border-box; width: min(292px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px); overflow: auto;
   padding: 9px; border: 1px solid #52606a; border-radius: 7px;
   color: #fff; background: #1d1f23; font: 13px/1.4 system-ui, sans-serif;
   box-shadow: 0 5px 18px #0005;
 }
 .fw-recall-status { margin: 5px 0; }
+.fw-recall-ratings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+.fw-recall-secondary { text-align: right; }
 .fw-recall button {
-  margin: 3px 3px 0 0; padding: 3px 6px; border: 1px solid #9aa5af; border-radius: 3px;
+  margin: 3px 0 0; padding: 3px 5px; border: 1px solid #9aa5af; border-radius: 3px;
   color: #fff; background: #36404a; font: inherit; cursor: pointer;
 }
+.fw-recall-actions { display: flex; gap: 8px; }
+.fw-recall-actions button:last-child, .fw-recall-secondary button {
+  background: transparent; border-color: transparent; text-decoration: underline;
+}
+.fw-recall button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .fw-recall button:disabled { cursor: default; opacity: .6; }
+@media (forced-colors: active) {
+  .fw-recall { color: CanvasText; background: Canvas; border-color: CanvasText; box-shadow: none; }
+  .fw-recall button { color: ButtonText; background: ButtonFace; border-color: ButtonText; }
+  .fw-recall-actions button:last-child, .fw-recall-secondary button { color: CanvasText; background: Canvas; }
+}

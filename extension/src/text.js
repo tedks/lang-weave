@@ -22,6 +22,29 @@ export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
 export const isPractice = (span) => practice.has(span);
+// A due word can wait for a viewport cue slot without changing its review ticket.
+export function setPracticeCue(span, active) {
+  if (!practice.has(span) || !owned.has(span) || !span.isConnected) return false;
+  if (span.classList.contains('fw-practice-cue') === active) return false;
+  span.classList.toggle('fw-practice-cue', active);
+  span.textContent = sourceEnglish.get(span);
+  if (active) {
+    const mark = span.ownerDocument.createElement('sup');
+    mark.textContent = '?';
+    mark.setAttribute('aria-hidden', 'true');
+    span.append(mark);
+    span.tabIndex = 0;
+    span.setAttribute('role', 'button');
+    span.setAttribute('title', 'Open inline recall');
+    span.setAttribute('aria-label', `${sourceEnglish.get(span)}. Open inline recall`);
+  } else {
+    span.removeAttribute('tabindex');
+    span.removeAttribute('role');
+    span.removeAttribute('title');
+    span.removeAttribute('aria-label');
+  }
+  return true;
+}
 export const introductionTicket = (span) => introductions.get(span) || '';
 export function replaceIntroductionTicket(span, oldTicket, nextTicket) {
   if (!owned.has(span) || !span.isConnected || introductions.get(span) !== oldTicket || !nextTicket) return false;
@@ -206,10 +229,9 @@ function wrap(place, swap) {
   }
   span.setAttribute('data-fw-split', '1');
   if (swap.status && !swap.practice && !swap.introTicket) span.dataset.fwStatus = swap.status;
-  if (!swap.introTicket) { span.tabIndex = 0; span.setAttribute('role', 'button'); }
-  span.setAttribute('aria-label', swap.practice ? `${swap.o}. Open inline recall` :
-    swap.introTicket ? mid.data : `${swap.f}: ${tipFor(swap)}. Show English`);
-  span.textContent = swap.practice ? `${mid.data} → [?]` : swap.introTicket ? mid.data : swap.f;
+  if (!swap.introTicket && !swap.practice) { span.tabIndex = 0; span.setAttribute('role', 'button'); }
+  if (!swap.practice) span.setAttribute('aria-label', swap.introTicket ? mid.data : `${swap.f}: ${tipFor(swap)}. Show English`);
+  span.textContent = swap.practice || swap.introTicket ? mid.data : swap.f;
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');
   sourceEnglish.set(span, mid.data);
@@ -218,7 +240,6 @@ function wrap(place, swap) {
   if (swap.practice) {
     practice.add(span);
     span.classList.add('fw-practice');
-    span.setAttribute('title', 'Open inline recall');
   }
   const group = splitGroups.get(node) || { node, pieces: new Set() };
   group.prefix = node.data;

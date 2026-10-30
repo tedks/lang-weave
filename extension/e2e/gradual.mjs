@@ -52,6 +52,7 @@ try {
   const html = `<!doctype html><html lang="en"><body><main>
     <p id="reading">We discussed the idea with friends every week.</p>
     <p id="reading2">We discussed the idea with neighbors every week.</p>
+    <p id="reading3">We discussed the idea with colleagues every week.</p>
     <p id="health">The doctor explained the idea behind my medication.</p>
     <form><p>Private form text and the idea stay here.</p><input value="private"></form>
     <p contenteditable="true">Editable the idea stays here.</p>
@@ -76,6 +77,7 @@ try {
   const due = page.locator('#reading .fw-word');
   await due.waitFor();
   await page.locator('#reading2 .fw-word').waitFor();
+  await page.locator('#reading3 .fw-word').waitFor();
   assert.equal(await due.getAttribute('title'), null); // same local day is still reading, not a quiz
   assert.equal(await due.textContent(), 'la idea');
   await worker.evaluate(async () => {
@@ -86,9 +88,14 @@ try {
   await page.reload();
   await due.waitFor();
   await page.locator('#reading2 .fw-word').waitFor();
+  await page.locator('#reading3 .fw-word').waitFor();
   assert.equal(await due.getAttribute('title'), 'Open inline recall');
   assert.equal(await page.locator('#reading2 .fw-word').getAttribute('title'), 'Open inline recall');
-  assert.equal(await due.textContent(), 'the idea → [?]');
+  assert.equal(await due.textContent(), 'the idea?');
+  assert.equal(await due.locator('sup').getAttribute('aria-hidden'), 'true');
+  assert.equal(await page.locator('.fw-practice').count(), 3);
+  assert.equal(await page.locator('.fw-practice-cue').count(), 2);
+  assert.equal(await page.locator('#reading3 .fw-practice-cue').count(), 0);
   assert.equal(await due.getAttribute('data-fr'), null);
   assert.equal(await due.getAttribute('data-tip'), null);
   assert.doesNotMatch(await due.evaluate((el) => el.outerHTML), /la idea/);
@@ -98,7 +105,7 @@ try {
   await due.focus();
   await page.waitForTimeout(800);
   assert.equal(await page.locator('.fw-gloss, .fw-gloss-on').count(), 0);
-  assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea → [?] with friends every week.');
+  assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea? with friends every week.');
   await due.evaluate((span) => {
     span.click();
     span.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -107,14 +114,17 @@ try {
   await due.evaluate((span) => span.setAttribute('data-en', 'forged cue'));
   await due.click();
   await page.locator('.fw-recall').waitFor();
-  assert.match(await page.locator('.fw-recall').textContent(), /the idea → \[\?\]/);
+  assert.match(await page.locator('.fw-recall').textContent(), /Recall the translation/);
   await due.evaluate((span) => span.setAttribute('data-en', 'the idea'));
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
+  assert.equal(await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).evaluate((el) => document.activeElement === el), true);
   await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
     .find((button) => button.textContent === 'Reveal answer').click());
   assert.equal(await page.locator('.fw-recall button', { hasText: 'Easy' }).count(), 0);
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
   await page.locator('.fw-recall button', { hasText: 'Already know' }).waitFor();
+  assert.deepEqual(await page.locator('.fw-recall-ratings button').allTextContents(), ['Again', 'Hard', 'Medium', 'Easy']);
+  assert.equal(await page.locator('.fw-recall-secondary button').textContent(), 'Already know');
   await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
     .find((button) => button.textContent === 'Already know').click());
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].familiar, undefined);
@@ -172,6 +182,7 @@ try {
   assert.equal(await due.evaluate((span) => document.activeElement === span), true);
   assert.equal(await page.locator('#reading2 .fw-word').getAttribute('title'), null);
   assert.equal(await page.locator('#reading2 .fw-word').textContent(), 'la idea');
+  assert.equal(await page.locator('#reading3 .fw-word').textContent(), 'la idea');
   await page.waitForTimeout(750); // catches an unintended content flush after a full-page refresh
   assert.equal((await worker.evaluate(() => globalThis.calls)).length, callsBeforeRating);
   const review = await browser.newPage();

@@ -63,13 +63,18 @@ try {
   const cue = page.locator('#reading .fw-word');
   await cue.waitFor();
   await page.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('title') === 'Open inline recall');
+  assert.equal(await cue.textContent(), 'the idea?');
+  assert.equal(await cue.locator('sup').getAttribute('aria-hidden'), 'true');
   const before = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(before.cards['la idea'].reviews, 7);
   assert.equal(before.learning.count, 1);
   await cue.click();
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
+  assert.equal(await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).evaluate((el) => document.activeElement === el), true);
   assert.equal(await page.locator('.fw-recall button', { hasText: 'Again' }).count(), 0);
   await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await page.locator('.fw-recall-ratings button', { hasText: 'Hard' }).waitFor();
+  assert.deepEqual(await page.locator('.fw-recall-ratings button').allTextContents(), ['Again', 'Hard', 'Medium', 'Easy']);
   assert.equal(await page.locator('.fw-recall button', { hasText: 'Hard' }).evaluate((el) => document.activeElement === el), true);
   const callsBeforeRating = await worker.evaluate(() => globalThis.modelCalls);
   assert.ok(callsBeforeRating >= 1);

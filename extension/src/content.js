@@ -1,7 +1,7 @@
 // Content script: watch readable text (tweets on X, prose elsewhere), ask the background for swaps, paint them,
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
-import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord, swapEnglish,
-  finishPractice, introductionTicket, replaceIntroductionTicket, dropIntroduction,
+import { flatten, applySwaps, revert, toggle, isSwap, isPractice, swapWord,
+  finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
   finishIntroduction, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
@@ -47,6 +47,7 @@ let focusScrollUntil = 0;
 const TIP_GAP = 8;
 const FOCUS_SCROLL_MS = 250; // focus() may scroll its word just after focusin
 let cue = null;
+let cueWord = null;
 // After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
 // no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
 let orphaned = false;
@@ -105,7 +106,7 @@ function showTip(span) {
   placeTip(span, box);
   return true;
 }
-function placeTip(span, box) {
+export function placeTip(span, box) {
   const rect = span.getBoundingClientRect();
   const size = box.getBoundingClientRect();
   const width = document.documentElement.clientWidth || window.innerWidth;
@@ -127,33 +128,52 @@ function hideTip(keepFocus = false) {
   tipBox?.remove(); tipBox = null;
   if (!keepFocus) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
 }
-function closeCue() { cue?.remove(); cue = null; }
+function closeCue() { cue?.remove(); cue = null; cueWord = null; updatePracticeCues(); }
+
+// The worker has already selected due words. This only chooses which two visible
+// English words show an invitation; waiting words keep their existing card state.
+function updatePracticeCues() {
+  if (!on()) return;
+  const height = document.documentElement.clientHeight || window.innerHeight;
+  const width = document.documentElement.clientWidth || window.innerWidth;
+  const spans = [...document.querySelectorAll(`span.${SWAP_CLASS}.fw-practice`)].filter(isPractice);
+  const visible = spans.filter((span) => {
+    const rect = span.getBoundingClientRect();
+    return span.isConnected && rect.width > 0 && rect.height > 0 &&
+      rect.bottom > 0 && rect.top < height && rect.right > 0 && rect.left < width;
+  });
+  const chosen = new Set(visible.slice(0, 2));
+  if (cueWord && visible.includes(cueWord) && !chosen.has(cueWord)) {
+    chosen.delete(visible[1]);
+    chosen.add(cueWord);
+  }
+  for (const span of spans) setPracticeCue(span, chosen.has(span));
+  observer?.takeRecords();
+}
 
 async function openCue(span) {
   closeCue(); hideTip();
+  cueWord = span;
   const gen = generation;
   const revision = config.revision;
   const panel = document.createElement('div');
   panel.className = 'fw-recall';
   panel.setAttribute('role', 'group');
   panel.setAttribute('aria-label', 'Inline recall');
-  const rect = span.getBoundingClientRect();
-  panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 300))}px`;
-  panel.style.top = `${Math.max(8, Math.min(rect.bottom + 6, innerHeight - 180))}px`;
   const prompt = document.createElement('div');
-  prompt.textContent = `${swapEnglish(span)} → [?]`;
+  prompt.textContent = 'Recall the translation before revealing.';
   const status = document.createElement('div');
   status.className = 'fw-recall-status';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  const buttons = document.createElement('div');
-  const button = (label, fn) => {
+  const actions = document.createElement('div');
+  actions.className = 'fw-recall-actions';
+  const button = (parent, label, fn) => {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
     b.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void fn(); });
-    buttons.append(b); return b;
+    parent.append(b); return b;
   };
-  const dismiss = button('Dismiss', () => { closeCue(); if (span.isConnected) span.focus(); });
-  panel.append(prompt, status, buttons);
+  panel.append(prompt, status, actions);
   panel.addEventListener('keydown', (e) => {
     if (e.isTrusted && e.key === 'Escape') {
       e.preventDefault(); e.stopPropagation(); closeCue();
@@ -161,6 +181,8 @@ async function openCue(span) {
     }
   });
   document.documentElement.append(panel); cue = panel;
+  button(actions, 'Dismiss', () => { closeCue(); if (span.isConnected) span.focus(); });
+  placeTip(span, panel);
   const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
   let answer;
@@ -174,7 +196,7 @@ async function openCue(span) {
     else status.textContent = 'Cue unavailable. Dismiss and try again.';
     return;
   }
-  const revealButton = button('Reveal answer', async () => {
+  const revealButton = button(actions, 'Reveal answer', async () => {
     if (!liveCue()) { closeCue(); return; }
     revealButton.disabled = true;
     try {
@@ -184,11 +206,16 @@ async function openCue(span) {
       answer = r.answer;
       status.textContent = `${r.answer.fr}${r.answer.hint ? ` · ${r.answer.hint}` : ''}`;
       revealButton.remove();
+      const ratings = document.createElement('div');
+      ratings.className = 'fw-recall-ratings';
+      const secondary = document.createElement('div');
+      secondary.className = 'fw-recall-secondary';
+      panel.append(ratings, secondary);
       let firstRating;
       for (const [label, rating] of [['Again', 'again'], ['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
-        const rated = button(label, async () => {
+        const rated = button(rating === 'known' ? secondary : ratings, label, async () => {
           if (!liveCue()) { closeCue(); return; }
-          for (const b of buttons.querySelectorAll('button')) b.disabled = true;
+          for (const b of panel.querySelectorAll('button')) b.disabled = true;
           try {
             const result = await send({ type: 'inlineRate', ticket, rating, revision });
             if (!result?.ok) throw new Error(result?.error || 'Cue expired');
@@ -202,16 +229,18 @@ async function openCue(span) {
                   changed = finishPractice(related, answer, result.familiar) || changed;
               }
               if (changed) observer?.takeRecords();
+              updatePracticeCues();
               if (ownCue && span.isConnected && !isPractice(span)) span.focus();
             }
           } catch {
             if (!liveCue()) { closeCue(); return; }
-            for (const b of buttons.querySelectorAll('button')) b.disabled = false;
+            for (const b of panel.querySelectorAll('button')) b.disabled = false;
             status.textContent = 'Rating was not saved. Try again or dismiss.';
           }
         });
         if (rating === 'hard') firstRating = rated; // preserve the prior keyboard focus
       }
+      placeTip(span, panel);
       firstRating?.focus();
     } catch {
       if (!liveCue()) { closeCue(); return; }
@@ -219,7 +248,9 @@ async function openCue(span) {
       status.textContent = 'Answer unavailable. Try again or dismiss.';
     }
   });
-  dismiss.focus();
+  actions.prepend(revealButton);
+  placeTip(span, panel);
+  revealButton.focus();
 }
 function tipEligible(span) {
   return span?.isConnected && isSwap(span) && on() && alive() && !isPractice(span) &&
@@ -363,6 +394,7 @@ function paint(el, key, placedTickets = new Set()) {
   if (!swaps?.length || busy(el, 'paints')) return;
   applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); }, config.language);
   for (const span of el.querySelectorAll(`.${SWAP_CLASS}`)) if (isSwap(span)) visible.observe(span);
+  updatePracticeCues();
   observer?.takeRecords();
 }
 // True when this element churns; same-text retries never count as a new ask.
@@ -476,6 +508,7 @@ function mutations(records) {
   observer?.takeRecords();
   for (const el of tracked) if (!el.isConnected) { tracked.delete(el); near.unobserve(el); }
   for (const span of visibleWords) if (!span.isConnected) { visibleWords.delete(span); visible.unobserve(span); }
+  updatePracticeCues();
 }
 function start() {
   if (observer || !on()) return;
@@ -528,7 +561,7 @@ function reveal(e) {
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip();
-  if (isPractice(span)) { void openCue(span); return; }
+  if (isPractice(span)) { if (span.classList.contains('fw-practice-cue')) void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
   observer?.takeRecords();
 }
@@ -567,6 +600,8 @@ document.addEventListener('focusin', armTip, true);
 document.addEventListener('mouseout', disarmTip, true);
 document.addEventListener('focusout', disarmTip, true);
 window.addEventListener('scroll', () => {
+  updatePracticeCues();
+  if (cue && cueWord?.isConnected) placeTip(cueWord, cue);
   if (focusedTip && document.activeElement === focusedTip && Date.now() <= focusScrollUntil && tipEligible(focusedTip)) {
     if (tipTarget === focusedTip && tipBox) placeTip(focusedTip, tipBox);
     else if (tipTarget !== focusedTip) restoreFocusedTip();
@@ -574,7 +609,7 @@ window.addEventListener('scroll', () => {
   }
   hideTip();
 }, { passive: true, capture: true });
-window.addEventListener('resize', hideTip, { passive: true });
+window.addEventListener('resize', () => { hideTip(); updatePracticeCues(); if (cue && cueWord?.isConnected) placeTip(cueWord, cue); }, { passive: true });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') hideTip();
   if (document.visibilityState !== 'hidden' && pending.size && !timer) timer = setTimeout(flush, 0);
