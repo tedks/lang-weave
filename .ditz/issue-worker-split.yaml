@@ -25,3 +25,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T17:59:46-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Landed in PR #21, merge 13533f3 (head cd54394, v0.12.2). Council fixpoint:
+    Claude Opus native, Codex gpt-6-sol; agy seat empty on quota every round. All
+    gates green on the exact head; record at https://github.com/tedks/lang-weave/pull/21#issuecomment-6529842551.
+    Follow-ups: store-manifest-key-delta, hostsource-ships-in-zip, package-import-scanner-hardening;
+    review.html adopts ui.css in the review-flow lane.'
