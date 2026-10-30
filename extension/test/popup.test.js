@@ -16,6 +16,7 @@ test('popup shows one action and grants this site before saving or injecting', a
   window.document.write(readFileSync(new URL('../src/popup.html', import.meta.url), 'utf8'));
   globalThis.document = window.document;
   const events = [];
+  let failSave = false;
   const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null };
   const pageUrl = 'https://example.com/article';
   globalThis.chrome = {
@@ -29,6 +30,7 @@ test('popup shows one action and grants this site before saving or injecting', a
         }, review: { due: state.due, new: state.available }, budgetWarning: '', modelStatus: null };
         if (msg.type === 'save') {
           events.push('save');
+          if (failSave) throw new Error('Save failed');
           if (msg.settings) state.enabled = msg.settings.enabled;
           if (msg.siteOverride) state.siteOverride = msg.siteOverride.enabled;
           return { ok: true };
@@ -73,6 +75,13 @@ test('popup shows one action and grants this site before saving or injecting', a
     $('enabled').dispatchEvent(new window.Event('change'));
     expect($('enabledLabel').textContent).toBe('Off');
     await waitFor(() => $('primary').textContent === 'Practice');
+    expect($('enabledLabel').textContent).toBe('Off');
+    failSave = true;
+    $('enabled').checked = true;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    expect($('enabledLabel').textContent).toBe('On');
+    await waitFor(() => $('notice').textContent === 'Save failed');
+    expect($('enabled').checked).toBe(false);
     expect($('enabledLabel').textContent).toBe('Off');
   } finally {
     globalThis.document = oldDocument;
