@@ -37,3 +37,10 @@ log_events:
     moved to store-content-bundle (required before the first Store upload). The [french-weave]
     log tag is fixed in PR #23. Still open here: consent screen, privacy policy, Limited
     Use page, Dashboard form.'
+- time: 2026-10-30T19:18:38-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #23 merged at 1fff674: log tag fixed; web_accessible_resources narrowed
+    to content.js''s import closure (16 of 47 files). Fingerprinting elimination moved
+    to store-content-bundle. Still open here: consent screen, privacy policy, Limited
+    Use page, Dashboard form.'
