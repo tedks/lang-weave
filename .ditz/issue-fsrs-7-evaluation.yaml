@@ -1,0 +1,24 @@
+id: fsrs-7-evaluation
+title: Evaluate FSRS-7 (ts-fsrs v6) against the FSRS-6 port once the learning log
+  has data
+desc: 'Source: PR #19 upstream check. ts-fsrs v6.0.0 ships an FSRS-7 model alongside
+  FSRS-6; extension/src/fsrs.js ports FSRS-6 (py-fsrs v6.3.2 / ts-fsrs v6.0.0 models/fsrs-6)
+  as the mission asked.
+
+  Do after learning-event-log phase 2 has a few hundred logged reviews: compare FSRS-6
+  and FSRS-7 default-parameter calibration (Brier vs the constant baseline, learning-log
+  calibration()) on the user''s own log before switching. Switching changes the stored
+  state shape and the backup schema.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:33:24-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:33:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
