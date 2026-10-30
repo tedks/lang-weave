@@ -1,0 +1,20 @@
+id: cue-paint-layout
+title: Coalesce practice cue measurement after repeated paints
+desc: 'Council nit on PR #31 after rebase: content.js paint calls updatePracticeCues
+  synchronously after every paint; on a large feed this may repeatedly query and measure
+  all practice spans. Scroll and mutation work is already frame-coalesced. Profile
+  a paint-heavy page and, if material, move this path through queuePracticeCues without
+  delaying initial cue visibility.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T21:27:50-00:00
+references: []
+log_events:
+- time: 2026-10-30T21:27:50-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
