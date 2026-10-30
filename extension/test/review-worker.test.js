@@ -189,11 +189,16 @@ test('worker owns review access, persistence, and raced rating serialization', a
 
     // Target recall: validated, kept without bumping the reading epoch, and used by the scheduler.
     const epoch = data.epoch;
+    const pageConfig = await dispatch({ type: 'config' }, page);
     expect((await dispatch({ type: 'save', settings: { desiredRetention: 0.95 } }, popup)).error).toMatch(/between 0.85 and 0.9/);
     expect(data.settings.desiredRetention).toBeUndefined();
     await dispatch({ type: 'save', settings: { desiredRetention: 0.85 } }, popup);
     expect(data.settings.desiredRetention).toBe(0.85);
     expect(data.epoch).toBe(epoch);
+    // Pages keep their revision (no reset, no cache miss) and never see the review-only setting.
+    const afterConfig = await dispatch({ type: 'config' }, page);
+    expect(afterConfig.revision).toBe(pageConfig.revision);
+    expect(Object.hasOwn(afterConfig.settings, 'desiredRetention')).toBe(false);
     expect((await dispatch({ type: 'learningStats' }, review)).retention).toBe(0.85);
     await dispatch({ type: 'save', settings: { desiredRetention: null } }, popup);
     expect(Object.hasOwn(data.settings, 'desiredRetention')).toBe(false);

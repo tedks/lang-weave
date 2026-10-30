@@ -10,8 +10,10 @@ import { englishAnchors } from './catalog.js';
 import { PERSONAL_KEY, cleanPersonal, personalWords, targetAliases } from './personal.js';
 
 export const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
+// Review scheduling only: never part of the reading revision or of what pages receive.
+const readingSettings = ({ desiredRetention, ...settings }) => settings;
 export const publicContext = ({ words, allWords, legacyWords, legacyAllWords, personal, captureEpoch,
-  activePersonal, personalAuto, ...safe }) => safe;
+  activePersonal, personalAuto, settings, ...safe }) => ({ ...safe, settings: readingSettings(settings) });
 export const personalScope = (language) => scopedStorage(chromeStorage, `personal:${language}`);
 export const laterDay = (a, b) => a > b ? a : b; // ISO local dates or empty string
 
@@ -48,7 +50,7 @@ export function createContext({ store, ready }) {
     const hasKey = !!data.apiKey;
     const paused = false; // retained in the page config protocol; pause is settings.enabled
     const { origins = [] } = await chrome.permissions.getAll();
-    const revision = hashKey(JSON.stringify([data.epoch || '', settings, level, scope,
+    const revision = hashKey(JSON.stringify([data.epoch || '', readingSettings(settings), level, scope,
       safeLegacyWords.map((word) => [word.fr, word.en]), personalAuto.map(({ entry }) =>
         [entry.id, entry.source, entry.target]), personal.unsupported === true,
       chrome.runtime.getManifest().version, hasKey, origins]));
