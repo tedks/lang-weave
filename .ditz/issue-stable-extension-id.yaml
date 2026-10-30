@@ -52,3 +52,16 @@ log_events:
     as store-first-upload-key. Remaining: council to fixpoint on both PRs, rebase
     #18 onto relicense #16, pin bump, framework0 verification with Ted''s profile,
     fleet.'
+- time: 2026-10-30T17:27:01-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Council fixpoint reached (Anthropic + OpenAI; Google empty, quota). Reviewed
+    heads: tedks/lang-weave#18 b8237a1, tedks/dotfiles#225 a6cda55; gates green on
+    both heads; record posted on both PRs. Rebased onto main 0.11.1. Additions since
+    the first comment: portability e2e now rehearses keyless->keyed migration (passed
+    with real 0.11.1 source); verified recovery after accidental in-place update (restore
+    keyless files, re-enable disabled old entry); pre-0.11 catch-up documented (splinter0);
+    installer alias guard and canonical-key check. Not merged by instruction. Merge
+    conditions: back up the private key; confirm no profile loads a worktree; dotfiles
+    #225 merges only with the pin bump to the merged #18 commit; never give the old
+    installer a keyed pin.'
