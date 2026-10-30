@@ -49,8 +49,11 @@ export function cleanReview(raw, words, now = Date.now()) {
     Number.isSafeInteger(inline.tabId) && Number.isSafeInteger(inline.frameId) &&
     typeof inline.revision === 'string' && inline.revision.length <= 100 &&
     typeof inline.revealed === 'boolean';
+  // `practice`: the learner asked for this card now from My words, so it may be served before
+  // it is due. FSRS still schedules it from the real elapsed time (an early review).
+  const practice = (value) => value?.practice === true ? { practice: true } : {};
   return { version: 1, cards, current: valid
-    ? { word: current.word, ticket: current.ticket, revealed: current.revealed, ...shown(current) } : null,
+    ? { word: current.word, ticket: current.ticket, revealed: current.revealed, ...shown(current), ...practice(current) } : null,
     learning: cleanLearning(raw?.learning, now), inline: validInline ? { word: inline.word, ticket: inline.ticket,
       documentId: inline.documentId, tabId: inline.tabId, frameId: inline.frameId,
       revision: inline.revision, revealed: inline.revealed, ...shown(inline) } : null };
@@ -70,9 +73,17 @@ export function introduce(state, words, now, count = 5) {
   return fresh.length;
 }
 
+// Whether a card may be prompted now: due, or explicitly chosen for practice. Never a familiar card.
+const askable = (state, current, now) => {
+  const card = current && state.cards[current.word];
+  return !!card && !card.familiar && (card.due <= now || current.practice === true);
+};
+
 export function nextReview(state, words, now, ticket = () => crypto.randomUUID()) {
   const active = state.current && words.find(({ fr }) => fr === state.current.word);
-  if (!active || state.cards[active.fr]?.due > now || state.cards[active.fr]?.familiar) state.current = null;
+  if (!active || !askable(state, state.current, now)) state.current = null;
+  // A practice ticket is created before the review page shows it; its latency starts here.
+  if (state.current?.practice && !Number.isSafeInteger(state.current.shownAt)) state.current.shownAt = now;
   if (!state.current) {
     const due = words.filter(({ fr }) => state.cards[fr]?.due <= now && !state.cards[fr]?.familiar)
       .sort((a, b) => state.cards[a.fr].due - state.cards[b.fr].due);
@@ -84,8 +95,7 @@ export function nextReview(state, words, now, ticket = () => crypto.randomUUID()
 }
 
 export function revealReview(state, words, ticket, now) {
-  if (!state.current || state.current.ticket !== ticket || state.cards[state.current.word]?.due > now ||
-      state.cards[state.current.word]?.familiar) return null;
+  if (!state.current || state.current.ticket !== ticket || !askable(state, state.current, now)) return null;
   const word = words.find(({ fr }) => fr === state.current.word);
   if (!word) return null;
   state.current.revealed = true;
@@ -101,7 +111,7 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false, ret
   const current = state.current;
   if (!RATINGS.has(rating) || !current || current.ticket !== ticket || !current.revealed) return null;
   const card = state.cards[current.word];
-  if (!card || card.due > now || card.familiar) return null;
+  if (!askable(state, current, now)) return null;
   const result = scheduleCard(card, rating, now, autoFamiliar, retention);
   result.record = { word: current.word, latencyMs: reviewLatency(current, now), ...result.record };
   state.current = null;
@@ -149,8 +159,7 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
 
 export function markFamiliar(state, ticket, now) {
   const current = state.current;
-  if (!current || current.ticket !== ticket || !current.revealed || state.cards[current.word]?.due > now ||
-      state.cards[current.word]?.familiar) return false;
+  if (!current || current.ticket !== ticket || !current.revealed || !askable(state, current, now)) return false;
   state.cards[current.word].familiar = true;
   state.current = null;
   return true;
