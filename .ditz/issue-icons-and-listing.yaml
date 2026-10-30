@@ -44,3 +44,17 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-10-30T22:19:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Screenshots half delivered and merged normally in PR #37 at d7caaa7 (head
+    dd5dcca). Five 1280x800 PNGs and a 440x280 promo tile are committed under docs/store-assets;
+    extension/e2e/store-shots.mjs regenerates them from the Store package with an
+    original article and synthetic Gemini, and checks PNG headers. The draft listing
+    captions need no change. Exact-head gates: 355 Bun and 91 Python tests passed;
+    both package variants passed and exclude screenshots/e2e; Chromium capture and
+    PNG check passed; diff check passed. The version-bump gate flags the new e2e script
+    despite it not shipping in either zip, so per mission no version bump was made.
+    Council OpenAI native Sol and Anthropic Opus converged CLEAN; agy EMPTY on quota.
+    Leave this issue open for listing text and 18+ statement approval; no Store upload
+    was done.'
