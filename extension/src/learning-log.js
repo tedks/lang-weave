@@ -38,12 +38,19 @@ const has = (allowed, id) => {
   throw new TypeError('learning log: a scope catalog (Set or Array of word IDs) is required');
 };
 
-// Defence in depth behind catalog membership: a word ID never looks like a URL, host,
-// address, markup or a passage.
+// Second line behind catalog membership, which is the real guarantee: an ID is either an
+// exact personal ID (a UUID, never the learner's text) or a short catalog form with no
+// colon, slash, '@', markup, control character or dot followed by a letter or digit, so
+// nothing shaped like a URL, host, host:port or address passes even when listed. A shape
+// check cannot tell a four-word phrase from a short passage; the catalog decides that.
+// Zero-width (non-)joiners are allowed inside forms, as portability.js allows them.
+const PERSONAL_ID = /^personal:[a-z]{2,3}(?:-[a-z0-9]{2,8})*:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function validWordId(id) {
-  return typeof id === 'string' && id.length > 0 && id.length <= 100 && id.trim() === id &&
-    !/[\p{Cc}\p{Cf}\p{Cs}<>\/@\\]/u.test(id.replace(/[‌‍]/g, '')) &&
-    !/www\.|:\/\//i.test(id) && !/^\S+\.[a-z]{2,}$/i.test(id) && id.split(/\s+/).length <= 5;
+  if (typeof id !== 'string') return false;
+  if (PERSONAL_ID.test(id)) return true;
+  return id.length > 0 && id.length <= 50 && id.trim() === id && id.split(/\s+/).length <= 4 &&
+    !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
+    !/\.[\p{L}\p{N}]/u.test(id);
 }
 
 const nullableInt = (v, max) => v === null || (Number.isSafeInteger(v) && v >= 0 && v <= max);
@@ -69,9 +76,11 @@ export function cleanRetrievals(raw) {
 }
 
 // `entry`: { word, at, source, direction, outcome, prior, latencyMs?, elapsedDays?,
-// intervalDays?, predicted? }. `prior` is the card's review count before this retrieval;
-// `elapsedDays` is whole local days since the last review, or since introduction for the
-// first one. Unknown fields are ignored, never stored. Returns false if rejected.
+// intervalDays?, predicted? }. `prior` is the card's review count before this retrieval.
+// `elapsedDays` is what the scheduler used: whole 24-hour periods since the last review
+// (fsrs.js elapsedDays). For a first retrieval (prior 0) the card only knows its local
+// introduction day, so it is local calendar days since `introducedDay`. Unknown fields are
+// ignored, never stored. Returns false if rejected.
 export function appendRetrieval(state, entry, allowed) {
   if (!plainObject(entry) || !validWordId(entry.word) || !has(allowed, entry.word)) return false;
   const latency = Number.isSafeInteger(entry.latencyMs) && entry.latencyMs >= 0
@@ -92,12 +101,15 @@ export function retrievalEntries(state) {
     intervalDays, predicted }));
 }
 
+const dayNumber = (day) => Date.parse(`${day}T00:00:00Z`) / 86400000;
+// Counters must be consistent: a seen word has 1..count distinct days, which cannot exceed
+// the days from first to last; a peek-only record has no exposures and no days.
 function validExposure(id, v) {
   return validWordId(id) && Array.isArray(v) && v.length === 5 &&
     Number.isSafeInteger(v[0]) && v[0] >= 0 && v[0] <= MAX_COUNT &&
     Number.isSafeInteger(v[1]) && v[1] >= 0 && v[1] <= MAX_COUNT &&
-    Number.isSafeInteger(v[2]) && v[2] >= 0 && v[2] <= MAX_COUNT &&
-    validDay(v[3]) && validDay(v[4]) && v[3] <= v[4];
+    Number.isSafeInteger(v[2]) && validDay(v[3]) && validDay(v[4]) && v[3] <= v[4] &&
+    (v[0] === 0 ? v[2] === 0 : v[2] >= 1 && v[2] <= v[0] && v[2] <= dayNumber(v[4]) - dayNumber(v[3]) + 1);
 }
 
 export function cleanExposures(raw) {
@@ -113,13 +125,15 @@ function evictOne(words) {
   let victim = null;
   for (const [id, v] of Object.entries(words)) {
     const w = victim && words[victim];
-    if (!w || v[4] < w[4] || (v[4] === w[4] && (v[0] < w[0] || (v[0] === w[0] && id < victim)))) victim = id;
+    // Same order as cleanExposures keeps: oldest last day, then fewest exposures, then the later ID.
+    if (!w || v[4] < w[4] || (v[4] === w[4] && (v[0] < w[0] || (v[0] === w[0] && id > victim)))) victim = id;
   }
   delete words[victim];
 }
 
-// Count one in-context placement ('seen') or one hover-to-meaning ('peek') per listed word,
-// on local `day`. A peek never adds an exposure. A clock rollback still counts but cannot
+// Count one in-context placement ('seen') or one hover-to-meaning ('peek') for each distinct
+// listed word, on local `day`: one call is one delivery, so a word placed twice in it counts
+// once. A peek never adds an exposure. A clock rollback still counts but cannot
 // mint another distinct day or move the last day backwards. When full, the word with the
 // oldest last day is dropped. Returns how many words were counted.
 export function countExposures(state, ids, allowed, day, kind = 'seen') {
@@ -181,17 +195,22 @@ export function nextDayRecall(entries) {
   return rate(graded(entries).filter((e) => e.prior === 0 && e.elapsedDays === 1));
 }
 
-// 2. Retention at long gaps, with the scheduler's mean prediction for comparison.
+// 2. Retention at long gaps. `predicted` compares the scheduler on the same population: the
+// long-gap retrievals that carry a prediction (a first retrieval has none).
 export function longRetention(entries, minDays = 21) {
   const list = graded(entries).filter((e) => e.elapsedDays !== null && e.elapsedDays >= minDays);
-  return { ...rate(list), meanPredicted: mean(list.filter((e) => e.predicted !== null).map((e) => e.predicted)) };
+  const withPrediction = list.filter((e) => e.predicted !== null);
+  return { ...rate(list), predicted: { n: withPrediction.length,
+    meanPredicted: mean(withPrediction.map((e) => e.predicted)), observed: rate(withPrediction).rate } };
 }
 
 // 3. Predicted vs observed recall in equal-width buckets, with the Brier score of the
 // scheduler and of a constant predictor (the observed overall rate). The fsrs-scheduler
 // issue is falsified if, after a few hundred reviews, the scheduler does not beat the constant.
+// Same-day retries (elapsed < 1 day) are excluded: their prediction is always 1 and FSRS does
+// not model short-term recall, so they would skew the test against the scheduler.
 export function calibration(entries, buckets = 10) {
-  const list = graded(entries).filter((e) => e.predicted !== null);
+  const list = graded(entries).filter((e) => e.predicted !== null && e.elapsedDays !== null && e.elapsedDays >= 1);
   const bins = Array.from({ length: buckets }, (_, i) => ({ from: i / buckets, to: (i + 1) / buckets, items: [] }));
   for (const e of list) bins[Math.min(buckets - 1, Math.floor(e.predicted * buckets))].items.push(e);
   const outcome = (e) => (PASS.has(e.outcome) ? 1 : 0);
@@ -218,7 +237,7 @@ export function verifiedKnown(entries, minDays = 21) {
 // needs successive snapshots.
 export function peekRate(exposures) {
   let count = 0, peeks = 0;
-  const words = {};
+  const words = Object.create(null);
   for (const [id, [n, p]] of Object.entries(exposures.words)) {
     count += n; peeks += p;
     words[id] = n ? p / n : null;
@@ -251,12 +270,12 @@ export function workload(entries, now, windowDays = 30) {
 }
 
 // 7b. Leeches: words with `minLapses` or more lapses. A lapse is an Again on a previously rated
-// card at least one day after its last review (fsrs.js reviewCard counts the same way). Only
-// lapses still inside the bounded log are visible.
+// card at least one day after its last review, the rule fsrs.js reviewCard uses. Only lapses
+// still inside the bounded log are visible.
 export function leeches(entries, minLapses = 4) {
   const lapses = new Map();
   for (const e of entries) {
-    if (e.outcome === 'again' && e.prior > 0 && (e.elapsedDays === null || e.elapsedDays >= 1))
+    if (e.outcome === 'again' && e.prior > 0 && e.elapsedDays !== null && e.elapsedDays >= 1)
       lapses.set(e.word, (lapses.get(e.word) || 0) + 1);
   }
   const words = [...lapses].filter(([, n]) => n >= minLapses).map(([word, n]) => ({ word, lapses: n }))
@@ -264,9 +283,10 @@ export function leeches(entries, minLapses = 4) {
   return { count: words.length, words };
 }
 
-// Everything above for one scope.
+// Everything above for one scope. `now` (ms) is required: this module never reads the clock.
 export function summarize(retrievalState, exposureState, { now, learningWords = [], retention = 0.9,
   windowDays = 30 } = {}) {
+  if (!Number.isSafeInteger(now)) throw new RangeError('learning log: summarize needs the current time');
   const entries = retrievalEntries(retrievalState);
   const long = longRetention(entries);
   return { retrievals: entries.length, claims: entries.filter((e) => e.outcome === 'known').length,

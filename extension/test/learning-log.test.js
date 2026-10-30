@@ -40,6 +40,11 @@ test('words outside the scope catalog and text-like IDs are never logged', () =>
     'one two three four five six', 'x'.repeat(101), 'casa\u0000', '']) {
     expect(appendRetrieval(state, { ...ok, word }, new Set([...CATALOG, word]))).toBe(word === 'mesa');
   }
+  // Host:port, abbreviations with inner dots, colons, long forms and 5+ words are refused.
+  for (const id of ['example.com:443', 'localhost:8080', 'p.ej.', 'foo.bar', 'personal:es:not-a-uuid', 'a:b',
+    'x'.repeat(51), 'uno dos tres cuatro cinco']) expect(validWordId(id)).toBe(false);
+  for (const id of ['etc.', 'uno dos tres cuatro', 'x'.repeat(50), 'personal:zh-hant:0b5c3f1e-8d2a-4c1b-9f3e-2a7d6c5b4e3f',
+    'می\u200cخواهم']) expect(validWordId(id)).toBe(true);
   expect(validWordId('por favor')).toBe(true);
   expect(validWordId('niño')).toBe(true);
   expect(validWordId('personal:es:0b5c3f1e-8d2a-4c1b-9f3e-2a7d6c5b4e3f')).toBe(true);
@@ -108,6 +113,12 @@ test('the exposure map is bounded and evicts the word seen longest ago', () => {
   expect(Object.keys(clean.words).length).toBe(MAX_EXPOSURE_WORDS);
   expect(clean.words['bad.com']).toBeUndefined();
   expect(clean.words.y).toBeUndefined();
+  // Counters must be mutually consistent.
+  const counters = cleanExposures({ version: 1, words: {
+    ok: [5, 2, 3, '2026-10-01', '2026-10-03'], peekOnly: [0, 4, 0, '2026-10-01', '2026-10-01'],
+    moreDaysThanExposures: [2, 0, 3, '2026-10-01', '2026-10-05'], absurdDays: [1, 0, 1000000, '2026-10-01', '2026-10-03'], moreDaysThanSpan: [9, 0, 4, '2026-10-01', '2026-10-03'],
+    seenWithoutDay: [2, 0, 0, '2026-10-01', '2026-10-01'], daysWithoutExposure: [0, 1, 1, '2026-10-01', '2026-10-01'] } });
+  expect(Object.keys(counters.words).sort()).toEqual(['ok', 'peekOnly']);
 });
 
 test('storage wrappers keep each scope separate and never overwrite a newer format', async () => {
@@ -154,10 +165,13 @@ test('long retention, verified-known and leeches follow the documented rules', (
     { word: 'y', at: at(1), elapsedDays: 20, outcome: 'easy', predicted: 0.9 },
     { word: 'perro', at: at(2), elapsedDays: 1, outcome: 'again' }, // un-verifies perro
     { word: 'casa', at: at(3), elapsedDays: 40, outcome: 'known', predicted: 0.5 }, // claim ignored
+    { word: 'y', at: at(4), prior: 0, elapsedDays: 22, outcome: 'again', predicted: null }, // first retrieval
   ]));
   const long = longRetention(entries);
-  expect(long).toMatchObject({ n: 3, passed: 2, rate: 2 / 3 });
-  expect(long.meanPredicted).toBeCloseTo((0.8 + 0.86 + 0.7) / 3, 12);
+  expect(long).toMatchObject({ n: 4, passed: 2, rate: 2 / 4 });
+  // The scheduler comparison uses only the long-gap retrievals that carry a prediction.
+  expect(long.predicted).toMatchObject({ n: 3, observed: 2 / 3 });
+  expect(long.predicted.meanPredicted).toBeCloseTo((0.8 + 0.86 + 0.7) / 3, 12);
   expect(verifiedKnown(entries)).toEqual({ count: 1, words: ['casa'] });
 
   const lapses = retrievalEntries(log([
@@ -165,6 +179,7 @@ test('long retention, verified-known and leeches follow the documented rules', (
     ...Array.from({ length: 3 }, (_, i) => ({ word: 'perro', at: at(i + 1), elapsedDays: 2, outcome: 'again' })),
     { word: 'perro', at: at(9), elapsedDays: 0, outcome: 'again' }, // same-day retry is not a lapse
     { word: 'perro', at: at(9), prior: 0, elapsedDays: 3, outcome: 'again' }, // a new card cannot lapse
+    { word: 'perro', at: at(9), elapsedDays: null, outcome: 'again' }, // no elapsed time: not a lapse
   ]));
   expect(leeches(lapses)).toEqual({ count: 1, words: [{ word: 'gato', lapses: 4 }] });
   expect(leeches(lapses, 3).count).toBe(2);
@@ -178,6 +193,8 @@ test('calibration buckets predictions and compares the scheduler with a constant
     { word: 'perro', at: at(3), predicted: 0.15, outcome: 'again' },
     { word: 'gato', at: at(3), predicted: null, outcome: 'again' }, // no prediction
     { word: 'y', at: at(3), predicted: 0.5, outcome: 'known' }, // claim
+    // Same-day retries always predict 1 and are excluded.
+    ...Array.from({ length: 5 }, (_, i) => ({ word: 'gato', at: at(4) + i, predicted: 1, elapsedDays: 0, outcome: 'again' })),
   ];
   const result = calibration(retrievalEntries(log(rows)));
   expect(result.n).toBe(12);
@@ -197,6 +214,7 @@ test('calibration buckets predictions and compares the scheduler with a constant
   expect(calibration([])).toMatchObject({ n: 0, brier: null, beatsConstant: null });
   // A prediction of exactly 1 lands in the top bucket.
   expect(calibration(retrievalEntries(log([{ word: 'y', at: 1, predicted: 1, outcome: 'easy' }]))).buckets[9].n).toBe(1);
+  expect(calibration(retrievalEntries(log([{ word: 'y', at: 1, predicted: 0.9, elapsedDays: null, outcome: 'easy' }]))).n).toBe(0);
 });
 
 test('peek rate, exposure coverage and workload', () => {
@@ -205,7 +223,13 @@ test('peek rate, exposure coverage and workload', () => {
   countExposures(exposures, ['perro'], CATALOG, '2026-10-01');
   countExposures(exposures, ['perro'], CATALOG, '2026-10-01');
   countExposures(exposures, ['perro'], CATALOG, '2026-10-01', 'peek');
-  expect(peekRate(exposures)).toEqual({ exposures: 11, peeks: 1, rate: 1 / 11, words: { casa: 0, perro: 0.5 } });
+  expect(peekRate(exposures)).toEqual({ exposures: 11, peeks: 1, rate: 1 / 11,
+    words: Object.assign(Object.create(null), { casa: 0, perro: 0.5 }) });
+  const proto = cleanExposures(null);
+  countExposures(proto, ['__proto__'], ['__proto__'], '2026-10-01');
+  const protoRate = peekRate(proto);
+  expect(Object.getPrototypeOf(protoRate.words)).toBeNull();
+  expect(Object.keys(protoRate.words)).toEqual(['__proto__']);
   expect(exposureCoverage(exposures, ['casa', 'perro', 'gato', 'casa'])).toEqual({ words: 3, medianExposures: 2,
     medianDays: 1, atTarget: 1, rows: [{ word: 'casa', exposures: 9, days: 9 }, { word: 'perro', exposures: 2, days: 1 },
       { word: 'gato', exposures: 0, days: 0 }] });
@@ -236,4 +260,5 @@ test('summarize reports every section 9 measurement for one scope', () => {
   expect(summary).toMatchObject({ retrievals: 3, claims: 1, nextDayRecall: { n: 1, rate: 1 },
     longRetention: { n: 1, rate: 1, target: 0.9 }, verifiedKnown: { count: 1 }, workload: { reviews: 3 },
     leeches: { count: 0 } });
+  expect(() => summarize(state, exposures)).toThrow(RangeError);
 });
