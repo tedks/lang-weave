@@ -1,0 +1,24 @@
+id: zero-key-starter-mode-ruling
+title: 'Decide on a zero-key starter mode: deterministic unambiguous swaps or Chrome
+  on-device model'
+desc: 'Source: docs/research/ux-audit.md #13, docs/research/market.md onboarding.
+  BYOK is a wall for Store users. Options: (A) deterministic bundled mode swapping
+  only unambiguous entries (y, pero, siempre, nunca, hoy, gracias...), same site/title/form
+  exclusions, no network; (B) Chrome built-in Prompt API (Gemini Nano, desktop only,
+  22 GB disk, strong hardware; swap quality untested); (C) neither: pre-woven demo
+  page only, key required for live pages. Recommendation: C now (demo page in welcome-page),
+  then prototype A behind a flag and measure peek/flip rates; B as a spike. Decides:
+  Ted. Blocks nothing in M1; shapes welcome-page step 1.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T16:56:41-00:00
+references: []
+log_events:
+- time: 2026-10-30T16:56:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
