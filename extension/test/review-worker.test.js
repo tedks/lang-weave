@@ -120,13 +120,15 @@ test('worker owns review access, persistence, and raced rating serialization', a
     const ordinary = (await dispatch({ type: 'reviewNext' }, review)).card;
     expect(ordinary.en).toBe('and');
     await dispatch({ type: 'reviewReveal', ticket: ordinary.ticket }, review);
-    expect((await dispatch({ type: 'reviewRate', ticket: ordinary.ticket, rating: 'easy' }, review)).familiar).toBe(false);
+    expect(await dispatch({ type: 'reviewRate', ticket: ordinary.ticket, rating: 'easy' }, review))
+      .toMatchObject({ ok: true, familiar: false });
     expect(data[REVIEW_KEY].cards.y.familiar).toBeUndefined();
     data.settings.gradual = true;
     data[REVIEW_KEY].cards.y.due = now;
     const opted = (await dispatch({ type: 'reviewNext' }, review)).card;
     await dispatch({ type: 'reviewReveal', ticket: opted.ticket }, review);
-    expect((await dispatch({ type: 'reviewRate', ticket: opted.ticket, rating: 'easy' }, review)).familiar).toBe(true);
+    expect(await dispatch({ type: 'reviewRate', ticket: opted.ticket, rating: 'easy' }, review))
+      .toMatchObject({ ok: true, familiar: true });
     expect(data[REVIEW_KEY].cards.y.familiar).toBe(true);
 
     // A legacy card can miss after prior success without losing history or

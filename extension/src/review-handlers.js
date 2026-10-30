@@ -19,6 +19,7 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
     const now = Date.now();
     const oldCounts = reviewCounts(state, words, now);
     const ownCounts = reviewCounts(own.state, own.words, now);
+    // Personal IDs carry a colon and never overlap catalog forms, so this is one offered deck.
     const upcoming = nextDue({ cards: { ...state.cards, ...own.state.cards } }, [...words, ...own.words], now);
     return { due: oldCounts.due + ownCounts.due, new: oldCounts.new,
       language: languageName(language), ...upcoming };

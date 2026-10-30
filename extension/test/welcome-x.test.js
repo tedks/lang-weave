@@ -2,6 +2,7 @@ import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { suggestX, allowSuggestedX } from '../src/welcome.js';
 import { storeManifest } from '../scripts/package.mjs';
+import { hasSiteAccess } from '../src/settings.js';
 
 test('X suggestion follows the running manifest and grants from the click before saving', async () => {
   const previous = globalThis.chrome;
@@ -12,6 +13,7 @@ test('X suggestion follows the running manifest and grants from the click before
     expect(suggestX()).toBe(false);
     globalThis.chrome.runtime.getManifest = () => storeManifest(dev);
     expect(suggestX()).toBe(true);
+    expect(hasSiteAccess('https://x.com/someone/status/1', storeManifest(dev).optional_host_permissions)).toBe(true);
     const request = () => { calls.push('request'); return Promise.resolve(true); };
     const save = () => { calls.push('save'); return Promise.resolve(true); };
     const pending = allowSuggestedX({ request, save });
@@ -23,4 +25,3 @@ test('X suggestion follows the running manifest and grants from the click before
     expect(calls).toEqual(['request']);
   } finally { globalThis.chrome = previous; }
 });
-
