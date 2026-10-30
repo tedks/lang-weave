@@ -21,3 +21,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-10-30T19:58:54-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Diagnosed in the welcome-page lane. The backup tab was the clicked page,
+    no page received a download, and its port was connected and ready. Its notice
+    said "Learning backup: unknown storage format". The new top-level consentShown
+    marker was not in portability.js NON_LEARNING_KEYS, so strict export validation
+    rejected it. A failing-first unit test reproduced this; adding the key to NON_LEARNING_KEYS
+    made the test green, and the full real-Chromium portability script passed after
+    both idle waits. Temporary diagnostic instrumentation was removed.'
