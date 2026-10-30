@@ -7,6 +7,8 @@ export const RESERVATION_MS = 30 * 1000;
 const RENEW_GRACE_MS = 24 * 60 * 60 * 1000;
 const MAX_PENDING = 20;
 const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)', 'in', 'the', 'a']);
+// Same effective review time as review.js, kept local to avoid a review/learning import cycle.
+const dueAt = (card) => Math.max(Math.min(card.due, card.peekDue ?? Infinity), card.claimDue || 0);
 export const introductionOwner = (ticket, sender, revision) =>
   hashKey(JSON.stringify([ticket, sender.documentId, sender.tab?.id, sender.frameId, revision]));
 
@@ -63,12 +65,12 @@ export function policyWords(words, state, settings, now = Date.now(), day = loca
   const due = [], learning = [], fresh = [], known = [];
   for (const w of words) {
     const card = state.cards[w.fr];
-    if (card?.familiar) known.push({ ...w, status: 'known' });
-    else if (card?.due <= now) due.push({ ...w, status: 'due' });
+    if (card?.familiar || card?.maintenance) known.push({ ...w, status: 'known' });
+    else if (card && dueAt(card) <= now) due.push({ ...w, status: 'due' });
     else if (card) learning.push({ ...w, status: 'active' });
     else if (left && !reserved.has(w.fr)) fresh.push({ ...w, status: 'new' });
   }
-  due.sort((a, b) => state.cards[a.fr].due - state.cards[b.fr].due);
+  due.sort((a, b) => dueAt(state.cards[a.fr]) - dueAt(state.cards[b.fr]));
   fresh.sort((a, b) => Number(BASIC.has(a.en)) - Number(BASIC.has(b.en)));
   // Familiar words are occasionally useful for readable density, but should never dominate.
   return [...due, ...learning, ...fresh, ...known.slice(0, 2)];
@@ -97,13 +99,13 @@ export function commitLearning(state, results, settings, sender, revision, now =
       const card = state.cards[swap.word];
       // Recheck after model/cache awaits: another tab may have recorded the third sighting.
       if (card && !card.maintenance && card.seenDay === day && card.seenCount >= 3) continue;
-      if (card?.familiar) {
+      if (card?.familiar || card?.maintenance) {
         // Familiar filler is bounded per passage independently of model generosity.
         if (output[key].filter((s) => s.status === 'known').length >= 1) continue;
         output[key].push({ ...swap, status: 'known' });
       } else if (card) {
-        output[key].push({ ...swap, status: card.due <= now ? 'due' : 'active',
-          ...(card.due <= now && settings.inlineRecall && (!(card.introGateDay || card.introducedDay) ||
+        output[key].push({ ...swap, status: dueAt(card) <= now ? 'due' : 'active',
+          ...(dueAt(card) <= now && settings.inlineRecall && (!(card.introGateDay || card.introducedDay) ||
             (card.introGateDay || card.introducedDay) < day)
             ? { practice: true } : {}) });
       } else if (typeof swap.word === 'string' && (owned.has(swap.word) ||

@@ -2,7 +2,7 @@
 
 State: PR #28 on branch `progress-words`. Ditz issues `today-progress` and `my-words`, plus the user-facing half of `learning-event-log`.
 
-Encounter-core update (2026-10-30): [ENCOUNTER-MISSION.md](ENCOUNTER-MISSION.md) supersedes the earlier permanent-familiar behavior below when gradual learning is on. A third Easy is maintenance and remains scheduled under FSRS; an Already know claim is verified only by a later 21+-day retrieval at or after its claim due. In gradual mode Practice now can choose maintenance cards, but cannot bypass a pending claim's verification date. Legacy behavior below remains for gradual-off profiles. The My words claim still has no retrieval-log entry; the card's additive claim fields carry its verification gate.
+Encounter-core update (2026-10-30): [ENCOUNTER-MISSION.md](ENCOUNTER-MISSION.md) supersedes the earlier permanent-familiar behavior below when gradual learning is on. A third Easy is maintenance and remains scheduled under FSRS; an Already know claim is verified only by a later 21+-day retrieval at or after its claim due. In gradual mode My words shows the effective maintenance due date, Practice now can choose maintenance cards, and a pending claim cannot bypass its verification date. The one-time count of old retired cards due for verification appears on the review and progress pages. Reset's stale guard also compares claim fields. Legacy behavior below remains for gradual-off profiles. The My words claim still has no retrieval-log entry; the card's additive claim fields carry its verification gate.
 
 ## Intent
 

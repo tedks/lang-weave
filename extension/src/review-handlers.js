@@ -1,5 +1,5 @@
 // Review page handlers: the voluntary local recall queue.
-import { REVIEW_KEY, reviewCounts, nextDue, introduce, nextReview, revealReview, rateReview, markFamiliar, dueAt,
+import { REVIEW_KEY, reviewCounts, retiredReturnCount, nextDue, introduce, nextReview, revealReview, rateReview, markFamiliar, dueAt, reviewOrder,
   reviewLatency, askable } from './review.js';
 import { DEFAULT_RETENTION } from './fsrs.js';
 import { logRetrieval } from './learning-records.js';
@@ -22,6 +22,7 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
     // Personal IDs carry a colon and never overlap catalog forms, so this is one offered deck.
     const upcoming = nextDue({ cards: { ...state.cards, ...own.state.cards } }, [...words, ...own.words], now);
     return { due: oldCounts.due + ownCounts.due, new: oldCounts.new,
+      returned: retiredReturnCount(state, words, now) + retiredReturnCount(own.state, own.words, now),
       language: languageName(language), ...upcoming };
   }
 
@@ -40,13 +41,16 @@ export function createReviewHandlers({ store, locked, context, reviewState }) {
       const { state, words, scoped, language } = await reviewState(ctx);
       const own = personalReview(ctx);
       const now = Date.now();
-      const legacyDue = words.reduce((due, w) => Math.min(due, dueAt(state.cards[w.fr])), Infinity);
-      const personalDue = own.words.reduce((due, w) => Math.min(due, dueAt(own.state.cards[w.fr])), Infinity);
+      const earliest = (s, ws) => ws.map(({ fr }) => s.cards[fr]).filter((card) => dueAt(card) <= now)
+        .sort(reviewOrder)[0];
+      const legacyDue = earliest(state, words);
+      const personalDue = earliest(own.state, own.words);
       // A ticket already on offer (the card on screen, or one chosen with Practice now) keeps its
       // place across scopes, as nextReview keeps it within one scope.
       const keepsCurrent = (s, ws) => !!s.current && ws.some(({ fr }) => fr === s.current.word) && askable(s, s.current, now);
       const keepOwn = keepsCurrent(own.state, own.words), keepLegacy = keepsCurrent(state, words);
-      const usePersonal = keepOwn !== keepLegacy ? keepOwn : personalDue < legacyDue;
+      const usePersonal = keepOwn !== keepLegacy ? keepOwn
+        : personalDue && (!legacyDue || reviewOrder(personalDue, legacyDue) < 0);
       const card = usePersonal ? nextReview(own.state, own.words, now) : nextReview(state, words, now);
       if (usePersonal) {
         if (state.current) { state.current = null; await scoped.set({ [REVIEW_KEY]: state }); }

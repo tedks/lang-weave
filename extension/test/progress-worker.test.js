@@ -166,6 +166,41 @@ test('words actions: Practice now serves the chosen card first, Reset is guarded
   }
 });
 
+test('gradual My words exposes maintenance due and gates a claim; stale Reset cannot erase the claim', async () => {
+  const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const now = Date.parse('2026-10-20T15:00:00Z');
+  const data = { settings: { enabled: false, levelOverride: 1, gradual: true },
+    [REVIEW_KEY]: { version: 1, cards: { pero: { due: now + 8 * DAY_MS,
+      interval: 8, reviews: 1, introducedDay: '2026-10-19' },
+    y: { due: now - DAY_MS, interval: 30, reviews: 3, familiar: true } } } };
+  const { clock, dispatch, restore } = await boot('progress-maintenance', data);
+  const words = sender('words');
+  try {
+    const before = (await dispatch({ type: 'wordsList' }, words)).rows.find((row) => row.id === 'pero');
+    expect(before).toMatchObject({ stage: 'learning', due: now + 8 * DAY_MS, practise: true });
+    expect((await dispatch({ type: 'progress' }, sender('options'))).returned).toBe(1);
+    expect((await dispatch({ type: 'wordsList' }, words)).rows.find((row) => row.id === 'y'))
+      .toMatchObject({ stage: 'maintenance', due: now - DAY_MS, practise: true, maintenance: true });
+    expect(await dispatch({ type: 'wordKnown', id: 'pero', scope: 'es' }, words)).toEqual({ ok: true });
+    const claimed = (await dispatch({ type: 'wordsList' }, words)).rows.find((row) => row.id === 'pero');
+    expect(claimed).toMatchObject({ stage: 'known', due: now + 21 * DAY_MS,
+      maintenance: true, practise: false, reason: expect.stringContaining('Claim pending') });
+    expect((await dispatch({ type: 'wordReset', id: 'pero', scope: 'es', confirm: true,
+      version: before.version }, words)).stale).toBe(true);
+    expect((await dispatch({ type: 'wordPractice', id: 'pero', scope: 'es' }, words)).error).toMatch(/verification due/);
+    clock.now = now + 21 * DAY_MS;
+    const due = (await dispatch({ type: 'wordsList' }, words)).rows.find((row) => row.id === 'pero');
+    expect(due).toMatchObject({ stage: 'known', due: now + 21 * DAY_MS,
+      maintenance: true, practise: true, reason: '' });
+    expect(await dispatch({ type: 'wordPractice', id: 'pero', scope: 'es' }, words))
+      .toEqual({ ok: true, introduced: false });
+  } finally {
+    restore();
+    globalThis.chrome = saved.chrome;
+    globalThis.fetch = saved.fetch;
+  }
+});
+
 test('personal words: practice, archive refusal, and linked entries share the bundled row', async () => {
   const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };
   const LINKED = '7d1c2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f';

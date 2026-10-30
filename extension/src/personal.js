@@ -42,7 +42,7 @@ export function targetAliases(form, language) {
   return bare === full ? [full] : [full, bare];
 }
 
-export function cleanPersonal(raw) {
+export function cleanPersonal(raw, gradual = false) {
   if (raw && (typeof raw !== 'object' || raw.version !== 1 || !Array.isArray(raw.entries) ||
       raw.entries.length > MAX_PERSONAL || raw.history && (typeof raw.history !== 'object' || Array.isArray(raw.history))))
     return { version: 1, revision: 0, entries: [], history: {}, unsupported: true };
@@ -71,7 +71,7 @@ export function cleanPersonal(raw) {
       return { version: 1, revision: 0, entries: [], history: {}, unsupported: true };
     const words = byLanguage[language] || [];
     const rawHistory = raw?.history?.[language];
-    history[language] = cleanReview(rawHistory, words.map((entry) => ({ fr: entry.id, en: entry.source, hint: '' })));
+    history[language] = cleanReview(rawHistory, words.map((entry) => ({ fr: entry.id, en: entry.source, hint: '' })), Date.now(), gradual);
   }
   return { version: 1, revision: Number.isSafeInteger(raw?.revision) && raw.revision >= 0 ? raw.revision : 0,
     entries, history };

@@ -112,7 +112,7 @@ function cardId(value, scope, known = false) {
 }
 function card(value, m) {
   keys(value, ['due', 'interval', 'reviews', 'familiar', 'easyStreak', 'introducedDay', 'introGateDay', 'introReceipt',
-    ...(m.source || m.schema >= 2 ? ['fsrs', 'maintenance', 'claimAt', 'claimDue', 'peekDue',
+    ...(m.source || m.schema >= 2 ? ['fsrs', 'maintenance', 'retiredReturn', 'claimAt', 'claimDue', 'peekDue',
       'seenDay', 'seenCount', 'peekDay', 'peekCount'] : [])], 'card', ['due', 'interval', 'reviews']);
   const result = { due: integer(value.due, 0, Number.MAX_SAFE_INTEGER, 'due time'),
     interval: integer(value.interval, 0, 365, 'interval'), reviews: integer(value.reviews, 0, 10000, 'review count') };
@@ -124,6 +124,11 @@ function card(value, m) {
     if (Object.hasOwn(value, 'maintenance')) {
       if (value.maintenance !== true) fail('invalid maintenance');
       result.maintenance = true;
+    }
+    if (Object.hasOwn(value, 'retiredReturn')) {
+      if (value.retiredReturn !== true || result.maintenance !== true || result.familiar !== true)
+        fail('invalid retired return');
+      result.retiredReturn = true;
     }
     for (const kind of ['seen', 'peek']) {
       const dayKey = `${kind}Day`, countKey = `${kind}Count`;

@@ -2,7 +2,7 @@
 // and three word actions for the words page. Local data only; nothing is sent anywhere.
 // Writes go through the worker lock and the same scoped stores the review handlers use, and each
 // one names the scope the page listed, so a language or pack change in between is refused.
-import { REVIEW_KEY, reviewCounts, introduce, claimKnown } from './review.js';
+import { REVIEW_KEY, reviewCounts, retiredReturnCount, introduce, claimKnown, dueAt } from './review.js';
 import { DEFAULT_RETENTION, withFsrs } from './fsrs.js';
 import { RETRIEVALS_KEY, EXPOSURES_KEY, cleanRetrievals, cleanExposures, retrievalEntries } from './learning-log.js';
 import { PENDING_KEY, SENT_KEY, localDay } from './events.js';
@@ -55,6 +55,7 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
     return {
       language: languageName(ctx.language),
       due: legacyCounts.due + ownCounts.due, new: legacyCounts.new,
+      returned: retiredReturnCount(legacy.state, legacy.words, now) + retiredReturnCount(own.state, own.words, now),
       today: todayCounts([{ cards: legacy.state.cards, sent: snap.a[SENT_KEY], pending: snap.a[PENDING_KEY] },
         { cards: own.state.cards, sent: snap.b[SENT_KEY], pending: snap.b[PENDING_KEY] }], entries, now),
       stages: stageCounts(ids, cards, verified),
@@ -79,15 +80,20 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
     const progressOf = (id) => {
       const card = cards[id];
       const exposure = exposures.words[id];
-      return { stage: wordStage(card, verified.has(id)), due: card && !card.familiar ? card.due : null,
-        reviews: card?.reviews ?? 0, familiar: card?.familiar === true, lapses: card ? withFsrs(card).fsrs?.lapses ?? 0 : 0,
+      return { stage: wordStage(card, verified.has(id)), due: card && (!card.familiar || ctx.settings.gradual && card.maintenance)
+        ? dueAt(card) : null,
+        reviews: card?.reviews ?? 0, familiar: card?.familiar === true,
+        maintenance: ctx.settings.gradual && card?.maintenance === true,
+        lapses: card ? withFsrs(card).fsrs?.lapses ?? 0 : 0,
         exposures: exposure ? exposure[0] : 0, days: exposure ? exposure[2] : 0,
         // What the page echoes back to Reset: the card it showed, so a rating in between is caught.
-        version: card ? { due: card.due, reviews: card.reviews, familiar: card.familiar === true } : null };
+        version: card ? { due: card.due, reviews: card.reviews, familiar: card.familiar === true,
+          claimAt: card.claimAt ?? null, claimDue: card.claimDue ?? null } : null };
     };
     const blocked = (id, card, { archived = false, level = true } = {}) => archived ? 'Archived'
-      : card?.familiar ? 'Marked known. Reset it to practise again.'
-        : !level ? 'Above your current reading level' : '';
+      : !level ? 'Above your current reading level'
+        : ctx.settings.gradual && (card?.claimDue || 0) > now ? 'Claim pending. A later retrieval verifies it when due.'
+          : card?.familiar && !ctx.settings.gradual ? 'Marked known. Reset it to practise again.' : '';
     const rows = ctx.legacyAllWords.map((word) => {
       const saved = linked.get(entryId(ctx.scope, word));
       const p = progressOf(word.fr);
@@ -211,7 +217,8 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       const card = t.state.cards[t.word.fr];
       const seen = msg.version;
       if (!card) return { error: 'This word has no progress to reset.', stale: true };
-      if (!seen || seen.due !== card.due || seen.reviews !== card.reviews || seen.familiar !== (card.familiar === true))
+      if (!seen || seen.due !== card.due || seen.reviews !== card.reviews || seen.familiar !== (card.familiar === true) ||
+          seen.claimAt !== (card.claimAt ?? null) || seen.claimDue !== (card.claimDue ?? null))
         return { error: 'This word changed since the list loaded. Reload and try again.', stale: true };
       delete t.state.cards[t.word.fr];
       dropTickets(t.state, t.word.fr);

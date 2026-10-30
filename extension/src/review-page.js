@@ -30,7 +30,8 @@ function plural(count, word) {
 }
 
 function counts(data) {
-  $('counts').textContent = `${data.due} due · ${data.new} available to add`;
+  $('counts').textContent = `${data.due} due · ${data.new} available to add` +
+    (data.returned ? ` · ${data.returned} words returned from retirement to be verified` : '');
   $('introduce').hidden = data.new === 0;
   $('introduce').textContent = `Add ${plural(Math.min(5, data.new), 'new word')}`;
 }

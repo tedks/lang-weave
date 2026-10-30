@@ -19,7 +19,7 @@ async function send(type, fields = {}) {
 const notice = (message) => { $('notice').textContent = String(message || ''); };
 
 function dueText(row, now) {
-  if (row.familiar) return 'Not scheduled';
+  if (row.familiar && !row.maintenance) return 'Not scheduled';
   if (row.due === null) return 'Not started';
   if (row.due <= now) return 'Due now';
   // Local calendar days, so "tomorrow" means the next local date, not 24 hours away.
@@ -31,7 +31,8 @@ function dueText(row, now) {
 
 function drawProgress(p) {
   $('language').textContent = `${p.language} words on this device`;
-  $('headline').textContent = headline(p.verifiedKnown);
+  $('headline').textContent = headline(p.verifiedKnown) +
+    (p.returned ? ` · ${p.returned} words returned from retirement to be verified` : '');
   $('stages').replaceChildren(...Object.entries(STAGE_LABELS).map(([stage, label]) => {
     const li = document.createElement('li');
     li.textContent = `${label}: ${p.stages[stage]}`;

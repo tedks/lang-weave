@@ -47,6 +47,7 @@ test('under-exposed learning follows due and weak; a third sighting excludes tha
   expect(select({ batch: passage, words, state, exposures }).map((w) => w.fr))
     .toEqual(['ventana', 'libro', 'hospital', 'gato']);
   expect(underExposed(state.cards.hospital, exposures.hospital, day)).toBe(true);
+  expect(underExposed(state.cards.hospital, undefined, day)).toBe(true); // zero exposures
   expect(underExposed(state.cards.hospital, [8, 0, 8, day, day], day)).toBe(false);
   expect(underExposed(state.cards.hospital, exposures.hospital, '2026-11-17')).toBe(false);
   state.cards.hospital.seenDay = day;

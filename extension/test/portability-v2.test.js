@@ -93,19 +93,24 @@ test('a schema 2 file round-trips: FSRS state, logs and retention survive import
 test('schema 2 preserves additive maintenance and local-day counters; schema 1 strips them', () => {
   const { all, spanish } = writerStorage();
   const card = all.recallReview.cards[spanish];
-  Object.assign(card, { maintenance: true, claimAt: 1000, claimDue: 1000 + 21 * DAY_MS,
+  Object.assign(card, { familiar: true, maintenance: true, retiredReturn: true,
+    claimAt: 1000, claimDue: 1000 + 21 * DAY_MS,
     seenDay: '2026-10-30', seenCount: 3, peekDay: '2026-10-30', peekCount: 2,
     peekDue: card.due - 1000 });
   const file = parseBackup(createBackup(all, '0.12.13', 2));
-  expect(file.state.scopes.es.review.cards[spanish]).toMatchObject({ maintenance: true,
+  expect(file.state.scopes.es.review.cards[spanish]).toMatchObject({ maintenance: true, retiredReturn: true,
     claimAt: 1000, claimDue: 1000 + 21 * DAY_MS, seenCount: 3, peekCount: 2,
     peekDue: card.due - 1000 });
   const imported = { ...freshTarget(), ...learningPatch(file, freshTarget().settings) };
   expect(parseBackup(createBackup(imported, '0.12.13', 2)).state.scopes.es.review.cards[spanish])
     .toEqual(file.state.scopes.es.review.cards[spanish]);
   const old = createBackup(all, '0.12.13', 1);
-  for (const field of ['maintenance', 'claimAt', 'claimDue', 'seenDay', 'seenCount', 'peekDay', 'peekCount', 'peekDue'])
+  for (const field of ['maintenance', 'retiredReturn', 'claimAt', 'claimDue', 'seenDay', 'seenCount', 'peekDay', 'peekCount', 'peekDue'])
     expect(old).not.toContain(field);
+  const migrated = cleanReview({ version: 1, cards: { [spanish]: { due: card.due, interval: card.interval,
+    reviews: card.reviews, familiar: true } } }, [], Date.now(), true);
+  all.recallReview.cards[spanish] = migrated.cards[spanish];
+  expect(parseBackup(createBackup(all, '0.12.13', 2)).state.scopes.es.review.cards[spanish].retiredReturn).toBe(true);
 });
 
 test('ruling B: well-formed log entries for unknown words are omitted and counted, not fatal', () => {

@@ -138,6 +138,14 @@ test('production menu listener, one-use save, stable review history and archive/
       nextDue: personalDue, nextCount: 2,
     });
     data[REVIEW_KEY] = previousLegacy;
+    const personalCard = data.personalVocabularyV1.history.es.cards[saved.id];
+    personalCard.peekDue = Date.now() - 1;
+    const peekReview = await send({ type: 'reviewNext' }, reviewer);
+    expect(peekReview.card.en).toBe('glimmer');
+    expect(data.personalVocabularyV1.history.es.cards[saved.id].peekDue).toBe(personalCard.peekDue);
+    data.settings.gradual = false;
+    expect((await send({ type: 'reviewNext' }, reviewer)).card).toBeNull();
+    data.settings.gradual = true;
 
     // Save with a configured model must not start a reading retry or provider request.
     data.apiKey = 'synthetic-key';

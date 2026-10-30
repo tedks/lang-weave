@@ -23,6 +23,8 @@ export function cleanReview(raw, words, now = Date.now(), gradual = false) {
       cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews,
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(gradual && (card.maintenance === true || card.familiar === true) ? { maintenance: true } : {}),
+        ...(gradual && card.familiar === true && (card.maintenance !== true || card.retiredReturn === true)
+          ? { retiredReturn: true } : {}),
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
         ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}),
         ...(validDay(card.introGateDay) ? { introGateDay: card.introGateDay } : {}) };
@@ -82,6 +84,9 @@ export function reviewCounts(state, words, now) {
   };
 }
 
+export const retiredReturnCount = (state, words, now) => words.filter(({ fr }) =>
+  state.cards[fr]?.retiredReturn === true && dueAt(state.cards[fr]) <= now).length;
+
 export const dueAt = (card) => card && (!card.familiar || card.maintenance)
   ? Math.max(Math.min(card.due, card.peekDue ?? Infinity), card.claimDue || 0) : Infinity;
 
@@ -106,6 +111,10 @@ export function nextDue(state, words, now) {
   }
   return { nextDue: first, nextCount };
 }
+// A one-time migration pile must not jump ahead of cards still being learned.
+export const reviewOrder = (a, b) => Number(a?.maintenance === true) - Number(b?.maintenance === true) ||
+  dueAt(a) - dueAt(b);
+
 // The claim gates the next retrieval without fabricating an FSRS review. FSRS memory and its
 // scheduled due stay intact; a new/short-interval claim waits at least 21 days.
 export function claimKnown(card, now) {
@@ -121,11 +130,12 @@ export function countCardEncounter(card, kind, day, now) {
   if (!card || !['seen', 'peek'].includes(kind) || !validDay(day)) return false;
   const key = `${kind}Count`, dayKey = `${kind}Day`;
   if (card[dayKey] > day) return false; // clock rollback cannot mint a new day
+  const beforeDay = card[dayKey], beforeCount = card[key], beforeDue = card.peekDue;
   card[key] = Math.min(3, (card[dayKey] === day ? card[key] || 0 : 0) + 1);
   card[dayKey] = day;
   if (kind === 'peek' && card[key] >= 2 && !card.maintenance && card.reviews > 0)
     card.peekDue = Math.min(card.peekDue ?? card.due, card.due, now + DAY_MS);
-  return true;
+  return card[dayKey] !== beforeDay || card[key] !== beforeCount || card.peekDue !== beforeDue;
 }
 
 export function introduce(state, words, now, count = 5) {
@@ -152,7 +162,7 @@ export function nextReview(state, words, now, ticket = () => crypto.randomUUID()
   if (Number.isSafeInteger(state.current?.practice) && !Number.isSafeInteger(state.current.shownAt)) state.current.shownAt = now;
   if (!state.current) {
     const due = words.filter(({ fr }) => dueAt(state.cards[fr]) <= now)
-      .sort((a, b) => dueAt(state.cards[a.fr]) - dueAt(state.cards[b.fr]));
+      .sort((a, b) => reviewOrder(state.cards[a.fr], state.cards[b.fr]));
     if (!due.length) return null;
     state.current = { word: due[0].fr, ticket: ticket(), revealed: false, shownAt: now };
   }
@@ -213,6 +223,7 @@ function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAU
   card.due = step.due;
   card.reviews = Math.min(10000, card.reviews + 1);
   delete card.peekDue;
+  delete card.retiredReturn;
   if (rating === 'again') {
     card.easyStreak = 0;
     // Keep a failed recall unmastered if another valid route ever reaches

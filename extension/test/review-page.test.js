@@ -126,7 +126,7 @@ test('an open review tab discards a revealed answer after language changes while
   let queues = 0;
   const page = await mount('language-refresh', ({ type }) => {
     if (type === 'reviewNext' && ++queues === 1) return Promise.resolve({
-      language: 'French', due: 1, new: 0,
+      language: 'French', due: 1, new: 0, returned: 1,
       card: { ticket: 'old', en: 'and', revealed: true },
     });
     if (type === 'reviewNext') {
@@ -142,6 +142,7 @@ test('an open review tab discards a revealed answer after language changes while
   try {
     await answerStarted;
     expect(page.$('language').textContent).toBe('Reviewing French');
+    expect(page.$('counts').textContent).toContain('1 words returned from retirement to be verified');
     page.changed({ settings: {} }, 'local');
     releaseFrenchAnswer({ answer: { fr: 'et', hint: 'eh' } });
     await queueStarted;

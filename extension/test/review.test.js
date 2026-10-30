@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
-import { DAY_MS, cleanReview, introduce, nextDue, nextReview, revealReview, rateReview, reviewCounts, markFamiliar, askable,
+import { DAY_MS, cleanReview, introduce, nextDue, nextReview, revealReview, rateReview, reviewCounts, retiredReturnCount, markFamiliar, askable,
   countCardEncounter, dueAt, claimKnown } from '../src/review.js';
 import { initialState, nextState, intervalDays } from '../src/fsrs.js';
 import { localDay } from '../src/events.js';
@@ -92,6 +92,30 @@ test('the most overdue card wins even when it is later in the vocabulary list', 
   state.cards.y.due = now - DAY_MS;
   state.cards.pero.due = now - 3 * DAY_MS;
   expect(nextReview(state, L1_WORDS, now, () => 'ticket').en).toBe('but');
+});
+
+test('learning-due cards precede the migrated maintenance backlog', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const state = cleanReview({ version: 1, cards: {
+    y: { due: now - 30 * DAY_MS, interval: 30, reviews: 3, familiar: true },
+    pero: { due: now - DAY_MS, interval: 1, reviews: 1 },
+  } }, L1_WORDS, now, true);
+  expect(nextReview(state, L1_WORDS, now, () => 'ticket').en).toBe('but');
+  state.current = null;
+  state.cards.pero.due = now + DAY_MS;
+  expect(nextReview(state, L1_WORDS, now, () => 'ticket-2').en).toBe('and');
+});
+
+test('saturated encounter counters do not request redundant writes', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const card = { due: now + 8 * DAY_MS, interval: 8, reviews: 1 };
+  const day = '2026-10-17';
+  for (let i = 0; i < 3; i++) expect(countCardEncounter(card, 'seen', day, now)).toBe(true);
+  expect(countCardEncounter(card, 'seen', day, now)).toBe(false);
+  for (let i = 0; i < 3; i++) expect(countCardEncounter(card, 'peek', day, now)).toBe(true);
+  expect(countCardEncounter(card, 'peek', day, now)).toBe(false);
+  expect(countCardEncounter(card, 'seen', '2026-10-18', now + DAY_MS)).toBe(true);
+  expect(card.seenCount).toBe(1);
 });
 
 test('Again resets day interval and Easy streak, then becomes due at the ten-minute boundary', () => {
@@ -219,9 +243,15 @@ test('gradual migration keeps familiar history and schedules maintenance; off re
   expect(nextReview(off, words, now)).toBeNull();
   const on = cleanReview(raw, words, now, true);
   expect(on.cards.pero).toMatchObject({ due: now - 1, interval: 30, reviews: 7,
-    easyStreak: 3, familiar: true, maintenance: true, introducedDay: '2026-09-01' });
+    easyStreak: 3, familiar: true, maintenance: true, retiredReturn: true, introducedDay: '2026-09-01' });
+  expect(retiredReturnCount(on, words, now)).toBe(1);
   expect(cleanReview({ version: 1, cards: on.cards }, words, now, true).cards.pero).toEqual(on.cards.pero);
   expect(nextReview(on, words, now)?.en).toBe('but');
+  const ticket = on.current.ticket;
+  revealReview(on, words, ticket, now);
+  rateReview(on, ticket, 'medium', now, true);
+  expect(on.cards.pero.retiredReturn).toBeUndefined();
+  expect(retiredReturnCount(on, words, now + DAY_MS)).toBe(0);
   expect(wordStage(on.cards.pero)).toBe('maintenance');
   expect(nextReview(cleanReview({ version: 1, cards: on.cards }, words, now, false), words, now)).toBeNull();
 });

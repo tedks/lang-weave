@@ -14,8 +14,8 @@ const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)',
 const weak = (card) => !!card && !card.familiar && card.reviews > 0 && card.interval <= 1;
 const dayIndex = (day) => Date.parse(`${day}T00:00:00Z`) / 86400000;
 export function underExposed(card, aggregate, day) {
-  if (!card || card.maintenance || !aggregate || aggregate[2] >= 8) return false;
-  const first = card.introducedDay || aggregate[3];
+  if (!card || card.maintenance || (aggregate?.[2] ?? 0) >= 8) return false;
+  const first = card.introducedDay || aggregate?.[3];
   const age = dayIndex(day) - dayIndex(first);
   return Number.isFinite(age) && age >= 0 && age < 21;
 }
@@ -90,7 +90,7 @@ export function selectWorkingSet({ batch, words, scope, state, settings, now, da
   }).filter((w) => (w.status === 'known' || state.cards[w.fr]?.seenDay !== day || state.cards[w.fr].seenCount < 3) &&
     (w.status !== 'new' || owned.has(w.fr) || allowFresh > 0 && !reserved.has(w.fr)));
   ranked.sort((a, b) => a.rank - b.rank ||
-    (a.rank === 0 ? state.cards[a.fr].due - state.cards[b.fr].due : 0) ||
+    (a.rank === 0 ? dueAt(state.cards[a.fr]) - dueAt(state.cards[b.fr]) : 0) ||
     (a.rank === 4 ? Number(!owned.has(a.fr)) - Number(!owned.has(b.fr)) : 0) ||
     (a.rank === 4 ? Number(!a.guessable) - Number(!b.guessable) : 0) ||
     (encounters[b.entryId] || 0) - (encounters[a.entryId] || 0) ||

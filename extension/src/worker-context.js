@@ -31,7 +31,7 @@ export function createContext({ store, ready, worker }) {
     const pack = saved.language === 'es' ? null : packs[saved.language];
     const legacyAllWords = pack ? packWords(pack, 2) : wordsForLevel(2);
     const legacyWords = level <= 1 ? (pack ? packWords(pack, 1) : wordsForLevel(1)) : legacyAllWords;
-    const personal = cleanPersonal(data[PERSONAL_KEY]);
+    const personal = cleanPersonal(data[PERSONAL_KEY], settings.gradual);
     const activePersonal = personalWords(personal, saved.language, legacyAllWords);
     const personalAuto = activePersonal.filter(({ reviewOnly }) => !reviewOnly);
     const separate = activePersonal.filter(({ entry }) => !entry.linkedLegacy).map(({ entry }) => entry);
