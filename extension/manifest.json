@@ -22,6 +22,16 @@
     "service_worker": "src/background.js",
     "type": "module"
   },
+  "commands": {
+    "pause-on-this-page": {
+      "suggested_key": { "default": "Alt+Shift+W" },
+      "description": "Pause or resume Lang Weave on this site"
+    },
+    "open-review": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Open Lang Weave review"
+    }
+  },
   "content_scripts": [
     {
       "matches": [
