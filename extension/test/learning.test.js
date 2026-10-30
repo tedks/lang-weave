@@ -181,7 +181,7 @@ test('due contextual result can cue recall; reveal and one rating require same d
   expect(revealInline(state, words, ticket, { ...sender, documentId: 'document-b' }, 'revision-a', now)).toBeNull();
   expect(revealInline(state, words, ticket, sender, 'revision-b', now)).toBeNull();
   expect(revealInline(state, words, ticket, sender, 'revision-a', now)?.fr).toBe('libro');
-  expect(finishInline(state, ticket, sender, 'revision-a', now, 'easy')?.interval).toBe(7);
+  expect(finishInline(state, ticket, sender, 'revision-a', now, 'easy')?.interval).toBe(8); // FSRS-6 first Easy
   expect(finishInline(state, ticket, sender, 'revision-a', now, 'easy')).toBeNull();
   expect(state.cards.libro.reviews).toBe(1);
   expect(beginInline(state, 'libro', sender, 'revision-a', now)).toBeNull();
@@ -199,11 +199,11 @@ test('inline Again is bound to its revealed document and revision, with a ten-mi
   expect(finishInline(state, ticket, { ...sender, documentId: 'other' }, revision, now, 'again')).toBeNull();
   expect(finishInline(state, ticket, sender, 'other-revision', now, 'again')).toBeNull();
   expect(finishInline(state, ticket, sender, revision, now, 'AGAIN')).toBeNull(); // malformed rating
-  expect(finishInline(state, ticket, sender, revision, now, 'again')).toEqual({
+  expect(finishInline(state, ticket, sender, revision, now, 'again')).toMatchObject({
     due: now + 10 * 60 * 1000, interval: 0, familiar: false,
   });
   expect(state.cards.libro).toEqual({ due: now + 10 * 60 * 1000, interval: 0, reviews: 5,
-    easyStreak: 0, introducedDay: '2026-10-17', introGateDay: '2026-10-17' });
+    easyStreak: 0, introducedDay: '2026-10-17', introGateDay: '2026-10-17', fsrs: expect.any(Object) });
   expect(finishInline(state, ticket, sender, revision, now, 'again')).toBeNull(); // duplicate
   expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000 - 1)).toBeNull();
   expect(beginInline(state, 'libro', sender, revision, now + 10 * 60 * 1000)).toHaveProperty('ticket');
@@ -247,7 +247,7 @@ test('familiarity follows explicit marking or three Easy recalls, never exposure
   expect(commitLearning(state, { p: [swap('libro')] }, settings, now, day).p[0].practice).toBe(true);
   expect(state.cards.libro.familiar).toBeUndefined();
   for (let i = 0; i < 3; i++) {
-    const at = now + i * 30 * 86400000;
+    const at = state.cards.libro.due; // each Easy is rated when the card is next due
     const card = nextReview(state, [words[2]], at, () => `ticket-${i}`);
     expect(revealReview(state, [words[2]], card.ticket, at)?.fr).toBe('libro');
     expect(rateReview(state, card.ticket, 'easy', at, true)).toBeTruthy();

@@ -122,8 +122,15 @@ try {
   await review.locator('#finish:visible, #empty:visible').first().waitFor();
   assert.equal(await review.locator('#finish').isVisible(), true);
   const rated = await fresh.worker.evaluate(() => chrome.storage.local.get('recallReview'));
-  assert.equal(rated.recallReview.cards.y.interval, 1);
+  // FSRS (0.12.6): the restored card migrates at this rating, writes its memory state, and the
+  // rating is logged as one standalone retrieval with word ID and fixed fields only.
+  assert.ok(rated.recallReview.cards.y.interval >= 1);
   assert.equal(rated.recallReview.cards.y.reviews, 3);
+  assert.equal(typeof rated.recallReview.cards.y.fsrs?.stability, 'number');
+  const logged = await fresh.worker.evaluate(() => chrome.storage.local.get('learningRetrievals'));
+  const last = logged.learningRetrievals.retrievals.at(-1);
+  assert.deepEqual([last[0], last[2], last[3], last[4], last[5]], ['y', 'standalone', 'productive', 'hard', 2]);
+  assert.ok(!JSON.stringify(logged).includes('http'));
   assert.equal(await fresh.worker.evaluate(() => chrome.storage.local.get('apiKey').then((v) => !!v.apiKey)), false);
   console.log(`portability MV3 PASS: keyless ${old.id} -> stable ${fresh.id}; file preview/import and keyless review`);
 } finally {

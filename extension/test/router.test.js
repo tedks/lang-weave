@@ -6,7 +6,8 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
   popup: ['addLanguage', 'clearCache', 'recoverBudget', 'removeKey', 'removeLanguage', 'reviewStatus', 'save', 'status', 'testKey'],
-  review: ['reviewIntroduce', 'reviewKnown', 'reviewNext', 'reviewRate', 'reviewReveal', 'reviewStatus'],
+  // learningStats (0.12.6): read-only local measurements, review page only.
+  review: ['learningStats', 'reviewIntroduce', 'reviewKnown', 'reviewNext', 'reviewRate', 'reviewReveal', 'reviewStatus'],
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
     'personalExport', 'personalIntroduce', 'personalList'],
   backup: ['learningExport', 'learningImport', 'learningPreview'],
@@ -69,7 +70,7 @@ function legacyAllows(msg, sender) {
   const backup = backupSender(sender);
   const capture = capturePageSender(sender);
   const page = sender.tab && /^https?:\/\//.test(sender.url || '');
-  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown'];
+  const reviews = ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown', 'learningStats'];
   if (!handlers[msg.type] || !(popup && ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget'].includes(msg.type)) &&
       !(review && reviews.includes(msg.type)) &&
       !(capture && ['captureDraft', 'captureKeepAlive', 'captureSave', 'captureCancel', 'personalList',

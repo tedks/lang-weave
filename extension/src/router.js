@@ -22,7 +22,7 @@ export const SURFACES = Object.freeze([
     ['status', 'clearCache', 'save', 'addLanguage', 'removeLanguage', 'reviewStatus', 'recoverBudget',
       'removeKey', 'testKey']),
   surface('review', (sender) => sender.url === chrome.runtime.getURL('src/review.html'),
-    ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown']),
+    ['reviewStatus', 'reviewIntroduce', 'reviewNext', 'reviewReveal', 'reviewRate', 'reviewKnown', 'learningStats']),
   surface('capture', capturePageSender,
     ['captureDraft', 'captureKeepAlive', 'captureSave', 'captureCancel', 'personalList',
       'personalArchive', 'personalIntroduce', 'personalExport']),

@@ -15,9 +15,14 @@ export const BACKUP_FORMAT = 'lang-weave-learning-backup';
 // The schema this build writes, and the schemas it reads. Schema 2 adds per-card FSRS state,
 // the learning log (retrievals, exposures) and desiredRetention. A build must read a schema
 // before any build writes it (docs/LEARNING-CORE-MISSION.md, "Release order").
-export const BACKUP_SCHEMA = 1;
+export const BACKUP_SCHEMA = 2;
 export const READ_SCHEMAS = Object.freeze([1, 2]);
 export const MAX_BACKUP_BYTES = 1024 * 1024;
+// One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
+// cards, packs or personal entries under MAX_BACKUP_BYTES.
+export const LOG_BUDGET_BYTES = 512 * 1024;
+// Slack under MAX_BACKUP_BYTES for the separators fitLog's accounting may round away.
+const LOG_MARGIN_BYTES = 1024;
 export const IMPORT_JOURNAL_KEY = 'learningImportJournalV1';
 export const IMPORT_RECEIPT_KEY = 'learningImportReceiptV1';
 const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY];
@@ -387,6 +392,55 @@ function storageEntries(all) {
     if (Object.hasOwn(all, key)) es[field] = all[key];
   return scopes;
 }
+// Fit the log into LOG_BUDGET_BYTES of compact JSON: first every scope's exposure aggregates,
+// which the catalogs bound to about 207 KiB, then retrievals newest first across all scopes,
+// stopping at the first one that does not fit. Only current scopes (Spanish, installed packs,
+// personal) can reach this point: a historical pack scope has no catalog to verify its words,
+// so ruling B already left its log out. Everything left out, here or by ruling B during
+// validation, is counted in state.logOmitted.
+function fitLog(st, m, budget) {
+  const encoder = new TextEncoder();
+  const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
+  let used = 0, droppedRetrievals = 0, droppedWords = 0;
+  const fit = (size) => used + size <= budget && ((used += size), true);
+  // Charge the structure around the entries up front, so the budget bounds the serialized log:
+  // each log field's key and empty wrapper, the key of a scope that holds only log data, and
+  // the largest possible state.logOmitted.
+  used += bytes({ retrievals: 10000000, exposureWords: 10000000 }) + bytes('logOmitted') + 2;
+  for (const [id, fields] of Object.entries(st.scopes)) {
+    const logFields = LOG_FIELDS.filter((field) => fields[field]);
+    if (!logFields.length) continue;
+    if (Object.keys(fields).every((field) => LOG_FIELDS.includes(field))) used += bytes(id) + 3;
+    if (fields.retrievals) used += bytes('retrievals') + 2 + bytes({ version: 1, retrievals: [] });
+    if (fields.exposures) used += bytes('exposures') + 2;
+  }
+  for (const fields of Object.values(st.scopes)) {
+    if (fields.exposures && !fit(bytes(fields.exposures))) {
+      droppedWords += Object.keys(fields.exposures.words).length;
+      delete fields.exposures;
+    }
+  }
+  const all = [];
+  for (const [id, fields] of Object.entries(st.scopes))
+    for (const tuple of fields.retrievals?.retrievals || []) all.push([id, tuple]);
+  all.sort(([, a], [, b]) => b[1] - a[1]);
+  const kept = new Set();
+  let full = false;
+  for (const [, tuple] of all) {
+    if (!full && fit(bytes(tuple) + 1)) kept.add(tuple);
+    else { full = true; droppedRetrievals++; }
+  }
+  for (const fields of Object.values(st.scopes)) if (fields.retrievals)
+    fields.retrievals = { version: 1, retrievals: fields.retrievals.retrievals.filter((tuple) => kept.has(tuple)) };
+  for (const [id, fields] of Object.entries(st.scopes)) {
+    if (fields.retrievals && !fields.retrievals.retrievals.length) delete fields.retrievals;
+    if (fields.exposures && !Object.keys(fields.exposures.words).length) delete fields.exposures;
+    if (id !== 'es' && !Object.keys(fields).length) delete st.scopes[id];
+  }
+  const retrievals = m.omitted.retrievals + droppedRetrievals, exposureWords = m.omitted.exposures + droppedWords;
+  if (retrievals || exposureWords) st.logOmitted = { retrievals, exposureWords };
+}
+
 export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
   if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
   const scopes = storageEntries(all);
@@ -408,8 +462,23 @@ export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
     }, packs: all.languagePacks || {},
     personal: all.personalVocabularyV1 || { version: 1, revision: 0, entries: [], history: {} },
     scopes } };
-  const clean = { ...raw, state: state(raw.state, mode(true, schema)) };
-  const json = JSON.stringify(clean, null, 2);
+  const m = mode(true, schema);
+  const clean = { ...raw, state: state(raw.state, m) };
+  if (schema >= 2) {
+    // The log is the only optional part of a backup, so it gets at most LOG_BUDGET_BYTES and never
+    // more than the room the rest of the file leaves under MAX_BACKUP_BYTES.
+    const scopesWithoutLog = Object.fromEntries(Object.entries(clean.state.scopes).map(([id, fields]) => {
+      const { retrievals, exposures, ...rest } = fields;
+      return [id, rest];
+    }));
+    const base = new TextEncoder().encode(JSON.stringify({ ...clean, state: { ...clean.state, scopes: scopesWithoutLog } })).length;
+    // If the rest of the file alone sits within a few dozen bytes of the limit, even
+    // state.logOmitted does not fit and the export fails closed below, rather than dropping the
+    // log without saying so.
+    fitLog(clean.state, m, Math.max(0, Math.min(LOG_BUDGET_BYTES, MAX_BACKUP_BYTES - base - LOG_MARGIN_BYTES)));
+  }
+  // Schema 2 is written compactly: indentation would roughly triple the learning log.
+  const json = schema >= 2 ? JSON.stringify(clean) : JSON.stringify(clean, null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('supported learning state exceeds file limit');
   return json;
 }

@@ -4,6 +4,7 @@ import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, readBounded
   safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 import { API_BASE } from './gemini.js';
 import { cleanSettings } from './settings.js';
+import { MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
 import { localDay } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { futureBudgetDay } from './learning.js';
@@ -81,6 +82,13 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         throw new Error('Invalid language code');
       }
       const merged = { ...saved.settings, ...msg.settings };
+      // FSRS target recall: an explicit value must be valid; null returns to the 0.9 default.
+      if (msg.settings && typeof msg.settings === 'object' && Object.hasOwn(msg.settings, 'desiredRetention')) {
+        const value = msg.settings.desiredRetention;
+        if (value === null) delete merged.desiredRetention;
+        else if (!(typeof value === 'number' && value >= MIN_RETENTION && value <= MAX_RETENTION))
+          throw new Error(`Target recall must be between ${MIN_RETENTION} and ${MAX_RETENTION}`);
+      }
       if (msg.siteOverride && typeof msg.siteOverride.host === 'string') {
         merged.siteOverrides = { ...saved.settings?.siteOverrides };
         if (msg.siteOverride.enabled === null) delete merged.siteOverrides[msg.siteOverride.host];
@@ -97,8 +105,14 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();
       }
-      if (JSON.stringify(next) !== JSON.stringify(cleanSettings(saved.settings)) || forceKeyRotation ||
-          (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey)) {
+      // Target recall affects only review scheduling, so changing it alone keeps the reading epoch
+      // and its cached results.
+      const reading = ({ desiredRetention, ...rest }) => JSON.stringify(rest);
+      const before = cleanSettings(saved.settings);
+      const keyChanged = forceKeyRotation || (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey);
+      if (reading(next) === reading(before) && !keyChanged) {
+        if (JSON.stringify(next) !== JSON.stringify(before)) await store.set({ settings: next });
+      } else {
         patch.epoch = crypto.randomUUID();
         if (forceKeyRotation || Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
           patch.keyEpoch = crypto.randomUUID();

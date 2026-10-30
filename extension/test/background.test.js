@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test';
-import { PENDING_KEY } from '../src/events.js';
+import { PENDING_KEY, localDay } from '../src/events.js';
+import { EXPOSURES_KEY } from '../src/learning-log.js';
 
 // The real service worker (fresh module copy via ?background) with a minimal fake chrome: no page, no Gemini.
 test('worker: update badge follows the manifest on disk; concurrent Spanish page events stay local', async () => {
@@ -77,6 +78,11 @@ test('worker: update badge follows the manifest on disk; concurrent Spanish page
     expect(await dispatch({ type: 'event', word: 'y', event: 'seen', revision }, page)).toEqual({ ok: true });
     expect(data[PENDING_KEY]).toHaveLength(3); // one sighting per word per local day
     expect(data[PENDING_KEY].every((e) => e.day && !JSON.stringify(e).includes('example.com'))).toBe(true);
+    // Learning-log exposures at the same points: every seen counts (two for y), a peek counts as a
+    // peek only, and a flip is not an exposure. Word IDs and local days only.
+    const today = localDay();
+    expect(data[EXPOSURES_KEY]).toEqual({ version: 1, words: { y: [2, 0, 1, today, today], pero: [0, 1, 0, today, today] } });
+    expect(JSON.stringify(data[EXPOSURES_KEY])).not.toContain('example.com');
     expect(held).toHaveLength(0); // local events have no host flush timer
   } finally {
     Object.assign(globalThis, saved);

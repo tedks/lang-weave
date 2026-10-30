@@ -33,6 +33,12 @@ Every install loaded before 0.12.0 has an ID derived from its directory, so 0.12
 
 [Stable ID mission record](docs/STABLE-ID-MISSION.md) has the verification, what the Chrome docs do and do not promise about a later Chrome Web Store release, and what remains untested.
 
+## Review scheduling and backups (0.12.6)
+
+Since 0.12.6, reviews are scheduled with FSRS-6 on the actual time since each review, aiming for 90% recall by default. A lapse no longer erases a word's history. Existing cards keep their due dates and switch over at their next rating. Each review, and each time a vocabulary word is placed in a page or hovered, is counted in a local learning log. The log holds word IDs, times and outcomes only, never pages, URLs or text, and it never leaves your browser.
+
+Learning backups from 0.12.6 use format 2. Lang Weave 0.12.5 and later can import them; 0.12.4 and earlier refuse them. Once 0.12.6 has logged anything, 0.12.4 and earlier can no longer export a backup. If you ever need to go back, go back to 0.12.5, which reads everything 0.12.6 stores.
+
 ## Controls and privacy
 
 The popup's **On** switch pauses weaving and restores the original text in open pages. The site checkbox controls the current hostname; **Other sites → Only sites I turn on** gives an explicit allowlist. Site exceptions can be reset individually. **Clear cache** requests fresh choices.

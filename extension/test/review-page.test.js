@@ -2,6 +2,7 @@ import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { Window } from 'happy-dom';
 import { cleanReview, rateReview, AGAIN_MS, DAY_MS as SCHEDULER_DAY_MS } from '../src/review.js';
+import { initialState, intervalDays } from '../src/fsrs.js';
 
 // Mount the shipped markup so these tests break when review.html and
 // review-page.js drift apart.
@@ -392,13 +393,15 @@ test('the rating help states the scheduler\'s intervals for a new card', () => {
       current: { word: 'y', ticket: '00000000-0000-0000-0000-000000000000', revealed: true } }, [], now);
     return rateReview(state, '00000000-0000-0000-0000-000000000000', rating, now).due - now;
   };
+  // The copy is derived from the FSRS scheduler's first intervals, so it cannot drift from them.
+  const first = (rating) => intervalDays(initialState(rating).stability);
   expect(after('again')).toBe(AGAIN_MS);
   expect(AGAIN_MS).toBe(10 * 60 * 1000);
-  expect(after('hard')).toBe(SCHEDULER_DAY_MS);
-  expect(after('medium')).toBe(3 * SCHEDULER_DAY_MS);
-  expect(after('easy')).toBe(7 * SCHEDULER_DAY_MS);
+  for (const rating of ['hard', 'medium', 'easy']) expect(after(rating)).toBe(first(rating) * SCHEDULER_DAY_MS);
+  const days = (n) => n === 1 ? 'a day' : `${n} days`;
   const help = body.match(/<p id="rating-help"[^>]*>([^<]*)<\/p>/)[1];
-  expect(help).toContain('Again returns in 10 minutes, Hard in a day, Medium in 3 or more days, Easy in a week or more.');
+  expect(help).toContain(`Again returns in 10 minutes. For a new word, Hard returns in ${days(first('hard'))}, ` +
+    `Medium in ${days(first('medium'))} and Easy in ${days(first('easy'))}; after that, intervals grow with each successful recall.`);
 });
 
 test('the finish card withholds a next-review claim an Easy card could falsify', async () => {

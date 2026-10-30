@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
 import { DAY_MS, cleanReview, introduce, nextReview, revealReview, rateReview, reviewCounts } from '../src/review.js';
+import { initialState, nextState, intervalDays } from '../src/fsrs.js';
 
 test('explicit introduction, clock scheduling, and one revealed rating per ticket', () => {
   const now = Date.parse('2026-10-17T12:00:00Z');
@@ -14,20 +15,30 @@ test('explicit introduction, clock scheduling, and one revealed rating per ticke
   expect(revealReview(state, L1_WORDS, 'wrong', now)).toBeNull();
   expect(revealReview(state, L1_WORDS, first.ticket, now)).toEqual({ fr: 'y', en: 'and', hint: 'ee' });
   expect(rateReview(state, first.ticket, 'invalid', now)).toBeNull();
-  expect(rateReview(state, first.ticket, 'easy', now)).toEqual({ due: now + 7 * DAY_MS, interval: 7 });
+  // FSRS-6 defaults: a first Easy is 8 days (stability 8.2956 at 0.9 retention).
+  expect(rateReview(state, first.ticket, 'easy', now)).toMatchObject({ due: now + 8 * DAY_MS, interval: 8 });
   expect(rateReview(state, first.ticket, 'hard', now)).toBeNull();
   expect(state.cards.y.reviews).toBe(1);
+  expect(state.cards.y.fsrs).toEqual({ ...initialState('easy'), lastReview: now, lapses: 0 });
   expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 4, new: 25 });
-  expect(reviewCounts(state, L1_WORDS, now + 7 * DAY_MS).due).toBe(5);
+  expect(reviewCounts(state, L1_WORDS, now + 7 * DAY_MS).due).toBe(4);
+  expect(reviewCounts(state, L1_WORDS, now + 8 * DAY_MS).due).toBe(5);
   state.current = null;
   for (const word of L1_WORDS.slice(1, 5)) state.cards[word.fr].due = now + 20 * DAY_MS;
-  const again = nextReview(state, L1_WORDS, now + 7 * DAY_MS, () => 'ticket-2');
+  // Reviewed four days late: the actual 12-day gap, not the scheduled 8, drives the update.
+  const late = now + 12 * DAY_MS;
+  const again = nextReview(state, L1_WORDS, late, () => 'ticket-2');
   expect(again.en).toBe('and');
-  expect(revealReview(state, L1_WORDS, again.ticket, now + 7 * DAY_MS)?.fr).toBe('y');
-  expect(rateReview(state, again.ticket, 'medium', now + 7 * DAY_MS)?.interval).toBe(14);
-  expect(state.cards.y.due).toBe(now + 21 * DAY_MS);
+  expect(revealReview(state, L1_WORDS, again.ticket, late)?.fr).toBe('y');
+  const afterMedium = nextState(initialState('easy'), 'medium', 12);
+  expect(rateReview(state, again.ticket, 'medium', late)?.interval).toBe(intervalDays(afterMedium.stability));
+  expect(state.cards.y.due).toBe(late + intervalDays(afterMedium.stability) * DAY_MS);
+  // Hard is a pass: it keeps memory instead of dropping a long interval to one day.
+  const hardAt = state.cards.y.due;
   state.current = { word: 'y', ticket: 'ticket-3', revealed: true };
-  expect(rateReview(state, 'ticket-3', 'hard', now + 21 * DAY_MS)?.interval).toBe(1);
+  const hard = rateReview(state, 'ticket-3', 'hard', hardAt);
+  expect(hard.interval).toBeGreaterThan(1);
+  expect(hard.interval).toBe(intervalDays(nextState(afterMedium, 'hard', intervalDays(afterMedium.stability)).stability));
   state.cards.y = { due: now, interval: 300, reviews: 10000 };
   state.current = { word: 'y', ticket: 'ticket-4', revealed: true };
   expect(rateReview(state, 'ticket-4', 'easy', now)?.interval).toBe(365);
@@ -71,9 +82,13 @@ test('Again resets day interval and Easy streak, then becomes due at the ten-min
   expect(rateReview(state, 'again-ticket', 'again', now)).toBeNull(); // stale ticket
   state.current = { word: 'y', ticket: 'again-ticket', revealed: true };
   expect(rateReview(state, 'again-ticket', 'Again', now)).toBeNull(); // malformed rating
-  expect(rateReview(state, 'again-ticket', 'again', now)).toEqual({ due: now + 10 * 60 * 1000, interval: 0 });
+  expect(rateReview(state, 'again-ticket', 'again', now)).toMatchObject({ due: now + 10 * 60 * 1000, interval: 0 });
   expect(state.cards.y).toEqual({ due: now + 10 * 60 * 1000, interval: 0, reviews: 8,
-    easyStreak: 0, introducedDay: '2026-10-16', introGateDay: '2026-10-17' });
+    easyStreak: 0, introducedDay: '2026-10-16', introGateDay: '2026-10-17', fsrs: expect.any(Object) });
+  // Migrated from interval 14 (an Easy): the lapse keeps memory instead of resetting to a new card.
+  expect(state.cards.y.fsrs).toMatchObject({ lastReview: now, lapses: 1 });
+  expect(state.cards.y.fsrs.stability).toBeLessThan(14);
+  expect(state.cards.y.fsrs.stability).toBeGreaterThan(initialState('again').stability);
   const reloaded = cleanReview(structuredClone(state), words, now).cards.y;
   expect(reloaded).toEqual({ ...state.cards.y, easyStreak: undefined });
   expect(reloaded.easyStreak ?? 0).toBe(0); // zero is omitted by legacy cleaning
@@ -90,4 +105,29 @@ test('cleanReview preserves only the legacy version 1 storage contract', () => {
   const card = { due: now, interval: 3, reviews: 2, easyStreak: 1 };
   expect(cleanReview({ version: 1, cards: { y: card } }, words, now).cards.y).toEqual(card);
   expect(cleanReview({ version: 2, cards: { y: card } }, words, now).cards).toEqual({});
+});
+
+test('a migrated first FSRS rating logs no prediction; a stored state logs the scheduler\'s', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const words = [{ fr: 'y', en: 'and', hint: '' }];
+  const migrated = cleanReview({ version: 1, cards: { y: { due: now, interval: 20, reviews: 4 } } }, words, now);
+  migrated.current = { word: 'y', ticket: 't', revealed: true, shownAt: now - 4000 };
+  const first = rateReview(migrated, 't', 'medium', now);
+  expect(first.record).toMatchObject({ word: 'y', prior: 4, outcome: 'medium', elapsedDays: 20, predicted: null, latencyMs: 4000 });
+  migrated.current = { word: 'y', ticket: 'u', revealed: true };
+  const next = rateReview(migrated, 'u', 'easy', migrated.cards.y.due);
+  expect(next.record.predicted).toBeCloseTo(0.9, 2); // reviewed on its due date at 0.9 retention
+  expect(next.record.latencyMs).toBeNull(); // no prompt time recorded
+});
+
+test('a lower desired retention schedules longer intervals; the default is 0.9', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const rate = (retention) => {
+    const state = cleanReview({ version: 1, cards: { y: { due: now, interval: 20, reviews: 4 } } }, [{ fr: 'y', en: 'and', hint: '' }], now);
+    state.current = { word: 'y', ticket: 't', revealed: true };
+    return rateReview(state, 't', 'medium', now, false, retention);
+  };
+  expect(rate(0.85).interval).toBeGreaterThan(rate(0.9).interval);
+  expect(rate(undefined).interval).toBe(rate(0.9).interval);
+  expect(() => rate(0.8)).toThrow(RangeError);
 });

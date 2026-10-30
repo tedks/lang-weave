@@ -1,7 +1,7 @@
 // Browser-local recall state. The caller serializes read/modify/write and owns storage.
 import { cleanLearning, validDay, RESERVATION_MS } from './learning.js';
 import { localDay } from './events.js';
-import { storedFsrs } from './fsrs.js';
+import { storedFsrs, withFsrs, reviewCard, DEFAULT_RETENTION } from './fsrs.js';
 export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
 export const AGAIN_MS = 10 * 60 * 1000;
@@ -40,6 +40,8 @@ export function cleanReview(raw, words, now = Date.now()) {
   const valid = current && Object.hasOwn(cards, current.word) &&
     typeof current.ticket === 'string' && /^[0-9a-f-]{36}$/.test(current.ticket) &&
     typeof current.revealed === 'boolean';
+  // When the prompt was first shown, for the worker-measured review time. Ephemeral, never exported.
+  const shown = (value) => Number.isSafeInteger(value?.shownAt) && value.shownAt >= 0 ? { shownAt: value.shownAt } : {};
   const inline = raw?.version === 1 ? raw.inline : null;
   const validInline = inline && Object.hasOwn(cards, inline.word) &&
     typeof inline.ticket === 'string' && /^[0-9a-f-]{36}$/.test(inline.ticket) &&
@@ -48,10 +50,10 @@ export function cleanReview(raw, words, now = Date.now()) {
     typeof inline.revision === 'string' && inline.revision.length <= 100 &&
     typeof inline.revealed === 'boolean';
   return { version: 1, cards, current: valid
-    ? { word: current.word, ticket: current.ticket, revealed: current.revealed } : null,
+    ? { word: current.word, ticket: current.ticket, revealed: current.revealed, ...shown(current) } : null,
     learning: cleanLearning(raw?.learning, now), inline: validInline ? { word: inline.word, ticket: inline.ticket,
       documentId: inline.documentId, tabId: inline.tabId, frameId: inline.frameId,
-      revision: inline.revision, revealed: inline.revealed } : null };
+      revision: inline.revision, revealed: inline.revealed, ...shown(inline) } : null };
 }
 
 export function reviewCounts(state, words, now) {
@@ -75,7 +77,7 @@ export function nextReview(state, words, now, ticket = () => crypto.randomUUID()
     const due = words.filter(({ fr }) => state.cards[fr]?.due <= now && !state.cards[fr]?.familiar)
       .sort((a, b) => state.cards[a.fr].due - state.cards[b.fr].due);
     if (!due.length) return null;
-    state.current = { word: due[0].fr, ticket: ticket(), revealed: false };
+    state.current = { word: due[0].fr, ticket: ticket(), revealed: false, shownAt: now };
   }
   const word = words.find(({ fr }) => fr === state.current.word);
   return { ticket: state.current.ticket, en: word.en, revealed: state.current.revealed };
@@ -90,40 +92,59 @@ export function revealReview(state, words, ticket, now) {
   return { fr: word.fr, en: word.en, hint: word.hint };
 }
 
-export function rateReview(state, ticket, rating, now, autoFamiliar = false) {
+// Milliseconds from first showing the prompt to now, or null when unknown or the clock went back.
+export function reviewLatency(prompt, now) {
+  return Number.isSafeInteger(prompt?.shownAt) && prompt.shownAt <= now ? now - prompt.shownAt : null;
+}
+
+export function rateReview(state, ticket, rating, now, autoFamiliar = false, retention = DEFAULT_RETENTION) {
   const current = state.current;
   if (!RATINGS.has(rating) || !current || current.ticket !== ticket || !current.revealed) return null;
   const card = state.cards[current.word];
   if (!card || card.due > now || card.familiar) return null;
-  const result = scheduleCard(card, rating, now, autoFamiliar);
+  const result = scheduleCard(card, rating, now, autoFamiliar, retention);
+  result.record = { word: current.word, latencyMs: reviewLatency(current, now), ...result.record };
   state.current = null;
   return result;
 }
 
-function scheduleCard(card, rating, now, autoFamiliar = false) {
-  // This build schedules without FSRS, so any stored FSRS memory state no longer describes the
-  // card after this rating; a later build re-derives it from due/interval.
-  delete card.fsrs;
+// Whole local calendar days from a stored introduction day to `now`'s local day.
+function daysSinceIntroduction(day, now) {
+  if (!validDay(day)) return null;
+  const [y, m, d] = day.split('-').map(Number);
+  const today = new Date(now);
+  const diff = Math.round((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(y, m - 1, d)) / DAY_MS);
+  return diff >= 0 ? diff : null;
+}
+
+// FSRS-6 scheduling (fsrs.js). Again/Hard/Medium/Easy are FSRS Again/Hard/Good/Easy; Again keeps
+// the ten-minute retry with interval 0. A card without consistent stored state is migrated from
+// due/interval first. Familiar and the Easy streak are unchanged (familiar-maintenance is separate).
+// Returns the new due/interval plus the learning-log record for this retrieval.
+function scheduleCard(card, rating, now, autoFamiliar = false, retention = DEFAULT_RETENTION) {
+  // Stored state is the scheduler's own; a migrated estimate is not, so its prediction is not
+  // logged (it would contaminate the calibration test of the scheduler).
+  const stored = storedFsrs(card);
+  const prior = stored ?? withFsrs(card).fsrs ?? null;
+  const reviewsBefore = card.reviews;
+  const step = reviewCard(prior, rating, now, { retention, againStepMs: AGAIN_MS });
+  card.fsrs = step.fsrs;
+  card.interval = step.interval;
+  card.due = step.due;
+  card.reviews = Math.min(10000, card.reviews + 1);
   if (rating === 'again') {
-    // A ten-minute retry is not a day interval; keeping interval at zero also
-    // prevents a miss from carrying forward an old Easy/Medium interval.
-    card.interval = 0;
-    card.due = now + AGAIN_MS;
-    card.reviews = Math.min(10000, card.reviews + 1);
     card.easyStreak = 0;
     // Keep a failed recall unmastered if another valid route ever reaches
     // this scheduler with a previously familiar card.
     delete card.familiar;
-    return { due: card.due, interval: card.interval };
+  } else {
+    card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
+    if (autoFamiliar && card.easyStreak >= 3) card.familiar = true;
   }
-  const interval = rating === 'hard' ? 1 : rating === 'medium'
-    ? Math.max(3, card.interval * 2) : Math.max(7, card.interval * 3);
-  card.interval = Math.min(365, interval);
-  card.due = now + card.interval * DAY_MS;
-  card.reviews = Math.min(10000, card.reviews + 1);
-  card.easyStreak = rating === 'easy' ? Math.min(3, (card.easyStreak || 0) + 1) : 0;
-  if (autoFamiliar && card.easyStreak >= 3) card.familiar = true;
-  return { due: card.due, interval: card.interval };
+  // A first rating has no prior FSRS review, so its gap is counted from the introduction day.
+  const elapsedDays = step.elapsedDays ?? (reviewsBefore === 0 ? daysSinceIntroduction(card.introducedDay, now) : null);
+  return { due: card.due, interval: card.interval, record: { prior: reviewsBefore, outcome: rating, elapsedDays,
+    intervalDays: step.interval, predicted: stored ? step.predictedRecall : null } };
 }
 
 export function markFamiliar(state, ticket, now) {
@@ -140,7 +161,7 @@ export function beginInline(state, word, sender, revision, now, ticket = () => c
   if (!card || card.familiar || card.due > now || (card.introGateDay || card.introducedDay) >= localDay(new Date(now)) || !sender.documentId ||
       !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId)) return null;
   state.inline = { word, ticket: ticket(), documentId: sender.documentId,
-    tabId: sender.tab.id, frameId: sender.frameId, revision, revealed: false };
+    tabId: sender.tab.id, frameId: sender.frameId, revision, revealed: false, shownAt: now };
   return { ticket: state.inline.ticket };
 }
 
@@ -160,17 +181,20 @@ export function revealInline(state, words, ticket, sender, revision, now) {
   return { fr: word.fr, en: word.en, hint: word.hint };
 }
 
-export function finishInline(state, ticket, sender, revision, now, rating) {
+export function finishInline(state, ticket, sender, revision, now, rating, retention = DEFAULT_RETENTION) {
   if (!matchesInline(state, ticket, sender, revision) || !state.inline.revealed ||
       state.cards[state.inline.word]?.due > now || state.cards[state.inline.word]?.familiar) return null;
   const card = state.cards[state.inline.word];
+  const prompt = { word: state.inline.word, latencyMs: reviewLatency(state.inline, now) };
   if (rating === 'known') {
+    // "Already know" is a claim, logged as such, never as a recall.
+    const record = { ...prompt, prior: card.reviews, outcome: 'known', elapsedDays: null, intervalDays: null, predicted: null };
     card.familiar = true;
     state.inline = null;
-    return { familiar: true };
+    return { familiar: true, record };
   }
   if (!RATINGS.has(rating)) return null;
-  const result = scheduleCard(card, rating, now, true);
+  const result = scheduleCard(card, rating, now, true, retention);
   state.inline = null;
-  return { ...result, familiar: card.familiar === true };
+  return { ...result, record: { ...prompt, ...result.record }, familiar: card.familiar === true };
 }
