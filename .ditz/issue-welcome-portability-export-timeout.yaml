@@ -1,0 +1,23 @@
+id: welcome-portability-export-timeout
+title: Investigate portability browser gate export timeout after welcome-page change
+desc: The welcome-page lane's e2e/portability.mjs failed three consecutive runs waiting
+  for the old profile's export download after the intentional 35-second MV3 idle wait.
+  This persisted after the harness waited for initial settings storage before writing
+  its fixture. Other browser gates (again, adaptive, highlights, personal, smoke,
+  welcome) passed. The old backup page may be showing an error or have lost its live
+  port; capture its notice/port state and find whether this is a welcome-page regression
+  or a pre-existing browser flake. The welcome-page mission cannot merge until this
+  gate passes. No live Gemini call is needed.
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T19:47:23-00:00
+references: []
+log_events:
+- time: 2026-10-30T19:47:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
