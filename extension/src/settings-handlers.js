@@ -80,6 +80,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
   async function save(msg, forceKeyRotation = false) {
     if (worker.keyIsolationUnavailable && typeof msg.apiKey === 'string' && msg.apiKey.trim())
       throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
+    if (typeof msg.apiKey === 'string' && !msg.apiKey.trim() && !forceKeyRotation)
+      throw new Error('Use Remove key to delete the saved key.');
     if (msg.consentShown === true && typeof msg.settings?.newSitesEnabled !== 'boolean')
       throw new Error('Choose a site policy before confirming consent');
     worker.settingsGeneration++;

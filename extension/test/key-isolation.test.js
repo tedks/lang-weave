@@ -66,6 +66,8 @@ test('missing access-level API refuses key saves, keeps an old key for explicit 
       .toEqual({ error: statusLabel(before.modelStatus) });
     expect(await f.dispatch({ type: 'testKey' }, f.options))
       .toEqual({ ok: false, category: 'key_isolation_unavailable' });
+    expect(await f.dispatch({ type: 'save', apiKey: '  ' }, f.options))
+      .toEqual({ error: 'Use Remove key to delete the saved key.' });
     expect(f.data.apiKey).toBe('old-secret');
     expect(f.writes.every((patch) => !Object.hasOwn(patch, 'apiKey'))).toBe(true);
     expect(await f.dispatch({ type: 'removeKey' }, f.options)).toEqual({ ok: true });
