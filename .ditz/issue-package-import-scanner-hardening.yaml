@@ -1,0 +1,23 @@
+id: package-import-scanner-hardening
+title: 'package.mjs import scanner: ignore .import( method calls; make the regex-context
+  check linear'
+desc: 'Council convergence nits on PR #21 (pre-existing in the scanner, not introduced
+  by the fix delta): (1) a method named import, e.g. loader.import(''./x.js''), matches
+  the import() pattern because \b matches after ''.'', so it can cause a false refusal;
+  require the preceding character not to be ''.''. (2) REGEX_AFTER_WORD.test(out)
+  runs over the whole accumulated output on every ''/'' after a word, which is O(n^2)
+  (about 2.8 s for 20,000 lines of a / b); test only the tail of out. Neither affects
+  the current extension source.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:43:40-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:43:40-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
