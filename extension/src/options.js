@@ -163,5 +163,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 chrome.permissions.onAdded.addListener(refreshAfterExternalChange);
 chrome.permissions.onRemoved.addListener(refreshAfterExternalChange);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshAfterExternalChange();
+});
+// Due dates can pass without a storage write while this tab stays open.
+const refreshTimer = document.defaultView.setInterval(() => {
+  if (!document.hidden) refreshAfterExternalChange();
+}, 5 * 60 * 1000);
+document.defaultView.addEventListener('pagehide', () => {
+  document.defaultView.clearInterval(refreshTimer);
+}, { once: true });
 
 void run(refresh);

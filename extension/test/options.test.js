@@ -16,6 +16,12 @@ test('options works without a tab; settings, exception reset and key removal rou
   const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
   const window = new Window({ url: 'chrome-extension://fw-options/src/options.html' });
   window.document.write(readFileSync(new URL('../src/options.html', import.meta.url), 'utf8'));
+  let refreshTick;
+  window.setInterval = (callback, delay) => {
+    expect(delay).toBe(5 * 60 * 1000);
+    refreshTick = callback;
+    return 1;
+  };
   globalThis.document = window.document;
   const data = {
     settings: cleanSettings({ siteOverrides: { 'example.com': false } }),
@@ -95,6 +101,14 @@ test('options works without a tab; settings, exception reset and key removal rou
     due = 5;
     storageChanged({ recallReview: {} }, 'local');
     await waitFor(() => $('reviewInfo').textContent === '5');
+    expect($('apiKey').value).toBe('unsaved-draft');
+    due = 6;
+    storageChanged({ 'lang:fr:version:recallReview': {} }, 'local');
+    await waitFor(() => $('reviewInfo').textContent === '6');
+    due = 7;
+    refreshTick();
+    await waitFor(() => $('reviewInfo').textContent === '7');
+    expect($('apiKey').value).toBe('unsaved-draft');
     $('apiKey').value = 'synthetic-key';
     $('saveKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Saved ✓');
