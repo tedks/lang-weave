@@ -95,7 +95,8 @@ export function todayCounts(scopes, entries, now) {
 
 // The last `days` local days ending today, oldest first, with how many retrievals (ratings
 // and claims) each holds. Days are dates in the device's current time zone: the log stores
-// instants only, so after travel past retrievals are re-bucketed into the new zone's dates. Calendar arithmetic, so DST days are still one entry each. Entries
+// instants only, so after travel past retrievals are re-bucketed into the new zone's
+// dates. Calendar arithmetic, so DST days are still one entry each. Entries
 // from the future (a clock rollback) are ignored.
 export function activity(entries, now, days = ACTIVITY_DAYS) {
   const today = new Date(now);

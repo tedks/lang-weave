@@ -59,13 +59,13 @@ The learner can see their words and whether learning is happening, from local da
   Calibration uses five buckets. The text says that a fair test of the scheduler needs a few hundred reviews. Exposure coverage and workload are also shown. Peek rate is omitted, because the log keeps no time series for it.
 - **Practice now.** The review ticket gains an optional `practice` field: the card's due time when the learner chose it. While the card still has that due time, the due checks (`askable` in `review.js`) accept it before it is due. Any other write to the card voids the grant, because every rating, inline rating or reset moves the due time. Familiar cards are still refused.
   - **Scheduling.** FSRS schedules the rating from the real elapsed time as an early review, and the log records its prediction.
-  - **Easy streak.** An early pass leaves the Easy streak alone, so automatic familiarity still needs three spaced Easy reviews. Without this, repeated Practice now plus Easy would retire a word in minutes.
+  - **Easy streak.** An early Easy never extends the Easy streak, while an early Hard or Medium still resets it, so automatic familiarity still needs three spaced Easy reviews. Without this, repeated Practice now plus Easy would retire a word in minutes.
   - **New words.** A new word is introduced first. Like the review page's Add button and the capture page's "Add to review", this is an explicit manual introduction. It sits outside the gradual daily budget, which governs automatic introductions while reading.
   - **Latency.** It starts when the review page first fetches the ticket, whether the card was due or not.
   - **Scope order.** `reviewNext` keeps a ticket that is already on offer across the pack and personal scopes. A chosen personal word is therefore not displaced by an earlier-due pack card. This also applies to an ordinary due ticket already on screen, which the old code could switch away from in that rare case.
   - **Refusals.** Words above the current level, archived words and claimed words cannot be practised.
   - **Open review tab.** Practice now replaces any ticket another review tab is showing, and that tab's next rating gets the existing stale reply (`practice-now-review-tab`).
-- **Already know.** It sets the existing `familiar` flag. A word that was never introduced gets a familiar card that does not count as an introduction. The claim is not logged: the log's two sources are the review surfaces, and a third needs a format change (filed as `words-known-claim-log`).
+- **Already know.** It sets the existing `familiar` flag. A word that was never introduced gets a familiar card, which does not use the daily introduction budget. The claim is not logged: the log's two sources are the review surfaces, and a third needs a format change (filed as `words-known-claim-log`).
 - **Reset.** It deletes the card: its schedule, FSRS memory, review count and familiar flag. Reset requires three things:
   - a second, explicit click;
   - `confirm: true` in the request;
