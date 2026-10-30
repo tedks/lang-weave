@@ -1,6 +1,7 @@
 // Browser-local recall state. The caller serializes read/modify/write and owns storage.
 import { cleanLearning, validDay, RESERVATION_MS } from './learning.js';
 import { localDay } from './events.js';
+import { storedFsrs } from './fsrs.js';
 export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
 export const AGAIN_MS = 10 * 60 * 1000;
@@ -23,6 +24,10 @@ export function cleanReview(raw, words, now = Date.now()) {
         ...(Number.isSafeInteger(card.easyStreak) && card.easyStreak > 0 && card.easyStreak <= 3 ? { easyStreak: card.easyStreak } : {}),
         ...(validDay(card.introducedDay) ? { introducedDay: card.introducedDay } : {}),
         ...(validDay(card.introGateDay) ? { introGateDay: card.introGateDay } : {}) };
+      // Keep FSRS memory state only while it still agrees with due/interval. A build that
+      // schedules without FSRS changes due/interval, and the stale state then drops here.
+      const fsrs = storedFsrs(card);
+      if (fsrs) cards[fr].fsrs = fsrs;
       const receipt = card.introReceipt;
       if (typeof receipt?.ticket === 'string' && /^[0-9a-f-]{36}$/.test(receipt.ticket) &&
           typeof receipt.ownerKey === 'string' && /^[0-9a-f]{16}$/.test(receipt.ownerKey) &&
@@ -96,6 +101,9 @@ export function rateReview(state, ticket, rating, now, autoFamiliar = false) {
 }
 
 function scheduleCard(card, rating, now, autoFamiliar = false) {
+  // This build schedules without FSRS, so any stored FSRS memory state no longer describes the
+  // card after this rating; a later build re-derives it from due/interval.
+  delete card.fsrs;
   if (rating === 'again') {
     // A ten-minute retry is not a day interval; keeping interval at zero also
     // prevents a miss from carrying forward an old Easy/Medium interval.

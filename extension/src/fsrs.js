@@ -216,10 +216,18 @@ export function migrateCard(card, w = DEFAULT_PARAMETERS) {
 
 // Whether a stored state agrees with the card's schedule exactly as reviewCard writes it:
 // due = lastReview + interval days, or for Again (interval 0) a retry step of at most a day.
+// A card with state has been rated, and cannot have more lapses than reviews.
 function consistent(state, card) {
-  if (!Number.isSafeInteger(card.due) || !Number.isSafeInteger(card.interval) || card.interval < 0) return false;
+  if (!Number.isSafeInteger(card.due) || !Number.isSafeInteger(card.interval) || card.interval < 0 ||
+      !Number.isSafeInteger(card.reviews) || card.reviews < 1 || state.lapses > card.reviews) return false;
   return card.interval > 0 ? card.due === state.lastReview + card.interval * DAY_MS
     : card.due >= state.lastReview && card.due - state.lastReview <= DAY_MS;
+}
+
+// The card's stored FSRS state when it is valid and agrees with the card's schedule, else null.
+export function storedFsrs(card) {
+  const state = cleanFsrsState(card?.fsrs);
+  return state && consistent(state, card) ? state : null;
 }
 
 // A copy of `card` with `fsrs` attached. `due` and `interval` are authoritative: a stored state

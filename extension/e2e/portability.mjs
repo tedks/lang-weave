@@ -117,7 +117,10 @@ try {
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText('y').waitFor();
   await review.locator('[data-rating="hard"]').click();
-  await review.locator('#empty').waitFor({ state: 'visible' });
+  // review-flow (#20) shows #finish after a rating in a session, #empty otherwise. Wait for
+  // whichever appears, then require the finish card, which is what this scenario must reach.
+  await review.locator('#finish:visible, #empty:visible').first().waitFor();
+  assert.equal(await review.locator('#finish').isVisible(), true);
   const rated = await fresh.worker.evaluate(() => chrome.storage.local.get('recallReview'));
   assert.equal(rated.recallReview.cards.y.interval, 1);
   assert.equal(rated.recallReview.cards.y.reviews, 3);

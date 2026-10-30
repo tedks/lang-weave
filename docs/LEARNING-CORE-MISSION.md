@@ -1,6 +1,27 @@
-# Learning core: FSRS scheduler and local learning log (phase 1)
+# Learning core: FSRS scheduler and local learning log
 
-State: phase 1 modules on branch `learning-core`, PR #19. Ditz issues `fsrs-scheduler` and `learning-event-log` stay open for phase 2. Nothing here is wired into the worker, content script, review page or backup yet, so user-visible behaviour and stored data are unchanged.
+State: phase 1 (standalone modules) merged in PR #19 at `eee1bfe`. Phase 2 is a two-PR stack. The bottom PR is the tolerant-reader release, 0.12.5 on branch `learning-core-reader`. The top PR is the writer release on branch `learning-core-writer`. Ditz issues `fsrs-scheduler` and `learning-event-log` stay open until the writer merges.
+
+## Phase 2, step 1: tolerant reader (0.12.5)
+
+This release reads everything the writer will produce and changes nothing a user sees:
+- **Backups.** `parseBackup` accepts schema 1 and schema 2. Export still writes schema 1, without FSRS state, log or `desiredRetention`, so 0.12.4 and earlier can still import its files.
+- **Unknown future schemas** fail with a message naming the schema and telling the user to update.
+- **Schema 2 content.** `fsrs` on cards is validated with `cleanFsrsState`. It is kept only while it agrees with the card's `due` and `interval`, and dropped as stale otherwise. `learningRetrievals` and `learningExposures` in any scope are validated strictly, so malformed data fails closed. Well-formed entries whose word is not in the scope's catalog are omitted and counted in the preview. That is ruling B on `learning-log-export-unverified-ruling`.
+- **`desiredRetention`** is accepted between 0.85 and 0.9.
+- **Storage.** The two log keys are known learning keys everywhere a key list exists: `storageEntries`, `learningPatch`, `alreadyImported` and `targetFresh`. They now derive from one table, `SCOPE_FIELDS`. A target with logged progress is not fresh, and an unknown log shape conflicts.
+- **Cards.** `cleanReview` keeps a stored `fsrs` only while it agrees with the schedule. This build schedules without FSRS, so a card it rates loses the stale state at the next load. No new field is ever created.
+- **Settings.** `cleanSettings` keeps `desiredRetention` when it is valid and never adds a default. A downgrade to 0.12.4 or earlier therefore stays possible unless the user imported a schema 2 file with that preference.
+- **Old scheduler.** This build's scheduler deletes a card's `fsrs` whenever it rates the card, Again included, because the state no longer describes the card. A stored state also needs at least one review and no more lapses than reviews.
+- **Schema 1 export** ignores stored `fsrs` without validating it, and drops a scope that held only log data instead of exporting it empty. It silently omits FSRS state, the log and `desiredRetention`, which is inherent to schema 1. That only matters after a schema 2 import into this build.
+- **Repeat imports.** A fresh target may already hold an empty log. `alreadyImported` accepts an empty log of exactly the version 1 shape that the import did not write. `targetFresh` treats any other log shape as a conflict.
+- **Known limit.** An exposure word spelled exactly `constructor` or `prototype` fails the whole import as an unsafe key, as review cards already do.
+- **Interpretation.** Migration on read in this step means accepting and validating persisted state, not deriving it. Derivation with `withFsrs` starts in the writer, which is also the first build to persist it.
+
+Verified against 0.12.2's own `portability.js`, extracted from `origin/main` at `13533f3`. Releases 0.12.3 and 0.12.4 (worker split follow-ups and key setup) did not change `portability.js`, `settings.js` or `review.js`, so the result holds for every release before 0.12.5:
+- It refuses a schema 2 file with "unsupported format or schema version".
+- It refuses to export once any log key exists, with "unknown storage format". That cannot be fixed retroactively, so the writer's release notes must say to update to 0.12.5 or later first.
+- It imports this build's schema 1 export.
 
 ## Intent
 
@@ -72,12 +93,12 @@ Today any new key or card field breaks the learning backup:
 - `card()` rejects any unknown card field.
 - `cleanReview` silently drops unknown card fields on every load.
 
-**Release order.** Ship a tolerant reader one release before the first writer. That release does three things. It makes `storageEntries` skip the two log keys, scoped and unprefixed. It makes `card()` strip a card's `fsrs` field, for both scope cards and personal history cards, before schema 1 validation; `due` and `interval` are authoritative and a schema 1 file never carries `fsrs`. It makes `cleanSettings` and `validateStorageSettings` accept and ignore `desiredRetention`. A user who then downgrades from the writer can still export schema 1, and startup does not set `startupUnsupportedSettings`. Older builds such as 0.11.1 fail their export as soon as a log key exists. That cannot be fixed retroactively, and the release notes must say so. This needs a `portability.js` change, which is outside phase 1.
+**Release order.** Ship a tolerant reader one release before the first writer. In the event, 0.12.5 went further than this plan's first draft, which only skipped and stripped the new data: it reads and validates all of it. "Phase 2, step 1" above describes what it does. A user who then downgrades from the writer to 0.12.5 can still export schema 1, and startup does not set `startupUnsupportedSettings`. Older builds, 0.12.4 and earlier, fail their export as soon as a log key exists. That cannot be fixed retroactively, so the writer's release notes must say to install 0.12.5 or later first.
 
 The first phase 2 release that writes any of these keys or the `fsrs` field must include all of the following in the same PR:
 
 1. **Schema 2.** Set `BACKUP_SCHEMA` to 2 and keep a strict schema 1 reader. A schema 1 file imports as before, and its cards are migrated with `withFsrs` after import. A schema 2 file is refused by 0.11.x, as it already refuses unknown versions.
-2. **Card field.** `card()` accepts optional `fsrs` validated by `cleanFsrsState`, and it fails closed on an invalid one. `cleanReview` keeps a valid `fsrs`. The personal-only `exportPersonal` passes `fsrs` through its card spread. There is no personal-only importer today, so nothing reads it back. `personalExportResult` in `background.js` must decide whether that file carries the personal retrieval log; the recommendation is no, since the learning backup is the complete format.
+2. **Card field.** `card()` accepts optional `fsrs` validated by `cleanFsrsState`, and it fails closed on an invalid one. `cleanReview` keeps a valid `fsrs`. The personal-only `exportPersonal` strips `fsrs`, as it strips `introReceipt`, so its format v1 is unchanged. There is no personal-only importer today. `personalExportResult` in `background.js` must decide whether that file carries the personal retrieval log; the recommendation is no, since the learning backup is the complete format.
 3. **Scope fields.** Every hard-coded key list must change together, or logs are silently dropped:
    - `LEARNING_SUFFIXES` gains `learningRetrievals` and `learningExposures`.
    - `DIRECT_KEYS` gains them through `LEARNING_SUFFIXES`.
@@ -104,7 +125,7 @@ The first phase 2 release that writes any of these keys or the `fsrs` field must
    - State in the preview how many exposure words and how many retrievals were left out, from any step. Nothing is omitted silently.
    - Size-test the worst case: maximum cards, five packs, 300 personal entries, every scope's log full. Test it against both the 1 MiB file cap and the journal's quota use.
    - Do not raise `MAX_BACKUP_BYTES` until the journal stops storing the raw file.
-7. **Preview** shows the retrieval count per language.
+7. **Preview** shows totals of logged reviews and exposure words, plus everything left out. Schema 2 has an optional `state.logOmitted` with `retrievals` and `exposureWords`, which the exporter fills with what its budget and ruling B left out. The import preview adds those to the entries it drops itself. Per-language counts were dropped from the plan as unnecessary.
 8. **Downgrade.** Phase 2 keeps writing `due` and `interval` with their current meanings: absolute due time, and scheduled days of at most 365, with 0 for Again. An older build that drops `fsrs` still has a usable schedule, and a later upgrade re-migrates. A build that has `learning-log.js` refuses to overwrite a newer-version log. The backup consequences of a downgrade are under "Release order" above.
 9. **Retention setting.** `desiredRetention` must be added to `SETTINGS_FIELDS` and `cleanSettings` before it is ever written. Otherwise `validateStorageSettings` fails at the next worker start, which sets `startupUnsupportedSettings` and disables both export and import.
 
