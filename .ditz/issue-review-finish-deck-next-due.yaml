@@ -1,0 +1,27 @@
+id: review-finish-deck-next-due
+title: 'Review finish card: deck-wide next due date needs the worker to report it'
+desc: 'Source: PR #20 council (Claude seat, Important 2) and the review-clarity brief.
+  The review page''s finish card can only report when cards rated in the current tab
+  return, because reviewNext/reviewRate (background.js) do not report the deck-wide
+  next due time or whether a rating retired the word (gradual mode auto-familiar after
+  three Easy in a row). PR #20 therefore leaves Easy ratings out of the finish card''s
+  return date. Options: (A) keep the session-scoped finish card; (B) add a pure read-only
+  nextDue(state, words, now) accessor in review.js and have reviewStatus/reviewNext
+  report {nextDue, nextCount} (legacy plus personal, familiar excluded), and add familiar
+  to the reviewRate reply; no scheduling change. Recommendation: B, it makes the card
+  accurate and touches only response shapes. Decides: CTO/operator (it widens a lane
+  boundary into background.js). Blocks: an accurate ''Next review tomorrow, 3 words''
+  finish card.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-10-30T17:18:03-00:00
+references: []
+log_events:
+- time: 2026-10-30T17:18:03-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
