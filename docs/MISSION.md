@@ -1,8 +1,8 @@
 # Current state
 
-State: core PR #1 merged; voluntary local recall reviews in [PR #2](https://github.com/tedks/spanish-weave/pull/2) are fixpoint CLEAN at `6d77039`, pending final exact-head gates and normal merge. Root CTO owns integration and fleet delivery through dotfiles PR #199. The learning implementer and native reviewers are idle after delivered fixes/reviews; no more editing is delegated. No owned servers or running browsers. Duolingo and takeover remain outside this bounded mission; takeover policy awaits the CEO's tracker ruling.
+State: version 0.12.18 is on `main` as an unpacked Chrome extension with a welcome page, a slim popup and a Settings page, FSRS-6 reviews with a My words progress page, gradual learning with encounter ranking and a coverage cap, a stable extension ID and format-2 learning backups, plus a Store build that is packaged and screenshotted but not uploaded. What remains is planned in [ROADMAP.md](ROADMAP.md), and the release history is in [CHANGELOG.md](CHANGELOG.md).
 
-Intent and acceptance: [DESIGN.md](DESIGN.md), [LEARNING-MISSION.md](LEARNING-MISSION.md). Core issue closed; `local-spaced-repetition` is in progress on `ditz-metadata`. Fork `tedks/spanish-weave`; Actions disabled. Fleet acceptance distinguishes payload staging from per-profile Chrome activation; no key or profile is distributed.
+Intent and acceptance: [DESIGN.md](DESIGN.md), [LEARNING-MISSION.md](LEARNING-MISSION.md). Fleet acceptance distinguishes payload staging from per-profile Chrome activation; no key or profile is distributed.
 
 ## Decision log
 
