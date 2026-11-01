@@ -16,3 +16,8 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:20-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: without the intent
+    comment, a maintainer could misread what the test protects and weaken it.'
