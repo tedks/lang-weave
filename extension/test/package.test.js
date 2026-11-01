@@ -267,8 +267,9 @@ test('verify: manifest references a missing file', () => {
     '_locales/fr/messages.json': JSON.stringify({ n_other: { message: '$1 mots' } }) },
     { default_locale: 'en' }, /fr\/messages\.json: locale_lang is missing[\s\S]*fr\/messages\.json: plural forms missing: n_one/);
   expectRefusal({ '_locales/en/messages.json': en,
-    '_locales/fr/messages.json': JSON.stringify({ a: { message: 'x', placeholders: [] }, A: { message: 'y' } }) },
-    { default_locale: 'en' }, /fr\/messages\.json: message names differ only in case[\s\S]*fr\/messages\.json: a has malformed placeholders/);
+    '_locales/fr/messages.json': JSON.stringify({ a: { message: 'x', placeholders: [] }, A: { message: 'y' },
+      b: { message: 'z', placeholders: null }, locale_lang: { message: 'not a tag!' } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: message names differ only in case[\s\S]*a has malformed placeholders[\s\S]*b has malformed placeholders[\s\S]*locale_lang "not a tag!" is not a BCP-47 tag/);
   const { root, ext } = fixture({ '_locales/en/messages.json': en, '_locales/fr/messages.json': JSON.stringify({
     locale_lang: { message: 'fr' }, n_one: { message: '$1 mot' }, n_other: { message: '$1 mots' } }) }, { default_locale: 'en' });
   expect(packageExtension({ extensionDir: ext, licenseDir: root, outDir: join(root, 'out') }).entries).toBe(9);

@@ -26,6 +26,13 @@ const targetLang = new WeakMap();
 const descriptions = new WeakMap(); // span -> its description element
 const described = new Set(); // spans with a description, pruned once the page drops them
 const descriptionHosts = new WeakMap(); // document -> hidden English container
+// A page may strip foreign children of <html>; re-attach a few times a minute, never fight it.
+const HOST_REATTACH = { max: 3, windowMs: 60000 };
+const hostReattached = new WeakMap(); // document -> [ms]
+// Spans whose description was taken out with the span; counted so most mutations skip the scan.
+const awaitingRestore = new WeakSet();
+let awaitingCount = 0;
+const settle = (span) => { if (awaitingRestore.delete(span)) awaitingCount--; };
 let descriptionPrefix = '';
 let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
@@ -88,8 +95,9 @@ function describe(span, text) {
     el = doc.createElement('span');
     el.id = `${descriptionPrefix}-${++descriptionCount}`;
     descriptions.set(span, el);
-    described.add(span);
   }
+  settle(span);
+  described.add(span);
   el.textContent = text;
   const host = descriptionHost(doc);
   if (el.parentNode !== host) host.append(el);
@@ -99,6 +107,7 @@ function undescribe(span) {
   descriptions.get(span)?.remove();
   descriptions.delete(span);
   described.delete(span);
+  settle(span);
   span.removeAttribute('aria-describedby');
 }
 // Take the descriptions of spans the page has removed out of the container. The span keeps its
@@ -109,13 +118,22 @@ export function pruneDescriptions() {
     if (span.isConnected) { live = span; continue; }
     descriptions.get(span)?.remove();
     described.delete(span);
+    if (!awaitingRestore.has(span)) { awaitingRestore.add(span); awaitingCount++; }
   }
-  // A page that removed the container while keeping swaps gets it back, so no reference dangles.
-  if (live) descriptionHost(live.ownerDocument);
+  // A page that removed the container while keeping swaps gets it back, so no reference dangles,
+  // but only within a small budget: a page that keeps removing it must not start a loop.
+  const doc = live?.ownerDocument;
+  const host = doc && descriptionHosts.get(doc);
+  if (host && !host.isConnected) {
+    const now = Date.now();
+    const times = (hostReattached.get(doc) || []).filter((at) => now - at < HOST_REATTACH.windowMs);
+    if (times.length < HOST_REATTACH.max) { times.push(now); descriptionHost(doc); }
+    hostReattached.set(doc, times);
+  }
 }
 // Put back the descriptions of this extension's spans in a subtree the page has (re)attached.
 export function restoreDescriptions(root) {
-  if (root?.nodeType !== ELEMENT_NODE) return;
+  if (!awaitingCount || root?.nodeType !== ELEMENT_NODE) return;
   const spans = root.matches(`span.${SWAP_CLASS}`) ? [root] : [];
   spans.push(...root.querySelectorAll(`span.${SWAP_CLASS}`));
   for (const span of spans) {
@@ -123,6 +141,7 @@ export function restoreDescriptions(root) {
     if (!el || described.has(span) || !span.isConnected) continue;
     descriptionHost(span.ownerDocument).append(el);
     described.add(span);
+    settle(span);
   }
 }
 export const swapDescription = (span) => descriptions.get(span)?.textContent || '';

@@ -360,7 +360,7 @@ function localeProblems(manifest, files, defaultLocale) {
     const lowered = Object.keys(table).map((name) => name.toLowerCase());
     if (new Set(lowered).size !== lowered.length) problems.push(`${f.name}: message names differ only in case`);
     for (const [name, entry] of Object.entries(table)) {
-      const placeholders = entry.placeholders ?? {};
+      const placeholders = 'placeholders' in entry ? entry.placeholders : {};
       if (!placeholders || typeof placeholders !== 'object' || Array.isArray(placeholders) ||
           Object.values(placeholders).some((value) => typeof value?.content !== 'string')) {
         problems.push(`${f.name}: ${name} has malformed placeholders`);
@@ -369,6 +369,11 @@ function localeProblems(manifest, files, defaultLocale) {
       const defined = new Set(Object.keys(placeholders).map((key) => key.toLowerCase()));
       for (const [whole, key] of entry.message.matchAll(/\$([A-Za-z0-9_@]+)\$/g))
         if (!defined.has(key.toLowerCase())) problems.push(`${f.name}: ${name} uses undefined placeholder ${whole}`);
+    }
+    if (table.locale_lang) {
+      let tag = '';
+      try { [tag] = Intl.getCanonicalLocales(table.locale_lang.message); } catch { tag = ''; }
+      if (!tag) problems.push(`${f.name}: locale_lang ${JSON.stringify(table.locale_lang.message)} is not a BCP-47 tag`);
     }
     tables.set(match[1], new Set(lowered));
   }

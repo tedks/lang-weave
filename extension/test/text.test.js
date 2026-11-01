@@ -473,12 +473,16 @@ describe('lang and description on swapped words', () => {
       expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
       restoreDescriptions(kept); // idempotent
       expect(document.querySelectorAll(`[id="${keptSpan.getAttribute('aria-describedby')}"]`)).toHaveLength(1);
-      // A page that removes the host gets it back on the next prune, not a dangling reference.
-      host.remove();
-      pruneDescriptions();
-      expect(hosts()).toHaveLength(1);
-      expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
-      host.remove();
+      // A page that removes the host gets it back on the next prune, not a dangling reference,
+      // but a page that keeps removing it wins after a small budget instead of starting a loop.
+      let reattached = 0;
+      for (let i = 0; i < 10; i++) {
+        host.remove();
+        pruneDescriptions();
+        if (host.isConnected) reattached++;
+      }
+      expect(reattached).toBe(3);
+      expect(descriptionOf(keptSpan)).toBeUndefined();
       toggle(kept.querySelector('.fw-word'));
       expect(hosts()).toHaveLength(1);
       expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('Show Spanish');

@@ -20,7 +20,7 @@ const pages = readdirSync(resolve(EXT, 'src')).filter((f) => f.endsWith('.html')
 
 // Like chrome.i18n.getMessage: named placeholders are already $n, and a $n without a substitution is blanked.
 const chromeLike = (messages) => ({ i18n: { getMessage: (key, subs = []) =>
-  (messages[key] ?? '').replace(/\$([1-9])/g, (_, n) => subs[n - 1] ?? '') } });
+  (messages[key] ?? '').replace(/\$(\$|[1-9])/g, (_, c) => c === '$' ? '$' : subs[c - 1] ?? '') } });
 const withChrome = (chrome, fn) => {
   const saved = globalThis.chrome;
   globalThis.chrome = chrome;
@@ -131,11 +131,13 @@ describe('the helper', () => {
     const doc = win.document;
     doc.write(`<html lang="en"><body><p data-i18n="a">old</p><button data-i18n-aria-label="b" data-i18n-title="b">x</button>
       <p id="mixed" data-i18n="c">Read <a href="#">the guide</a> and <strong>stay</strong>.</p>
-      <p id="short" data-i18n="d">Keep <a href="#">this</a>.</p></body></html>`);
+      <p id="short" data-i18n="d">Keep <a href="#">this</a>.</p>
+      <p id="price" data-i18n="e">Pay <a href="#">here</a>.</p></body></html>`);
     const link = doc.querySelector('#mixed a');
     let clicks = 0;
     link.addEventListener('click', () => clicks++);
-    const messages = { a: 'New text', b: 'Label', c: 'Puis $2, lire $1.', d: 'Without its link', locale_lang: 'fr' };
+    const messages = { a: 'New text', b: 'Label', c: 'Puis $2, lire $1.', d: 'Without its link', e: 'Payez $$1 $1.',
+      locale_lang: 'fr' };
     withChrome(chromeLike(messages), () => localize(doc));
     expect(doc.querySelector('[data-i18n="a"]').textContent).toBe('New text');
     expect(doc.querySelector('button').getAttribute('aria-label')).toBe('Label');
@@ -146,6 +148,7 @@ describe('the helper', () => {
     link.click();
     expect(clicks).toBe(1);
     expect(doc.querySelector('#short').innerHTML).toBe('Keep <a href="#">this</a>.');
+    expect(doc.querySelector('#price').innerHTML).toBe('Payez $1 <a href="#">here</a>.'); // a literal $1 is not a child
     expect(doc.documentElement.getAttribute('lang')).toBe('fr');
     win.close();
   });

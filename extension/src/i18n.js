@@ -28,9 +28,11 @@ export function tn(key, count, ...subs) {
 }
 
 const ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt'];
-// chrome.i18n blanks a $n it has no substitution for, so the child markers are passed back in
-// verbatim; Chrome and substitute() both insert substitutions without re-reading them.
-const CHILD_MARKERS = Array.from({ length: 9 }, (_, i) => `$${i + 1}`);
+// chrome.i18n blanks a $n it has no substitution for, so each child's $n is substituted with a
+// private-use sentinel no rendered text contains (a literal $$1 renders as "$1", so "$1" cannot
+// be the sentinel). Chrome and substitute() insert substitutions verbatim, never re-reading them.
+const SENTINEL = 0xE000;
+const CHILD_MARKERS = Array.from({ length: 9 }, (_, i) => String.fromCharCode(SENTINEL + i + 1));
 // Fill a page from its data-i18n keys. An element with child elements keeps them: its message
 // names them $1..$9 in document order, so a translation can reorder text around a link without
 // any markup in messages. A message that does not name every child is skipped, never applied.
@@ -42,11 +44,11 @@ export function localize(root = document) {
     if (!text) continue;
     const children = [...el.children];
     if (!children.length) { el.textContent = text; continue; }
-    const parts = text.split(/\$([1-9])/);
-    const named = parts.filter((_, i) => i % 2).map(Number);
+    const parts = text.split(/([\uE001-\uE009])/);
+    const named = parts.filter((_, i) => i % 2).map((mark) => mark.charCodeAt(0) - SENTINEL);
     if (named.length !== children.length || named.some((n) => n > children.length) ||
         new Set(named).size !== named.length) continue;
-    const nodes = parts.map((part, i) => i % 2 ? children[Number(part) - 1] : doc.createTextNode(part))
+    const nodes = parts.map((part, i) => i % 2 ? children[part.charCodeAt(0) - SENTINEL - 1] : doc.createTextNode(part))
       .filter((node) => node.nodeType !== 3 || node.data);
     el.replaceChildren(...nodes);
   }
