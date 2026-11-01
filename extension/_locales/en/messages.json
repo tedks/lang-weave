@@ -236,5 +236,117 @@
   "badge_reading_paused": {
     "message": "Reading is paused; review still works",
     "description": "Badge tooltip during a model cooldown without a known end. Toolbar badge tooltip; fixed copy."
+  },
+  "popup_title": {
+    "message": "Lang Weave",
+    "description": "Toolbar popup: window title and heading. A product name; usually not translated."
+  },
+  "popup_switch_on": {
+    "message": "On",
+    "description": "Toolbar popup: visible label next to the master on/off switch when Lang Weave is on."
+  },
+  "popup_switch_off": {
+    "message": "Off",
+    "description": "Toolbar popup: visible label next to the master on/off switch when Lang Weave is off."
+  },
+  "popup_enabled_label": {
+    "message": "Lang Weave enabled",
+    "description": "Toolbar popup: screen-reader name of the master on/off switch."
+  },
+  "popup_this_site": {
+    "message": "This site",
+    "description": "Toolbar popup: initial label of the per-site switch before the page is known."
+  },
+  "popup_not_a_website": {
+    "message": "This page is not a website",
+    "description": "Toolbar popup: label of the disabled per-site switch on a browser-internal page."
+  },
+  "popup_turn_on_site": {
+    "message": "Turn on for this site",
+    "description": "Toolbar popup: label of the per-site switch when the site is not yet on."
+  },
+  "popup_on_for_site": {
+    "message": "On for $HOST$",
+    "description": "Toolbar popup: label of the per-site switch when the site is on. Also its screen-reader name.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "popup_practice": {
+    "message": "Practice",
+    "description": "Toolbar popup: initial text of the main button, shown until the progress summary decides its label."
+  },
+  "popup_budget_warning": {
+    "message": "The saved introduction date ($DATE$) is over seven days ahead of your local date. New introductions stay paused. Reset only today's introduction budget? Your reviews and progress stay saved.",
+    "description": "Toolbar popup: warning when the stored daily-introduction date is far in the future; asks whether to reset only the daily budget. $DATE$ is a calendar day.",
+    "placeholders": {
+      "DATE": {
+        "content": "$1",
+        "example": "2026-11-20"
+      }
+    }
+  },
+  "popup_budget_reset": {
+    "message": "Reset today's introduction budget",
+    "description": "Toolbar popup: button that confirms resetting the daily new-word budget."
+  },
+  "popup_budget_keep": {
+    "message": "Keep paused",
+    "description": "Toolbar popup: button that dismisses the budget reset prompt and leaves new words paused."
+  },
+  "popup_more": {
+    "message": "More",
+    "description": "Toolbar popup: screen-reader name of the navigation with the Settings, My words and Help links."
+  },
+  "popup_settings": {
+    "message": "Settings",
+    "description": "Toolbar popup: link that opens the settings page."
+  },
+  "popup_my_words": {
+    "message": "My words",
+    "description": "Toolbar popup: link that opens the page listing the learner's words."
+  },
+  "popup_help": {
+    "message": "Help",
+    "description": "Toolbar popup: link to the online help."
+  },
+  "popup_state_off": {
+    "message": "Off",
+    "description": "Toolbar popup: status line when Lang Weave is switched off."
+  },
+  "popup_state_needs_setup": {
+    "message": "Finish setup in the welcome page",
+    "description": "Toolbar popup: status line before the first-run choices are made."
+  },
+  "popup_state_needs_key": {
+    "message": "Add a Gemini key to start",
+    "description": "Toolbar popup: status line when no Gemini API key is saved."
+  },
+  "popup_state_site_off": {
+    "message": "Off on this site",
+    "description": "Toolbar popup: status line when the current site is off or never allowed (for example webmail or banking)."
+  },
+  "popup_state_needs_site": {
+    "message": "This site needs your OK",
+    "description": "Toolbar popup: status line when Chrome has not yet granted access to the current site."
+  },
+  "popup_state_on": {
+    "message": "On",
+    "description": "Toolbar popup: status line when everything is working."
+  },
+  "popup_error_generic": {
+    "message": "Could not do that",
+    "description": "Toolbar popup: error shown when an action fails without a specific reason."
+  },
+  "popup_error_reload": {
+    "message": "Reload this page to start. Chrome blocks extensions on some pages.",
+    "description": "Toolbar popup: error shown when Lang Weave cannot start on the open tab."
+  },
+  "popup_error_budget_changed": {
+    "message": "Budget changed. Refresh and try again.",
+    "description": "Toolbar popup: error shown when the introduction budget changed before the reset was applied."
   }
 }

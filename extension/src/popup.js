@@ -1,9 +1,11 @@
+import { localize, t } from './i18n.js';
 import { statusLabel } from './quota-status.js';
 import { siteOn, hasSiteAccess } from './settings.js';
 import { readingState } from './state.js';
 import { todayLine, weekLine, headline, primaryAction } from './progress-text.js';
 
 const $ = (id) => document.getElementById(id);
+localize();
 let status;
 let tab;
 let host = '';
@@ -24,15 +26,15 @@ async function refresh() {
   const s = c.settings;
   const access = !!host && hasSiteAccess(tab.url, c.origins);
   $('enabled').checked = s.enabled;
-  $('enabledLabel').textContent = s.enabled ? 'On' : 'Off';
+  $('enabledLabel').textContent = s.enabled ? t('popup_switch_on') : t('popup_switch_off');
   $('siteEnabled').checked = !!host && siteOn(s, host) && access;
   $('siteEnabled').disabled = !host;
-  $('siteName').textContent = !host ? 'This page is not a website'
-    : !access || !siteOn(s, host) ? 'Turn on for this site' : `On for ${host}`;
+  $('siteName').textContent = !host ? t('popup_not_a_website')
+    : !access || !siteOn(s, host) ? t('popup_turn_on_site') : t('popup_on_for_site', host);
   $('siteEnabled').setAttribute('aria-label', $('siteName').textContent);
   $('budgetRecovery').hidden = !status.budgetWarning;
   $('budgetWarning').textContent = status.budgetWarning
-    ? `The saved introduction date (${status.budgetWarning}) is over seven days ahead of your local date. New introductions stay paused. Reset only today's introduction budget? Your reviews and progress stay saved.` : '';
+    ? t('popup_budget_warning', status.budgetWarning) : '';
   $('today').textContent = progress ? todayLine(progress.today) : '';
   $('week').textContent = progress ? `${weekLine(progress.practisedThisWeek)} · ${headline(progress.verifiedKnown)}` : '';
   primary = primaryAction(progress || status.review);
@@ -40,17 +42,17 @@ async function refresh() {
   const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
   $('operation').textContent = status.modelStatus?.category === 'key_isolation_unavailable'
     ? statusLabel(status.modelStatus)
-    : state === 'paused' ? 'Off'
-    : state === 'needs_setup' ? 'Finish setup in the welcome page'
-    : state === 'needs_key' ? 'Add a Gemini key to start'
-    : ['site_off', 'sensitive'].includes(state) ? 'Off on this site'
-    : state === 'needs_site' ? 'This site needs your OK'
-    : statusLabel(status.modelStatus) || 'On';
+    : state === 'paused' ? t('popup_state_off')
+    : state === 'needs_setup' ? t('popup_state_needs_setup')
+    : state === 'needs_key' ? t('popup_state_needs_key')
+    : ['site_off', 'sensitive'].includes(state) ? t('popup_state_site_off')
+    : state === 'needs_site' ? t('popup_state_needs_site')
+    : statusLabel(status.modelStatus) || t('popup_state_on');
 }
 
 async function run(fn) {
   $('notice').textContent = '';
-  try { await fn(); } catch (e) { $('notice').textContent = e.message || 'Could not do that'; }
+  try { await fn(); } catch (e) { $('notice').textContent = e.message || t('popup_error_generic'); }
 }
 
 // The registered content script only reaches pages loaded after a grant; this covers the open tab.
@@ -59,11 +61,11 @@ async function inject() {
   try {
     await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['src/content.css'] });
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content-loader.js'] });
-  } catch { $('notice').textContent = 'Reload this page to start. Chrome blocks extensions on some pages.'; }
+  } catch { $('notice').textContent = t('popup_error_reload'); }
 }
 
 $('enabled').addEventListener('change', (e) => run(async () => {
-  $('enabledLabel').textContent = e.target.checked ? 'On' : 'Off';
+  $('enabledLabel').textContent = e.target.checked ? t('popup_switch_on') : t('popup_switch_off');
   try { await send({ type: 'save', settings: { enabled: e.target.checked } }); }
   finally { await refresh(); }
 }));
@@ -82,7 +84,7 @@ $('siteEnabled').addEventListener('change', (e) => run(async () => {
 $('cancelBudget').addEventListener('click', () => { $('budgetRecovery').hidden = true; });
 $('recoverBudget').addEventListener('click', () => run(async () => {
   const res = await send({ type: 'recoverBudget', confirm: true, day: status.budgetWarning, scope: status.config.scope });
-  if (!res.ok) throw new Error('Budget changed. Refresh and try again.');
+  if (!res.ok) throw new Error(t('popup_error_budget_changed'));
   await refresh();
 }));
 $('primary').addEventListener('click', () => run(async () => {

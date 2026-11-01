@@ -2,7 +2,7 @@
 <html lang="en" class="ui-compact">
 <head>
 <meta charset="utf-8">
-<title>Lang Weave</title>
+<title data-i18n="popup_title">Lang Weave</title>
 <link rel="stylesheet" href="ui.css">
 <style>
   * { box-sizing: border-box; }
@@ -26,20 +26,20 @@
 </style>
 </head>
 <body>
-  <div class="row"><h1>Lang Weave</h1><label for="enabled"><span id="enabledLabel" aria-hidden="true">On</span><input type="checkbox" id="enabled" role="switch" aria-label="Lang Weave enabled"></label></div>
+  <div class="row"><h1 data-i18n="popup_title">Lang Weave</h1><label for="enabled"><span id="enabledLabel" aria-hidden="true" data-i18n="popup_switch_on">On</span><input type="checkbox" id="enabled" role="switch" aria-label="Lang Weave enabled" data-i18n-aria-label="popup_enabled_label"></label></div>
   <p id="operation" class="small" role="status"></p>
   <section>
-    <label class="row" for="siteEnabled"><span id="siteName">This site</span><input type="checkbox" id="siteEnabled"></label>
+    <label class="row" for="siteEnabled"><span id="siteName" data-i18n="popup_this_site">This site</span><input type="checkbox" id="siteEnabled"></label>
     <p id="today" class="small"></p>
     <p id="week" class="small"></p>
-    <button id="primary" type="button">Practice</button>
+    <button id="primary" type="button" data-i18n="popup_practice">Practice</button>
   </section>
   <div id="budgetRecovery" class="small" hidden role="status">
     <p id="budgetWarning"></p>
-    <button id="recoverBudget" type="button">Reset today's introduction budget</button>
-    <button id="cancelBudget" type="button">Keep paused</button>
+    <button id="recoverBudget" type="button" data-i18n="popup_budget_reset">Reset today's introduction budget</button>
+    <button id="cancelBudget" type="button" data-i18n="popup_budget_keep">Keep paused</button>
   </div>
-  <nav id="links" aria-label="More"><a id="openSettings" href="options.html">Settings</a><a id="openWords" href="words.html">My words</a><a id="openHelp" href="https://github.com/tedks/lang-weave#controls-and-privacy" target="_blank" rel="noopener noreferrer">Help</a></nav>
+  <nav id="links" aria-label="More" data-i18n-aria-label="popup_more"><a id="openSettings" href="options.html" data-i18n="popup_settings">Settings</a><a id="openWords" href="words.html" data-i18n="popup_my_words">My words</a><a id="openHelp" href="https://github.com/tedks/lang-weave#controls-and-privacy" target="_blank" rel="noopener noreferrer" data-i18n="popup_help">Help</a></nav>
   <div id="notice" class="small error" role="alert"></div>
   <script type="module" src="popup.js"></script>
 </body>
