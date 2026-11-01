@@ -1,0 +1,20 @@
+id: guess-panel-isolation
+title: 'Guess panel and recall cue: isolate from page CSS with a closed shadow root'
+desc: 'Guess first (PR #42) and the inline recall cue are plain light DOM on hostile
+  pages: page CSS can restyle the panel (e.g. invisible full-screen buttons) so a
+  later real click lands on a choice. A detached panel is now closed via guessAlive,
+  but styling isolation needs a closed shadow root for both panels. Raised by Anthropic
+  Opus in council round 1 (nit).'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:06:20-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:06:20-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
