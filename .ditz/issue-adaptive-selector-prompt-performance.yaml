@@ -26,3 +26,10 @@ log_events:
   who: Ted Smith
   what: updated description
   comment: ""
+- time: 2026-11-01T04:24:10-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Canonical for encounter-priority-calc
+    (closed as duplicate): selectWorkingSet also computes underExposed twice per active
+    candidate; cache it in the same pass. Why it matters: curriculum-growth plans
+    up to 3,000 rows, ten times today''s 226-entry catalog.'
