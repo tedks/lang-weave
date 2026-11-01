@@ -1,0 +1,22 @@
+id: swap-description-nits
+title: Swap description lifecycle nits
+desc: 'Non-blocking council nits from PR #38 (i18n-and-lang-attr). (1) text.js restoreDescriptions:
+  once any description is pruned, the ''pruned'' latch keeps every added subtree scanned
+  for the page''s lifetime (one querySelectorAll beside track()); a sweepable pending
+  set with expiry would narrow it. (2) The container re-attach retry timer survives
+  content-script stop() and context invalidation; it is a no-op when it fires, but
+  stop() could clear it. (3) Bun''s fake timers are used in text.test.js; no e2e covers
+  a page stripping the container.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T03:21:25-00:00
+references: []
+log_events:
+- time: 2026-11-01T03:21:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
