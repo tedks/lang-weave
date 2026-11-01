@@ -17,3 +17,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:22-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: an exact remaining
+    budget lets the model place more words when cache hits are common. The final cap
+    already enforces the limit, so this is quality, not safety.'
