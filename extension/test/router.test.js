@@ -16,8 +16,9 @@ const PINNED = {
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
     'personalExport', 'personalIntroduce', 'personalList'],
   backup: ['learningExport', 'learningImport', 'learningPreview'],
-  page: ['captureReady', 'config', 'event', 'inlineBegin', 'inlineRate', 'inlineReveal', 'introAck',
-    'introRelease', 'introRenew', 'swaps'],
+  // guessBegin/guessAnswer (0.12.19): opt-in guess first, the same content-script sender.
+  page: ['captureReady', 'config', 'event', 'guessAnswer', 'guessBegin', 'inlineBegin', 'inlineRate', 'inlineReveal',
+    'introAck', 'introRelease', 'introRenew', 'swaps'],
 };
 const HANDLERS = [...new Set(Object.values(PINNED).flat())].sort();
 const TYPES = [...HANDLERS, 'constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', '',
@@ -142,12 +143,14 @@ test('unmodified sender decisions equal the pre-split boolean', () => withChrome
     ...NEAR_MISSES.filter(([sender, expected]) => !sender.url?.includes('/src/welcome.html') &&
       !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
-  for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
+  // Messages added after the split have no pre-split decision; PINNED covers them.
+  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer'];
+  for (const sender of senders) for (const type of TYPES.filter((type) => !added.includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);
     checked++;
   }
-  expect(checked).toBe(senders.length * (TYPES.length - 2));
+  expect(checked).toBe(senders.length * (TYPES.length - added.length));
 }));
 
 // The production listener: the sender-id gate runs first, then the table; every pinned

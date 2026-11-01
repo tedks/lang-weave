@@ -35,7 +35,7 @@ export const SURFACES = Object.freeze([
   surface('backup', backupSender, ['learningExport', 'learningPreview', 'learningImport']),
   surface('page', (sender) => sender.tab && /^https?:\/\//.test(sender.url || ''),
     ['config', 'captureReady', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate',
-      'introAck', 'introRelease', 'introRenew']),
+      'introAck', 'introRelease', 'introRenew', 'guessBegin', 'guessAnswer']),
 ]);
 
 // The names of every surface this sender matches. Pure: reads only the sender and the extension URL.

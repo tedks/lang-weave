@@ -45,7 +45,8 @@ const BAD_KEY = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_SCOPES = 80;
 const MAX_CARDS = 5000;
 const SETTINGS_FIELDS = ['enabled', 'model', 'levelOverride', 'language', 'gradual',
-  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'desiredRetention'];
+  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'desiredRetention',
+  'guessFirst'];
 
 function fail(reason) { throw new Error(`Learning backup: ${reason}`); }
 function object(value, name) {
@@ -425,6 +426,11 @@ function storageEntries(all) {
 // personal) can reach this point: a historical pack scope has no catalog to verify its words,
 // so ruling B already left its log out. Everything left out, here or by ruling B during
 // validation, is counted in state.logOmitted.
+// Guess-first retrievals (source 'guess') are read, validated and imported, but schema 2 export
+// leaves them out and counts them in logOmitted: every build up to 0.12.18 refuses a whole backup
+// holding one. Turn this on once a release that reads them has shipped (the "Release order" rule
+// in docs/LEARNING-CORE-MISSION.md; docs/INFERENCE-MISSION.md).
+export const EXPORT_GUESSES = false;
 function fitLog(st, m, budget) {
   const encoder = new TextEncoder();
   const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
@@ -449,7 +455,10 @@ function fitLog(st, m, budget) {
   }
   const all = [];
   for (const [id, fields] of Object.entries(st.scopes))
-    for (const tuple of fields.retrievals?.retrievals || []) all.push([id, tuple]);
+    for (const tuple of fields.retrievals?.retrievals || []) {
+      if (tuple[2] === 'guess' && !EXPORT_GUESSES) { droppedRetrievals++; continue; }
+      all.push([id, tuple]);
+    }
   all.sort(([, a], [, b]) => b[1] - a[1]);
   const kept = new Set();
   let full = false;

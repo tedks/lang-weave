@@ -13,6 +13,11 @@
 //     prior, latencyMs, elapsedDays, intervalDays, predicted], ...] }  (oldest first)
 //   learningExposures: { version: 1, words: { [word]: [count, peeks, distinctDays,
 //     firstDay, lastDay] } }
+// A guess-first answer (guess.js) is a retrieval with source 'guess', direction 'receptive' and
+// outcome 'correct' or 'incorrect'; those values occur only together. They were added in 0.12.19
+// without a version change: builds up to 0.12.18 drop such entries from storage and refuse a
+// backup holding one, so schema 2 export leaves them out (portability.js, INFERENCE-MISSION.md).
+// Guesses are not reviews: every recall measure below excludes them (reviewEntries).
 import { localDay } from './events.js';
 import { validDay } from './learning.js';
 
@@ -22,11 +27,16 @@ export const MAX_RETRIEVALS = 5000;
 export const MAX_EXPOSURE_WORDS = 5000;
 export const MAX_LATENCY_MS = 10 * 60 * 1000;
 export const MAX_COUNT = 1000000;
-export const SOURCES = Object.freeze(['inline', 'standalone']);
+export const SOURCES = Object.freeze(['inline', 'standalone', 'guess']);
 // productive: meaning -> target form (today's review and inline cue); receptive: the reverse.
 export const DIRECTIONS = Object.freeze(['productive', 'receptive']);
-// 'known' is the inline "Already know" claim: logged, never counted as a recall.
-export const OUTCOMES = Object.freeze(['again', 'hard', 'medium', 'easy', 'known']);
+// 'known' is the inline "Already know" claim: logged, never counted as a recall. 'correct' and
+// 'incorrect' belong to guesses only.
+export const OUTCOMES = Object.freeze(['again', 'hard', 'medium', 'easy', 'known', 'correct', 'incorrect']);
+const GUESS_OUTCOMES = new Set(['correct', 'incorrect']);
+export const isGuess = (entry) => entry.source === 'guess';
+// The retrievals that are reviews (ratings and claims), in log order.
+export const reviewEntries = (entries) => entries.filter((entry) => !isGuess(entry));
 const PASS = new Set(['hard', 'medium', 'easy']);
 const MAX_ELAPSED_DAYS = 36500;
 const MAX_INTERVAL_DAYS = 365;
@@ -61,7 +71,8 @@ function validTuple(t) {
     Number.isSafeInteger(t[1]) && t[1] >= 0 && SOURCES.includes(t[2]) && DIRECTIONS.includes(t[3]) &&
     OUTCOMES.includes(t[4]) && Number.isSafeInteger(t[5]) && t[5] >= 0 && t[5] <= MAX_PRIOR &&
     nullableInt(t[6], MAX_LATENCY_MS) && nullableInt(t[7], MAX_ELAPSED_DAYS) &&
-    nullableInt(t[8], MAX_INTERVAL_DAYS) && nullableProbability(t[9]);
+    nullableInt(t[8], MAX_INTERVAL_DAYS) && nullableProbability(t[9]) &&
+    (t[2] === 'guess') === GUESS_OUTCOMES.has(t[4]) && (t[2] !== 'guess' || t[3] === 'receptive');
 }
 
 const plainObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -180,7 +191,7 @@ export async function recordExposures(storage, ids, allowed, day = localDay(), k
 // Recall measures use retrievals with a graded outcome; Again is a failure, Hard/Medium/Easy
 // a pass (as in FSRS), and 'known' claims are excluded.
 
-const graded = (entries) => entries.filter((e) => e.outcome !== 'known');
+const graded = (entries) => reviewEntries(entries).filter((e) => e.outcome !== 'known');
 const rate = (list) => ({ n: list.length, passed: list.filter((e) => PASS.has(e.outcome)).length,
   rate: list.length ? list.filter((e) => PASS.has(e.outcome)).length / list.length : null });
 const median = (values) => {
@@ -262,7 +273,7 @@ export function workload(entries, now, windowDays = 30) {
   const today = new Date(now);
   const start = localDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (windowDays - 1)));
   const end = localDay(today);
-  const inWindow = entries.filter((e) => e.at <= now && localDay(new Date(e.at)) >= start && localDay(new Date(e.at)) <= end);
+  const inWindow = reviewEntries(entries).filter((e) => e.at <= now && localDay(new Date(e.at)) >= start && localDay(new Date(e.at)) <= end);
   const latencies = inWindow.filter((e) => e.latencyMs !== null).map((e) => e.latencyMs / 1000);
   return { reviews: inWindow.length, days: windowDays, reviewsPerDay: inWindow.length / windowDays,
     activeDays: new Set(inWindow.map((e) => localDay(new Date(e.at)))).size,
@@ -274,7 +285,7 @@ export function workload(entries, now, windowDays = 30) {
 // still inside the bounded log are visible.
 export function leeches(entries, minLapses = 4) {
   const lapses = new Map();
-  for (const e of entries) {
+  for (const e of reviewEntries(entries)) {
     if (e.outcome === 'again' && e.prior > 0 && e.elapsedDays !== null && e.elapsedDays >= 1)
       lapses.set(e.word, (lapses.get(e.word) || 0) + 1);
   }
@@ -287,7 +298,7 @@ export function leeches(entries, minLapses = 4) {
 export function summarize(retrievalState, exposureState, { now, learningWords = [], retention = 0.9,
   windowDays = 30 } = {}) {
   if (!Number.isSafeInteger(now)) throw new RangeError('learning log: summarize needs the current time');
-  const entries = retrievalEntries(retrievalState);
+  const entries = reviewEntries(retrievalEntries(retrievalState));
   const long = longRetention(entries);
   return { retrievals: entries.length, claims: entries.filter((e) => e.outcome === 'known').length,
     nextDayRecall: nextDayRecall(entries), longRetention: { ...long, target: retention },

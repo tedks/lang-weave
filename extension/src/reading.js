@@ -17,7 +17,10 @@ import { EXPOSURES_KEY, cleanExposures } from './learning-log.js';
 import { REVIEW_KEY, countCardEncounter } from './review.js';
 import { PERSONAL_KEY } from './personal.js';
 import { activeOn, personalScope } from './worker-context.js';
-import { logExposure } from './learning-records.js';
+import { logExposure, logRetrieval, retrievalsFor } from './learning-records.js';
+import { MAX_LATENCY_MS, isGuess, reviewEntries } from './learning-log.js';
+import { GUESS_LIMIT, guessChoices } from './guess.js';
+import { wordStage, verifiedWords } from './progress.js';
 
 // The tab title is local-only safety context. Refresh it after every asynchronous
 // boundary that could precede cache delivery or a primary/fallback fetch.
@@ -306,40 +309,126 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     }
   }
 
+  // The page's word, resolved against the current catalog: its pack word and any personal entry.
+  const resolveWord = (ctx, target) => {
+    if (typeof target !== 'string') return null;
+    const word = ctx.words.find((w) => exactTarget(w.fr, ctx.language) === exactTarget(target, ctx.language));
+    if (!word) return null;
+    return { word, personal: ctx.personalAuto.find(({ entry }) => entry.target === word.fr)?.entry };
+  };
+
   // Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
   async function record(msg, sender) {
     return locked(async () => {
       const ctx = await context();
       if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
-      const word = ctx.words.find((w) => exactTarget(w.fr, ctx.language) === exactTarget(msg.word, ctx.language));
-      if (!word) return { ok: false };
-      const personal = ctx.personalAuto.find(({ entry }) => entry.target === word.fr)?.entry;
-      const consent = worker.permissionGeneration;
-      await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
-        [{ word: personal?.id || word.fr, kind: msg.event }]);
-      // Exposure aggregates for the learning log, at the same point as the reading events. The
-      // event write yielded, so recheck consent before this separate write. A flip is a reveal
-      // of the English, not an exposure.
-      if (msg.event !== 'flip') {
-        const latest = await context();
-        if (latest.revision === ctx.revision && activeOn(latest, sender.url) && worker.permissionGeneration === consent) {
-          if (ctx.settings.gradual) {
-            const now = Date.now(), day = localDay(new Date(now));
-            const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
-            const card = personal ? own.state.cards[personal.id] : legacy.state.cards[word.fr];
-            if (countCardEncounter(card, msg.event, day, now)) {
-              const fresh = await context();
-              if (fresh.revision !== ctx.revision || !activeOn(fresh, sender.url) ||
-                  worker.permissionGeneration !== consent) return { ok: false };
-              if (personal) await store.set({ [PERSONAL_KEY]: ctx.personal });
-              else await legacy.scoped.set({ [REVIEW_KEY]: legacy.state });
-            }
-          }
-          await logExposure(ctx, !!personal, personal?.id || word.fr, msg.event, Date.now());
-        }
-      }
-      return { ok: true };
+      const found = resolveWord(ctx, msg.word);
+      if (!found) return { ok: false };
+      return applyEvent(ctx, found, msg.event, sender, worker.permissionGeneration);
     });
   }
-  return { swaps, record };
+  // One reading event for a resolved word. The caller holds the lock and has checked revision and
+  // site access; `consent` is the permission generation it checked them under.
+  async function applyEvent(ctx, { word, personal }, event, sender, consent) {
+    await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
+      [{ word: personal?.id || word.fr, kind: event }]);
+    // Exposure aggregates for the learning log, at the same point as the reading events. The
+    // event write yielded, so recheck consent before this separate write. A flip is a reveal
+    // of the English, not an exposure.
+    if (event !== 'flip') {
+      const latest = await context();
+      if (latest.revision === ctx.revision && activeOn(latest, sender.url) && worker.permissionGeneration === consent) {
+        if (ctx.settings.gradual) {
+          const now = Date.now(), day = localDay(new Date(now));
+          const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
+          const card = personal ? own.state.cards[personal.id] : legacy.state.cards[word.fr];
+          if (countCardEncounter(card, event, day, now)) {
+            const fresh = await context();
+            if (fresh.revision !== ctx.revision || !activeOn(fresh, sender.url) ||
+                worker.permissionGeneration !== consent) return { ok: false };
+            if (personal) await store.set({ [PERSONAL_KEY]: ctx.personal });
+            else await legacy.scoped.set({ [REVIEW_KEY]: legacy.state });
+          }
+        }
+        await logExposure(ctx, !!personal, personal?.id || word.fr, event, Date.now());
+      }
+    }
+    return { ok: true };
+  }
+
+  // Guess first. guessBegin offers choices for a learning word whose guesses are under the cap
+  // (at most one a local day), or answers { plain: true } so the page shows the gloss as before.
+  // guessAnswer records one retrieval (source 'guess', direction receptive, correct/incorrect,
+  // worker-measured latency) at the same consent-checked point as a peek. A wrong guess is then
+  // applied exactly as a peek; a right guess changes no card. Tickets are in memory only: a worker
+  // restart loses an open one, and that answer is not recorded.
+  const guessTickets = new Map(); // tab:document -> ticket
+  const MAX_GUESS_TICKETS = 64;
+  const ticketKey = (sender) => `${sender.tab?.id}:${sender.documentId || ''}`;
+  const guessOn = (ctx, msg, sender) => ctx.settings.gradual && ctx.settings.guessFirst === true &&
+    msg.revision === ctx.revision && activeOn(ctx, sender.url) && sender.frameId === 0 &&
+    (!sender.documentLifecycle || sender.documentLifecycle === 'active') && Number.isSafeInteger(sender.tab?.id);
+  async function guessCard(ctx, found, day, now) {
+    const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
+    return found.personal ? own.state.cards[found.personal.id] : legacy.state.cards[found.word.fr];
+  }
+  async function guess(msg, sender) {
+    return locked(async () => {
+      const ctx = await context();
+      if (!guessOn(ctx, msg, sender)) return { plain: true, stale: true };
+      if (msg.type === 'guessBegin') {
+        const found = resolveWord(ctx, msg.word);
+        if (!found) return { plain: true };
+        const now = Date.now(), day = localDay(new Date(now));
+        const id = found.personal?.id || found.word.fr;
+        const card = await guessCard(ctx, found, day, now);
+        if (!card || wordStage(card) !== 'learning') return { plain: true };
+        let entries;
+        try { entries = await retrievalsFor(ctx, !!found.personal); } catch { return { plain: true } }
+        const own = entries.filter((e) => e.word === id);
+        const guesses = own.filter(isGuess);
+        if (guesses.length >= GUESS_LIMIT || guesses.some((e) => localDay(new Date(e.at)) === day) ||
+            verifiedWords(reviewEntries(own), { [id]: card }).has(id)) return { plain: true };
+        const offered = guessChoices(found.word, ctx.legacyAllWords, { wordId: id, day });
+        if (!offered) return { plain: true };
+        const latest = await context();
+        if (!guessOn(latest, msg, sender) || latest.revision !== ctx.revision) return { plain: true, stale: true };
+        const ticket = crypto.randomUUID();
+        const key = ticketKey(sender);
+        guessTickets.delete(key);
+        guessTickets.set(key, { ticket, id, target: found.word.fr, answer: offered.answer,
+          count: offered.choices.length, at: now, revision: ctx.revision, url: sender.url });
+        while (guessTickets.size > MAX_GUESS_TICKETS) guessTickets.delete(guessTickets.keys().next().value);
+        return { ticket, choices: offered.choices };
+      }
+      // guessAnswer: one use per ticket, from the document that opened it.
+      const key = ticketKey(sender);
+      const open = guessTickets.get(key);
+      if (!open || open.ticket !== msg.ticket || open.revision !== ctx.revision || open.url !== sender.url)
+        return { error: 'This guess is stale.' };
+      guessTickets.delete(key);
+      const now = Date.now();
+      if (!Number.isSafeInteger(msg.choice) || msg.choice < 0 || msg.choice >= open.count ||
+          now < open.at || now - open.at > MAX_LATENCY_MS) return { error: 'This guess is stale.' };
+      const correct = msg.choice === open.answer;
+      const found = resolveWord(ctx, open.target);
+      if (!found || (found.personal?.id || found.word.fr) !== open.id) return { error: 'This guess is stale.' };
+      const consent = worker.permissionGeneration;
+      const day = localDay(new Date(now));
+      const card = await guessCard(ctx, found, day, now);
+      const latest = await context();
+      if (!card || latest.revision !== ctx.revision || !activeOn(latest, sender.url) ||
+          worker.permissionGeneration !== consent) return { error: 'This guess is stale.' };
+      const logged = await logRetrieval(ctx, !!found.personal, { word: open.id, outcome: correct ? 'correct' : 'incorrect',
+        prior: Number.isSafeInteger(card.reviews) ? card.reviews : 0, latencyMs: now - open.at }, 'guess', now);
+      // A wrong guess is weak failure evidence, exactly a peek: it may bring a review earlier.
+      if (!correct) {
+        const fresh = await context();
+        if (fresh.revision === ctx.revision && activeOn(fresh, sender.url) && worker.permissionGeneration === consent)
+          await applyEvent(ctx, found, 'peek', sender, consent);
+      }
+      return { ok: true, correct, answer: open.answer, logged };
+    });
+  }
+  return { swaps, record, guess };
 }

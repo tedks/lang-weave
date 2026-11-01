@@ -159,9 +159,9 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();
       }
-      // Target recall affects only review scheduling, so changing it alone keeps the reading epoch
-      // and its cached results.
-      const reading = ({ desiredRetention, ...rest }) => JSON.stringify(rest);
+      // Target recall affects only review scheduling, and guess first only how a hover answers, so
+      // changing either alone keeps the reading epoch and its cached results.
+      const reading = ({ desiredRetention, guessFirst, ...rest }) => JSON.stringify(rest);
       const before = cleanSettings(saved.settings);
       const keyChanged = forceKeyRotation || (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey);
       if (reading(next) === reading(before) && !keyChanged) {
