@@ -7,7 +7,7 @@ Learn a language through the English you already read. This Chrome extension rep
 
 A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-weave) by Jackie Oliver. Lang Weave is free software under the [GNU AGPL v3 or later](LICENSE). The upstream history and its [MIT license](LICENSE-MIT) are preserved (see [NOTICE](NOTICE)). No terminal plugin, Python setup or native messaging host is required.
 
-This describes version 0.12.19. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
+This describes version 0.12.21. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
 
 ## Install in Chrome
 
