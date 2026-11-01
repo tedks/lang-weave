@@ -1,0 +1,22 @@
+id: a11y-screen-reader-check
+title: Verify swapped-word voicing with real screen readers
+desc: 'Follow-up to i18n-and-lang-attr (PR #38). Swapped words now carry lang and
+  an aria-describedby gloss; Chrome''s accessibility tree computes name ''y'' and
+  the gloss as description (e2e/gloss.mjs). Not verified with a real screen reader.
+  Check NVDA+Chrome, JAWS+Chrome, VoiceOver+Chrome on macOS and TalkBack: the word
+  is voiced with Spanish rules, the description is read (or available on demand),
+  flipping announces the English word and ''Show Spanish''. Needs a human with assistive
+  technology.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:53:42-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:53:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
