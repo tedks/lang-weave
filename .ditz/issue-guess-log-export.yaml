@@ -21,3 +21,10 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:16:33-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Version update: origin/main took 0.12.19 for the curriculum pipeline,
+    so guess first ships as 0.12.20. Builds up to 0.12.19 refuse guess tuples; 0.12.20
+    is the tolerant reader, and the later release that enables export should tell
+    users to install 0.12.20 or later first.'
