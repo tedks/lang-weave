@@ -1,0 +1,22 @@
+id: startup-recovery-document-pin
+title: Pin retrospective injection to one tab document
+desc: 'PR #44 council nit: the startup scan rechecks tab URL/title before insertCSS
+  and executeScript, but a same-URL navigation can occur between those API calls.
+  Investigate Chrome 140 InjectionTarget.documentIds using the probe''s documentId,
+  and avoid leaving an injected stylesheet when the final policy check fails after
+  insertCSS. Keep the registered loader''s single-entry behavior and no new permissions.
+  Low priority because the new document also receives the registered script and its
+  loader guard.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:50:59-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:50:59-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
