@@ -1,0 +1,21 @@
+id: loader-import-failure-browser
+title: Verify loader retry after import failure in Chromium
+desc: 'PR #44 council convergence noted that the VM test proves marker clearing and
+  retry dispatch, but does not establish how Chromium caches a failed dynamic import.
+  In an isolated real Chromium profile, force a transient content-module load failure,
+  restore it, then verify whether a later loader injection succeeds. If Chrome caches
+  the failure, document the limitation or choose a safe recovery path. No live model
+  call.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:53:57-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:53:57-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
