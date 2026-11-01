@@ -17,3 +17,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:30-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): DUPLICATE of practice-now-review-tab.
+    Both ask that opening review focus an existing extension review tab instead of
+    creating a new one. One shared helper should serve the popup button (popup.js:91),
+    the Alt+Shift+R command (commands.js:27) and Practice now (words.js:119); see
+    the comment on practice-now-review-tab.'
