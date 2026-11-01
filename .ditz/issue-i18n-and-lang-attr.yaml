@@ -7,8 +7,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T16:56:42-00:00
 references: []
 log_events:
@@ -20,3 +20,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-01T03:25:28-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #38 merged normally as 9cd3dce (0.12.18). Council fixpoint CLEAN (Anthropic
+    Opus native, OpenAI Sol; agy EMPTY on quota). Exact-head gates on 1ff9f9e: 379
+    Bun, 14 Chromium e2e, store-shots --check, both packages, 91 Python, version and
+    diff checks. Follow-ups: i18n-worker-copy, i18n-language-names, a11y-screen-reader-check,
+    progress-plural-cleanup, swap-description-nits.'
