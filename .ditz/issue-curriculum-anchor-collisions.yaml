@@ -1,0 +1,19 @@
+id: curriculum-anchor-collisions
+title: Explicit English surface-form anchors per row; detect shared anchors that would
+  disable both rows
+desc: 'Source: docs/research/curriculum-sources.md. Retrieval needs explicit English
+  anchors; a shared anchor between two rows currently disables both. Add a deterministic
+  gate in the pipeline and a test in levels.js.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:41:56-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:41:56-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
