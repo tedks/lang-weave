@@ -174,12 +174,27 @@ try {
   await page.locator('.fw-recall-status').getByText(/Rating was not saved/).waitFor();
   assert.equal(await page.locator('.fw-recall button:disabled').count(), 0);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
+  const secondTab = await browser.newPage();
+  await secondTab.goto('https://reading.example/second-tab');
+  const secondCue = secondTab.locator('#reading .fw-word');
+  await secondCue.waitFor();
+  await secondTab.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('title') === 'Open inline recall');
+  await secondCue.click();
+  await secondTab.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await secondTab.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
+  const concurrent = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview.inline));
+  assert.equal(concurrent.length, 2, 'two tabs hold independent inline tickets');
+  assert.equal(new Set(concurrent.map(({ tabId }) => tabId)).size, 2);
   const callsBeforeRating = (await worker.evaluate(() => globalThis.calls)).length;
   await due.evaluate((span) => span.setAttribute('data-en', 'forged after reveal'));
   await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
   await page.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(rated.cards['la idea'].reviews, 1);
+  await secondTab.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await secondTab.locator('.fw-recall-status').getByText(/Rating was not saved/).waitFor();
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
+  await secondTab.close();
   assert.equal(rated.cards['la idea'].interval, intervalDays(initialState('easy').stability));
   await page.waitForFunction(() => {
     const span = document.querySelector('#reading .fw-word');

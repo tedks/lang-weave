@@ -26,7 +26,7 @@ export function createInlineRecall({ store, locked, context, reviewState }) {
         else await scoped.set({ [REVIEW_KEY]: state });
         return result;
       }
-      const personal = own.state.inline?.ticket === msg.ticket;
+      const personal = own.state.inline?.some((item) => item.ticket === msg.ticket && item.tabId === sender.tab?.id);
       const target = personal ? own.state : state;
       const eligible = personal ? own.words : words;
       if (msg.type === 'inlineReveal') {
