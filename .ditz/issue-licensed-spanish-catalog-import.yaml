@@ -24,3 +24,14 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:35-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): OBSOLETE, superseded by the curriculum
+    source review. docs/research/curriculum-sources.md (PR #39) did the provenance
+    and licence review this issue asked for: FreeDict is not needed (section 3.4);
+    wordfreq, Wiktextract and Tatoeba were chosen. PR #41 added the pinned pipeline
+    (data/curriculum/es/SOURCES.json; build writes MANIFEST.json, LICENCES.json and
+    NOTICE-DATA.md; docs/CURRICULUM-PIPELINE.md). The open licence and reviewer-sourcing
+    decision is curriculum-data-licence-ruling; source archiving is curriculum-source-archive;
+    native review is spanish-curriculum-review.'
