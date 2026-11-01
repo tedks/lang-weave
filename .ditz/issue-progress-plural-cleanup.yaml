@@ -17,3 +17,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:16-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: a dead English-only
+    plural export (progress-text.js:5) invites new strings that bypass the locale
+    file.'
