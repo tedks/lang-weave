@@ -152,8 +152,8 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     let hit = idx.exact.get(exact) || (language === 'es' && !AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
-    if (!hit || !glossMatches(o, hit.anchors?.join(' / ') || hit.en,
-      { inflections: !hit.anchors && language === 'es' && !ARTICLE_RE.test(hit.word) })) continue;
+    if (!hit || !(hit.anchors ? hit.anchors.some((anchor) => cleanEn(anchor) === cleanEn(o)) :
+      glossMatches(o, hit.en, { inflections: language === 'es' && !ARTICLE_RE.test(hit.word) }))) continue;
     // A definite Spanish noun cannot replace the whole indefinite English phrase.
     // The bare-noun fallback below would otherwise drop "a/an" from the sentence.
     if (language === 'es' && DEFINITE_RE.test(hit.word) && /^(?:a|an)\s/i.test(o)) continue;

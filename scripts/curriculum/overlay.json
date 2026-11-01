@@ -1,0 +1,38 @@
+[
+  {
+    "id": "pilot-hat",
+    "fr": "el sombrero",
+    "en": "the hat",
+    "anchors": ["hat"],
+    "hint": "el som-BREH-roh",
+    "sense": "headwear",
+    "lemma": "sombrero",
+    "family_id": "sombrero:noun:headwear",
+    "pos": "noun",
+    "gender": "m",
+    "number": "singular",
+    "form_tag": "lemma",
+    "article_rule": "def",
+    "example_id": "3767697",
+    "translation_id": "2111",
+    "reason": "Fixture pilot only; source gloss and Tatoeba translation agree. No native review."
+  },
+  {
+    "id": "pilot-cloud",
+    "fr": "la nube",
+    "en": "the cloud",
+    "anchors": ["cloud"],
+    "hint": "lah NOO-beh",
+    "sense": "weather cloud",
+    "lemma": "nube",
+    "family_id": "nube:noun:weather",
+    "pos": "noun",
+    "gender": "f",
+    "number": "singular",
+    "form_tag": "lemma",
+    "article_rule": "def",
+    "example_id": "1604986",
+    "translation_id": "18309",
+    "reason": "Fixture pilot only; excludes computing and regional senses. No native review."
+  }
+]

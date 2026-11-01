@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "wiktextract": {
+    "edition": "English Wiktionary",
+    "dump_date": "2026-10-01",
+    "extracted_date": "2026-10-30",
+    "wiktextract_revision": "19f9a30",
+    "url": "https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz",
+    "file": "raw-wiktextract-data.jsonl.gz",
+    "sha256": "5ff2c072f8099f2d2ce484bd6957bf179f046d2ad37bc36555edf8bb84cb5291"
+  },
+  "wordfreq": {
+    "version": "3.1.1",
+    "url": "https://files.pythonhosted.org/packages/24/61/62835c475d69872d30689f284497853fe33fe1d6dd18f57346d13305861d/wordfreq-3.1.1-py3-none-any.whl",
+    "file": "wordfreq-3.1.1-py3-none-any.whl",
+    "sha256": "4b1c6ecffc6198be3396d5cf871c4423ca71c907c231348d352dd54d62b97473"
+  },
+  "tatoeba": {
+    "export_date": "2026-10-31",
+    "files": [
+      {
+        "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences_detailed.tsv.bz2",
+        "file": "spa_sentences_detailed.tsv.bz2",
+        "sha256": "8ebe95f5a71651c9407606e898fa59efe43295c461d24d32c1804a5dd908e67e"
+      },
+      {
+        "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_detailed.tsv.bz2",
+        "file": "eng_sentences_detailed.tsv.bz2",
+        "sha256": "7d8a98a1322c63eb62199b0e928efc5b9afbf8f4bb9bc4b60ebde1ea99a30cda"
+      },
+      {
+        "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng-spa_links.tsv.bz2",
+        "file": "eng-spa_links.tsv.bz2",
+        "sha256": "13bcf23b8890f9666d30c0e1c03ab4fc3e6be9fa5f8dbb587a4cd5f61e167b8f"
+      },
+      {
+        "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences_CC0.tsv.bz2",
+        "file": "spa_sentences_CC0.tsv.bz2",
+        "sha256": "e8cecab4e084fa4d9843f66c1dab90c5747057e0bc63a758c406235297b636c7"
+      },
+      {
+        "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_CC0.tsv.bz2",
+        "file": "eng_sentences_CC0.tsv.bz2",
+        "sha256": "c2e2edd063a31cbbc8e416a4858225e934bbb0afff485031821e59f230ccf1ca"
+      }
+    ]
+  },
+  "fixture": {
+    "wiktextract_url_1": "https://kaikki.org/dictionary/Spanish/meaning/s/so/sombrero.jsonl",
+    "wiktextract_url_2": "https://kaikki.org/dictionary/Spanish/meaning/n/nu/nube.jsonl",
+    "wiktextract_sha256": "282ddbd216a6f4fb5fc3475b053f08888b4f8179b4f35bb09797ee8f26fc72e1"
+  }
+}

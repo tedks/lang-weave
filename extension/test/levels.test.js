@@ -46,6 +46,7 @@ describe('candidate pack admission', () => {
     const word = { fr: 'hablar', en: 'speak', anchors: ['speak', 'speaks', 'speaking'], hint: 'ah-BLAR' };
     expect(validateSwaps(2, [{ o: 'speaks', f: 'hablar' }], [word])).toHaveLength(1);
     expect(validateSwaps(2, [{ o: 'spoke', f: 'hablar' }], [word])).toHaveLength(0);
+    expect(validateSwaps(2, [{ o: 'to speak', f: 'hablar' }], [word])).toHaveLength(0);
   });
 });
 
