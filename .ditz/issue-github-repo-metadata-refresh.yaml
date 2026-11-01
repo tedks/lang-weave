@@ -20,3 +20,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:23-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): DONE-STALE. Verified with gh repo
+    view tedks/lang-weave: GitHub detects AGPL-3.0; the description reads ''Learn
+    a language from the web you already read. Open source, no account, your own Gemini
+    key, progress stays in your browser. Chrome extension.''; topics are chrome-extension,
+    gemini, language-learning, spaced-repetition, spanish, vocabulary; homepage is
+    https://tedks.com/projects/lang-weave/. Issues stay disabled on GitHub, which
+    this issue did not ask to change.'
