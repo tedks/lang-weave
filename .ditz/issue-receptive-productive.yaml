@@ -15,3 +15,10 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:14-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: each task type builds
+    mainly its own kind of knowledge (learning-science rec 9). Tracking them separately
+    avoids early failures and gives an honest picture of reading against producing.
+    Waits on productive-recall-goal-ruling.'
