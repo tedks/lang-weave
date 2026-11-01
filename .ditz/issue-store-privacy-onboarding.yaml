@@ -13,8 +13,8 @@ type: task
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: reorg
 creation_time: 2026-10-28T18:23:35-00:00
 references: []
 log_events:
@@ -33,3 +33,7 @@ log_events:
     contexts (PR #34); explicit X opt-in on the Store build (PRs #23, #36). Privacy
     policy and Limited Use text are drafts in PR #33 and tedks/website#53, tracked
     in privacy-and-fingerprinting. Rulings stay in store-site-consent-ruling and store-provider-region-ruling.'
+- time: 2026-11-01T04:24:29-00:00
+  who: Ted Smith
+  what: 'closed: reorg'
+  comment: Duplicate of privacy-and-fingerprinting
