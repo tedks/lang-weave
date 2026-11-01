@@ -41,7 +41,10 @@ test('Spanish articles stay with whole noun phrases and never double English det
 
 test('fork identity and permissions cannot collide with or contact the French companion', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-  expect(manifest.name).toBe('Lang Weave');
+  // The name is a chrome.i18n message; the default locale must resolve it to the fork's own name.
+  expect(manifest.name).toBe('__MSG_ext_name__');
+  const messages = JSON.parse(readFileSync(new URL(`../_locales/${manifest.default_locale}/messages.json`, import.meta.url), 'utf8'));
+  expect(messages.ext_name.message).toBe('Lang Weave');
   // Lang Weave pins its own public key (0.12.0): one ID across paths and hosts, distinct from French Weave.
   // Chrome's ID is the first 128 bits of sha256(DER public key), each hex digit mapped 0-f to a-p.
   const der = Buffer.from(manifest.key, 'base64');

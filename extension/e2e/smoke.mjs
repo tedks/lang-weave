@@ -44,6 +44,7 @@ try {
   // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
   const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+  if (declared.default_locale) await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
   const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
   manifest.host_permissions.push(...manifest.optional_host_permissions);

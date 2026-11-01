@@ -39,6 +39,7 @@ try {
   const sinkPort = await listen(sink);
   await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
   await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
+  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
   const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
   manifest.host_permissions.push(...manifest.optional_host_permissions); // isolated test grant
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));

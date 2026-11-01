@@ -324,6 +324,22 @@ test('verify: pure helpers', () => {
   expect(verifyPackage({ background: { service_worker: 'src/a.js' } }, files).length).toBe(1);
 });
 
+test('package: both builds ship the English locale and every manifest message resolves', () => {
+  const source = JSON.parse(readFileSync(join(EXT, '_locales', 'en', 'messages.json'), 'utf8'));
+  for (const store of [false, true]) {
+    const zip = readZip(build({ store }).bytes);
+    const messages = zip.find((e) => e.name === '_locales/en/messages.json');
+    expect(messages).toBeDefined();
+    expect(JSON.parse(messages.data.toString())).toEqual(source);
+    const manifest = JSON.parse(zip.find((e) => e.name === 'manifest.json').data.toString());
+    expect(manifest.default_locale).toBe('en');
+    const used = [...JSON.stringify(manifest).matchAll(/__MSG_(\w+)__/g)].map(([, name]) => name);
+    expect(used.sort()).toEqual(['action_title', 'command_pause', 'command_review', 'ext_description', 'ext_name']);
+    for (const name of used) expect(typeof source[name].message).toBe('string');
+    expect(source.ext_name.message).toBe('Lang Weave');
+  }
+});
+
 test('package: the real extension verifies cleanly', () => {
   const packaged = build();
   expect(packaged.files).toContain('src/options.html');

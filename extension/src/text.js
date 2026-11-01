@@ -1,6 +1,7 @@
 // DOM side of a swap: flatten a tweet's text, locate the model's anchor, wrap one text-node slice.
 // Pure DOM functions (use node.ownerDocument), so they run under happy-dom in tests.
 import { sentenceStart, sourceIssue } from './semantic.js';
+import { t } from './i18n.js';
 export { quotedRanges, sentenceStart } from './semantic.js';
 
 const SKIP_TAGS = new Set(['A', 'CODE', 'PRE', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'SCRIPT', 'STYLE', 'KBD', 'SAMP']);
@@ -47,8 +48,8 @@ export function setPracticeCue(span, active) {
     span.append(mark);
     span.tabIndex = 0;
     span.setAttribute('role', 'button');
-    span.setAttribute('title', 'Open inline recall');
-    span.setAttribute('aria-label', `${sourceEnglish.get(span)}. Open inline recall`);
+    span.setAttribute('title', t('practice_cue_title'));
+    span.setAttribute('aria-label', t('practice_cue_label', sourceEnglish.get(span)));
   } else {
     span.removeAttribute('tabindex');
     span.removeAttribute('role');
@@ -111,7 +112,7 @@ function showTarget(span, text, display) {
   const lang = targetLang.get(span);
   if (lang) span.setAttribute('lang', lang);
   span.removeAttribute('aria-label');
-  describe(span, `${display ? tipFor(display) : span.getAttribute('data-tip')}. Show English`);
+  describe(span, t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip')));
 }
 // Show English: the page's own language, so no lang of our own.
 function showEnglish(span, text) {
@@ -390,7 +391,7 @@ export function toggle(span, language = 'Spanish') {
   if (showEn) {
     showEnglish(span, sourceEnglish.get(span) ?? span.getAttribute('data-en'));
     span.removeAttribute('aria-label');
-    describe(span, `Show ${language}`);
+    describe(span, t('swap_show_language', language));
   } else showTarget(span, span.getAttribute('data-fr'), displaySwap.get(span));
   return showEn;
 }

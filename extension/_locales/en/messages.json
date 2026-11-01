@@ -1,0 +1,240 @@
+{
+  "locale_lang": {
+    "message": "en",
+    "description": "BCP-47 code of the language these messages are written in. Set it to your locale's code (for example fr or pt-BR). Pages use it for their lang attribute and plural rules."
+  },
+  "ext_name": {
+    "message": "Lang Weave",
+    "description": "Extension name in Chrome and the Web Store. A product name; usually not translated."
+  },
+  "ext_description": {
+    "message": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
+    "description": "Extension description in Chrome and the Web Store."
+  },
+  "action_title": {
+    "message": "Lang Weave",
+    "description": "Tooltip of the toolbar button."
+  },
+  "command_pause": {
+    "message": "Pause or resume Lang Weave on this site",
+    "description": "Keyboard shortcut description in chrome://extensions/shortcuts."
+  },
+  "command_review": {
+    "message": "Open Lang Weave review",
+    "description": "Keyboard shortcut description in chrome://extensions/shortcuts."
+  },
+  "swap_description": {
+    "message": "$GLOSS$. Show English",
+    "description": "Screen-reader description of a word shown in the target language: its English gloss, then the click action.",
+    "placeholders": {
+      "GLOSS": {
+        "content": "$1",
+        "example": "and · \"ee\""
+      }
+    }
+  },
+  "swap_show_language": {
+    "message": "Show $LANGUAGE$",
+    "description": "Screen-reader description of a word flipped to English: the click action.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "practice_cue_title": {
+    "message": "Open inline recall",
+    "description": "Tooltip of an English word marked for practice."
+  },
+  "practice_cue_label": {
+    "message": "$WORD$. Open inline recall",
+    "description": "Screen-reader name of an English word marked for practice.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "the idea"
+      }
+    }
+  },
+  "recall_label": {
+    "message": "Inline recall",
+    "description": "Screen-reader name of the inline practice panel."
+  },
+  "recall_prompt": {
+    "message": "Recall the translation before revealing.",
+    "description": "Instruction at the top of the inline practice panel."
+  },
+  "recall_dismiss": {
+    "message": "Dismiss",
+    "description": "Button that closes the inline practice panel."
+  },
+  "recall_cue_unavailable": {
+    "message": "Cue unavailable. Dismiss and try again.",
+    "description": "Inline practice status when it could not start."
+  },
+  "recall_reveal": {
+    "message": "Reveal answer",
+    "description": "Button that shows the answer in the inline practice panel."
+  },
+  "rating_again": {
+    "message": "Again",
+    "description": "Recall rating: forgot the word."
+  },
+  "rating_hard": {
+    "message": "Hard",
+    "description": "Recall rating: remembered with difficulty."
+  },
+  "rating_medium": {
+    "message": "Medium",
+    "description": "Recall rating: remembered."
+  },
+  "rating_easy": {
+    "message": "Easy",
+    "description": "Recall rating: remembered easily."
+  },
+  "rating_known": {
+    "message": "Already know",
+    "description": "Marks a word as already known instead of rating this recall."
+  },
+  "recall_rating_failed": {
+    "message": "Rating was not saved. Try again or dismiss.",
+    "description": "Inline practice status when saving a rating failed."
+  },
+  "recall_answer_failed": {
+    "message": "Answer unavailable. Try again or dismiss.",
+    "description": "Inline practice status when the answer could not be shown."
+  },
+  "status_key_rejected": {
+    "message": "Gemini rejected this key. Paste a new one.",
+    "description": "Model status when Gemini rejects the API key. Fixed copy: never include provider or error text."
+  },
+  "status_key_isolation": {
+    "message": "This browser cannot keep the key private. Update Chrome to 140 or newer.",
+    "description": "Model status when the browser cannot isolate the key. Fixed copy: never include provider or error text."
+  },
+  "status_local_budget": {
+    "message": "Daily local model-call budget reached.",
+    "description": "Model status when the local daily call budget is used. Fixed copy: never include provider or error text."
+  },
+  "status_daily_quota_later": {
+    "message": "Daily model quota reached. Try again later.",
+    "description": "Model status for an exhausted daily quota without a retry time. Fixed copy: never include provider or error text."
+  },
+  "status_daily_quota_retry": {
+    "message": "Daily model quota reached. Retry after $TIME$.",
+    "description": "Model status for an exhausted daily quota with a retry time. Fixed copy: never include provider or error text.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "Oct 31, 3:00 PM"
+      }
+    }
+  },
+  "status_rate_limit_later": {
+    "message": "Model rate limit reached. Try again shortly.",
+    "description": "Model status for a rate limit without a retry time. Fixed copy: never include provider or error text."
+  },
+  "status_rate_limit_retry": {
+    "message": "Model rate limit reached. Retry after $TIME$.",
+    "description": "Model status for a rate limit with a retry time. Fixed copy: never include provider or error text.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "Oct 31, 3:00 PM"
+      }
+    }
+  },
+  "status_overloaded_later": {
+    "message": "Model service is busy. Try again shortly.",
+    "description": "Model status when the service is overloaded, without a retry time. Fixed copy: never include provider or error text."
+  },
+  "status_overloaded_retry": {
+    "message": "Model service is busy. Retry after $TIME$.",
+    "description": "Model status when the service is overloaded, with a retry time. Fixed copy: never include provider or error text.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "Oct 31, 3:00 PM"
+      }
+    }
+  },
+  "status_storage_failed": {
+    "message": "Local reading storage failed. Try again.",
+    "description": "Model status when saving reading data failed. Fixed copy: never include provider or error text."
+  },
+  "status_request_failed": {
+    "message": "Model request failed. Try again later.",
+    "description": "Model status for any other failed request. Fixed copy: never include provider or error text."
+  },
+  "badge_new_text": {
+    "message": "NEW",
+    "description": "Toolbar badge text when an update is waiting. At most 4 characters."
+  },
+  "badge_new": {
+    "message": "New Lang Weave version available; reload the extension",
+    "description": "Badge tooltip when an update is waiting. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_working": {
+    "message": "Lang Weave is on here",
+    "description": "Badge tooltip when the extension is active on this page. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_needs_setup": {
+    "message": "Finish setup in the welcome page",
+    "description": "Badge tooltip before setup is finished. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_needs_key": {
+    "message": "Add your Gemini key",
+    "description": "Badge tooltip when no API key is saved. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_key_rejected": {
+    "message": "Gemini rejected this key. Paste a new one.",
+    "description": "Badge tooltip when Gemini rejects the API key. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_needs_site": {
+    "message": "Click to turn on here",
+    "description": "Badge tooltip when this site has not been allowed. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_paused": {
+    "message": "Lang Weave is paused; click to turn it on",
+    "description": "Badge tooltip when the extension is paused. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_sensitive": {
+    "message": "Off on sensitive sites; click to turn on here",
+    "description": "Badge tooltip on a sensitive site. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_site_off": {
+    "message": "Off on this site; click to turn it on",
+    "description": "Badge tooltip when this site is turned off. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_unavailable": {
+    "message": "Open Lang Weave to check this page",
+    "description": "Badge tooltip when the page state is unknown. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_unsupported": {
+    "message": "Open a website to use Lang Weave",
+    "description": "Badge tooltip on browser pages. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_local_budget": {
+    "message": "Daily model-call budget reached; review still works",
+    "description": "Badge tooltip when the local daily call budget is used. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_model_error": {
+    "message": "Model request failed; review still works",
+    "description": "Badge tooltip after a failed model request. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_paused_until": {
+    "message": "Paused until $TIME$; review still works",
+    "description": "Badge tooltip during a model cooldown with a known end. Toolbar badge tooltip; fixed copy.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "3:00 PM"
+      }
+    }
+  },
+  "badge_reading_paused": {
+    "message": "Reading is paused; review still works",
+    "description": "Badge tooltip during a model cooldown without a known end. Toolbar badge tooltip; fixed copy."
+  }
+}

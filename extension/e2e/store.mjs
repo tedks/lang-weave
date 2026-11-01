@@ -26,6 +26,7 @@ async function launch(label, manifest, source = root, consent = true) {
   else {
     await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
     await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+    if (manifest.default_locale) await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
   }
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   const context = await chromium.launchPersistentContext(join(scratch, label, 'profile'), {

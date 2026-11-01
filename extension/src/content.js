@@ -9,6 +9,7 @@ import { selector, readable } from './page.js';
 import { isZeroFrench } from './levels.js';
 import { localDay } from './events.js';
 import { languageName } from './language-name.js';
+import { t } from './i18n.js';
 import { capturePageAllowed, verifyCaptureSelection } from './personal-capture.js';
 
 let config = null;
@@ -172,9 +173,9 @@ async function openCue(span) {
   const panel = document.createElement('div');
   panel.className = 'fw-recall';
   panel.setAttribute('role', 'group');
-  panel.setAttribute('aria-label', 'Inline recall');
+  panel.setAttribute('aria-label', t('recall_label'));
   const prompt = document.createElement('div');
-  prompt.textContent = 'Recall the translation before revealing.';
+  prompt.textContent = t('recall_prompt');
   const status = document.createElement('div');
   status.className = 'fw-recall-status';
   status.setAttribute('role', 'status');
@@ -193,7 +194,7 @@ async function openCue(span) {
     }
   });
   document.documentElement.append(panel); cue = panel;
-  button(actions, 'Dismiss', () => closeCue(span));
+  button(actions, t('recall_dismiss'), () => closeCue(span));
   placeTip(span, panel);
   const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
@@ -205,10 +206,10 @@ async function openCue(span) {
     ticket = started.ticket;
   } catch {
     if (!liveCue()) closeCue();
-    else status.textContent = 'Cue unavailable. Dismiss and try again.';
+    else status.textContent = t('recall_cue_unavailable');
     return;
   }
-  const revealButton = button(actions, 'Reveal answer', async () => {
+  const revealButton = button(actions, t('recall_reveal'), async () => {
     if (!liveCue()) { closeCue(); return; }
     revealButton.disabled = true;
     try {
@@ -224,7 +225,8 @@ async function openCue(span) {
       secondary.className = 'fw-recall-secondary';
       panel.append(ratings, secondary);
       let firstRating;
-      for (const [label, rating] of [['Again', 'again'], ['Hard', 'hard'], ['Medium', 'medium'], ['Easy', 'easy'], ['Already know', 'known']]) {
+      for (const [label, rating] of [[t('rating_again'), 'again'], [t('rating_hard'), 'hard'], [t('rating_medium'), 'medium'],
+        [t('rating_easy'), 'easy'], [t('rating_known'), 'known']]) {
         const rated = button(rating === 'known' ? secondary : ratings, label, async () => {
           if (!liveCue()) { closeCue(); return; }
           for (const b of panel.querySelectorAll('button')) b.disabled = true;
@@ -247,7 +249,7 @@ async function openCue(span) {
           } catch {
             if (!liveCue()) { closeCue(); return; }
             for (const b of panel.querySelectorAll('button')) b.disabled = false;
-            status.textContent = 'Rating was not saved. Try again or dismiss.';
+            status.textContent = t('recall_rating_failed');
           }
         });
         if (rating === 'hard') firstRating = rated; // preserve the prior keyboard focus
@@ -257,7 +259,7 @@ async function openCue(span) {
     } catch {
       if (!liveCue()) { closeCue(); return; }
       revealButton.disabled = false;
-      status.textContent = 'Answer unavailable. Try again or dismiss.';
+      status.textContent = t('recall_answer_failed');
     }
   });
   actions.prepend(revealButton);

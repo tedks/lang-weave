@@ -24,6 +24,7 @@ async function load(name, { keyless = false, source = root } = {}) {
   // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
   const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+  if (declared.default_locale) await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
   const shipped = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   if (keyless) delete shipped.key;
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(shipped, null, 2));

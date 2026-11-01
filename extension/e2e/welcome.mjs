@@ -14,6 +14,7 @@ let context;
 try {
   await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
   await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true });
+  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
   await writeFile(join(extension, 'manifest.json'), await readFile(join(root, 'manifest.json')));
   const geminiRequests = [];
   context = await chromium.launchPersistentContext(join(scratch, 'profile'), {

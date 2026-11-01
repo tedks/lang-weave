@@ -1,4 +1,5 @@
 // Provider quota diagnostics are deliberately small, allowlisted, and secret-free.
+import { t } from './i18n.js';
 export const STATUS_KEY = 'modelStatus';
 export const QUOTA_STATE_KEY = 'quotaState';
 export const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -165,16 +166,17 @@ export function retainedRetryAt(previous, category, now, remainingMs) {
 export function statusLabel(status, now = Date.now()) {
   const safe = safeModelStatus(status);
   if (!safe || safe.category === 'ok') return '';
-  if (safe.category === 'key_rejected') return 'Gemini rejected this key. Paste a new one.';
-  if (safe.category === 'key_isolation_unavailable') return 'This browser cannot keep the key private. Update Chrome to 140 or newer.';
-  if (safe.category === 'local_budget') return 'Daily local model-call budget reached.';
+  // Fixed messages only: the one substitution is a locally formatted retry time, never provider text.
+  if (safe.category === 'key_rejected') return t('status_key_rejected');
+  if (safe.category === 'key_isolation_unavailable') return t('status_key_isolation');
+  if (safe.category === 'local_budget') return t('status_local_budget');
   const guided = Number.isFinite(now) && safe.retryAt > now && safe.retryAt <= now + MAX_RETRY_MS;
-  const retry = guided ? ` Retry after ${new Date(safe.retryAt).toLocaleString([], {
+  const time = guided ? new Date(safe.retryAt).toLocaleString([], {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })}.` : '';
-  if (safe.category === 'daily_quota') return `Daily model quota reached.${retry || ' Try again later.'}`;
-  if (safe.category === 'rate_limit') return `Model rate limit reached.${retry || ' Try again shortly.'}`;
-  if (safe.category === 'overloaded') return `Model service is busy.${retry || ' Try again shortly.'}`;
-  if (safe.category === 'storage_failed') return 'Local reading storage failed. Try again.';
-  return 'Model request failed. Try again later.';
+  }) : '';
+  if (safe.category === 'daily_quota') return time ? t('status_daily_quota_retry', time) : t('status_daily_quota_later');
+  if (safe.category === 'rate_limit') return time ? t('status_rate_limit_retry', time) : t('status_rate_limit_later');
+  if (safe.category === 'overloaded') return time ? t('status_overloaded_retry', time) : t('status_overloaded_later');
+  if (safe.category === 'storage_failed') return t('status_storage_failed');
+  return t('status_request_failed');
 }
