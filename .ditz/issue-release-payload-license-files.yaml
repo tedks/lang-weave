@@ -26,3 +26,10 @@ log_events:
     and NOTICE installed and tracked in the marker when present; LICENSE stays required;
     docs/lang-weave.md wording updated. Lands with the pin bump to a post-relicense
     0.12.0 commit. Web Store package part still open.'
+- time: 2026-11-01T04:24:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Web Store part is done: extension/scripts/package.mjs:24
+    ships LICENSE, LICENSE-MIT and NOTICE in every zip. The installer part is implemented
+    in tedks/dotfiles#225, which is not merged. Close this when #225 merges with its
+    pin bump.'
