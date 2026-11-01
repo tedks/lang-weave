@@ -5,7 +5,8 @@
 import { localDay } from './events.js';
 import { validDay } from './learning.js';
 import { withFsrs } from './fsrs.js';
-import { nextDayRecall, longRetention, calibration, leeches, workload, exposureCoverage } from './learning-log.js';
+import { nextDayRecall, longRetention, calibration, leeches, workload, exposureCoverage, isGuess,
+  reviewEntries } from './learning-log.js';
 
 const DAY_MS = 86400000;
 // A recall at a gap of 21 days or more verifies a word (learning-science.md section 9.4).
@@ -16,7 +17,8 @@ export const STAGES = Object.freeze(['new', 'learning', 'maintenance', 'known', 
 export const ACTIVITY_DAYS = 30;
 export const WEEK_DAYS = 7;
 // Below these sample sizes a measurement is shown as "not enough data yet", never as a rate.
-export const MIN_SAMPLES = Object.freeze({ nextDayRecall: 10, longRetention: 10, calibration: 50, leeches: 20 });
+export const MIN_SAMPLES = Object.freeze({ nextDayRecall: 10, longRetention: 10, calibration: 50, leeches: 20,
+  guessAccuracy: 10, guessRecall: 10 });
 
 // Local midnight of an ISO local day, in ms; -Infinity when the card has no introduction day.
 function dayStart(day) {
@@ -122,7 +124,8 @@ export function practisedThisWeek(strip) {
 
 // The section 9 measurements that the log can answer, over every scope's entries, each with
 // `enough`: whether the sample is large enough to show. Leech words carry a display label.
-export function measurements(entries, { now, retention, exposures, learningWords, label = (id) => id }) {
+export function measurements(allEntries, { now, retention, exposures, learningWords, label = (id) => id, guessFirst = false }) {
+  const entries = reviewEntries(allEntries);
   const graded = entries.filter((e) => e.outcome !== 'known').length;
   const next = nextDayRecall(entries);
   const long = longRetention(entries, VERIFY_DAYS);
@@ -142,5 +145,35 @@ export function measurements(entries, { now, retention, exposures, learningWords
       enough: coverage.words > 0 },
     workload: { reviewsPerDay: load.reviewsPerDay, medianSecondsPerReview: load.medianSecondsPerReview,
       enough: load.reviews > 0 },
+    guess: guessMeasurement(allEntries, { on: guessFirst }),
+  };
+}
+
+// Guess first (docs/INFERENCE-MISSION.md): could the guess step be working?
+// - accuracy: each word's first logged guess (its first encounter with the step), correct or not.
+// - recall: next-day recall (the nextDayRecall population: first reviews the day after
+//   introduction) split by whether the word was guessed before that review. Both groups need
+//   MIN_SAMPLES.guessRecall reviews. This is a comparison, not a controlled experiment: which
+//   words get guessed depends on what the reader hovers, so hovered words may differ.
+// `entries` is every retrieval in log order per word, guesses included. `shown` is whether the
+// section belongs on the page: the setting is on, or a guess was ever logged.
+export function guessMeasurement(entries, { on = false } = {}) {
+  const guesses = entries.filter(isGuess);
+  const firstGuess = new Map();
+  for (const e of guesses) if (!firstGuess.has(e.word)) firstGuess.set(e.word, e);
+  const firsts = [...firstGuess.values()];
+  const correct = firsts.filter((e) => e.outcome === 'correct').length;
+  const firstAt = new Map(firsts.map((e) => [e.word, e.at]));
+  const reviews = reviewEntries(entries).filter((e) => e.outcome !== 'known' && e.prior === 0 && e.elapsedDays === 1);
+  const guessedBefore = (e) => firstAt.has(e.word) && firstAt.get(e.word) < e.at;
+  const split = (list) => nextDayRecall(list);
+  const guessed = split(reviews.filter(guessedBefore));
+  const unguessed = split(reviews.filter((e) => !guessedBefore(e)));
+  return {
+    shown: on || guesses.length > 0,
+    accuracy: { n: firsts.length, correct, rate: firsts.length ? correct / firsts.length : null,
+      guesses: guesses.length, enough: firsts.length >= MIN_SAMPLES.guessAccuracy },
+    recall: { guessed, unguessed,
+      enough: guessed.n >= MIN_SAMPLES.guessRecall && unguessed.n >= MIN_SAMPLES.guessRecall },
   };
 }

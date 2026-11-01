@@ -50,6 +50,11 @@ const FOCUS_SCROLL_MS = 250; // focus() may scroll its word just after focusin
 let cue = null;
 let cueWord = null;
 let cueFrame = null;
+// Guess first (opt-in, gradual): docs/INFERENCE-MISSION.md. At most one panel per page.
+let guess = null; // { panel, span, ticket, buttons, status, answered, gen, revision }
+let guessQuiet = null; // a word just dismissed: no tip or panel until the pointer or focus leaves it
+const plainToday = new Set(); // revision:day:word that the worker answered with the plain gloss
+const GUESS_EDITABLE = 'form, input, textarea, select, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]';
 // After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
 // no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
 let orphaned = false;
@@ -61,7 +66,7 @@ function orphan() {
   observer?.disconnect(); observer = null;
   near?.disconnect(); visible?.disconnect();
   clearTimeout(timer); timer = null; clearInterval(navTimer); hideTip();
-  closeCue();
+  closeCue(); closeGuess();
   pending.clear(); inflight.clear();
 }
 const send = (msg) => {
@@ -162,6 +167,7 @@ function queuePracticeCues() {
     cueFrame = null;
     updatePracticeCues();
     if (cue && cueWord?.isConnected) placeTip(cueWord, cue);
+    placeGuess();
   });
 }
 
@@ -277,10 +283,175 @@ function startTip(span, peek, delay = TIP_DELAY_MS) {
     if (tipTarget !== span || gen !== generation || !tipEligible(span)) {
       hideTip(); return;
     }
-    if (!showTip(span)) { hideTip(); return; }
-    span.classList.add('fw-tip');
-    if (peek && tipHovered) record(span, 'peek'); // focus alone never counts
+    if (guess && guess.span !== span) closeGuess(); // a full dwell on another word replaces the panel
+    if (wantsGuess(span)) { void beginGuess(span, peek, gen); return; }
+    showPlainTip(span, peek);
   }, delay);
+}
+function showPlainTip(span, peek) {
+  if (!showTip(span)) { hideTip(); return; }
+  span.classList.add('fw-tip');
+  if (peek && tipHovered) record(span, 'peek'); // focus alone never counts
+}
+
+// ---- Guess first ----
+// The worker decides eligibility (a learning word under its guess cap) and which option is right;
+// this page only shows the choices it was given and sends back the chosen index. No peek is
+// recorded for a panel: the meaning is not shown until a choice. Dismissing records nothing.
+const guessMode = () => !!(config?.settings?.gradual && config.settings.guessFirst === true);
+const plainKey = (span) => `${config?.revision}:${localDay()}:${swapWord(span)}`;
+const guessPlace = (span) => !span.closest(GUESS_EDITABLE) && !span.parentElement?.isContentEditable;
+function wantsGuess(span) {
+  return guessMode() && guessPlace(span) && !plainToday.has(plainKey(span));
+}
+function guessChoicesFrom(reply) {
+  const choices = reply?.choices;
+  if (typeof reply?.ticket !== 'string' || !reply.ticket || !Array.isArray(choices) ||
+      choices.length < 3 || choices.length > 4 ||
+      !choices.every((c) => typeof c === 'string' && c.trim() && c.length <= 120)) return null;
+  return [...choices];
+}
+async function beginGuess(span, peek, gen) {
+  const key = plainKey(span);
+  let reply = null;
+  try { reply = await send({ type: 'guessBegin', word: swapWord(span), revision: config.revision }); } catch { reply = null; }
+  if (gen !== generation || tipTarget !== span || !tipEligible(span)) return; // the reader moved on
+  const choices = guessChoicesFrom(reply);
+  if (choices && guessMode() && guessPlace(span)) { openGuess(span, reply.ticket, choices); return; }
+  if (reply?.plain && !reply.stale) plainToday.add(key);
+  showPlainTip(span, peek);
+}
+function guessAlive(state) {
+  const { span } = state;
+  return state.gen === generation && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
+    !introductionTicket(span) && !span.classList.contains('fw-en') && guessMode() && guessPlace(span);
+}
+function closeGuess(focusWord = false) {
+  if (!guess) return;
+  const { panel, span } = guess;
+  const returnFocus = focusWord && (panel.contains(document.activeElement) || document.activeElement === span);
+  guess = null;
+  panel.remove();
+  if (returnFocus && span.isConnected) { guessQuiet = span; span.focus(); }
+}
+function openGuess(span, ticket, choices) {
+  hideTip(true);
+  closeGuess();
+  const state = { span, ticket, answered: false, gen: generation, revision: config.revision };
+  const panel = document.createElement('div');
+  panel.className = 'fw-guess';
+  panel.setAttribute('role', 'group');
+  panel.setAttribute('aria-label', t('guess_label'));
+  const prompt = document.createElement('div');
+  prompt.className = 'fw-guess-prompt';
+  const word = document.createElement('span');
+  word.className = 'fw-guess-word';
+  word.textContent = span.getAttribute('data-fr') || '';
+  try {
+    const lang = Intl.getCanonicalLocales(config.language || '')[0];
+    if (lang) word.setAttribute('lang', lang);
+  } catch { /* an unparseable code leaves lang off, as text.js does */ }
+  prompt.append(`${t('guess_prompt')} `, word);
+  const list = document.createElement('div');
+  list.className = 'fw-guess-choices';
+  state.buttons = choices.map((choice, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    const key = document.createElement('span');
+    key.className = 'fw-guess-key';
+    key.setAttribute('aria-hidden', 'true');
+    key.textContent = String(index + 1);
+    const label = document.createElement('span');
+    label.textContent = choice;
+    button.append(key, label);
+    button.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void answerGuess(state, index); });
+    list.append(button);
+    return button;
+  });
+  const status = document.createElement('div');
+  status.className = 'fw-guess-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  state.status = status;
+  const actions = document.createElement('div');
+  actions.className = 'fw-guess-actions';
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.textContent = t('guess_dismiss');
+  dismiss.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted && guess === state) closeGuess(true); });
+  actions.append(dismiss);
+  panel.append(prompt, list, status, actions);
+  state.panel = panel;
+  document.documentElement.append(panel);
+  guess = state;
+  placeTip(span, panel);
+}
+async function answerGuess(state, index) {
+  if (guess !== state || state.answered || !guessAlive(state)) return;
+  state.answered = true;
+  for (const button of state.buttons) button.disabled = true;
+  const hadFocus = state.panel.contains(document.activeElement);
+  state.buttons[index].classList.add('fw-guess-chosen');
+  plainToday.add(plainKey(state.span)); // one guess a word a day; the worker enforces it too
+  let reply = null;
+  try { reply = await send({ type: 'guessAnswer', ticket: state.ticket, choice: index, revision: state.revision }); }
+  catch { reply = null; }
+  if (guess !== state || !guessAlive(state)) return;
+  const meaning = `${state.span.getAttribute('data-fr') || ''} · ${state.span.getAttribute('data-tip') || ''}`;
+  const right = reply?.ok === true && Number.isSafeInteger(reply.answer) && reply.answer >= 0 &&
+    reply.answer < state.buttons.length ? reply.answer : -1;
+  if (right >= 0) {
+    state.buttons[right].classList.add('fw-guess-right');
+    if (right !== index) state.buttons[index].classList.add('fw-guess-wrong');
+    state.status.textContent = `${right === index ? t('guess_correct') : t('guess_incorrect')} ${meaning}`;
+  } else state.status.textContent = meaning; // not recorded; the meaning is still shown
+  placeTip(state.span, state.panel);
+  if (hadFocus && state.span.isConnected) { guessQuiet = state.span; state.span.focus(); }
+}
+// Keyboard: with focus on the panel or its word, arrows and 1-4 move to a choice, Enter (the
+// focused button's own click) confirms, Tab returns to the word, Escape closes. Escape elsewhere
+// still closes the panel but is left to the page.
+function guessKey(e) {
+  if (!guess || !e.isTrusted) return;
+  const state = guess;
+  const inPanel = state.panel.contains(e.target);
+  const onWord = e.target === state.span;
+  const consume = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+  if (e.key === 'Escape') {
+    if (inPanel || onWord) consume();
+    closeGuess(inPanel || onWord);
+    return;
+  }
+  if (!inPanel && !onWord) return;
+  if (inPanel && e.key === 'Tab') { consume(); guessQuiet = state.span; state.span.focus(); return; }
+  if (state.answered || e.altKey || e.ctrlKey || e.metaKey) return;
+  const count = state.buttons.length;
+  const at = state.buttons.indexOf(document.activeElement);
+  let next = -1;
+  if (/^[1-9]$/.test(e.key)) next = Number(e.key) - 1 < count ? Number(e.key) - 1 : -1;
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = at < 0 ? 0 : (at + 1) % count;
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') next = at < 0 ? count - 1 : (at - 1 + count) % count;
+  if (next < 0) return;
+  consume();
+  state.buttons[next].focus();
+}
+function guessPointer(e) {
+  if (guess && e.isTrusted && !guess.panel.contains(e.target)) closeGuess();
+}
+// Focus leaving the panel and its word for another element closes it; a window blur does not.
+function guessFocusOut(e) {
+  if (!guess || !e.isTrusted || !e.relatedTarget) return;
+  const { panel, span } = guess;
+  if ((panel.contains(e.target) || e.target === span) && !panel.contains(e.relatedTarget) && e.relatedTarget !== span)
+    closeGuess();
+}
+// A panel whose word has scrolled out of view closes rather than sticking to the viewport edge.
+function placeGuess() {
+  if (!guess) return;
+  const rect = guess.span.getBoundingClientRect();
+  const height = document.documentElement.clientHeight || window.innerHeight;
+  if (!guess.span.isConnected || rect.bottom < 0 || rect.top > height) { closeGuess(); return; }
+  placeTip(guess.span, guess.panel);
 }
 function restoreFocusedTip() {
   const span = focusedTip;
@@ -293,6 +464,9 @@ function restoreFocusedTip() {
 function armTip(e) {
   const span = swapFor(e);
   if (!tipEligible(span)) return;
+  if (guess && guess.span === span) return; // its panel is already open
+  if (span === guessQuiet) return;
+  if (e.type === 'focusin' && guess) closeGuess(); // keyboard moved on: a deliberate change
   if (e.type === 'focusin') {
     focusedTip = span;
     focusedAt = Date.now();
@@ -320,6 +494,7 @@ function armTip(e) {
 export function disarmTip(e) {
   const span = swapFor(e);
   if (!span || span.contains(e.relatedTarget)) return;
+  if (span === guessQuiet) guessQuiet = null;
   if (e.type === 'focusout' && span === focusedTip) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
   if (span !== tipTarget) return;
   if (e.type === 'mouseout') {
@@ -505,6 +680,7 @@ function mutations(records) {
   }
   if (tipTarget && (!tipTarget.isConnected || !on() || isPractice(tipTarget) ||
       introductionTicket(tipTarget) || tipTarget.classList.contains('fw-en'))) hideTip();
+  if (guess && !guessAlive(guess)) closeGuess();
   const changed = new Set();
   for (const r of records) {
     for (const n of r.addedNodes || []) if (n.nodeType === 1) { track(n); restoreDescriptions(n); }
@@ -515,6 +691,7 @@ function mutations(records) {
   }
   for (const el of changed) {
     if (tipTarget && el.contains(tipTarget)) hideTip();
+    if (guess && el.contains(guess.span)) closeGuess();
     if (el.querySelector(`.${SWAP_CLASS}`)) revert(el);
     keys.delete(el);
     if (readable(el, location.href)) { near.unobserve(el); near.observe(el); }
@@ -559,6 +736,7 @@ function stop() {
   if (cueFrame != null) window.cancelAnimationFrame(cueFrame);
   cueFrame = null;
   pending.clear(); inflight.clear(); memo.clear(); failures.clear(); hideTip();
+  closeGuess(); plainToday.clear(); guessQuiet = null;
   introInflight.clear();
   introErrors.clear();
   closeCue();
@@ -569,7 +747,14 @@ function stop() {
 }
 function update(next, retry = false) {
   if (!next?.settings || !next.revision) return;
-  if (!retry && next.revision === config?.revision) return;
+  if (!retry && next.revision === config?.revision) {
+    // Guess first is outside the revision (it changes no swap): take it without repainting.
+    if (config && (next.settings.guessFirst === true) !== (config.settings.guessFirst === true)) {
+      config = next;
+      if (!guessMode()) closeGuess();
+    }
+    return;
+  }
   stop(); config = next; start();
 }
 function reveal(e) {
@@ -579,7 +764,7 @@ function reveal(e) {
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   if (isPractice(span) && !isPracticeCue(span)) return;
   e.preventDefault(); e.stopPropagation();
-  hideTip();
+  hideTip(); closeGuess();
   if (isPractice(span)) { void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
   observer?.takeRecords();
@@ -612,6 +797,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   reply(result?.ok ? { ok: true, text: result.text } : { ok: false });
   return false;
 });
+document.addEventListener('pointerdown', guessPointer, true);
+document.addEventListener('focusout', guessFocusOut, true);
+document.addEventListener('keydown', guessKey, true); // before reveal: a handled key stops there
 document.addEventListener('click', reveal, true);
 document.addEventListener('keydown', reveal, true);
 document.addEventListener('mouseover', armTip, true);

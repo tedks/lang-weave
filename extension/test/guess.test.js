@@ -148,3 +148,48 @@ test('schema 2 export leaves guesses out and counts them; import accepts them', 
   const parsed = parseBackup(JSON.stringify(file));
   expect(parsed.state.scopes.es.retrievals.retrievals).toEqual([review, guess]);
 });
+
+test('the progress measurement: first-guess accuracy and next-day recall of guessed against other words', async () => {
+  const { guessMeasurement, measurements, MIN_SAMPLES } = await import('../src/progress.js');
+  const { measurementItems } = await import('../src/progress-text.js');
+  const g = (word, at, outcome) => ({ word, at, source: 'guess', direction: 'receptive', outcome, prior: 0,
+    latencyMs: 1000, elapsedDays: null, intervalDays: null, predicted: null });
+  const r = (word, at, outcome, extra = {}) => ({ word, at, source: 'standalone', direction: 'productive', outcome,
+    prior: 0, latencyMs: 3000, elapsedDays: 1, intervalDays: null, predicted: null, ...extra });
+  // Not enough data: hidden when off and nothing was guessed; shown with the honest state when on.
+  expect(guessMeasurement([], { on: false }).shown).toBe(false);
+  const empty = guessMeasurement([], { on: true });
+  expect(empty).toMatchObject({ shown: true, accuracy: { n: 0, rate: null, enough: false }, recall: { enough: false } });
+  // Twelve words guessed (first guesses: 9 right), later guesses of the same word do not count again.
+  const entries = [];
+  for (let i = 0; i < 12; i++) {
+    entries.push(g(`w${i}`, 100 + i, i < 9 ? 'correct' : 'incorrect'));
+    entries.push(g(`w${i}`, 200 + i, 'correct'));
+    entries.push(r(`w${i}`, 1000 + i, i < 10 ? 'medium' : 'again')); // next-day review after the guess
+  }
+  for (let i = 0; i < 10; i++) entries.push(r(`u${i}`, 1000 + i, i < 5 ? 'medium' : 'again')); // never guessed
+  entries.push(g('late', 5000, 'correct'), r('late', 4000, 'medium')); // guessed only after its review: other
+  entries.push(r('claimed', 1000, 'known')); // a claim is never a recall
+  const m = guessMeasurement(entries, { on: false });
+  expect(m.shown).toBe(true);
+  expect(m.accuracy).toEqual({ n: 13, correct: 10, rate: 10 / 13, guesses: 25, enough: true });
+  expect(m.recall.guessed).toMatchObject({ n: 12, passed: 10 });
+  expect(m.recall.unguessed).toMatchObject({ n: 11, passed: 6 });
+  expect(m.recall.enough).toBe(true);
+  expect(MIN_SAMPLES.guessRecall).toBe(10);
+  // The other measurements ignore guesses entirely.
+  const opts = { now: 10000, retention: 0.9, exposures: { words: {} }, learningWords: [] };
+  const withGuesses = measurements(entries, opts);
+  const without = measurements(entries.filter((e) => e.source !== 'guess'), opts);
+  const { guess, ...rest } = withGuesses;
+  const { guess: _, ...restWithout } = without;
+  expect(rest).toEqual(restWithout);
+  const items = measurementItems(withGuesses, 0);
+  expect(items.at(-2)).toEqual({ title: 'First-guess accuracy', value: '77% of first guesses were right (13 words).',
+    why: expect.stringContaining('retrieval') });
+  expect(items.at(-1).value).toBe('83% for guessed words (12 reviews), 55% for other words (11 reviews).');
+  const few = measurementItems(measurements([g('a', 1, 'correct')], opts), 0);
+  expect(few.at(-2).value).toBe('Not enough data yet: 1 word guessed; 10 are needed.');
+  expect(few.at(-1).value).toBe('Not enough data yet: 0 next-day reviews of guessed words and 0 of other words; 10 of each are needed.');
+  expect(measurementItems(measurements([], opts), 0).map((i) => i.title)).not.toContain('First-guess accuracy');
+});
