@@ -1,0 +1,19 @@
+id: curriculum-pack-size-limits
+title: Lift the 240-entry test cap and measure retrieval at 3,000 anchors
+desc: 'Source: docs/research/curriculum-sources.md. The 240-entry test cap forces
+  growth to be gradual-only; retrieval performance at ~3,000 anchors is unmeasured.
+  Measure prompt/adaptive candidate costs (see adaptive-selector-prompt-performance)
+  and set bounds before the first band ships.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:41:56-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:41:56-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
