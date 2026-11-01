@@ -31,6 +31,7 @@ const ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt'];
 // chrome.i18n blanks a $n it has no substitution for, so each child's $n is substituted with a
 // private-use sentinel no rendered text contains (a literal $$1 renders as "$1", so "$1" cannot
 // be the sentinel). Chrome and substitute() insert substitutions verbatim, never re-reading them.
+// The package gate refuses these characters in locale files.
 const SENTINEL = 0xE000;
 const CHILD_MARKERS = Array.from({ length: 9 }, (_, i) => String.fromCharCode(SENTINEL + i + 1));
 // Fill a page from its data-i18n keys. An element with child elements keeps them: its message
@@ -40,9 +41,9 @@ export function localize(root = document) {
   const doc = root.ownerDocument || root;
   if (doc.documentElement?.hasAttribute('lang')) doc.documentElement.setAttribute('lang', messageLanguage());
   for (const el of root.querySelectorAll('[data-i18n]')) {
-    const text = t(el.getAttribute('data-i18n'), ...CHILD_MARKERS);
-    if (!text) continue;
     const children = [...el.children];
+    const text = children.length ? t(el.getAttribute('data-i18n'), ...CHILD_MARKERS) : t(el.getAttribute('data-i18n'));
+    if (!text) continue;
     if (!children.length) { el.textContent = text; continue; }
     const parts = text.split(/([\uE001-\uE009])/);
     const named = parts.filter((_, i) => i % 2).map((mark) => mark.charCodeAt(0) - SENTINEL);

@@ -29,10 +29,7 @@ const descriptionHosts = new WeakMap(); // document -> hidden English container
 // A page may strip foreign children of <html>; re-attach a few times a minute, never fight it.
 const HOST_REATTACH = { max: 3, windowMs: 60000 };
 const hostReattached = new WeakMap(); // document -> [ms]
-// Spans whose description was taken out with the span; counted so most mutations skip the scan.
-const awaitingRestore = new WeakSet();
-let awaitingCount = 0;
-const settle = (span) => { if (awaitingRestore.delete(span)) awaitingCount--; };
+const hostRetry = new WeakMap(); // document -> one timer for when the budget window reopens
 let descriptionPrefix = '';
 let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
@@ -96,7 +93,6 @@ function describe(span, text) {
     el.id = `${descriptionPrefix}-${++descriptionCount}`;
     descriptions.set(span, el);
   }
-  settle(span);
   described.add(span);
   el.textContent = text;
   const host = descriptionHost(doc);
@@ -107,7 +103,6 @@ function undescribe(span) {
   descriptions.get(span)?.remove();
   descriptions.delete(span);
   described.delete(span);
-  settle(span);
   span.removeAttribute('aria-describedby');
 }
 // Take the descriptions of spans the page has removed out of the container. The span keeps its
@@ -118,7 +113,6 @@ export function pruneDescriptions() {
     if (span.isConnected) { live = span; continue; }
     descriptions.get(span)?.remove();
     described.delete(span);
-    if (!awaitingRestore.has(span)) { awaitingRestore.add(span); awaitingCount++; }
   }
   // A page that removed the container while keeping swaps gets it back, so no reference dangles,
   // but only within a small budget: a page that keeps removing it must not start a loop.
@@ -128,12 +122,17 @@ export function pruneDescriptions() {
     const now = Date.now();
     const times = (hostReattached.get(doc) || []).filter((at) => now - at < HOST_REATTACH.windowMs);
     if (times.length < HOST_REATTACH.max) { times.push(now); descriptionHost(doc); }
+    else if (!hostRetry.has(doc)) {
+      // One retry when the window reopens, so a quiet page does not keep dangling references.
+      hostRetry.set(doc, setTimeout(() => { hostRetry.delete(doc); pruneDescriptions(); },
+        HOST_REATTACH.windowMs - (now - times[0]) + 1));
+    }
     hostReattached.set(doc, times);
   }
 }
 // Put back the descriptions of this extension's spans in a subtree the page has (re)attached.
 export function restoreDescriptions(root) {
-  if (!awaitingCount || root?.nodeType !== ELEMENT_NODE) return;
+  if (root?.nodeType !== ELEMENT_NODE) return;
   const spans = root.matches(`span.${SWAP_CLASS}`) ? [root] : [];
   spans.push(...root.querySelectorAll(`span.${SWAP_CLASS}`));
   for (const span of spans) {
@@ -141,7 +140,6 @@ export function restoreDescriptions(root) {
     if (!el || described.has(span) || !span.isConnected) continue;
     descriptionHost(span.ownerDocument).append(el);
     described.add(span);
-    settle(span);
   }
 }
 export const swapDescription = (span) => descriptions.get(span)?.textContent || '';

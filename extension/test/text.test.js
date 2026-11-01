@@ -483,6 +483,14 @@ describe('lang and description on swapped words', () => {
       }
       expect(reattached).toBe(3);
       expect(descriptionOf(keptSpan)).toBeUndefined();
+      // When the window reopens, one scheduled retry restores it on a page with no further mutations.
+      const realNow = Date.now;
+      try {
+        Date.now = () => realNow() + 61000;
+        pruneDescriptions();
+        expect(host.isConnected).toBe(true);
+      } finally { Date.now = realNow; }
+      host.remove();
       toggle(kept.querySelector('.fw-word'));
       expect(hosts()).toHaveLength(1);
       expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('Show Spanish');

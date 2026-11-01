@@ -370,11 +370,15 @@ function localeProblems(manifest, files, defaultLocale) {
       for (const [whole, key] of entry.message.matchAll(/\$([A-Za-z0-9_@]+)\$/g))
         if (!defined.has(key.toLowerCase())) problems.push(`${f.name}: ${name} uses undefined placeholder ${whole}`);
     }
-    if (table.locale_lang) {
+    const lang = Object.entries(table).find(([name]) => name.toLowerCase() === 'locale_lang')?.[1];
+    if (lang) {
       let tag = '';
-      try { [tag] = Intl.getCanonicalLocales(table.locale_lang.message); } catch { tag = ''; }
-      if (!tag) problems.push(`${f.name}: locale_lang ${JSON.stringify(table.locale_lang.message)} is not a BCP-47 tag`);
+      try { [tag] = Intl.getCanonicalLocales(lang.message); } catch { tag = ''; }
+      if (!tag) problems.push(`${f.name}: locale_lang ${JSON.stringify(lang.message)} is not a BCP-47 tag`);
     }
+    // i18n.js marks child elements with U+E001..U+E009; a message must not contain them.
+    for (const [name, entry] of Object.entries(table))
+      if (/[\uE001-\uE009]/.test(entry.message)) problems.push(`${f.name}: ${name} contains a reserved character U+E001..U+E009`);
     tables.set(match[1], new Set(lowered));
   }
   const names = tables.get(defaultLocale);
