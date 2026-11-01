@@ -53,7 +53,7 @@ test('sentence join keys both IDs when one Spanish sentence has several translat
   });
 });
 
-test('the twelve deterministic gates fail closed on a bad candidate', async () => {
+test('the twelve deterministic gate classes fail closed on bad candidates', async () => {
   const cases = [
     ['duplicate form', (rows) => { rows[0].fr = 'el gato'; }, /duplicate target form/],
     ['accent homograph', (rows) => { rows[0].fr = 'el arbol'; }, /accent-fold collision/],
