@@ -7,8 +7,8 @@ type: task
 component: review
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: reorg
 creation_time: 2026-10-30T21:53:22-00:00
 references: []
 log_events:
@@ -22,3 +22,7 @@ log_events:
   comment: 'Triage 2026-11-01 (main at 1a7611a): DUPLICATE of adaptive-selector-prompt-performance.
     Both concern per-candidate work in selectWorkingSet; the duplicate underExposed
     computation is folded into that measurement and optimisation pass.'
+- time: 2026-11-01T04:24:32-00:00
+  who: Ted Smith
+  what: 'closed: reorg'
+  comment: Duplicate of adaptive-selector-prompt-performance
