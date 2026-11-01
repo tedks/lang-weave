@@ -1,0 +1,24 @@
+id: extension-reload-open-page
+title: Assess startup recovery across an extension reload
+desc: 'PR #44 council raised a possible overlap between a newly injected content script
+  and an orphaned script after chrome.runtime.reload or extension update. The worker-restart
+  gate proves the MV3 wake case, and orphan.test.js proves old content goes quiet
+  after its runtime is invalidated, but a real extension reload with an already woven
+  tab was not verified: chrome.runtime.reload in the isolated browser did not yield
+  a fresh observable worker. Reproduce in a controlled browser profile, inspect isolated-world
+  marker and duplicate observers/DOM, then decide whether recovery should skip or
+  replace the orphan. Preserve stale-result guards and do not use a real profile or
+  live Gemini.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:50:59-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:50:59-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
