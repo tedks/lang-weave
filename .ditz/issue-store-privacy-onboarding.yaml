@@ -22,3 +22,14 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:28-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): DUPLICATE of privacy-and-fingerprinting,
+    which explicitly superseded this issue''s engineering half. Landed since: consent
+    before the first Gemini call (PR #29; reading.js:212 refuses dispatch while consentShown
+    is false); free versus billed key wording (_locales/en/messages.json:539, 573,
+    859); 18+ notice (PR #36, welcome.html:37); key at rest restricted to trusted
+    contexts (PR #34); explicit X opt-in on the Store build (PRs #23, #36). Privacy
+    policy and Limited Use text are drafts in PR #33 and tedks/website#53, tracked
+    in privacy-and-fingerprinting. Rulings stay in store-site-consent-ruling and store-provider-region-ruling.'
