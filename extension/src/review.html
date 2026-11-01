@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lang Weave · Review</title>
+<title data-i18n="review_title">Lang Weave · Review</title>
 <style>
   * { box-sizing: border-box; }
   body { max-width: 640px; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.5 system-ui, sans-serif; color: #182027; background: #faf9f5; }
@@ -23,39 +23,39 @@
 </style>
 </head>
 <body>
-<h1>Recall practice</h1>
-<p class="muted">Say each English prompt in <span class="language-name">your target language</span>, then reveal the answer and rate your recall. Reading sightings do not count as reviews.</p>
+<h1 data-i18n="review_heading">Recall practice</h1>
+<p class="muted" data-i18n="review_intro">Say each English prompt in <span class="language-name" data-i18n="review_target_language">your target language</span>, then reveal the answer and rate your recall. Reading sightings do not count as reviews.</p>
 <p id="language" class="muted"></p>
 <p id="counts" class="muted" role="status"></p>
 <main class="card">
-  <p id="empty" tabindex="-1">Loading your review queue…</p>
+  <p id="empty" tabindex="-1" data-i18n="review_loading">Loading your review queue…</p>
   <div id="finish" tabindex="-1" hidden>
-    <h2>Done for now</h2>
+    <h2 data-i18n="review_done_heading">Done for now</h2>
     <p id="finish-summary"></p>
     <p id="finish-next" class="muted"></p>
   </div>
   <div id="question" hidden>
     <p id="progress" class="muted"></p>
-    <div class="muted">Say this in <span class="language-name">your target language</span>:</div>
+    <div class="muted" data-i18n="review_say_this">Say this in <span class="language-name" data-i18n="review_target_language">your target language</span>:</div>
     <p id="prompt"></p>
-    <button id="reveal" aria-keyshortcuts="Space Enter" aria-describedby="progress prompt">Reveal answer <kbd aria-hidden="true">Space</kbd></button>
+    <button id="reveal" aria-keyshortcuts="Space Enter" aria-describedby="progress prompt" data-i18n="review_reveal">Reveal answer <kbd aria-hidden="true" data-i18n="review_key_space">Space</kbd></button>
     <div id="solution" hidden>
       <div id="answer"></div>
       <div id="hint" class="muted"></div>
-      <p id="rating-question" class="muted">How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.</p>
+      <p id="rating-question" class="muted" data-i18n="review_how_well">How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.</p>
       <div role="group" aria-labelledby="rating-question" aria-describedby="rating-help">
-        <button data-rating="again" aria-keyshortcuts="1" aria-describedby="answer hint"><kbd aria-hidden="true">1</kbd> Again</button>
-        <button data-rating="hard" aria-keyshortcuts="2" aria-describedby="answer hint"><kbd aria-hidden="true">2</kbd> Hard</button>
-        <button data-rating="medium" aria-keyshortcuts="3" aria-describedby="answer hint"><kbd aria-hidden="true">3</kbd> Medium</button>
-        <button data-rating="easy" aria-keyshortcuts="4" aria-describedby="answer hint"><kbd aria-hidden="true">4</kbd> Easy</button>
-        <button id="known" aria-describedby="answer hint">Already know</button>
+        <button data-rating="again" aria-keyshortcuts="1" aria-describedby="answer hint" data-i18n="review_rating_again"><kbd aria-hidden="true">1</kbd> Again</button>
+        <button data-rating="hard" aria-keyshortcuts="2" aria-describedby="answer hint" data-i18n="review_rating_hard"><kbd aria-hidden="true">2</kbd> Hard</button>
+        <button data-rating="medium" aria-keyshortcuts="3" aria-describedby="answer hint" data-i18n="review_rating_medium"><kbd aria-hidden="true">3</kbd> Medium</button>
+        <button data-rating="easy" aria-keyshortcuts="4" aria-describedby="answer hint" data-i18n="review_rating_easy"><kbd aria-hidden="true">4</kbd> Easy</button>
+        <button id="known" aria-describedby="answer hint" data-i18n="review_known">Already know</button>
       </div>
-      <p id="rating-help" class="muted">Again returns in 10 minutes. For a new word, Hard returns in a day, Medium in 2 days and Easy in 8 days; after that, intervals grow with each successful recall. With gradual learning on, Already know waits for one later check before it counts as verified, and three Easy ratings move a word to occasional maintenance reviews.</p>
+      <p id="rating-help" class="muted" data-i18n="review_rating_help">Again returns in 10 minutes. For a new word, Hard returns in a day, Medium in 2 days and Easy in 8 days; after that, intervals grow with each successful recall. With gradual learning on, Already know waits for one later check before it counts as verified, and three Easy ratings move a word to occasional maintenance reviews.</p>
     </div>
   </div>
 </main>
 <button id="introduce" hidden>Add 5 new words</button>
-<button id="retry" hidden>Reload queue</button>
+<button id="retry" hidden data-i18n="review_reload">Reload queue</button>
 <p id="notice" role="alert"></p>
 <script type="module" src="review-page.js"></script>
 </body>

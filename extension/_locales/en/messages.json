@@ -1472,5 +1472,411 @@
   "progress_measure_workload_why": {
     "message": "If this feels heavy, lower the new words per day in Settings; reviews shrink as intervals grow.",
     "description": "One-sentence explanation under the workload measurement. \"Settings\" is the name of the settings page."
+  },
+  "review_title": {
+    "message": "Lang Weave · Review",
+    "description": "Browser tab title of the review page. \"Lang Weave\" is the product name."
+  },
+  "review_heading": {
+    "message": "Recall practice",
+    "description": "Main heading of the review page."
+  },
+  "review_intro": {
+    "message": "Say each English prompt in $LANGUAGE$, then reveal the answer and rate your recall. Reading sightings do not count as reviews.",
+    "description": "Introduction under the heading of the review page. $1 is the name of the language being learned.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "review_target_language": {
+    "message": "your target language",
+    "description": "Placeholder for the language name on the review page, shown until the real language name loads. Replaces $LANGUAGE$ in the review page text."
+  },
+  "review_loading": {
+    "message": "Loading your review queue…",
+    "description": "Status text on the review page while the queue loads."
+  },
+  "review_done_heading": {
+    "message": "Done for now",
+    "description": "Heading of the review page after the learner finishes the cards that were due."
+  },
+  "review_say_this": {
+    "message": "Say this in $LANGUAGE$:",
+    "description": "Label above an English prompt on a review card. $1 is the name of the language being learned.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "review_reveal": {
+    "message": "Reveal answer $KEY$",
+    "description": "Button that shows the answer on a review card. $1 is the label of the keyboard shortcut key.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "Space"
+      }
+    }
+  },
+  "review_key_space": {
+    "message": "Space",
+    "description": "Label of the Space key, shown inside the Reveal answer button as a keyboard hint."
+  },
+  "review_how_well": {
+    "message": "How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.",
+    "description": "Question above the four rating buttons on a review card. Refers to the keys 1 to 4 and Enter."
+  },
+  "review_rating_again": {
+    "message": "$KEY$ Again",
+    "description": "Rating button: the learner did not recall the word. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_rating_hard": {
+    "message": "$KEY$ Hard",
+    "description": "Rating button: the learner recalled the word with difficulty. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "review_rating_medium": {
+    "message": "$KEY$ Medium",
+    "description": "Rating button: the learner recalled the word after some effort. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_rating_easy": {
+    "message": "$KEY$ Easy",
+    "description": "Rating button: the learner recalled the word easily. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "review_known": {
+    "message": "Already know",
+    "description": "Button on a review card that marks the word as already known."
+  },
+  "review_rating_help": {
+    "message": "Again returns in 10 minutes. For a new word, Hard returns in a day, Medium in 2 days and Easy in 8 days; after that, intervals grow with each successful recall. With gradual learning on, Already know waits for one later check before it counts as verified, and three Easy ratings move a word to occasional maintenance reviews.",
+    "description": "Help text under the rating buttons explaining when each rating brings the word back. Names the buttons Again, Hard, Medium, Easy and Already know."
+  },
+  "review_reload": {
+    "message": "Reload queue",
+    "description": "Button on the review page that reloads the review queue after an error."
+  },
+  "review_unavailable": {
+    "message": "Review is unavailable",
+    "description": "Error shown on the review page when the extension's background worker does not answer."
+  },
+  "review_failed": {
+    "message": "Review failed",
+    "description": "Error shown on the review page when an action fails without a more specific message."
+  },
+  "review_counts": {
+    "message": "$DUE$ due · $NEW$ available to add",
+    "description": "Status line on the review page: cards due and new words available to add.",
+    "placeholders": {
+      "DUE": {
+        "content": "$1",
+        "example": "4"
+      },
+      "NEW": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "review_counts_returned_one": {
+    "message": "$DUE$ due · $NEW$ available to add · $COUNT$ word returned from retirement to be verified",
+    "description": "Status line on the review page when one retired word has returned to be verified. $1 is the number of returned words.",
+    "placeholders": {
+      "DUE": {
+        "content": "$2",
+        "example": "4"
+      },
+      "NEW": {
+        "content": "$3",
+        "example": "10"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_counts_returned_other": {
+    "message": "$DUE$ due · $NEW$ available to add · $COUNT$ words returned from retirement to be verified",
+    "description": "Status line on the review page when several retired words have returned to be verified. $1 is the number of returned words.",
+    "placeholders": {
+      "DUE": {
+        "content": "$2",
+        "example": "4"
+      },
+      "NEW": {
+        "content": "$3",
+        "example": "10"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "review_introduce_one": {
+    "message": "Add $COUNT$ new word",
+    "description": "Button on the review page that adds one new word to the queue.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_introduce_other": {
+    "message": "Add $COUNT$ new words",
+    "description": "Button on the review page that adds several new words to the queue. $1 is how many (at most 5).",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "review_pronunciation": {
+    "message": "Pronunciation: $HINT$",
+    "description": "Pronunciation hint shown under the revealed answer on a review card.",
+    "placeholders": {
+      "HINT": {
+        "content": "$1",
+        "example": "ee"
+      }
+    }
+  },
+  "review_empty_new": {
+    "message": "No reviews due. Add a few words when you are ready.",
+    "description": "Review page message when no card is due but new words can be added."
+  },
+  "review_empty_caught_up": {
+    "message": "You are caught up. Come back when a card is due.",
+    "description": "Review page message when no card is due and no new words are available."
+  },
+  "review_completed_one": {
+    "message": "You completed $COUNT$ review.",
+    "description": "Summary on the review page after finishing, singular. $1 is the number of reviews in this session.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_completed_other": {
+    "message": "You completed $COUNT$ reviews.",
+    "description": "Summary on the review page after finishing, plural. $1 is the number of reviews in this session.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "8"
+      }
+    }
+  },
+  "review_card_position": {
+    "message": "Card $POSITION$ of $TOTAL$",
+    "description": "Progress line above a review card.",
+    "placeholders": {
+      "POSITION": {
+        "content": "$1",
+        "example": "3"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "review_reviewing": {
+    "message": "Reviewing $LANGUAGE$",
+    "description": "Line on the review page naming the language being reviewed.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "review_next_session_today_one": {
+    "message": "Next review from this session: today from $TIME$, $COUNT$ word.",
+    "description": "After finishing: when this session's earliest card returns, later today, singular. $1 is the number of words returning that day, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_next_session_today_other": {
+    "message": "Next review from this session: today from $TIME$, $COUNT$ words.",
+    "description": "After finishing: when this session's earliest card returns, later today, plural. $1 is the number of words returning that day, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_next_session_tomorrow_one": {
+    "message": "Next review from this session: tomorrow, $COUNT$ word.",
+    "description": "After finishing: this session's earliest card returns tomorrow, singular. $1 is the number of words returning that day.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_next_session_tomorrow_other": {
+    "message": "Next review from this session: tomorrow, $COUNT$ words.",
+    "description": "After finishing: this session's earliest card returns tomorrow, plural. $1 is the number of words returning that day.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_next_session_on_one": {
+    "message": "Next review from this session: on $DAY$, $COUNT$ word.",
+    "description": "After finishing: this session's earliest card returns on a later day, singular. $1 is the number of words returning that day, $2 a weekday name or a date.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "Friday"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_next_session_on_other": {
+    "message": "Next review from this session: on $DAY$, $COUNT$ words.",
+    "description": "After finishing: this session's earliest card returns on a later day, plural. $1 is the number of words returning that day, $2 a weekday name or a date.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "Friday"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_deck_empty": {
+    "message": "No future reviews in this deck.",
+    "description": "After finishing: nothing is scheduled in the deck."
+  },
+  "review_deck_today_one": {
+    "message": "Next review today from $TIME$, $COUNT$ word.",
+    "description": "After finishing: the deck's next review is later today, singular. $1 is the number of words, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_deck_today_other": {
+    "message": "Next review today from $TIME$, $COUNT$ words.",
+    "description": "After finishing: the deck's next review is later today, plural. $1 is the number of words, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_deck_tomorrow_one": {
+    "message": "Next review tomorrow, $COUNT$ word.",
+    "description": "After finishing: the deck's next review is tomorrow, singular. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_deck_tomorrow_other": {
+    "message": "Next review tomorrow, $COUNT$ words.",
+    "description": "After finishing: the deck's next review is tomorrow, plural. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_deck_later_one": {
+    "message": "Nothing due until $DATE$ ($COUNT$ word).",
+    "description": "After finishing: the deck's next review is on a later date, singular. $1 is the number of words, $2 a date.",
+    "placeholders": {
+      "DATE": {
+        "content": "$2",
+        "example": "November 5"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_deck_later_other": {
+    "message": "Nothing due until $DATE$ ($COUNT$ words).",
+    "description": "After finishing: the deck's next review is on a later date, plural. $1 is the number of words, $2 a date.",
+    "placeholders": {
+      "DATE": {
+        "content": "$2",
+        "example": "November 5"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
   }
 }

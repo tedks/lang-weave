@@ -472,3 +472,22 @@ test('the finish card withholds a next-review claim an Easy card could falsify',
     await page.restore();
   }
 });
+
+test('the counts line and the add button keep their English plural forms', async () => {
+  const reply = (extra) => ({ language: 'Spanish', due: 0, new: 0, card: null, ...extra });
+  for (const [name, extra, counts, add] of [
+    ['plural-none', { returned: 0, new: 0 }, '0 due · 0 available to add', 'Add 0 new words'],
+    ['plural-one', { returned: 1, new: 1, due: 2 }, '2 due · 1 available to add · 1 word returned from retirement to be verified', 'Add 1 new word'],
+    ['plural-many', { returned: 2, new: 9 }, '0 due · 9 available to add · 2 words returned from retirement to be verified', 'Add 5 new words'],
+  ]) {
+    const page = await mount(name, async () => reply(extra));
+    try {
+      await settle();
+      expect(page.$('counts').textContent).toBe(counts);
+      expect(page.$('introduce').textContent).toBe(add);
+      expect(page.$('introduce').hidden).toBe(extra.new === 0);
+    } finally {
+      await page.restore();
+    }
+  }
+});

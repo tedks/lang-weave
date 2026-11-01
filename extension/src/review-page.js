@@ -1,3 +1,7 @@
+import { t, tn, localize } from './i18n.js';
+
+localize();
+
 const $ = (id) => document.getElementById(id);
 const DAY_MS = 86400000;
 const AUTO_RELOAD_MS = 60 * 60 * 1000;
@@ -21,24 +25,20 @@ let session = { language: null, reviewed: 0, returns: [], easy: [] };
 
 async function send(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, ...fields });
-  if (!response || response.error) throw new Error(response?.error || 'Review is unavailable');
+  if (!response || response.error) throw new Error(response?.error || t('review_unavailable'));
   return response;
 }
 
-function plural(count, word) {
-  return `${count} ${word}${count === 1 ? '' : 's'}`;
-}
-
 function counts(data) {
-  $('counts').textContent = `${data.due} due · ${data.new} available to add` +
-    (data.returned ? ` · ${plural(data.returned, 'word')} returned from retirement to be verified` : '');
+  $('counts').textContent = data.returned ? tn('review_counts_returned', data.returned, data.due, data.new)
+    : t('review_counts', data.due, data.new);
   $('introduce').hidden = data.new === 0;
-  $('introduce').textContent = `Add ${plural(Math.min(5, data.new), 'new word')}`;
+  $('introduce').textContent = tn('review_introduce', Math.min(5, data.new));
 }
 
 function showAnswer(answer) {
   $('answer').textContent = answer.fr;
-  $('hint').textContent = answer.hint ? `Pronunciation: ${answer.hint}` : '';
+  $('hint').textContent = answer.hint ? t('review_pronunciation', answer.hint) : '';
   $('solution').hidden = false;
   $('reveal').hidden = true;
 }
@@ -68,22 +68,27 @@ function nextReturn(now = Date.now()) {
   // can be stated truthfully, so say nothing.
   if (upcoming(now, session.easy).some((due) => midnight(due) <= day)) return '';
   const days = Math.round((day - midnight(now)) / DAY_MS);
-  const when = days <= 0
-    ? `today from ${new Date(first).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-    : days === 1 ? 'tomorrow'
-      : `on ${new Date(first).toLocaleDateString([], days < 7 ? { weekday: 'long' } : { month: 'long', day: 'numeric' })}`;
-  return `Next review from this session: ${when}, ${plural(count, 'word')}.`;
+  if (days <= 0) {
+    return tn('review_next_session_today', count, new Date(first).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+  }
+  if (days === 1) return tn('review_next_session_tomorrow', count);
+  return tn('review_next_session_on', count,
+    new Date(first).toLocaleDateString([], days < 7 ? { weekday: 'long' } : { month: 'long', day: 'numeric' }));
 }
 
 function deckReturn(response, now = Date.now()) {
   if (!Object.hasOwn(response, 'nextDue') || !Object.hasOwn(response, 'nextCount')) return null;
-  if (response.nextDue === null) return 'No future reviews in this deck.';
+  if (response.nextDue === null) return t('review_deck_empty');
   if (!Number.isSafeInteger(response.nextDue) || !Number.isSafeInteger(response.nextCount) || response.nextCount < 1) return null;
   const day = midnight(response.nextDue);
   const days = Math.round((day - midnight(now)) / DAY_MS);
-  if (days <= 0) return `Next review today from ${new Date(response.nextDue).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}, ${plural(response.nextCount, 'word')}.`;
-  if (days === 1) return `Next review tomorrow, ${plural(response.nextCount, 'word')}.`;
-  return `Nothing due until ${new Date(response.nextDue).toLocaleDateString([], { month: 'long', day: 'numeric' })} (${plural(response.nextCount, 'word')}).`;
+  if (days <= 0) {
+    return tn('review_deck_today', response.nextCount,
+      new Date(response.nextDue).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+  }
+  if (days === 1) return tn('review_deck_tomorrow', response.nextCount);
+  return tn('review_deck_later', response.nextCount,
+    new Date(response.nextDue).toLocaleDateString([], { month: 'long', day: 'numeric' }));
 }
 
 // With nothing on screen, recheck when a card rated here comes due, and at
@@ -109,15 +114,15 @@ function showQueue(response) {
   $('finish').hidden = !finished;
   $('empty').hidden = !!card || finished;
   $('empty').textContent = response.new
-    ? 'No reviews due. Add a few words when you are ready.'
-    : 'You are caught up. Come back when a card is due.';
+    ? t('review_empty_new')
+    : t('review_empty_caught_up');
   if (finished) {
-    $('finish-summary').textContent = `You completed ${plural(session.reviewed, 'review')}.`;
+    $('finish-summary').textContent = tn('review_completed', session.reviewed);
     $('finish-next').textContent = deckReturn(response) ?? nextReturn();
   }
   if (card) {
     const position = session.reviewed + 1;
-    $('progress').textContent = `Card ${position} of ${Math.max(position, session.reviewed + response.due)}`;
+    $('progress').textContent = t('review_card_position', position, Math.max(position, session.reviewed + response.due));
     $('prompt').textContent = card.en;
   }
   scheduleReturn();
@@ -129,7 +134,7 @@ async function load() {
   if (generation !== loadGeneration) return;
   $('retry').hidden = true;
   if (response.language !== session.language) session = { language: response.language, reviewed: 0, returns: [], easy: [] };
-  $('language').textContent = `Reviewing ${response.language}`;
+  $('language').textContent = t('review_reviewing', response.language);
   for (const name of document.querySelectorAll('.language-name')) name.textContent = response.language;
   showQueue(response);
   if (card?.revealed) {
@@ -172,7 +177,7 @@ async function run(action, { follow = true } = {}) {
     await action();
     $('retry').hidden = true;
   } catch (error) {
-    $('notice').textContent = error.message || 'Review failed';
+    $('notice').textContent = error.message || t('review_failed');
     // A failed load, or a card the worker no longer accepts ("Reload the
     // queue."), leaves the page stale; offer the reload the error asks for.
     $('retry').hidden = false;
