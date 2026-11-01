@@ -2358,5 +2358,241 @@
   "words_no_words": {
     "message": "No words yet.",
     "description": "List message on My words when there are no words at all."
+  },
+  "capture_title": {
+    "message": "Lang Weave · Capture a word",
+    "description": "Browser tab title of the capture confirmation page. Capture page (capture.html)."
+  },
+  "capture_heading": {
+    "message": "Capture a word",
+    "description": "Main heading. Capture page (capture.html)."
+  },
+  "capture_retry": {
+    "message": "Retry capture",
+    "description": "Button that reloads the pending capture draft after a failure. Capture page (capture.html)."
+  },
+  "capture_suggestions_title": {
+    "message": "Local suggestions",
+    "description": "Heading above the list of local suggestions, and the accessible name of that region. Capture page (capture.html)."
+  },
+  "capture_direction_legend": {
+    "message": "What did you select?",
+    "description": "Legend of the two-choice group asking which language the selected text is in. Capture page (capture.html)."
+  },
+  "capture_direction_english": {
+    "message": "$INPUT$ English, to learn in the selected language",
+    "description": "Radio option: the selection is English. $INPUT$ stands for the radio button itself and must stay in the message exactly once. Capture page (capture.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(radio button)"
+      }
+    }
+  },
+  "capture_direction_target": {
+    "message": "$INPUT$ Selected-language phrase, with its English meaning",
+    "description": "Radio option: the selection is a phrase in the language being learned. $INPUT$ stands for the radio button itself and must stay in the message exactly once. Capture page (capture.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(radio button)"
+      }
+    }
+  },
+  "capture_label_english": {
+    "message": "English",
+    "description": "Label of the English text field. Capture page (capture.html)."
+  },
+  "capture_label_target": {
+    "message": "Selected language",
+    "description": "Label of the field for the phrase in the language being learned. Capture page (capture.html)."
+  },
+  "capture_label_sense": {
+    "message": "Sense (optional)",
+    "description": "Label of the optional field that distinguishes meanings of the same word. Capture page (capture.html)."
+  },
+  "capture_distinct": {
+    "message": "$INPUT$ This is a different sense from an existing entry",
+    "description": "Checkbox label: save as a separate entry even if the words match an existing one. $INPUT$ stands for the checkbox itself and must stay in the message exactly once. Capture page (capture.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(checkbox)"
+      }
+    }
+  },
+  "capture_save": {
+    "message": "Save personal entry",
+    "description": "Submit button that saves the entry. Capture page (capture.html)."
+  },
+  "capture_cancel": {
+    "message": "Cancel",
+    "description": "Button that cancels the capture. Capture page (capture.html)."
+  },
+  "capture_entries_heading": {
+    "message": "Personal entries",
+    "description": "Heading of the list of the user's saved personal entries. Capture page (capture.html)."
+  },
+  "capture_entry_search_label": {
+    "message": "Find an entry",
+    "description": "Label of the search field over the personal entries. Capture page (capture.html)."
+  },
+  "capture_entry_search_placeholder": {
+    "message": "English, target or sense",
+    "description": "Placeholder of the entry search field; \"target\" means the language being learned. Capture page (capture.html)."
+  },
+  "capture_refresh": {
+    "message": "Refresh entries",
+    "description": "Button that reloads the personal entries list. Capture page (capture.html)."
+  },
+  "capture_export": {
+    "message": "Export JSON",
+    "description": "Button that downloads the personal entries as a JSON file. Capture page (capture.html)."
+  },
+  "capture_expired_select": {
+    "message": "Capture expired. Select the word again on the page.",
+    "description": "Status shown when the pending capture timed out or its keep-alive failed. Capture page (capture.html)."
+  },
+  "capture_expired_retry": {
+    "message": "Capture expired. Retry from the page selection.",
+    "description": "Error shown when saving without a live capture draft. Capture page (capture.html)."
+  },
+  "capture_request_failed": {
+    "message": "The request could not be completed.",
+    "description": "Error shown when the background worker gave no usable reply. Capture page (capture.html)."
+  },
+  "capture_no_suggestions": {
+    "message": "No local suggestions. Enter both forms yourself.",
+    "description": "Shown when no local suggestion matches the selected text. Capture page (capture.html)."
+  },
+  "capture_use_suggestion": {
+    "message": "Use suggestion",
+    "description": "Button on a suggestion that copies it into the form. Capture page (capture.html)."
+  },
+  "capture_origin_personal": {
+    "message": "Your saved personal entry",
+    "description": "Provenance label of a suggestion that is one of the user's own entries. Capture page (capture.html)."
+  },
+  "capture_origin_bundled": {
+    "message": "Bundled suggestion; meaning has not been independently dictionary checked",
+    "description": "Provenance label of a suggestion that ships with the extension and has not been verified against a dictionary. Keep this honest. Capture page (capture.html)."
+  },
+  "capture_origin_local": {
+    "message": "Local suggestion",
+    "description": "Provenance label of any other local suggestion. Capture page (capture.html)."
+  },
+  "capture_review_only_default_reason": {
+    "message": "automatic reading is disabled for this entry",
+    "description": "Fallback reason inside the \"Review only\" provenance note when the entry gives no reason. Lowercase: it continues a sentence. Capture page (capture.html)."
+  },
+  "capture_provenance_review_only": {
+    "message": "$ORIGIN$ · Review only: $REASON$",
+    "description": "Provenance line of a suggestion that can only be reviewed, never read automatically. Capture page (capture.html).",
+    "placeholders": {
+      "ORIGIN": {
+        "content": "$1",
+        "example": "Local suggestion"
+      },
+      "REASON": {
+        "content": "$2",
+        "example": "automatic reading is disabled for this entry"
+      }
+    }
+  },
+  "capture_entry_archived": {
+    "message": "$ENTRY$ · Archived",
+    "description": "Personal entry text followed by a marker that the entry is archived. Capture page (capture.html).",
+    "placeholders": {
+      "ENTRY": {
+        "content": "$1",
+        "example": "hello ⇄ bonjour"
+      }
+    }
+  },
+  "capture_entry_review_only": {
+    "message": "Review only; automatic reading is disabled.",
+    "description": "Note under a personal entry that can only be reviewed. Capture page (capture.html)."
+  },
+  "capture_entry_review_only_reason": {
+    "message": "Review only; automatic reading is disabled: $REASON$",
+    "description": "Note under a personal entry that can only be reviewed, with the reason. Capture page (capture.html).",
+    "placeholders": {
+      "REASON": {
+        "content": "$1",
+        "example": "too ambiguous"
+      }
+    }
+  },
+  "capture_entry_none": {
+    "message": "No personal entries yet.",
+    "description": "Shown when the user has no personal entries. Capture page (capture.html)."
+  },
+  "capture_add_to_review": {
+    "message": "Add to review",
+    "description": "Button that adds a personal entry to the review queue. Capture page (capture.html)."
+  },
+  "capture_unarchive": {
+    "message": "Unarchive",
+    "description": "Button that restores an archived personal entry. Capture page (capture.html)."
+  },
+  "capture_archive": {
+    "message": "Archive",
+    "description": "Button that archives a personal entry. Capture page (capture.html)."
+  },
+  "capture_added_to_review": {
+    "message": "Added to review.",
+    "description": "Status after a personal entry was added to the review queue. Capture page (capture.html)."
+  },
+  "capture_not_added_to_review": {
+    "message": "No new review card was added.",
+    "description": "Status when adding to review created no new card. Capture page (capture.html)."
+  },
+  "capture_selected_language": {
+    "message": "Selected language: $LANGUAGE$",
+    "description": "Line naming the language of the selected text. Capture page (capture.html).",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "French"
+      }
+    }
+  },
+  "capture_language_unknown": {
+    "message": "unknown",
+    "description": "Fallback shown after \"Selected language:\" when the language is not known. Lowercase. Capture page (capture.html)."
+  },
+  "capture_load_failed": {
+    "message": "$ERROR$ You can retry this page or cancel the capture.",
+    "description": "Status when loading the capture draft failed; $ERROR$ is the reason, a full sentence. Capture page (capture.html).",
+    "placeholders": {
+      "ERROR": {
+        "content": "$1",
+        "example": "Capture expired."
+      }
+    }
+  },
+  "capture_saved_archived": {
+    "message": "This entry already exists in your archive. Unarchive it below to use it.",
+    "description": "Status after saving an entry that matches an archived one. Capture page (capture.html)."
+  },
+  "capture_saved_duplicate": {
+    "message": "This personal entry already exists.",
+    "description": "Status after saving an entry that already exists. Capture page (capture.html)."
+  },
+  "capture_saved_review_only": {
+    "message": "Saved as a review-only personal entry.",
+    "description": "Status after saving an entry that can only be reviewed. Capture page (capture.html)."
+  },
+  "capture_saved": {
+    "message": "Saved as a personal entry. It was not added to review.",
+    "description": "Status after saving a new personal entry. Capture page (capture.html)."
+  },
+  "capture_cancelled": {
+    "message": "Capture cancelled.",
+    "description": "Status after the capture was cancelled. Capture page (capture.html)."
+  },
+  "capture_export_done": {
+    "message": "Personal export downloaded.",
+    "description": "Status after the personal entries file was downloaded. Capture page (capture.html)."
   }
 }
