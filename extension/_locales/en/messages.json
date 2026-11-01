@@ -950,5 +950,527 @@
   "welcome_x_denied": {
     "message": "Chrome did not grant x.com access.",
     "description": "First-run welcome page: shown when Chrome refused access to x.com."
+  },
+  "progress_stage_new": {
+    "message": "New",
+    "description": "Label of the \"new\" word stage in the stage counts and filter. Words not yet introduced. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_learning": {
+    "message": "Learning",
+    "description": "Label of the \"learning\" word stage. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_maintenance": {
+    "message": "Maintenance",
+    "description": "Label of the \"maintenance\" word stage: words reviewed only occasionally. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_known": {
+    "message": "Marked known",
+    "description": "Label of the stage for words the learner marked as already known. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_verified": {
+    "message": "Verified known",
+    "description": "Label of the stage for words recalled after a gap of three weeks or more. Progress text shared by the popup, settings and My words."
+  },
+  "progress_today": {
+    "message": "Today: $PARTS$",
+    "description": "One-line summary of today's activity. $1 is a list of counts joined by \" · \". Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "PARTS": {
+        "content": "$1",
+        "example": "1 introduced · 4 seen"
+      }
+    }
+  },
+  "progress_today_none": {
+    "message": "Today: nothing yet",
+    "description": "Today line when there has been no activity yet today. Progress text shared by the popup, settings and My words."
+  },
+  "progress_today_introduced": {
+    "message": "$COUNT$ introduced",
+    "description": "One part of the Today line: new words introduced today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_seen": {
+    "message": "$COUNT$ seen",
+    "description": "One part of the Today line: words seen while reading today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_peeked": {
+    "message": "$COUNT$ peeked",
+    "description": "One part of the Today line: words whose English was peeked at today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_flipped": {
+    "message": "$COUNT$ flipped",
+    "description": "One part of the Today line: words flipped to English today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_reviewed": {
+    "message": "$COUNT$ reviewed",
+    "description": "One part of the Today line: words reviewed today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_week_one": {
+    "message": "Practised on $COUNT$ day of the last 7",
+    "description": "Weekly practice line, singular. $1 is the number of days. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_week_other": {
+    "message": "Practised on $COUNT$ days of the last 7",
+    "description": "Weekly practice line, plural. $1 is the number of days. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_headline_one": {
+    "message": "$COUNT$ word verified known",
+    "description": "Headline count of verified words, singular. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_headline_other": {
+    "message": "$COUNT$ words verified known",
+    "description": "Headline count of verified words, plural. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "progress_headline_none": {
+    "message": "No words verified yet",
+    "description": "Headline when no word has been verified yet. Progress text shared by the popup, settings and My words."
+  },
+  "progress_review_due_one": {
+    "message": "Review $COUNT$ due word",
+    "description": "Label of the popup's primary button when one word is due.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_review_due_other": {
+    "message": "Review $COUNT$ due words",
+    "description": "Label of the popup's primary button when several words are due.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_add_words": {
+    "message": "Add words",
+    "description": "Label of the popup's primary button when nothing is due but new words are available."
+  },
+  "progress_practice": {
+    "message": "Practice",
+    "description": "Label of the popup's primary button when nothing is due and no new words are available."
+  },
+  "progress_measure_verified_title": {
+    "message": "Verified known",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_verified_value_one": {
+    "message": "$COUNT$ word recalled after a gap of 3 weeks or more, with no miss since.",
+    "description": "Result of the verified-known measurement, singular. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_verified_value_other": {
+    "message": "$COUNT$ words recalled after a gap of 3 weeks or more, with no miss since.",
+    "description": "Result of the verified-known measurement, plural. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "progress_measure_verified_none": {
+    "message": "No word has been recalled after a 3-week gap yet.",
+    "description": "Result of the verified-known measurement when there are none yet."
+  },
+  "progress_measure_verified_why": {
+    "message": "This counts lasting learning, not words seen. It grows when words survive long gaps between reviews.",
+    "description": "One-sentence explanation under the verified-known measurement."
+  },
+  "progress_measure_next_day_title": {
+    "message": "Next-day recall",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_next_day_value_one": {
+    "message": "$PERCENT$ of new words recalled the day after you met them ($COUNT$ review).",
+    "description": "Result of the next-day recall measurement, singular. $1 is the number of reviews, $2 a percentage.",
+    "placeholders": {
+      "PERCENT": {
+        "content": "$2",
+        "example": "80%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_next_day_value_other": {
+    "message": "$PERCENT$ of new words recalled the day after you met them ($COUNT$ reviews).",
+    "description": "Result of the next-day recall measurement, plural. $1 is the number of reviews, $2 a percentage.",
+    "placeholders": {
+      "PERCENT": {
+        "content": "$2",
+        "example": "80%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "progress_measure_next_day_few_one": {
+    "message": "Not enough data yet: $COUNT$ first review made the day after introduction; 10 are needed.",
+    "description": "Next-day recall measurement with too little data, singular. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_next_day_few_other": {
+    "message": "Not enough data yet: $COUNT$ first reviews made the day after introduction; 10 are needed.",
+    "description": "Next-day recall measurement with too little data, plural. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_next_day_why": {
+    "message": "Low next-day recall means words arrive faster than they stick; fewer new words a day, or reviewing the next day, raises it.",
+    "description": "One-sentence explanation under the next-day recall measurement."
+  },
+  "progress_measure_retention_title": {
+    "message": "Retention after 3 weeks",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_retention_value_one": {
+    "message": "$RATE$ recalled after gaps of 21 days or more, against a target of $TARGET$ ($COUNT$ review).",
+    "description": "Result of the long-retention measurement, singular. $1 is the number of reviews, $2 and $3 percentages.",
+    "placeholders": {
+      "RATE": {
+        "content": "$2",
+        "example": "88%"
+      },
+      "TARGET": {
+        "content": "$3",
+        "example": "90%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_retention_value_other": {
+    "message": "$RATE$ recalled after gaps of 21 days or more, against a target of $TARGET$ ($COUNT$ reviews).",
+    "description": "Result of the long-retention measurement, plural. $1 is the number of reviews, $2 and $3 percentages.",
+    "placeholders": {
+      "RATE": {
+        "content": "$2",
+        "example": "88%"
+      },
+      "TARGET": {
+        "content": "$3",
+        "example": "90%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "40"
+      }
+    }
+  },
+  "progress_measure_retention_few_one": {
+    "message": "Not enough data yet: $COUNT$ review after a 21-day gap; 10 are needed.",
+    "description": "Long-retention measurement with too little data, singular. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_retention_few_other": {
+    "message": "Not enough data yet: $COUNT$ reviews after a 21-day gap; 10 are needed.",
+    "description": "Long-retention measurement with too little data, plural. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_retention_why": {
+    "message": "Well below the target means the schedule is too optimistic for you; near it means the spacing is working.",
+    "description": "One-sentence explanation under the long-retention measurement."
+  },
+  "progress_measure_calibration_title": {
+    "message": "Predicted against actual recall",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_calibration_bucket": {
+    "message": "predicted $FROM$–$TO$: recalled $OBSERVED$ of $COUNT$",
+    "description": "One predicted-probability band in the calibration measurement: the predicted range, the share actually recalled, and how many reviews fell in it. Bands are joined with \"; \".",
+    "placeholders": {
+      "FROM": {
+        "content": "$1",
+        "example": "70%"
+      },
+      "TO": {
+        "content": "$2",
+        "example": "80%"
+      },
+      "OBSERVED": {
+        "content": "$3",
+        "example": "75%"
+      },
+      "COUNT": {
+        "content": "$4",
+        "example": "40"
+      }
+    }
+  },
+  "progress_measure_calibration_beats": {
+    "message": "$BANDS$. The scheduler beats a constant guess.",
+    "description": "Result of the calibration measurement when the scheduler beats a constant guess. $1 is the list of bands.",
+    "placeholders": {
+      "BANDS": {
+        "content": "$1",
+        "example": "predicted 70%–80%: recalled 75% of 40"
+      }
+    }
+  },
+  "progress_measure_calibration_no_beat": {
+    "message": "$BANDS$. The scheduler does not beat a constant guess.",
+    "description": "Result of the calibration measurement when the scheduler does not beat a constant guess. $1 is the list of bands.",
+    "placeholders": {
+      "BANDS": {
+        "content": "$1",
+        "example": "predicted 70%–80%: recalled 75% of 40"
+      }
+    }
+  },
+  "progress_measure_calibration_few_one": {
+    "message": "Not enough data yet: $COUNT$ scheduled review; 50 are needed, and a fair test needs a few hundred.",
+    "description": "Calibration measurement with too little data, singular. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_calibration_few_other": {
+    "message": "Not enough data yet: $COUNT$ scheduled reviews; 50 are needed, and a fair test needs a few hundred.",
+    "description": "Calibration measurement with too little data, plural. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "progress_measure_calibration_why": {
+    "message": "If predictions do not beat a constant guess after a few hundred reviews, the scheduler is not fitting your memory.",
+    "description": "One-sentence explanation under the calibration measurement."
+  },
+  "progress_measure_hard_title": {
+    "message": "Hard words",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_hard_few_one": {
+    "message": "Not enough data yet: $COUNT$ rated review; 20 are needed.",
+    "description": "Hard-words measurement with too little data, singular. $1 is the number of rated reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_hard_few_other": {
+    "message": "Not enough data yet: $COUNT$ rated reviews; 20 are needed.",
+    "description": "Hard-words measurement with too little data, plural. $1 is the number of rated reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "progress_measure_hard_value_one": {
+    "message": "$COUNT$ word missed 4 or more times after a gap of a day or more: $WORDS$.",
+    "description": "Hard-words measurement result, singular. $2 is a comma-separated list of the words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "gato, perro"
+      }
+    }
+  },
+  "progress_measure_hard_value_other": {
+    "message": "$COUNT$ words missed 4 or more times after a gap of a day or more: $WORDS$.",
+    "description": "Hard-words measurement result, plural. $2 is a comma-separated list of the words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "gato, perro"
+      }
+    }
+  },
+  "progress_measure_hard_none": {
+    "message": "No word has been missed 4 or more times.",
+    "description": "Hard-words measurement result when there are none."
+  },
+  "progress_measure_hard_why": {
+    "message": "Words that keep slipping need a new context or a memory aid; Reset starts one over.",
+    "description": "One-sentence explanation under the hard-words measurement. \"Reset\" is the label of a button on My words."
+  },
+  "progress_measure_exposure_title": {
+    "message": "Meetings while reading",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_exposure_value_one": {
+    "message": "Your learning words were met on a median of $COUNT$ day; $REACHED$ of $WORDS$ reached 8 different days.",
+    "description": "Reading-exposure measurement result, singular. $1 is the median number of days, $2 and $3 are word counts.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      },
+      "REACHED": {
+        "content": "$2",
+        "example": "3"
+      },
+      "WORDS": {
+        "content": "$3",
+        "example": "6"
+      }
+    }
+  },
+  "progress_measure_exposure_value_other": {
+    "message": "Your learning words were met on a median of $COUNT$ days; $REACHED$ of $WORDS$ reached 8 different days.",
+    "description": "Reading-exposure measurement result, plural. $1 is the median number of days, $2 and $3 are word counts.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      },
+      "REACHED": {
+        "content": "$2",
+        "example": "3"
+      },
+      "WORDS": {
+        "content": "$3",
+        "example": "6"
+      }
+    }
+  },
+  "progress_measure_exposure_none": {
+    "message": "Not enough data yet: no words are being learned.",
+    "description": "Reading-exposure measurement when no word is being learned."
+  },
+  "progress_measure_exposure_why": {
+    "message": "Words met on 8 or more different days stick far better; reading on more days moves this.",
+    "description": "One-sentence explanation under the reading-exposure measurement."
+  },
+  "progress_measure_workload_title": {
+    "message": "Workload",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_workload_value": {
+    "message": "$RATE$ reviews a day over the last 30 days.",
+    "description": "Workload measurement result. $1 is the average number of reviews a day.",
+    "placeholders": {
+      "RATE": {
+        "content": "$1",
+        "example": "1.5"
+      }
+    }
+  },
+  "progress_measure_workload_value_seconds": {
+    "message": "$RATE$ reviews a day over the last 30 days, about $SECONDS$ seconds each.",
+    "description": "Workload measurement result with a typical time per review. $1 is reviews a day, $2 is seconds.",
+    "placeholders": {
+      "RATE": {
+        "content": "$1",
+        "example": "1.5"
+      },
+      "SECONDS": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_workload_none": {
+    "message": "No reviews in the last 30 days.",
+    "description": "Workload measurement when there were no reviews."
+  },
+  "progress_measure_workload_why": {
+    "message": "If this feels heavy, lower the new words per day in Settings; reviews shrink as intervals grow.",
+    "description": "One-sentence explanation under the workload measurement. \"Settings\" is the name of the settings page."
   }
 }

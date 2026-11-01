@@ -4,7 +4,7 @@ import { localDay } from '../src/events.js';
 import { retrievalEntries, cleanRetrievals } from '../src/learning-log.js';
 import { wordStage, stageCounts, verifiedWords, todayCounts, activity, practisedThisWeek, measurements,
   MAINTENANCE_DAYS, MIN_SAMPLES } from '../src/progress.js';
-import { todayLine, primaryAction, measurementItems, headline } from '../src/progress-text.js';
+import { todayLine, primaryAction, measurementItems, headline, weekLine, STAGE_LABELS } from '../src/progress-text.js';
 
 const DAY = 86400000;
 const originalTz = process.env.TZ;
@@ -180,4 +180,26 @@ test('popup text: the Today line, headline and the honest primary action', () =>
   expect(primaryAction({ due: 1, new: 9 })).toEqual({ label: 'Review 1 due word', page: 'review.html' });
   expect(primaryAction({ due: 0, new: 9 })).toEqual({ label: 'Add words', page: 'review.html' });
   expect(primaryAction({ due: 0, new: 0 })).toEqual({ label: 'Practice', page: 'words.html' });
+});
+
+test('progress copy: plural forms, the week line and the stage labels read as before', () => {
+  expect([0, 1, 2].map(weekLine)).toEqual(['Practised on 0 days of the last 7', 'Practised on 1 day of the last 7',
+    'Practised on 2 days of the last 7']);
+  expect(headline(2)).toBe('2 words verified known');
+  expect(primaryAction({ due: 3, new: 0 }).label).toBe('Review 3 due words');
+  expect(todayLine({ introduced: 1, seen: 4, peeked: 1, flipped: 1, reviewed: 2 }))
+    .toBe('Today: 1 introduced · 4 seen · 1 peeked · 1 flipped · 2 reviewed');
+  expect(Object.values(STAGE_LABELS)).toEqual(['New', 'Learning', 'Maintenance', 'Marked known', 'Verified known']);
+  expect(Object.isFrozen(STAGE_LABELS)).toBe(true);
+  const base = { graded: 1, nextDayRecall: { n: 1, enough: false }, longRetention: { n: 1, enough: false },
+    calibration: { n: 1, enough: false }, leeches: { enough: true, count: 1, words: [{ label: 'gato' }] },
+    exposure: { enough: true, words: 6, atTarget: 1, medianDays: 1 }, workload: { enough: true, reviewsPerDay: 2, medianSecondsPerReview: null } };
+  expect(measurementItems(base, 1).map((item) => item.value)).toEqual([
+    '1 word recalled after a gap of 3 weeks or more, with no miss since.',
+    'Not enough data yet: 1 first review made the day after introduction; 10 are needed.',
+    'Not enough data yet: 1 review after a 21-day gap; 10 are needed.',
+    'Not enough data yet: 1 scheduled review; 50 are needed, and a fair test needs a few hundred.',
+    '1 word missed 4 or more times after a gap of a day or more: gato.',
+    'Your learning words were met on a median of 1 day; 1 of 6 reached 8 different days.',
+    '2.0 reviews a day over the last 30 days.']);
 });
