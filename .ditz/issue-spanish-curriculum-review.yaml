@@ -17,3 +17,10 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:08-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): The bundled set is now 226 words
+    (PR #41 added frequency bands only). Reviewer sourcing is part of curriculum-data-licence-ruling.
+    Why it matters: the starter words are AI-drafted, and no new row may ship without
+    native review (docs/CURRICULUM-PIPELINE.md).'
