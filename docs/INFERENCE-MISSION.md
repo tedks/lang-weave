@@ -2,7 +2,7 @@
 
 ## Current state
 
-State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main` `9cd3dce`. Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. Full exact-head gates, council to fixpoint, rebase and normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
+State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main` `9cd3dce`. Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. The council reached fixpoint in round 3. Exact-head gates and the normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
 
 ## Context and assumptions
 
@@ -49,7 +49,7 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
    - Tickets are single-use, one per tab and document, and replaced by the next `guessBegin`. They are held in `chrome.storage.session`, so they survive an idle MV3 worker shutdown while a panel stays open. They are never in local storage or a backup, and they end with the browser. Only where the session API is absent do they live in worker memory. A failed session read or write fails closed: no ticket is offered, and an answer whose ticket cannot be consumed is not recorded, so a ticket is never lost or answered twice.
    - At answer time the worker rechecks the word's stage, the cap and the daily limit under the lock, because another tab may have answered the same word first. The write runs after the same revision, site-access and permission-generation recheck as a peek.
    - An answer whose log write fails counts for nothing: the page gets an error and shows the meaning unjudged, and no peek is applied.
-   - Guesses count within the card's current life: guesses from before a Reset (a later introduction day) do not count toward the cap, matching `verifiedWords`. A Reset and reintroduction on the same local day as an old guess keeps that guess, so the word waits until the next day; the daily limit would allow no second guess that day anyway.
+   - Guesses count within the card's current life: guesses from before a Reset (a later introduction day) do not count toward the cap, matching `verifiedWords`. A Reset and reintroduction on the same local day as an old guess keeps that guess, so the word waits until the next day, and that guess keeps one of the three cap slots in the new life; the daily limit would allow no second guess that day anyway.
 7. **Scheduling: weak evidence only.** A wrong guess is then applied exactly as a peek, through the same function the `peek` event uses: the reading event, the card's daily peek counter, and the exposure aggregate's peek count. Two peeks in a day on a rated learning card bring its effective due to at most 24 hours ahead (`peekDue`), never later. A wrong guess plus a later plain-gloss peek on the same day is such a pair. A right guess changes no card and no exposure. FSRS state, due, interval and the formulas are untouched.
 8. **Measurements stay honest.** A guess is not a review. Every existing measure excludes `source 'guess'`: next-day recall, long retention, calibration, verified known, workload, leeches, the review page summary, My words stages, the activity strip and Today's review count.
 
@@ -131,3 +131,4 @@ Recommendation 8 is falsified if, after enough data, guessed words recall no bet
     - Important: when a session write failed, the code fell back to memory that reads never consulted. Fixed: session failures now fail closed at begin and at answer. Tests cover get and set failures, and both mutations fail them.
     - Important: a same-day Reset keeps that morning's guess. Resolved as a documented day-granularity boundary (the log has no reset marker, as with `verifiedWords`), pinned by a test. The word waits until the next day, which the one-a-day rule requires anyway.
     - Nit fixed: the observer wording now says node and text changes only.
+- **Round 3** on `c587295..a1606bc`. Seats: Anthropic (native Opus): CLEAN; OpenAI (Sol): CLEAN with one doc nit, applied. Google agy EMPTY on quota. **Fixpoint reached.**
