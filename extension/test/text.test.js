@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, jest } from 'bun:test';
 import { Window } from 'happy-dom';
 import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
   introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, restoreDescriptions,
@@ -475,21 +475,23 @@ describe('lang and description on swapped words', () => {
       expect(document.querySelectorAll(`[id="${keptSpan.getAttribute('aria-describedby')}"]`)).toHaveLength(1);
       // A page that removes the host gets it back on the next prune, not a dangling reference,
       // but a page that keeps removing it wins after a small budget instead of starting a loop.
-      let reattached = 0;
-      for (let i = 0; i < 10; i++) {
-        host.remove();
-        pruneDescriptions();
-        if (host.isConnected) reattached++;
-      }
-      expect(reattached).toBe(3);
-      expect(descriptionOf(keptSpan)).toBeUndefined();
-      // When the window reopens, one scheduled retry restores it on a page with no further mutations.
-      const realNow = Date.now;
+      jest.useFakeTimers();
       try {
-        Date.now = () => realNow() + 61000;
-        pruneDescriptions();
+        let reattached = 0;
+        for (let i = 0; i < 10; i++) {
+          host.remove();
+          pruneDescriptions();
+          if (host.isConnected) reattached++;
+        }
+        expect(reattached).toBe(3);
+        expect(descriptionOf(keptSpan)).toBeUndefined();
+        // When the window reopens, the one scheduled retry restores it on a page with no further mutations.
+        jest.advanceTimersByTime(59000);
+        expect(host.isConnected).toBe(false);
+        jest.advanceTimersByTime(2000);
         expect(host.isConnected).toBe(true);
-      } finally { Date.now = realNow; }
+        expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
+      } finally { jest.useRealTimers(); }
       host.remove();
       toggle(kept.querySelector('.fw-word'));
       expect(hosts()).toHaveLength(1);

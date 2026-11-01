@@ -30,6 +30,7 @@ const descriptionHosts = new WeakMap(); // document -> hidden English container
 const HOST_REATTACH = { max: 3, windowMs: 60000 };
 const hostReattached = new WeakMap(); // document -> [ms]
 const hostRetry = new WeakMap(); // document -> one timer for when the budget window reopens
+let pruned = false; // once any description is taken out, added subtrees are scanned for restores
 let descriptionPrefix = '';
 let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
@@ -113,6 +114,7 @@ export function pruneDescriptions() {
     if (span.isConnected) { live = span; continue; }
     descriptions.get(span)?.remove();
     described.delete(span);
+    pruned = true;
   }
   // A page that removed the container while keeping swaps gets it back, so no reference dangles,
   // but only within a small budget: a page that keeps removing it must not start a loop.
@@ -132,7 +134,7 @@ export function pruneDescriptions() {
 }
 // Put back the descriptions of this extension's spans in a subtree the page has (re)attached.
 export function restoreDescriptions(root) {
-  if (root?.nodeType !== ELEMENT_NODE) return;
+  if (!pruned || root?.nodeType !== ELEMENT_NODE) return;
   const spans = root.matches(`span.${SWAP_CLASS}`) ? [root] : [];
   spans.push(...root.querySelectorAll(`span.${SWAP_CLASS}`));
   for (const span of spans) {

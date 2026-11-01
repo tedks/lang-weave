@@ -376,9 +376,10 @@ function localeProblems(manifest, files, defaultLocale) {
       try { [tag] = Intl.getCanonicalLocales(lang.message); } catch { tag = ''; }
       if (!tag) problems.push(`${f.name}: locale_lang ${JSON.stringify(lang.message)} is not a BCP-47 tag`);
     }
-    // i18n.js marks child elements with U+E001..U+E009; a message must not contain them.
+    // i18n.js marks child elements with U+E001..U+E009; neither a message nor its placeholder
+    // content may contain them.
     for (const [name, entry] of Object.entries(table))
-      if (/[\uE001-\uE009]/.test(entry.message)) problems.push(`${f.name}: ${name} contains a reserved character U+E001..U+E009`);
+      if (/[\uE001-\uE009]/.test([entry.message, ...Object.values(entry.placeholders ?? {}).map((p) => p?.content)].join(''))) problems.push(`${f.name}: ${name} contains a reserved character U+E001..U+E009`);
     tables.set(match[1], new Set(lowered));
   }
   const names = tables.get(defaultLocale);
