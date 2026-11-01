@@ -2594,5 +2594,263 @@
   "capture_export_done": {
     "message": "Personal export downloaded.",
     "description": "Status after the personal entries file was downloaded. Capture page (capture.html)."
+  },
+  "backup_title": {
+    "message": "Lang Weave · Learning backup",
+    "description": "Browser tab title of the learning backup page. Learning backup page (backup.html)."
+  },
+  "backup_heading": {
+    "message": "Learning backup",
+    "description": "Main heading. Learning backup page (backup.html)."
+  },
+  "backup_intro": {
+    "message": "Keep your old unpacked installation and its profile intact. Update that installation to a version with this page, export there, then open this page in the separate new installation. Do not remove the old one until you have checked your restored review queue.",
+    "description": "Introductory paragraph explaining the two-installation backup procedure. \"Unpacked installation\" means an extension loaded from a folder. Learning backup page (backup.html)."
+  },
+  "backup_export_heading": {
+    "message": "Export from this installation",
+    "description": "Heading of the export section. Learning backup page (backup.html)."
+  },
+  "backup_export_description": {
+    "message": "Download supported learning progress, personal entries, generated packs and learning preferences. Export only reads local state.",
+    "description": "Paragraph describing what the export contains. Learning backup page (backup.html)."
+  },
+  "backup_export_blocked": {
+    "message": "An unverified card from an old or removed language pack blocks the whole backup. The old installation and its history stay intact; this tool cannot safely include that card or import part of the history.",
+    "description": "Paragraph warning that one unverified card blocks the whole export. Learning backup page (backup.html)."
+  },
+  "backup_export_button": {
+    "message": "Download learning backup",
+    "description": "Button that downloads the backup file. Learning backup page (backup.html)."
+  },
+  "backup_import_heading": {
+    "message": "Import into a fresh learning profile",
+    "description": "Heading of the import section. Learning backup page (backup.html)."
+  },
+  "backup_import_description": {
+    "message": "Choose a backup file from your computer. Import is available only when this installation has no meaningful learning progress and no Gemini key. Initialized defaults are okay. Existing progress, generated packs or an unknown storage format are conflicts; this page cannot merge or replace them.",
+    "description": "Paragraph explaining when import is allowed. Gemini is a product name. Learning backup page (backup.html)."
+  },
+  "backup_file_label": {
+    "message": "Learning backup JSON file",
+    "description": "Label of the file chooser for the backup file. Learning backup page (backup.html)."
+  },
+  "backup_preview_button": {
+    "message": "Preview backup",
+    "description": "Button that validates the chosen file and shows a summary. Learning backup page (backup.html)."
+  },
+  "backup_check_heading": {
+    "message": "Check before importing",
+    "description": "Heading of the preview summary shown before importing. Learning backup page (backup.html)."
+  },
+  "backup_excluded": {
+    "message": "Excluded: Gemini keys, model/cache/quota data, site choices and host permissions, page text and URLs, pending captures, introduction reservations, reveal and inline tickets. Import never grants a host, enables a site, or calls Gemini. Re-enter a key and choose sites separately afterward.",
+    "description": "Note in the preview listing what a backup never contains or does. Gemini is a product name. Learning backup page (backup.html)."
+  },
+  "backup_confirm": {
+    "message": "$INPUT$ I checked this preview and want to import into this fresh learning profile.",
+    "description": "Checkbox label confirming the import. $INPUT$ stands for the checkbox itself and must stay in the message exactly once. Learning backup page (backup.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(checkbox)"
+      }
+    }
+  },
+  "backup_import_button": {
+    "message": "Import this backup",
+    "description": "Button that performs the import once the preview is confirmed. Learning backup page (backup.html)."
+  },
+  "backup_connection_ended": {
+    "message": "This backup page connection ended. Reload the page before importing.",
+    "description": "Status when the page's link to the background worker was lost. Learning backup page (backup.html)."
+  },
+  "backup_unavailable": {
+    "message": "Learning backup is unavailable.",
+    "description": "Error when the background worker gave no usable reply. Learning backup page (backup.html)."
+  },
+  "backup_failed": {
+    "message": "Learning backup failed.",
+    "description": "Error shown when an action fails without a specific reason. Learning backup page (backup.html)."
+  },
+  "backup_source_version": {
+    "message": "Exported by Lang Weave $VERSION$.",
+    "description": "Preview line naming the extension version that wrote the backup; $VERSION$ may be a question mark when unknown. Learning backup page (backup.html).",
+    "placeholders": {
+      "VERSION": {
+        "content": "$1",
+        "example": "0.12.18"
+      }
+    }
+  },
+  "backup_languages_none": {
+    "message": "none",
+    "description": "Shown after \"Languages:\" in the preview when the backup lists no languages. Lowercase. Learning backup page (backup.html)."
+  },
+  "backup_counts": {
+    "message": "Languages: $LANGUAGES$ · Generated packs: $PACKS$ · Review cards: $CARDS$ · Personal entries: $ENTRIES$.",
+    "description": "Preview line with the backup's contents. $LANGUAGES$ is a comma-separated list; the counts may be a question mark when unknown. Learning backup page (backup.html).",
+    "placeholders": {
+      "LANGUAGES": {
+        "content": "$1",
+        "example": "fr, es"
+      },
+      "PACKS": {
+        "content": "$2",
+        "example": "2"
+      },
+      "CARDS": {
+        "content": "$3",
+        "example": "120"
+      },
+      "ENTRIES": {
+        "content": "$4",
+        "example": "14"
+      }
+    }
+  },
+  "backup_preferences": {
+    "message": "Learning preferences: language $LANGUAGE$, level $LEVEL$, gradual $GRADUAL$, new words/day $NEW_WORDS$, density $DENSITY$, inline recall $RECALL$.",
+    "description": "Preview line listing the learning preferences stored in the backup. Values are settings such as on, off or numbers. Learning backup page (backup.html).",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "fr"
+      },
+      "LEVEL": {
+        "content": "$2",
+        "example": "A2"
+      },
+      "GRADUAL": {
+        "content": "$3",
+        "example": "on"
+      },
+      "NEW_WORDS": {
+        "content": "$4",
+        "example": "5"
+      },
+      "DENSITY": {
+        "content": "$5",
+        "example": "medium"
+      },
+      "RECALL": {
+        "content": "$6",
+        "example": "on"
+      }
+    }
+  },
+  "backup_preferences_retention": {
+    "message": "Learning preferences: language $LANGUAGE$, level $LEVEL$, gradual $GRADUAL$, new words/day $NEW_WORDS$, density $DENSITY$, inline recall $RECALL$, target recall $RETENTION$.",
+    "description": "Same as the plain preferences line, with the target recall rate added at the end. Learning backup page (backup.html).",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "fr"
+      },
+      "LEVEL": {
+        "content": "$2",
+        "example": "A2"
+      },
+      "GRADUAL": {
+        "content": "$3",
+        "example": "on"
+      },
+      "NEW_WORDS": {
+        "content": "$4",
+        "example": "5"
+      },
+      "DENSITY": {
+        "content": "$5",
+        "example": "medium"
+      },
+      "RECALL": {
+        "content": "$6",
+        "example": "on"
+      },
+      "RETENTION": {
+        "content": "$7",
+        "example": "0.9"
+      }
+    }
+  },
+  "backup_measurements": {
+    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words.",
+    "description": "Preview line counting logged reviews and exposure counts in the backup. Learning backup page (backup.html).",
+    "placeholders": {
+      "REVIEWS": {
+        "content": "$1",
+        "example": "340"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "95"
+      }
+    }
+  },
+  "backup_measurements_omitted": {
+    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: $OMITTED_REVIEWS$ reviews and exposure counts for $OMITTED_WORDS$ words.",
+    "description": "Same as the measurements line, followed by a second sentence counting what the export had to leave out. Learning backup page (backup.html).",
+    "placeholders": {
+      "REVIEWS": {
+        "content": "$1",
+        "example": "340"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "95"
+      },
+      "OMITTED_REVIEWS": {
+        "content": "$3",
+        "example": "12"
+      },
+      "OMITTED_WORDS": {
+        "content": "$4",
+        "example": "3"
+      }
+    }
+  },
+  "backup_choose_preview": {
+    "message": "Choose Preview backup to validate the selected file.",
+    "description": "Status after a file is chosen; \"Preview backup\" names the button and should match its translation. Learning backup page (backup.html)."
+  },
+  "backup_not_prepared": {
+    "message": "The backup could not be prepared.",
+    "description": "Error when the export produced no file. Learning backup page (backup.html)."
+  },
+  "backup_downloaded": {
+    "message": "Learning backup downloaded. Keep the file private and the old installation intact.",
+    "description": "Status after the backup file was downloaded. Learning backup page (backup.html)."
+  },
+  "backup_choose_file": {
+    "message": "Choose a learning backup JSON file first.",
+    "description": "Error when Preview is pressed with no file chosen. Learning backup page (backup.html)."
+  },
+  "backup_too_large": {
+    "message": "The backup file is over the 1 MiB limit.",
+    "description": "Error when the chosen file is larger than one mebibyte. Learning backup page (backup.html)."
+  },
+  "backup_port_unavailable": {
+    "message": "The backup page connection is unavailable. Reload this page.",
+    "description": "Error when the page cannot reach the background worker. Learning backup page (backup.html)."
+  },
+  "backup_preview_incomplete": {
+    "message": "The preview was incomplete.",
+    "description": "Error when the worker's preview reply was missing parts. Learning backup page (backup.html)."
+  },
+  "backup_preview_validated": {
+    "message": "Preview validated. Import requires your confirmation and a fresh target check.",
+    "description": "Status after a backup file passed validation. Learning backup page (backup.html)."
+  },
+  "backup_import_unconfirmed": {
+    "message": "Import was not confirmed. Preview again.",
+    "description": "Error when the worker did not confirm the import. Learning backup page (backup.html)."
+  },
+  "backup_already_imported": {
+    "message": "This exact backup was already imported. No progress changed.",
+    "description": "Status when the same backup had been imported before. Learning backup page (backup.html)."
+  },
+  "backup_imported": {
+    "message": "Learning progress imported. Open review to check it, then enter your key and choose sites separately.",
+    "description": "Status after a successful import. Learning backup page (backup.html)."
   }
 }

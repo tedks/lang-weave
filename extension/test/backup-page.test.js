@@ -195,3 +195,51 @@ test('file choice is held during import and navigation disconnects before an awa
     expect($('notice').textContent).not.toMatch(/progress imported/i);
   } finally { await ui.close(); }
 });
+
+test('preview and outcome copy keep the exact English, with and without the optional parts', async () => {
+  const previews = [
+    { exportedByVersion: '0.12.18', languages: ['es', 'fr'], packs: 1, cards: 5, personal: 2,
+      preferences: { language: 'es', levelOverride: 2, gradual: true, newWordsPerDay: 3, density: 'heavy', inlineRecall: true,
+        desiredRetention: 0.9 },
+      retrievals: 40, exposureWords: 9, omittedRetrievals: 0, omittedExposureWords: 0 },
+    { languages: [], packs: -1, cards: 'x', personal: 0, preferences: {},
+      retrievals: 7, exposureWords: 3, omittedRetrievals: 4, omittedExposureWords: 1 },
+  ];
+  let next = 0;
+  let imported = { ok: true, already: true };
+  const ui = await page('preview-copy', async ({ type }) => {
+    if (type === 'learningPreview') return { token: 't', preview: previews[next++] };
+    if (type === 'learningImport') return imported;
+    throw new Error(`Unexpected message ${type}`);
+  });
+  try {
+    const $ = (id) => ui.window.document.getElementById(id);
+    const shown = () => ['sourceVersion', 'counts', 'preferences', 'measurements'].map((id) => $(id).textContent);
+    ui.setFile({ size: 2, text: async () => '{}' });
+    expect($('notice').textContent).toBe('Choose Preview backup to validate the selected file.');
+    $('preview').click();
+    await tick();
+    expect(shown()).toEqual([
+      'Exported by Lang Weave 0.12.18.',
+      'Languages: es, fr · Generated packs: 1 · Review cards: 5 · Personal entries: 2.',
+      'Learning preferences: language es, level 2, gradual true, new words/day 3, density heavy, inline recall true, target recall 0.9.',
+      'Learning measurements: 40 logged reviews, exposure counts for 9 words.']);
+    expect($('notice').textContent).toBe('Preview validated. Import requires your confirmation and a fresh target check.');
+    $('preview').click();
+    await tick();
+    expect(shown()).toEqual([
+      'Exported by Lang Weave ?.',
+      'Languages: none · Generated packs: ? · Review cards: ? · Personal entries: 0.',
+      'Learning preferences: language ?, level ?, gradual ?, new words/day ?, density ?, inline recall ?.',
+      "Learning measurements: 7 logged reviews, exposure counts for 3 words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: 4 reviews and exposure counts for 1 words."]);
+    $('confirm').checked = true;
+    $('confirm').dispatchEvent(new ui.window.Event('change'));
+    $('import').click();
+    await tick();
+    expect($('notice').textContent).toBe('This exact backup was already imported. No progress changed.');
+    $('file').disabled = false;
+    $('preview').click();
+    await tick();
+    expect($('notice').textContent).toBe('The preview was incomplete.');
+  } finally { await ui.close(); }
+});
