@@ -20,3 +20,42 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-01T02:41:24-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Research report (not landed): curriculum-sources.md, lane scratch research/curriculum-sources.md.
+    Recommendation:
+
+    SOURCES: rank with wordfreq 3.1.1 (Apache code, data CC BY-SA 4.0, credit exactly
+    "Robyn Speer"), build time only, ship coarse bands not Zipf values. Lemmas, forms,
+    glosses, gender, IPA from Wiktextract of the English Wiktionary raw dump (CC BY-SA
+    4.0 + GFDL, pinned dump). Examples from Tatoeba, CC0 subset first, CC BY 2.0 FR
+    with generated author table as fallback. Rejected: Routledge/Davies (copyright),
+    CREA/CORPES and Leipzig (terms unverified, sites blocked fetch), SUBTLEX-ESP (no
+    licence), Hermit Dave (OpenSubtitles-derived, adds nothing over wordfreq), FreeDict
+    (same Wiktionary chain; spa-eng GPL-2.0+ and tiny).
+
+    LICENCE: code stays AGPL-3.0-or-later. Generated data is its own CC BY-SA 4.0
+    file with generated NOTICE-DATA, not inlined in JS. CC lists GPLv3 but not AGPLv3
+    as BY-SA 4.0 compatible, so do not relicense the data as AGPL. One human legal
+    read before first public release.
+
+    PIPELINE: one script from pinned inputs (SOURCES.json digests) plus committed
+    overlay.csv and reviews/*.csv; byte-identical reruns; per-row provenance and content
+    hash; rows are exact surface forms grouped by family_id (nouns sg+article, epicene
+    adjectives first, verbs inf/3sg/gerund/participle only, no bare function words).
+
+    VALIDATION: 12 deterministic gates (unique anchors pack-wide because a shared
+    anchor disables both rows, accent-fold groups: 59 in top 3k forms, English-word
+    collisions, pinned 226), Tatoeba alignment as independent evidence, models for
+    triage only, double native review of band 1 plus the 226 (kappa), then 60-row
+    stratified samples (zero defects in 60 bounds defects near 5% at 95%).
+
+    FIRST BAND: 50-row pilot, then 300 new rows (226 to 526), only native-reviewed
+    rows ship. At 5 new words/day a band is about 60 days.
+
+    CODE ASKS (CTO): add band to selectWorkingSet sort (new words tie-break alphabetically
+    today), explicit English surface-form anchors and no suffix stemming for verb
+    rows, gradual-only bands vs the 240-entry test cap, perf budget for matchingEntries
+    at 3k anchors. Measured with wordfreq: top 3,000 Spanish forms cover 79% of tokens;
+    current 208 single-token forms cover 18%.'
