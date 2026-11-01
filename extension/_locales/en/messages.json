@@ -830,5 +830,125 @@
   "options_error_refresh": {
     "message": "Could not refresh settings",
     "description": "Settings page: error shown when the page cannot reload its state."
+  },
+  "welcome_title": {
+    "message": "Welcome to Lang Weave",
+    "description": "First-run welcome page: browser tab title and main heading."
+  },
+  "welcome_intro": {
+    "message": "Learn Spanish a little at a time while reading English pages.",
+    "description": "First-run welcome page: introduction under the main heading."
+  },
+  "welcome_demo_heading": {
+    "message": "1. See it in a sentence",
+    "description": "First-run welcome page: heading of step 1. Keep the number."
+  },
+  "welcome_demo_help": {
+    "message": "Hover over an underlined word for its meaning. Click it to flip between Spanish and English. This sample uses bundled words and stays on your device.",
+    "description": "First-run welcome page: how to use the sample sentence above it."
+  },
+  "welcome_privacy_heading": {
+    "message": "2. Choose where it may read",
+    "description": "First-run welcome page: heading of step 2. Keep the number."
+  },
+  "welcome_privacy_sends": {
+    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
+    "description": "First-run welcome page: what is sent to Google's Gemini API when Lang Weave is on for a site."
+  },
+  "welcome_privacy_free_key": {
+    "message": "Google may use requests made with a free key to improve its products, and human reviewers may see them. A billed key avoids that use. Provider quotas and charges can still apply.",
+    "description": "First-run welcome page: how Google may use requests made with a free key."
+  },
+  "welcome_age_notice": {
+    "message": "The Gemini API requires users to be 18 or older.",
+    "description": "First-run welcome page: notice about the Gemini API age requirement."
+  },
+  "welcome_privacy_conditions": {
+    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
+    "description": "First-run welcome page: conditions before any page text is sent, and which sites start off."
+  },
+  "welcome_only_sites": {
+    "message": "Only sites I turn on · recommended",
+    "description": "First-run welcome page: button choosing the recommended site policy (only sites the learner turns on)."
+  },
+  "welcome_all_sites": {
+    "message": "All sites except sensitive ones",
+    "description": "First-run welcome page: button choosing the all-sites policy (sensitive sites still start off)."
+  },
+  "welcome_x_question": {
+    "message": "Read on X? You can allow x.com explicitly.",
+    "description": "First-run welcome page: offer to allow x.com, shown when it is not already allowed. x.com is a website name."
+  },
+  "welcome_x_allow": {
+    "message": "Allow x.com",
+    "description": "First-run welcome page: button that allows x.com."
+  },
+  "welcome_learn_heading": {
+    "message": "3. Add a key and start learning",
+    "description": "First-run welcome page: heading of step 3. Keep the number."
+  },
+  "welcome_learn_key": {
+    "message": "Open Settings to get a Gemini key, save it, and test it. The key stays in extension storage and is sent to Google with model requests.",
+    "description": "First-run welcome page: how to add and test the Gemini key."
+  },
+  "welcome_open_settings": {
+    "message": "Open settings",
+    "description": "First-run welcome page: button that opens the settings page."
+  },
+  "welcome_level_note": {
+    "message": "$TERM$ controls which bundled words can appear; Beginner is a good start.",
+    "description": "First-run welcome page: explains the reading level setting. $TERM$ is the setting name in bold, its own message.",
+    "placeholders": {
+      "TERM": {
+        "content": "$1",
+        "example": "Reading level"
+      }
+    }
+  },
+  "welcome_level_term": {
+    "message": "Reading level",
+    "description": "First-run welcome page: name of the reading level setting, in bold. Starts a sentence."
+  },
+  "welcome_gradual_note": {
+    "message": "$TERM$ introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.",
+    "description": "First-run welcome page: explains the gradual learning setting. $TERM$ is the setting name in bold, its own message.",
+    "placeholders": {
+      "TERM": {
+        "content": "$1",
+        "example": "Gradual learning"
+      }
+    }
+  },
+  "welcome_gradual_term": {
+    "message": "Gradual learning",
+    "description": "First-run welcome page: name of the gradual learning setting, in bold. Starts a sentence."
+  },
+  "welcome_chose_all": {
+    "message": "All permitted sites selected. Sensitive sites still start off.",
+    "description": "First-run welcome page: confirmation after choosing all sites."
+  },
+  "welcome_chose_only": {
+    "message": "Only sites you turn on selected. Open the popup on a site to allow it.",
+    "description": "First-run welcome page: confirmation after choosing only the sites the learner turns on."
+  },
+  "welcome_all_denied": {
+    "message": "Chrome did not grant all-site access. Choose only sites you turn on, or try again.",
+    "description": "First-run welcome page: shown when Chrome refused all-site access."
+  },
+  "welcome_error_save": {
+    "message": "Could not save your choice",
+    "description": "First-run welcome page: error when the site policy could not be saved."
+  },
+  "welcome_error_x": {
+    "message": "Could not enable x.com",
+    "description": "First-run welcome page: error when allowing x.com failed. x.com is a website name."
+  },
+  "welcome_x_allowed": {
+    "message": "x.com allowed. After setup, reload any open X page to start there.",
+    "description": "First-run welcome page: confirmation after allowing x.com. X is the social network at x.com."
+  },
+  "welcome_x_denied": {
+    "message": "Chrome did not grant x.com access.",
+    "description": "First-run welcome page: shown when Chrome refused access to x.com."
   }
 }

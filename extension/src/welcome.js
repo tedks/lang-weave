@@ -1,3 +1,4 @@
+import { localize, t } from './i18n.js';
 import { L1_WORDS } from './vocabulary.js';
 import { applySwaps, toggle, isSwap } from './text.js';
 import { declaredMatches } from './sites.js';
@@ -25,6 +26,7 @@ export function allowSuggestedX({ request, save }) {
 }
 
 if (typeof document !== 'undefined' && document.getElementById('demo')) {
+  localize();
   const demo = document.getElementById('demo');
   applySwaps(demo, demoSwaps());
   let tipTimer;
@@ -80,14 +82,13 @@ if (typeof document !== 'undefined' && document.getElementById('demo')) {
         request: () => chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] }),
         save: async (enabled) => {
           const result = await chrome.runtime.sendMessage({ type: 'save', settings: { newSitesEnabled: enabled }, consentShown: true });
-          if (!result?.ok) throw new Error(result?.error || 'Could not save your choice');
+          if (!result?.ok) throw new Error(result?.error || t('welcome_error_save'));
           return true;
         },
       });
-      status.textContent = saved ? (all ? 'All permitted sites selected. Sensitive sites still start off.'
-        : 'Only sites you turn on selected. Open the popup on a site to allow it.')
-        : 'Chrome did not grant all-site access. Choose only sites you turn on, or try again.';
-    } catch (error) { status.textContent = error.message || 'Could not save your choice'; }
+      status.textContent = saved ? (all ? t('welcome_chose_all') : t('welcome_chose_only'))
+        : t('welcome_all_denied');
+    } catch (error) { status.textContent = error.message || t('welcome_error_save'); }
     finally { buttons.forEach((button) => { button.disabled = false; }); }
   };
   buttons[0].addEventListener('click', () => { void choose(false); });
@@ -104,12 +105,11 @@ if (typeof document !== 'undefined' && document.getElementById('demo')) {
         request: () => chrome.permissions.request({ origins: ['https://x.com/*'] }),
         save: async () => {
           const result = await chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'x.com', enabled: true } });
-          if (!result?.ok) throw new Error(result?.error || 'Could not enable x.com');
+          if (!result?.ok) throw new Error(result?.error || t('welcome_error_x'));
           return true;
         },
-      }).then((saved) => { xStatus.textContent = saved ? 'x.com allowed. After setup, reload any open X page to start there.'
-        : 'Chrome did not grant x.com access.'; })
-        .catch((error) => { xStatus.textContent = error.message || 'Could not enable x.com'; })
+      }).then((saved) => { xStatus.textContent = saved ? t('welcome_x_allowed') : t('welcome_x_denied'); })
+        .catch((error) => { xStatus.textContent = error.message || t('welcome_error_x'); })
         .finally(() => { allow.disabled = false; });
     });
   }
