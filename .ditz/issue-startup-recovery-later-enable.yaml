@@ -1,0 +1,22 @@
+id: startup-recovery-later-enable
+title: Recover tabs enabled after an initially ineligible startup scan
+desc: 'PR #44 retrospective injection deliberately skips an already-open tab when
+  key, consent, global/site setting or sensitive-site override is absent. If registration
+  was missing when that page loaded and the user later enables it, broadcast alone
+  cannot reach an absent content script; the page needs a reload or popup fallback.
+  Assess a bounded injection on the existing save/grant path with the same URL, title,
+  consent and marker checks. No new permissions. This is a nonblocking council nit
+  outside PR #44''s startup-with-key acceptance case.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:50:59-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:50:59-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
