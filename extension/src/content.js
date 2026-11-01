@@ -379,7 +379,7 @@ function openGuess(span, ticket, choices) {
   const dismiss = document.createElement('button');
   dismiss.type = 'button';
   dismiss.textContent = t('guess_dismiss');
-  dismiss.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted && guess === state) closeGuess(true); });
+  dismiss.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted && guess === state) closeGuess(e.detail === 0); });
   actions.append(dismiss);
   panel.append(prompt, list, status, actions);
   state.panel = panel;

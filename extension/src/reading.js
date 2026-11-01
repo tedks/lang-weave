@@ -364,30 +364,30 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
   // guess is then applied exactly as a peek; a right guess changes no card.
   // Open tickets live in chrome.storage.session, one per tab and document: they survive an idle
   // MV3 worker shutdown while the panel is open, are never exported, and end with the browser.
-  // Where session storage is unavailable they fall back to this worker's memory.
+  // Only where the API is absent do they live in this worker's memory. A failed session read or
+  // write fails closed: no ticket is offered, and an answer whose ticket cannot be consumed is
+  // not recorded, so a ticket is never lost or answered twice.
   const TICKETS_KEY = 'guessTickets';
   const MAX_GUESS_TICKETS = 64;
   let memoryTickets = {};
   const ticketKey = (sender) => `${sender.tab?.id}:${sender.documentId || ''}`;
+  // Returns the open tickets, or null when session storage cannot be read.
   async function readTickets() {
     const session = globalThis.chrome?.storage?.session;
-    if (session) {
-      try {
-        const { [TICKETS_KEY]: raw } = await session.get(TICKETS_KEY);
-        return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-      } catch { /* fall back to memory */ }
-    }
-    return { ...memoryTickets };
+    if (!session) return { ...memoryTickets };
+    try {
+      const { [TICKETS_KEY]: raw } = await session.get(TICKETS_KEY);
+      return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    } catch { return null; }
   }
+  // Returns whether the tickets were stored.
   async function writeTickets(tickets, now) {
     const kept = Object.entries(tickets).filter(([, t]) => Number.isSafeInteger(t?.at) && t.at <= now &&
       now - t.at <= MAX_LATENCY_MS).sort(([, a], [, b]) => b.at - a.at).slice(0, MAX_GUESS_TICKETS);
     const next = Object.fromEntries(kept);
     const session = globalThis.chrome?.storage?.session;
-    if (session) {
-      try { await session.set({ [TICKETS_KEY]: next }); memoryTickets = {}; return; } catch { /* memory */ }
-    }
-    memoryTickets = next;
+    if (!session) { memoryTickets = next; return true; }
+    try { await session.set({ [TICKETS_KEY]: next }); return true; } catch { return false; }
   }
   const guessOn = (ctx, msg, sender) => ctx.settings.gradual && ctx.settings.guessFirst === true &&
     msg.revision === ctx.revision && activeOn(ctx, sender.url) && sender.frameId === 0 &&
@@ -396,8 +396,10 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
     return found.personal ? own.state.cards[found.personal.id] : legacy.state.cards[found.word.fr];
   }
-  // Whether this card may take a guess today. Guesses count within the card's current life: a
-  // Reset re-introduces the word with a later introduction day, like verifiedWords' rule.
+  // Whether this card may take a guess today. Guesses count within the card's current life, at
+  // day granularity: a card keeps only its introduction day, and the log has no reset marker, so a
+  // guess from the morning of a same-day Reset still counts (the word waits until tomorrow, which
+  // the one-a-day rule would require anyway). Like verifiedWords' rule.
   async function guessAllowed(ctx, found, card, id, day) {
     if (!card || wordStage(card) !== 'learning') return false;
     const own = (await retrievalsFor(ctx, !!found.personal)).filter((e) => e.word === id);
@@ -427,9 +429,10 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         if (!offered) return { plain: true };
         const ticket = crypto.randomUUID();
         const tickets = await readTickets();
+        if (!tickets) return { plain: true, stale: true };
         tickets[ticketKey(sender)] = { ticket, id, target: found.word.fr, answer: offered.answer,
           count: offered.choices.length, at: now, revision: ctx.revision, url: sender.url };
-        await writeTickets(tickets, now);
+        if (!(await writeTickets(tickets, now))) return { plain: true, stale: true };
         const latest = await context();
         if (!guessOn(latest, msg, sender) || latest.revision !== ctx.revision) return { plain: true, stale: true };
         return { ticket, choices: offered.choices };
@@ -438,10 +441,10 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       const stale = { error: 'This guess is stale.' };
       const tickets = await readTickets();
       const key = ticketKey(sender);
-      const open = tickets[key];
+      const open = tickets?.[key];
       if (!open || open.ticket !== msg.ticket || open.revision !== ctx.revision || open.url !== sender.url) return stale;
       delete tickets[key];
-      await writeTickets(tickets, now);
+      if (!(await writeTickets(tickets, now))) return stale; // not consumed: never recorded
       if (!Number.isSafeInteger(msg.choice) || msg.choice < 0 || msg.choice >= open.count ||
           now < open.at || now - open.at > MAX_LATENCY_MS) return stale;
       const correct = msg.choice === open.answer;

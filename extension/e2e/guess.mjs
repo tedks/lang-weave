@@ -215,7 +215,7 @@ try {
   await o.hover();
   await page.locator('.fw-gloss-on').waitFor();
   assert.equal(await page.locator('.fw-guess').count(), 0);
-  // The swaps were not repainted: the same span node, and no change at all inside the passages.
+  // The swaps were not repainted: the same span node, and no node or text change inside the passages.
   assert.deepEqual(await page.evaluate(() => ({ same: document.querySelector('#one .fw-word') === globalThis.guessE2E.word,
     changes: globalThis.guessE2E.changes })), { same: true, changes: 0 });
   assert.equal((await worker.evaluate(() => globalThis.calls)).length, callsBefore);

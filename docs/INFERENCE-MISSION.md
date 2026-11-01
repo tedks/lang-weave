@@ -32,7 +32,7 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
    - The options are shuffled with a seed of the word ID and the local day, so the order is stable within a day.
    - Every one of the 226 bundled Spanish words gets a safe set, and the answer lands in every position across the pack. Fewer than two safe distractors means the plain gloss; this happens only for tiny generated packs.
 5. **Panel behaviour.**
-   - Focus returns to the word after a keyboard answer only; a mouse answer leaves focus alone.
+   - Focus returns to the word after a keyboard answer or keyboard Dismiss only; a mouse answer or Dismiss leaves focus alone.
    - It is placed by the cue's `placeTip` and coloured with the ui.css tokens in light and dark mode. Forced colours use system colours. Correctness is stated in words and shown by border style, never by colour alone.
    - Opening never moves focus.
    - Keyboard (trusted events only):
@@ -46,10 +46,10 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
    - It never appears in a form, an input, a button or an editable region, even if a page moves a swap there after painting. It never appears in the welcome demo, which does not load the content script.
 6. **The record.** `guessAnswer` writes one retrieval in the existing ten-field tuple: `[word, at, 'guess', 'receptive', 'correct' | 'incorrect', prior reviews, latency, null, null, null]`.
    - Latency is the worker's time from `guessBegin` to the answer, capped by the log's ten-minute maximum. A ticket older than that is refused.
-   - Tickets are single-use, one per tab and document, and replaced by the next `guessBegin`. They are held in `chrome.storage.session`, so they survive an idle MV3 worker shutdown while a panel stays open. They are never in local storage or a backup, and they end with the browser. Without session storage they fall back to worker memory.
+   - Tickets are single-use, one per tab and document, and replaced by the next `guessBegin`. They are held in `chrome.storage.session`, so they survive an idle MV3 worker shutdown while a panel stays open. They are never in local storage or a backup, and they end with the browser. Only where the session API is absent do they live in worker memory. A failed session read or write fails closed: no ticket is offered, and an answer whose ticket cannot be consumed is not recorded, so a ticket is never lost or answered twice.
    - At answer time the worker rechecks the word's stage, the cap and the daily limit under the lock, because another tab may have answered the same word first. The write runs after the same revision, site-access and permission-generation recheck as a peek.
    - An answer whose log write fails counts for nothing: the page gets an error and shows the meaning unjudged, and no peek is applied.
-   - Guesses count within the card's current life: guesses from before a Reset (a later introduction day) do not count toward the cap, matching `verifiedWords`.
+   - Guesses count within the card's current life: guesses from before a Reset (a later introduction day) do not count toward the cap, matching `verifiedWords`. A Reset and reintroduction on the same local day as an old guess keeps that guess, so the word waits until the next day; the daily limit would allow no second guess that day anyway.
 7. **Scheduling: weak evidence only.** A wrong guess is then applied exactly as a peek, through the same function the `peek` event uses: the reading event, the card's daily peek counter, and the exposure aggregate's peek count. Two peeks in a day on a rated learning card bring its effective due to at most 24 hours ahead (`peekDue`), never later. A wrong guess plus a later plain-gloss peek on the same day is such a pair. A right guess changes no card and no exposure. FSRS state, due, interval and the formulas are untouched.
 8. **Measurements stay honest.** A guess is not a review. Every existing measure excludes `source 'guess'`: next-day recall, long retention, calibration, verified known, workload, leeches, the review page summary, My words stages, the activity strip and Today's review count.
 
@@ -124,3 +124,10 @@ Recommendation 8 is falsified if, after enough data, guessed words recall no bet
     - a panel the page detaches is closed;
     - the test comment is fixed and an out-of-range choice is now tested.
   - **Opus nit filed:** page-CSS isolation (`guess-panel-isolation`).
+- **Round 2** on the fix delta `a68e584..b5091a3`. Seats: Anthropic (native Opus, resumed), OpenAI (Sol, resumed session); Google agy EMPTY on quota.
+  - **Opus: CLEAN.** It re-ran its three-tab repro: one guess logged, the other two stale.
+  - **Opus nits.** Fixed: Dismiss now returns focus only from the keyboard. Documented: the same-day Reset edge.
+  - **Sol: not clean.**
+    - Important: when a session write failed, the code fell back to memory that reads never consulted. Fixed: session failures now fail closed at begin and at answer. Tests cover get and set failures, and both mutations fail them.
+    - Important: a same-day Reset keeps that morning's guess. Resolved as a documented day-granularity boundary (the log has no reset marker, as with `verifiedWords`), pinned by a test. The word waits until the next day, which the one-a-day rule requires anyway.
+    - Nit fixed: the observer wording now says node and text changes only.

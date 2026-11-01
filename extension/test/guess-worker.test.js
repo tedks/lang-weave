@@ -27,10 +27,13 @@ test('the worker offers, records and caps guesses for learning words only', asyn
   const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
   const session = {};
   let logWritesFail = false;
+  let sessionFails = '';
   globalThis.chrome = {
     storage: { session: {
-      async get(key) { await tick(); return key in session ? { [key]: structuredClone(session[key]) } : {}; },
-      async set(values) { await tick(); Object.assign(session, structuredClone(values)); },
+      async get(key) { await tick(); if (sessionFails === 'get') throw new Error('session');
+        return key in session ? { [key]: structuredClone(session[key]) } : {}; },
+      async set(values) { await tick(); if (sessionFails === 'set') throw new Error('session');
+        Object.assign(session, structuredClone(values)); },
     }, local: {
       async setAccessLevel() {},
       async get(keys) { await tick(); const pick = typeof keys === 'string' ? [keys] : keys || Object.keys(data);
@@ -151,9 +154,34 @@ test('the worker offers, records and caps guesses for learning words only', asyn
     clock += day;
     expect(await send({ type: 'guessBegin', word: 'y', revision }, page)).toEqual({ plain: true });
     expect(log().filter((t) => t[2] === 'guess')).toHaveLength(3);
-    // A Reset re-introduces the word later: guesses count within the card's current life.
+    // A Reset re-introduces the word: guesses count within the card's current life, by day. A
+    // same-day reset keeps today's earlier guess, so the word waits until tomorrow.
     data.recallReview.cards.y = { due: clock + day, interval: 0, reviews: 0, introducedDay: localDay(new Date(clock)) };
-    expect((await send({ type: 'guessBegin', word: 'y', revision }, page)).ticket).toBeTruthy();
+    const lastGuessDay = localDay(new Date(log().filter((t) => t[2] === 'guess').at(-1)[1]));
+    expect(lastGuessDay).not.toBe(localDay(new Date(clock))); // the last guess was yesterday
+    const renewed = await send({ type: 'guessBegin', word: 'y', revision }, page);
+    expect(renewed.ticket).toBeTruthy();
+    expect((await send({ type: 'guessAnswer', ticket: renewed.ticket, choice: 0, revision }, page)).ok).toBe(true);
+    data.recallReview.cards.y = { due: clock + day, interval: 0, reviews: 0, introducedDay: localDay(new Date(clock)) };
+    expect(await send({ type: 'guessBegin', word: 'y', revision }, page)).toEqual({ plain: true }); // same-day reset
+
+    // Session storage failures fail closed: no ticket offered, and an unconsumable ticket is not recorded.
+    clock += day;
+    for (const mode of ['get', 'set']) {
+      sessionFails = mode;
+      expect(await send({ type: 'guessBegin', word: 'y', revision }, page)).toEqual({ plain: true, stale: true });
+    }
+    sessionFails = '';
+    const held = await send({ type: 'guessBegin', word: 'y', revision }, page);
+    const logged = log().length;
+    for (const mode of ['get', 'set']) {
+      sessionFails = mode;
+      expect((await send({ type: 'guessAnswer', ticket: held.ticket, choice: 0, revision }, page)).error).toBeTruthy();
+    }
+    sessionFails = '';
+    expect(log()).toHaveLength(logged);
+    expect((await send({ type: 'guessAnswer', ticket: held.ticket, choice: 0, revision }, page)).ok).toBe(true); // still single-use
+    expect((await send({ type: 'guessAnswer', ticket: held.ticket, choice: 0, revision }, page)).error).toBeTruthy();
 
     // A stale ticket (over ten minutes) is refused and records nothing.
     data.recallReview.cards.con = { due: clock + day, interval: 1, reviews: 0, introducedDay: localDay(new Date(clock)) };
