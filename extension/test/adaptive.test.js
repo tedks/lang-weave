@@ -94,6 +94,14 @@ test('Beginner band zero preserves the prior new-word order', () => {
     .toEqual(select({ batch: text, words: before }).map((word) => word.fr));
 });
 
+test('a manually saved personal word keeps the one fresh slot ahead of pack frequency', () => {
+  const words = [{ fr: 'hoy', en: 'today', band: 0 },
+    { fr: 'brillar', en: 'shimmer', personalId: 'personal:es:one' }];
+  expect(select({ batch: batch('We saw shimmer today.'), words,
+    settings: { gradual: true, newWordsPerDay: 1 } }).filter((word) => word.status === 'new')
+    .map((word) => word.fr)).toEqual(['brillar']);
+});
+
 test('due and recent difficulty lead active and new with stable ties and passage relevance', () => {
   const state = cleanReview({ version: 1, cards: {
     'la ventana': { due: now - 1000, interval: 2, reviews: 2 },

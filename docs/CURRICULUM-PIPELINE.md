@@ -43,7 +43,7 @@ The build fails on duplicate target forms; accent-fold homographs including `si`
 
 ## Runtime ordering and measured ceiling
 
-Due, difficult, active and owned reservations keep their existing priority. Among otherwise new candidates, lower `band` now precedes the existing cognate, encounter, BASIC, match-length and ID ties. The 30 Beginner rows are all band 0, and a test compares their full eligible gradual order with and without bands; it is identical. In the existing representative passage test, the four fresh candidates were previously `la historia, el pueblo, hoy, y`; bands make them `hoy, y, la historia, el pueblo`. The prompt content and ordinary-mode list order do not change.
+Due, difficult, active, owned reservations and manually saved personal words keep their existing priority. Among otherwise new bundled candidates, lower `band` now precedes the existing cognate, encounter, BASIC, match-length and ID ties. The personal priority is necessary when the learner has one fresh slot: otherwise a band-0 bundled word could displace the word the learner explicitly saved. The 30 Beginner rows are all band 0, and a test compares their full eligible gradual order with and without bands; it is identical. In the existing representative passage test, the four fresh candidates were previously `la historia, el pueblo, hoy, y`; bands make them `hoy, y, la historia, el pueblo`. The prompt content and ordinary-mode list order do not change.
 
 The Bun benchmark uses synthetic packs of 500, 1,000 and 3,000 unique rows, a 60-word passage, median of seven timed runs after three warmups. Initial observed milliseconds on this host (Bun 1.4.2):
 

@@ -92,6 +92,7 @@ export function selectWorkingSet({ batch, words, scope, state, settings, now, da
   ranked.sort((a, b) => a.rank - b.rank ||
     (a.rank === 0 ? dueAt(state.cards[a.fr]) - dueAt(state.cards[b.fr]) : 0) ||
     (a.rank === 4 ? Number(!owned.has(a.fr)) - Number(!owned.has(b.fr)) : 0) ||
+    (a.rank === 4 ? Number(!a.personalId) - Number(!b.personalId) : 0) ||
     (a.rank === 4 ? (Number.isInteger(a.band) ? a.band : Infinity) -
       (Number.isInteger(b.band) ? b.band : Infinity) || 0 : 0) ||
     (a.rank === 4 ? Number(!a.guessable) - Number(!b.guessable) : 0) ||
