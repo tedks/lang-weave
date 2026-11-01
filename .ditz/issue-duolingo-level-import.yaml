@@ -17,3 +17,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:15-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: placing a learner
+    who already knows words would skip weeks of introducing words they know. Low priority
+    stretch goal; a manual level choice already covers most of it.'
