@@ -348,5 +348,487 @@
   "popup_error_budget_changed": {
     "message": "Budget changed. Refresh and try again.",
     "description": "Toolbar popup: error shown when the introduction budget changed before the reset was applied."
+  },
+  "options_title": {
+    "message": "Lang Weave · Settings",
+    "description": "Settings page: browser tab title."
+  },
+  "options_heading": {
+    "message": "Settings",
+    "description": "Settings page: main heading."
+  },
+  "options_intro": {
+    "message": "Choose how Lang Weave learns from the sites you allow.",
+    "description": "Settings page: introduction under the main heading."
+  },
+  "options_learning_heading": {
+    "message": "Learning",
+    "description": "Settings page: heading of the Learning section."
+  },
+  "options_language_label": {
+    "message": "Language",
+    "description": "Settings page: label of the learning-language selector."
+  },
+  "options_language_hint": {
+    "message": "Spanish is bundled; generated languages are experimental and stored locally.",
+    "description": "Settings page: hint under the language selector."
+  },
+  "options_remove_language": {
+    "message": "Remove this generated language and its local progress",
+    "description": "Settings page: button that deletes a generated language pack and its progress."
+  },
+  "options_add_language_summary": {
+    "message": "Add a language",
+    "description": "Settings page: collapsible heading for adding a generated language."
+  },
+  "options_add_language_intro": {
+    "message": "Generated vocabulary is experimental. Add your Gemini key below first. Use a language code such as fr or ja.",
+    "description": "Settings page: explanation inside the add-a-language section. fr and ja are example language codes."
+  },
+  "options_new_language_label": {
+    "message": "Language code",
+    "description": "Settings page: label of the field for a new language code."
+  },
+  "options_new_language_hint": {
+    "message": "A new pack is generated with Gemini and stored only in this extension.",
+    "description": "Settings page: hint under the new language code field."
+  },
+  "options_generate_vocabulary": {
+    "message": "Generate vocabulary",
+    "description": "Settings page: button that generates vocabulary for the new language."
+  },
+  "options_level_info": {
+    "message": "Current effective level: $LEVEL$",
+    "description": "Settings page: line showing the reading level in effect. $LEVEL$ is the level, for example L1.",
+    "placeholders": {
+      "LEVEL": {
+        "content": "$1",
+        "example": "L1"
+      }
+    }
+  },
+  "options_level_label": {
+    "message": "Reading level",
+    "description": "Settings page: label of the reading-level selector."
+  },
+  "options_level_default": {
+    "message": "Beginner (default)",
+    "description": "Settings page: reading-level choice that follows the default (Beginner)."
+  },
+  "options_level_1": {
+    "message": "1 · Beginner",
+    "description": "Settings page: reading-level choice for level 1."
+  },
+  "options_level_2": {
+    "message": "2 · Expanded",
+    "description": "Settings page: reading-level choice for level 2."
+  },
+  "options_level_hint": {
+    "message": "Choose which vocabulary levels may appear; these are not CEFR grades.",
+    "description": "Settings page: hint under the reading-level selector. CEFR is the Common European Framework of Reference for languages."
+  },
+  "options_gradual_label": {
+    "message": "Gradual learning",
+    "description": "Settings page: label of the gradual-learning checkbox."
+  },
+  "options_gradual_hint": {
+    "message": "Introduce only words that fit what you read, with due words first.",
+    "description": "Settings page: hint under the gradual-learning checkbox."
+  },
+  "options_new_words_label": {
+    "message": "New words per day",
+    "description": "Settings page: label of the new-words-per-day selector."
+  },
+  "options_new_words_hint": {
+    "message": "The daily introduction budget applies when gradual learning is on.",
+    "description": "Settings page: hint under the new-words-per-day selector."
+  },
+  "options_density_label": {
+    "message": "Translation density",
+    "description": "Settings page: label of the translation-density selector."
+  },
+  "options_density_light": {
+    "message": "Light",
+    "description": "Settings page: translation-density choice with the fewest woven words."
+  },
+  "options_density_normal": {
+    "message": "Normal",
+    "description": "Settings page: translation-density choice with a normal number of woven words."
+  },
+  "options_density_heavy": {
+    "message": "Heavy",
+    "description": "Settings page: translation-density choice with the most woven words."
+  },
+  "options_density_hint": {
+    "message": "Control how many eligible words are woven into a passage.",
+    "description": "Settings page: hint under the translation-density selector."
+  },
+  "options_recall_label": {
+    "message": "Inline recall",
+    "description": "Settings page: label of the inline-recall checkbox."
+  },
+  "options_recall_hint": {
+    "message": "Activate a marked word to reveal and rate recall within the page.",
+    "description": "Settings page: hint under the inline-recall checkbox."
+  },
+  "options_vocabulary_info": {
+    "message": "Eligible vocabulary: $WORDS$ (not words learned). Recall reviews due: $DUE$.",
+    "description": "Settings page: counts of eligible vocabulary and recall reviews due. $WORDS$ is a phrase such as \"30 Spanish words\"; $DUE$ is a number.",
+    "placeholders": {
+      "WORDS": {
+        "content": "$1",
+        "example": "30 Spanish words"
+      },
+      "DUE": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "options_reading_help": {
+    "message": "While reading, hover for meaning; click a woven word to flip it or open inline recall when available.",
+    "description": "Settings page: reminder of how to use woven words while reading."
+  },
+  "options_sites_heading": {
+    "message": "Sites and privacy",
+    "description": "Settings page: heading of the Sites and privacy section."
+  },
+  "options_age_notice": {
+    "message": "The Gemini API requires users to be 18 or older.",
+    "description": "Settings page: notice about the Gemini API age requirement."
+  },
+  "options_welcome_link": {
+    "message": "$LINK$ before testing a key or generating vocabulary.",
+    "description": "Settings page: sentence shown before the first-run choices are made. $LINK$ is the link to the welcome page, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Review the first-run privacy choices"
+      }
+    }
+  },
+  "options_welcome_link_text": {
+    "message": "Review the first-run privacy choices",
+    "description": "Settings page: text of the link to the welcome page. Starts a sentence."
+  },
+  "options_new_sites_label": {
+    "message": "Other sites",
+    "description": "Settings page: label of the selector for sites not listed as exceptions."
+  },
+  "options_new_sites_on": {
+    "message": "On by default",
+    "description": "Settings page: choice meaning new sites start on."
+  },
+  "options_new_sites_off": {
+    "message": "Only sites I turn on",
+    "description": "Settings page: choice meaning only sites the learner turns on are active."
+  },
+  "options_new_sites_hint": {
+    "message": "Choose whether new permitted sites start on; sensitive sites still start off.",
+    "description": "Settings page: hint under the other-sites selector."
+  },
+  "options_grant_sites": {
+    "message": "Allow all websites",
+    "description": "Settings page: button that asks Chrome for access to all websites."
+  },
+  "options_exceptions_heading": {
+    "message": "Site exceptions",
+    "description": "Settings page: heading above the list of per-site exceptions."
+  },
+  "options_privacy_note": {
+    "message": "Sites where it's on send readable page text to Gemini with your key. With a free key, Google may use it to improve its products; a paid key avoids that. Links and inline code go with their sentence but are never changed; code blocks, forms and editable text are skipped.",
+    "description": "Settings page: explanation of what is sent to Gemini and what is skipped."
+  },
+  "options_gemini_heading": {
+    "message": "Gemini",
+    "description": "Settings page: heading of the Gemini section. Gemini is a product name."
+  },
+  "options_model_label": {
+    "message": "Model",
+    "description": "Settings page: label of the Gemini model selector."
+  },
+  "options_model_hint": {
+    "message": "Choose the Gemini model that selects words in context.",
+    "description": "Settings page: hint under the model selector."
+  },
+  "options_key_label": {
+    "message": "Gemini key",
+    "description": "Settings page: label of the API key field."
+  },
+  "options_key_hint": {
+    "message": "$LINK$: open AI Studio, create a key, then paste it here.",
+    "description": "Settings page: hint under the key field. $LINK$ is a link to Google AI Studio, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Get a Gemini key"
+      }
+    }
+  },
+  "options_key_hint_link": {
+    "message": "Get a Gemini key",
+    "description": "Settings page: text of the link to Google AI Studio. Starts a sentence that continues with a colon."
+  },
+  "options_billing_note": {
+    "message": "Use a billed key: Google may use free-tier text to improve products, and EEA, UK and Swiss users need paid services.",
+    "description": "Settings page: advice to use a billed key. EEA is the European Economic Area."
+  },
+  "options_call_cap_note": {
+    "message": "Lang Weave allows up to 1,000 model calls per local day. This is a request cap, not a spending limit; provider quotas and pricing still apply.",
+    "description": "Settings page: explanation of the daily request cap."
+  },
+  "options_save_key": {
+    "message": "Save key",
+    "description": "Settings page: button that saves the pasted key."
+  },
+  "options_test_key": {
+    "message": "Test key",
+    "description": "Settings page: button that tests the saved key."
+  },
+  "options_remove_key": {
+    "message": "Remove key",
+    "description": "Settings page: button that deletes the saved key."
+  },
+  "options_data_heading": {
+    "message": "Your data",
+    "description": "Settings page: heading of the Your data section."
+  },
+  "options_backup_info": {
+    "message": "$LINK$ exports or restores learning progress without keys or site grants.",
+    "description": "Settings page: description of the backup page. $LINK$ is its link, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Learning backup"
+      }
+    }
+  },
+  "options_backup_link": {
+    "message": "Learning backup",
+    "description": "Settings page: text of the link to the backup page. Starts a sentence."
+  },
+  "options_words_info": {
+    "message": "$LINK$ shows every word's stage and next review, lets you practise or reset one, and answers \"is this working?\".",
+    "description": "Settings page: description of the My words page. $LINK$ is its link, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "My words"
+      }
+    }
+  },
+  "options_words_link": {
+    "message": "My words",
+    "description": "Settings page: text of the link to the My words page. Starts a sentence."
+  },
+  "options_personal_info": {
+    "message": "$LINK$ lets you find, archive and export your own words.",
+    "description": "Settings page: description of the personal entries page. $LINK$ is its link, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Personal entries"
+      }
+    }
+  },
+  "options_personal_link": {
+    "message": "Personal entries",
+    "description": "Settings page: text of the link to the personal entries page. Starts a sentence."
+  },
+  "options_clear_cache": {
+    "message": "Clear cache",
+    "description": "Settings page: button that clears the cache of replacement choices."
+  },
+  "options_clear_cache_note": {
+    "message": "Forget cached replacement choices so the next eligible reading request asks Gemini again. Learning progress stays saved.",
+    "description": "Settings page: explanation under the clear-cache button."
+  },
+  "options_about_heading": {
+    "message": "About",
+    "description": "Settings page: heading of the About section."
+  },
+  "options_version_line": {
+    "message": "Lang Weave version $VERSION$ · $LICENSE$ · $NOTICE$",
+    "description": "Settings page: version and legal links. $VERSION$ is a version number; $LICENSE$ and $NOTICE$ are links whose text is their own messages.",
+    "placeholders": {
+      "VERSION": {
+        "content": "$1",
+        "example": "0.12.18"
+      },
+      "LICENSE": {
+        "content": "$2",
+        "example": "AGPL-3.0-or-later license"
+      },
+      "NOTICE": {
+        "content": "$3",
+        "example": "NOTICE and upstream credits"
+      }
+    }
+  },
+  "options_license_link": {
+    "message": "AGPL-3.0-or-later license",
+    "description": "Settings page: text of the link to the license. AGPL-3.0-or-later is a license identifier."
+  },
+  "options_notice_link": {
+    "message": "NOTICE and upstream credits",
+    "description": "Settings page: text of the link to the NOTICE file with upstream credits."
+  },
+  "options_credits": {
+    "message": "Based on Jackie Oliver's French Weave, with attribution and the inherited MIT license retained. The Spanish starter vocabulary is not a certified curriculum or native-speaker review. Generated packs are experimental; contextual or grammatical mistakes remain possible.",
+    "description": "Settings page: attribution and limitations of the bundled vocabulary."
+  },
+  "options_update_notice": {
+    "message": "Update $VERSION$ didn't load by itself: click the reload arrow on Lang Weave in the extensions page.",
+    "description": "Settings page: shown when a new version downloaded but did not load by itself. $VERSION$ is the new version number.",
+    "placeholders": {
+      "VERSION": {
+        "content": "$1",
+        "example": "0.12.19"
+      }
+    }
+  },
+  "options_open_extensions": {
+    "message": "Open extensions page",
+    "description": "Settings page: button that opens Chrome's extensions page."
+  },
+  "options_consent_chosen": {
+    "message": "Your site policy has been chosen. You can change it below.",
+    "description": "Settings page: note shown after the first-run site policy was chosen."
+  },
+  "options_consent_pending": {
+    "message": "Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.",
+    "description": "Settings page: note shown before the first-run site policy is chosen."
+  },
+  "options_access_all": {
+    "message": "On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off. Reload pages already open to start there.",
+    "description": "Settings page: access note when all websites are allowed."
+  },
+  "options_access_needs_ok": {
+    "message": "Chrome needs your OK before it can run on other sites.",
+    "description": "Settings page: access note when sites are on by default but Chrome has not granted access to all of them."
+  },
+  "options_access_off": {
+    "message": "Off on sites until you turn them on here.",
+    "description": "Settings page: access note when new sites start off."
+  },
+  "options_level_value": {
+    "message": "L$LEVEL$",
+    "description": "Settings page: the reading level in effect, written as a short label (L for level).",
+    "placeholders": {
+      "LEVEL": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "options_language_experimental": {
+    "message": "$NAME$ · experimental",
+    "description": "Settings page: language selector entry for a generated language. $NAME$ is the language name.",
+    "placeholders": {
+      "NAME": {
+        "content": "$1",
+        "example": "French"
+      }
+    }
+  },
+  "options_word_count": {
+    "message": "$COUNT$ $LANGUAGE$ words",
+    "description": "Settings page: how many eligible words the learning language has. $COUNT$ is a number and $LANGUAGE$ is the language name.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "30"
+      },
+      "LANGUAGE": {
+        "content": "$2",
+        "example": "Spanish"
+      }
+    }
+  },
+  "options_key_saved_placeholder": {
+    "message": "saved (paste to replace)",
+    "description": "Settings page: placeholder of the key field when a key is already saved."
+  },
+  "options_site_on": {
+    "message": "$HOST$: on",
+    "description": "Settings page: a site exception that is on. $HOST$ is a website name.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "options_site_off": {
+    "message": "$HOST$: off",
+    "description": "Settings page: a site exception that is off. $HOST$ is a website name.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "options_site_reset": {
+    "message": "Reset",
+    "description": "Settings page: button that removes one site exception."
+  },
+  "options_no_exceptions": {
+    "message": "None",
+    "description": "Settings page: shown when there are no site exceptions."
+  },
+  "options_error_generic": {
+    "message": "Could not do that",
+    "description": "Settings page: error shown when an action fails without a specific reason."
+  },
+  "options_generating": {
+    "message": "Generating experimental vocabulary…",
+    "description": "Settings page: progress message while a generated language is being created."
+  },
+  "options_key_paste_first": {
+    "message": "Paste a key first.",
+    "description": "Settings page: key feedback when Save key is used with an empty field."
+  },
+  "options_key_saved": {
+    "message": "Saved ✓",
+    "description": "Settings page: key feedback after the key was saved."
+  },
+  "options_key_testing": {
+    "message": "Testing key…",
+    "description": "Settings page: key feedback while the key is being tested."
+  },
+  "options_key_works": {
+    "message": "Key works.",
+    "description": "Settings page: key feedback after a successful test."
+  },
+  "options_key_add_first": {
+    "message": "Add a Gemini key first.",
+    "description": "Settings page: key feedback when testing without a saved key."
+  },
+  "options_key_changed": {
+    "message": "Key or settings changed. Test again.",
+    "description": "Settings page: key feedback when the key or settings changed during the test."
+  },
+  "options_key_model_failed": {
+    "message": "Model request failed. Try again later.",
+    "description": "Settings page: key feedback when the test failed for an unclassified reason."
+  },
+  "options_key_removed": {
+    "message": "Key removed.",
+    "description": "Settings page: key feedback after the key was removed."
+  },
+  "options_cleared": {
+    "message": "Cleared $COUNT$",
+    "description": "Settings page: result of Clear cache. $COUNT$ is the number of cached entries removed.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "options_error_refresh": {
+    "message": "Could not refresh settings",
+    "description": "Settings page: error shown when the page cannot reload its state."
   }
 }
