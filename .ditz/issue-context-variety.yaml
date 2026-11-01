@@ -16,3 +16,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:11-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: varied contexts help
+    a word transfer to new texts (learning-science rec 6, moderate evidence), and
+    a rotating example sentence makes standalone review more than a bare gloss drill.'
