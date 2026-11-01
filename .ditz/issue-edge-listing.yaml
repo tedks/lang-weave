@@ -15,3 +15,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:12-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: Edge Add-ons takes
+    the same Chromium build, so it is extra reach for almost no engineering. Toucan,
+    Language Reactor and Relingo all list there (docs/research/market.md).'
