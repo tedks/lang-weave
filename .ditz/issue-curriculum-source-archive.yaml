@@ -1,0 +1,21 @@
+id: curriculum-source-archive
+title: Archive pinned curriculum source bytes
+desc: 'PR #41 council nit. The pinned Kaikki raw Wiktextract and Tatoeba export URLs
+  rotate; SHA-256 verification then fails closed but a later clean fetch cannot reproduce
+  the source build. Mirror the exact already-verified archives (see data/curriculum/es/SOURCES.json)
+  to an owned stable location with access/licence review, record immutable URL and
+  digest, and prove fetch can rebuild. Do not ship new rows until the separate data-licence/native-review
+  ruling.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:01:54-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:01:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
