@@ -8,8 +8,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-01T02:41:55-00:00
 references: []
 log_events:
@@ -21,3 +21,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-01T04:12:44-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #41 normal-merged as e72d0a0; exact tested head 892283d, council fixpoint
+    CLEAN, 392 Bun tests, 91 Python tests and 14/14 Chromium scripts passed.'
