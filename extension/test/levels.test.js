@@ -39,6 +39,7 @@ describe('candidate pack admission', () => {
     const b = { fr: 'el sombrero', en: 'the hat', anchors: [' HAT '], hint: 'el som-BREH-roh' };
     expect(() => assertPackAnchors([a, b])).not.toThrow();
     expect(() => assertPackAnchors([a, { ...b, anchors: [' CLOUD '] }])).toThrow(/shared/);
+    expect(() => assertPackAnchors([a, { ...b, anchors: ['the cloud'] }])).toThrow(/shared/);
     expect(() => assertPackAnchors(Array.from({ length: MAX_PACK_ROWS + 1 }, (_, i) => ({ ...a, fr: `word${i}` }))))
       .toThrow(/exceeds/);
   });

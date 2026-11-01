@@ -38,17 +38,18 @@ async function download(source, out) {
 async function bzRows(path, filter, callback) {
   const child = spawn('bzip2', ['-dc', path], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
-  let spawnError;
-  child.once('error', (error) => { spawnError = error; });
-  const closed = new Promise((done) => child.once('close', done));
+  const completion = new Promise((done) => {
+    child.once('error', (error) => done({ error }));
+    child.once('close', (code) => done({ code }));
+  });
   child.stderr.on('data', (data) => { stderr += data; });
   for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
     const cells = line.split('\t');
     if (filter(cells)) callback(cells);
   }
-  const code = await closed;
-  if (spawnError) throw Error(`cannot start bzip2 for ${path}: ${spawnError.message}`);
-  if (code !== 0) throw Error(`bzip2 failed on ${path}: ${stderr}`);
+  const result = await completion;
+  if (result.error) throw Error(`cannot start bzip2 for ${path}: ${result.error.message}`);
+  if (result.code !== 0) throw Error(`bzip2 failed on ${path}: ${stderr}`);
 }
 
 async function prepareExamples(out) {

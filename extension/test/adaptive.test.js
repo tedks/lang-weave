@@ -102,6 +102,19 @@ test('an unbanded personal word keeps its prior one-slot selection', () => {
     .map((word) => word.fr)).toEqual(['brillar']);
 });
 
+test('mixed banded and personal new words have the same order for every input permutation', () => {
+  const words = [{ fr: 'aaa', en: 'raven', band: 3 },
+    { fr: 'bbb', en: 'satin', personalId: 'personal:es:one' },
+    { fr: 'ccc', en: 'tiger', band: 1 }];
+  const text = batch('The raven saw satin and a tiger.');
+  const settings = { gradual: true, newWordsPerDay: 1 };
+  const permutations = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const selections = permutations.map((order) => select({ batch: text,
+    words: order.map((i) => words[i]), settings }).filter((word) => word.status === 'new').map((word) => word.fr));
+  expect(new Set(selections.map((selection) => JSON.stringify(selection))).size).toBe(1);
+  expect(selections[0]).toEqual(['bbb']);
+});
+
 test('due and recent difficulty lead active and new with stable ties and passage relevance', () => {
   const state = cleanReview({ version: 1, cards: {
     'la ventana': { due: now - 1000, interval: 2, reviews: 2 },

@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { L2_WORDS } from '../../extension/src/vocabulary.js';
-import { englishAnchors } from '../../extension/src/catalog.js';
+import { anchorCollisionKey, englishAnchors } from '../../extension/src/catalog.js';
 import { assertPackAnchors, exactFr, normalizeFr, MAX_PACK_ROWS } from '../../extension/src/levels.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -111,7 +111,7 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
     !/^\d{4}-\d\d-\d\d$/.test(review.date))) throw Error('invalid native review record');
   const oldForms = new Set(L2_WORDS.map((word) => exactFr(word.fr)));
   const oldFolds = new Set(L2_WORDS.map((word) => normalizeFr(word.fr)));
-  const oldAnchors = new Set(L2_WORDS.flatMap(englishAnchors));
+  const oldAnchors = new Set(L2_WORDS.flatMap(englishAnchors).map(anchorCollisionKey));
   const newForms = new Set(), newFolds = new Set(), newAnchors = new Set(), ids = new Set();
   const rows = [];
   for (const row of selected) {
@@ -126,7 +126,7 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
     if (row.status && !['candidate', 'machine-checked', 'native-reviewed'].includes(row.status))
       throw Error(`${row.id}: unknown review status`);
     if (!Array.isArray(row.anchors) || !row.anchors.length || row.anchors.some((a) => typeof a !== 'string' ||
-      !a || badChars.test(a) || a !== simple(a))) throw Error(`${row.id}: invalid or noncanonical anchors`);
+      !a || badChars.test(a) || a !== simple(a).replace(/\s+/g, ' '))) throw Error(`${row.id}: invalid or noncanonical anchors`);
     const form = exactFr(row.fr), fold = normalizeFr(row.fr);
     if (oldForms.has(form) || newForms.has(form)) throw Error(`${row.id}: duplicate target form ${row.fr}`);
     if (oldFolds.has(fold) || newFolds.has(fold)) throw Error(`${row.id}: accent-fold collision ${row.fr}`);
@@ -149,10 +149,10 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
     if (frequency.targetEn >= 3.5 && !row.english_collision_approved)
       throw Error(`${row.id}: Spanish form collides with a common English word`);
     const anchors = englishAnchors(row);
-    if (anchors.some((anchor) => forbidden.has(anchor) || oldAnchors.has(anchor)))
+    if (anchors.some((anchor) => forbidden.has(anchor) || oldAnchors.has(anchorCollisionKey(anchor))))
       throw Error(`${row.id}: forbidden or existing English anchor`);
-    if (anchors.some((anchor) => newAnchors.has(anchor))) throw Error(`${row.id}: shared English anchor`);
-    for (const anchor of anchors) newAnchors.add(anchor);
+    if (anchors.some((anchor) => newAnchors.has(anchorCollisionKey(anchor)))) throw Error(`${row.id}: shared English anchor`);
+    for (const anchor of anchors) newAnchors.add(anchorCollisionKey(anchor));
     const glossBases = englishBases(row.en);
     if (!anchors.every((anchor) => glossBases.some((base) => supportsAnchor(base, anchor, row))))
       throw Error(`${row.id}: anchor is unsupported by the English gloss`);

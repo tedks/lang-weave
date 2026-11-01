@@ -22,6 +22,10 @@ export function englishAnchors(word) {
   return [...anchors];
 }
 
+// An article-prefixed noun surface contains the bare surface on the same page.
+// Admission must treat both as one collision domain across different rows.
+export const anchorCollisionKey = (anchor) => anchor.replace(/^the /, '');
+
 export function matchingEntries(batch, entries) {
   const texts = batch.map(({ text }) => text.normalize('NFC').toLocaleLowerCase('en').replace(/[’‘`]/g, "'"));
   const byAnchor = new Map();

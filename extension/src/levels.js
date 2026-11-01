@@ -17,7 +17,7 @@ export { L1_WORDS, L2_EXTRA, L2_WORDS, wordsForLevel } from './vocabulary.js';
 import { wordsForLevel } from './vocabulary.js';
 import { locate } from './text.js';
 import { allCaps, sourceIssue } from './semantic.js';
-import { englishAnchors } from './catalog.js';
+import { anchorCollisionKey, englishAnchors } from './catalog.js';
 
 // Candidate packs must resolve every English surface form to exactly one row.
 // The bundled 226 predate this gate and have two known collisions (only, free);
@@ -27,10 +27,11 @@ export function assertPackAnchors(words) {
   if (words.length > MAX_PACK_ROWS) throw new Error(`pack exceeds ${MAX_PACK_ROWS} rows`);
   const owner = new Map();
   for (const word of words) for (const anchor of englishAnchors(word)) {
-    if (owner.has(anchor) && owner.get(anchor) !== word.fr) {
-      throw new Error(`English anchor ${JSON.stringify(anchor)} is shared by ${owner.get(anchor)} and ${word.fr}`);
+    const key = anchorCollisionKey(anchor);
+    if (owner.has(key) && owner.get(key) !== word.fr) {
+      throw new Error(`English anchor ${JSON.stringify(key)} is shared by ${owner.get(key)} and ${word.fr}`);
     }
-    owner.set(anchor, word.fr);
+    owner.set(key, word.fr);
   }
 }
 
