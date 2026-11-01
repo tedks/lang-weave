@@ -15,8 +15,8 @@ type: task
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: reorg
 creation_time: 2026-10-28T08:36:47-00:00
 references: []
 log_events:
@@ -35,3 +35,7 @@ log_events:
     NOTICE-DATA.md; docs/CURRICULUM-PIPELINE.md). The open licence and reviewer-sourcing
     decision is curriculum-data-licence-ruling; source archiving is curriculum-source-archive;
     native review is spanish-curriculum-review.'
+- time: 2026-11-01T04:24:35-00:00
+  who: Ted Smith
+  what: 'closed: reorg'
+  comment: Superseded by curriculum-sources research (#39) and pipeline (#41)
