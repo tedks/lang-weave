@@ -2,7 +2,7 @@
 
 ## Current state
 
-State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main` `9cd3dce`. Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. The council reached fixpoint in round 3. Exact-head gates and the normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
+State: PR #42 on branch `inference-step` at 0.12.20, rebased on `origin/main` `e72d0a0` (curriculum pipeline, 0.12.19). Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. The council reached fixpoint in round 3. Exact-head gates and the normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
 
 ## Context and assumptions
 
@@ -56,8 +56,8 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
 ## Storage and compatibility
 
 - **Log.** `SOURCES` gains `guess` and `OUTCOMES` gains `correct` and `incorrect`. A tuple is valid only when these values occur together with direction `receptive`. The log version stays 1, with no new field.
-- **Downgrade.** Builds up to 0.12.18 drop guess tuples from local storage on their next log write, losing measurement data only. They also refuse a whole schema 2 backup holding one ("invalid retrieval log entry").
-- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on (`guess-log-export`). Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. The other options were A (export now, with an "install 0.12.19 first" warning) and C (schema 3). They were put to the lead as NEEDS RULING. **Ruling (team lead, 2026-11-01): option B**, as built; export is enabled in a later release under `guess-log-export`.
+- **Downgrade.** Builds up to 0.12.19 drop guess tuples from local storage on their next log write, losing measurement data only. They also refuse a whole schema 2 backup holding one ("invalid retrieval log entry").
+- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on (`guess-log-export`). Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. The other options were A (export now, with an "install 0.12.20 first" warning) and C (schema 3). They were put to the lead as NEEDS RULING. **Ruling (team lead, 2026-11-01): option B**, as built; export is enabled in a later release under `guess-log-export`.
 - **Settings.** `guessFirst` joins `SETTINGS_FIELDS` and is not a backup preference, so import keeps the target's value. A downgrade while it is on trips the old build's strict settings check (`startupUnsupportedSettings`), exactly as `desiredRetention` already does.
 
 ## What would falsify it
