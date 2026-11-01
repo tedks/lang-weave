@@ -28,3 +28,11 @@ log_events:
     (reached from the worker) imports localDay from hostsource.js, as it did on origin/main
     before the split. When this issue moves localDay out of hostsource.js, make that
     check transitive over the whole worker graph.'
+- time: 2026-11-01T04:24:06-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Still true: quota.js:2 imports localDay
+    from hostsource.js, so it ships in both zips. The Store build has had no web_accessible_resources
+    since PR #30, so the web-accessible concern applies only to the unpacked build.
+    Why it matters: dead inherited code in the Store payload is review surface and
+    a fingerprinting target in dev.'
