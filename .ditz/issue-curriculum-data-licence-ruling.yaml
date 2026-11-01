@@ -1,0 +1,24 @@
+id: curriculum-data-licence-ruling
+title: Rule on shipping pack data as a CC BY-SA 4.0 file beside AGPL code, and on
+  native reviewer sourcing
+desc: 'Source: docs/research/curriculum-sources.md. Recommendation: ship generated
+  vocabulary data as its own CC BY-SA 4.0 file with generated notices (wordfreq and
+  Wiktionary are BY-SA; Creative Commons lists GPLv3 but not AGPLv3 as BY-SA-compatible,
+  so the data cannot be relicensed as AGPL), code stays AGPL-3.0-or-later; get one
+  human legal read before the first public release. Also decide native reviewer sourcing
+  for the first band (double review of 50 pilot rows + the existing 226, then 60-row
+  samples): friends, paid reviewers, or community. Decides: Ted. Blocks curriculum-growth''s
+  first shipped band, not the pipeline work.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:41:56-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:41:56-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
