@@ -120,10 +120,26 @@ try {
         style: { display: style.display, visibility: style.visibility, opacity: style.opacity,
           position: style.position, color: style.color, background: style.backgroundColor,
           zIndex: style.zIndex, pointerEvents: style.pointerEvents }, text: tip.textContent,
-        label: target.getAttribute('aria-label') };
+        label: target.getAttribute('aria-label'), lang: target.getAttribute('lang'),
+        description: document.getElementById(target.getAttribute('aria-describedby'))?.textContent,
+        descriptionInside: !!target.closest('p,li,blockquote,h1,h2,h3,h4,article,main')
+          ?.contains(document.getElementById(target.getAttribute('aria-describedby'))) };
     });
     assert.match(geometry.text, /y.*and.*ee/);
-    assert.match(geometry.label, /y.*and/);
+    // The swapped word is tagged with the target language, its name is the word alone and the gloss is a
+    // description outside every passage. Chrome's own accessibility tree must compute exactly that.
+    assert.equal(geometry.label, null);
+    assert.equal(geometry.lang, 'es');
+    assert.match(geometry.description, /^and · "ee"\. Show English$/);
+    assert.equal(geometry.descriptionInside, false);
+    const cdp = await page.context().newCDPSession(page);
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#clipped .fw-word' });
+    const [ax] = (await cdp.send('Accessibility.getPartialAXTree', { nodeId, fetchRelatives: false })).nodes;
+    assert.equal(ax.role?.value, 'button');
+    assert.equal(ax.name?.value, 'y');
+    assert.equal(ax.description?.value, geometry.description);
+    await cdp.detach();
     assert.equal(geometry.style.position, 'fixed');
     assert.equal(geometry.style.visibility, 'visible');
     assert.equal(geometry.style.opacity, '1');

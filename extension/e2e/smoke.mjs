@@ -112,7 +112,8 @@ try {
   assert.match(await word.getAttribute('data-tip'), /and/);
   await word.click();
   assert.equal(await word.textContent(), 'and');
-  assert.match(await word.getAttribute('aria-label'), /Show Spanish/);
+  assert.equal(await word.getAttribute('lang'), null); // English face: no target lang
+  assert.equal(await word.evaluate((el) => document.getElementById(el.getAttribute('aria-describedby'))?.textContent), 'Show Spanish');
   await word.press('Enter');
   assert.equal(await word.textContent(), 'y');
   assert.equal(await page.locator('#health .fw-word, form .fw-word, [contenteditable] .fw-word, pre .fw-word, [lang=es] .fw-word').count(), 0);

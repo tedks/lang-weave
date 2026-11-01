@@ -150,7 +150,8 @@ if (process.argv.includes('--check')) {
     await reading.screenshot({ path: join(rendered, shots[1][0]) });
     await hoverWord.click();
     assert.equal(await hoverWord.textContent(), 'and');
-    assert.match(await hoverWord.getAttribute('aria-label'), /Show Spanish/);
+    assert.equal(await hoverWord.getAttribute('lang'), null); // English face: no target lang
+    assert.equal(await hoverWord.evaluate((el) => document.getElementById(el.getAttribute('aria-describedby'))?.textContent), 'Show Spanish');
     await reading.screenshot({ path: join(rendered, shots[2][0]) });
     assert.ok(await worker.evaluate(() => globalThis.storeShotCalls > 0), 'synthetic responder was used');
 

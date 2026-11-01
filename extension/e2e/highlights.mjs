@@ -47,8 +47,8 @@ try {
         .sample { margin: 4px 0; } .label { display: inline-block; width: 150px; font: 14px system-ui; }
       </style></head><body>
       <h1 style="font-size:22px;margin:0 0 12px">${dark ? 'Dark' : 'Light'} page</h1>
-      <div class="sample"><span class="label">Ordinary</span><span id="plain">ordinary</span> and <span class="fw-word" id="ordinary" tabindex="0" role="button">palabra</span></div>
-      <div class="sample"><span class="label">Learning</span><span class="fw-word" id="active" data-fw-status="active" tabindex="0" role="button">aprendiendo</span></div>
+      <div class="sample"><span class="label">Ordinary</span><span id="plain">ordinary</span> and <span class="fw-word" id="ordinary" tabindex="0" role="button" lang="es" aria-describedby="fw-dfixture-1">palabra</span></div>
+      <div class="sample"><span class="label">Learning</span><span class="fw-word" id="active" data-fw-status="active" tabindex="0" role="button" lang="es">aprendiendo</span></div>
       <div class="sample"><span class="label">Practice</span><span class="fw-word fw-practice fw-practice-cue" id="practice" tabindex="0" role="button">word<sup aria-hidden="true">?</sup></span></div>
       <div class="sample"><span class="label">Link context</span><a href="#destination" id="link">linked <span class="fw-word" id="linked" tabindex="0" role="button">palabra</span></a></div>
       <div class="sample"><span class="label">Hover hint</span><span class="fw-word fw-tip" id="hover" data-tip="word · pronunciation" tabindex="0" role="button">palabra</span></div>
@@ -58,6 +58,7 @@ try {
         <div class="fw-recall-ratings"><button>Again</button><button>Hard</button><button>Medium</button><button>Easy</button></div>
         <div class="fw-recall-secondary"><button>Already know</button></div>
       </div>
+      <div class="fw-descriptions" hidden lang="en" style="display: none !important"><span id="fw-dfixture-1">word · pronunciation. Show English</span></div>
       </body></html>` });
   });
   await mkdir(screenshots, { recursive: true });
@@ -93,7 +94,21 @@ try {
     assert.equal(css.ordinary.thickness, '2px');
     assert.equal(css.ordinary.decorationColor, css.ordinary.color);
     assert.equal(css.ordinary.color, css.plain.color);
-    assert.equal(css.ordinary.height, css.plain.height); // no line-box shift
+    assert.equal(css.ordinary.height, css.plain.height); // no line-box shift, with lang="es" as real swaps carry
+    const lang = await page.evaluate(() => {
+      const word = document.getElementById('ordinary'), plain = document.getElementById('plain');
+      const host = document.querySelector('.fw-descriptions');
+      const a = getComputedStyle(word), b = getComputedStyle(plain);
+      return { lang: word.lang, font: [a.fontFamily, a.fontSize, a.lineHeight].join('|'),
+        plainFont: [b.fontFamily, b.fontSize, b.lineHeight].join('|'),
+        described: document.getElementById(word.getAttribute('aria-describedby'))?.textContent,
+        hostDisplay: getComputedStyle(host).display, hostBox: host.getBoundingClientRect().height };
+    });
+    assert.equal(lang.lang, 'es');
+    assert.equal(lang.font, lang.plainFont); // the target language does not change the reader's font
+    assert.equal(lang.described, 'word · pronunciation. Show English');
+    assert.equal(lang.hostDisplay, 'none'); // descriptions never render
+    assert.equal(lang.hostBox, 0);
     assert.ok(contrast(css.ordinary.decorationColor, css.background) >= 3);
     assert.equal(css.active.thickness, '2px');
     assert.notEqual(css.active.decorationColor, css.ordinary.decorationColor);
