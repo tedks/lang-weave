@@ -30,3 +30,11 @@ log_events:
   comment: 'Depends on the ruling in store-first-upload-key: whether storeManifest()
     drops or keeps the manifest key follows that decision. The package script''s hook
     is the single place to apply it.'
+- time: 2026-11-01T04:24:07-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): The self-update gate is on main:
+    update.js:23 runs the self-update only when the installed manifest has no update_url,
+    which the Store and Edge add (test/update-gate.test.js). The key is still kept
+    on purpose: extension/test/package.test.js:158 asserts store.key equals dev.key.
+    Whether to drop it waits on store-first-upload-key.'
