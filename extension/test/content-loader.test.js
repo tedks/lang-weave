@@ -25,3 +25,19 @@ test('the dev loader imports content once even when registration and recovery in
   await runInNewContext(loader, context, options);
   expect(imports).toBe(1);
 });
+
+test('a failed content import clears the marker for a later attempt', async () => {
+  let imports = 0;
+  const context = { chrome: { runtime: { getURL: (path) => `chrome-extension://test/${path}` } },
+    console: { error: () => {} } };
+  const options = { importModuleDynamically: async () => {
+    imports++;
+    if (imports === 1) throw new Error('temporary import failure');
+    return {};
+  } };
+  await runInNewContext(loader, context, options);
+  expect(context[Symbol.for('lang-weave.content-loader')]).toBeUndefined();
+  await runInNewContext(loader, context, options);
+  expect(imports).toBe(2);
+  expect(context[Symbol.for('lang-weave.content-loader')]).toBe(true);
+});

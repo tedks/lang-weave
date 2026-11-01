@@ -9,6 +9,7 @@
   try {
     await import(chrome.runtime.getURL('src/content.js'));
   } catch (e) {
+    delete globalThis[marker]; // allow a later injection attempt after an import failure
     console.error('[lang-weave] failed to load', e);
   }
 })();
