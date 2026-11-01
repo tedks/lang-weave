@@ -89,9 +89,16 @@ export function selectWorkingSet({ batch, words, scope, state, settings, now, da
       guessable: cognate(word, language) };
   }).filter((w) => (w.status === 'known' || state.cards[w.fr]?.seenDay !== day || state.cards[w.fr].seenCount < 3) &&
     (w.status !== 'new' || owned.has(w.fr) || allowFresh > 0 && !reserved.has(w.fr)));
+  // Give unbanded new words the lowest available band, then retain the
+  // existing ties. A single numeric key keeps mixed pools transitive.
+  const availableBand = ranked.reduce((lowest, word) => word.rank === 4 && Number.isInteger(word.band)
+    ? Math.min(lowest, word.band) : lowest, Infinity);
+  const lowestBand = Number.isFinite(availableBand) ? availableBand : 0;
+  const newBand = (word) => Number.isInteger(word.band) ? word.band : lowestBand;
   ranked.sort((a, b) => a.rank - b.rank ||
     (a.rank === 0 ? dueAt(state.cards[a.fr]) - dueAt(state.cards[b.fr]) : 0) ||
     (a.rank === 4 ? Number(!owned.has(a.fr)) - Number(!owned.has(b.fr)) : 0) ||
+    (a.rank === 4 ? newBand(a) - newBand(b) : 0) ||
     (a.rank === 4 ? Number(!a.guessable) - Number(!b.guessable) : 0) ||
     (encounters[b.entryId] || 0) - (encounters[a.entryId] || 0) ||
     (a.rank === 4 ? Number(BASIC.has(a.en)) - Number(BASIC.has(b.en)) : 0) ||

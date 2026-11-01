@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test } from 'bun:test';
-import { L1_WORDS, L2_WORDS, exactFr, normalizeFr, validateSwaps } from '../src/levels.js';
+import { L1_WORDS, L2_WORDS, MAX_PACK_ROWS, exactFr, normalizeFr, validateSwaps } from '../src/levels.js';
 import { buildSystemPrompt } from '../src/prompt.js';
 import { cleanReview } from '../src/review.js';
 import { policyWords, remaining } from '../src/learning.js';
@@ -8,11 +8,12 @@ import { memoryStorage } from '../src/cache.js';
 import { scopedStorage } from '../src/scope.js';
 
 const OLD_EXPANDED = 147;
-const hash = (entries) => createHash('sha256').update(JSON.stringify(entries)).digest('hex');
+const hash = (entries) => createHash('sha256').update(JSON.stringify(entries.map(({ fr, en, hint }) => ({ fr, en, hint })))).digest('hex');
 const additions = () => L2_WORDS.slice(OLD_EXPANDED);
 
 test('the original Beginner and Expanded entries retain their forms, glosses, hints and order', () => {
   expect(L1_WORDS).toHaveLength(30);
+  expect(L2_WORDS).toHaveLength(226);
   expect(hash(L1_WORDS)).toBe('95c5d607d1146c6e6d974d7829dfbe960fd24079b38066157be6ec98621ced37');
   expect(hash(L2_WORDS.slice(0, OLD_EXPANDED))).toBe('5f3fd6cc79a5bef41112c202422076abc7b482ab27673a27f9f7caafe780c6d1');
   expect(L2_WORDS.slice(0, OLD_EXPANDED).map((w) => w.fr)).toContain('el gato');
@@ -23,7 +24,7 @@ test('the original Beginner and Expanded entries retain their forms, glosses, hi
 test('new words are bounded, unique and normalized with articles and sound hints', () => {
   const added = additions();
   expect(added.length).toBeGreaterThanOrEqual(75);
-  expect(L2_WORDS.length).toBeLessThanOrEqual(240);
+  expect(L2_WORDS.length).toBeLessThanOrEqual(MAX_PACK_ROWS);
   const oldTargets = new Set(L2_WORDS.slice(0, OLD_EXPANDED).map((w) => normalizeFr(w.fr)));
   const oldGlosses = new Set(L2_WORDS.slice(0, OLD_EXPANDED)
     .map((w) => w.en.replace(/^the /, '').toLowerCase()));

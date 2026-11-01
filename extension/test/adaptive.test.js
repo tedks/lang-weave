@@ -77,6 +77,44 @@ test('new Spanish cognates rank first and the final 2% cap counts placements acr
     .toEqual({ a: [{ word: 'known' }], b: [{ word: 'due' }] });
 });
 
+test('frequency band precedes cognate and encounter ties for new words', () => {
+  const words = [{ fr: 'hospital', en: 'hospital', band: 3 },
+    { fr: 'ventana', en: 'window', band: 1 },
+    { fr: 'libro', en: 'book', band: 1 }];
+  const encounters = { [entryId('es', words[0])]: 7, [entryId('es', words[2])]: 3 };
+  expect(select({ batch: batch('The hospital window has a book.'), words, encounters })
+    .map((w) => w.fr)).toEqual(['libro', 'ventana', 'hospital']);
+});
+
+test('Beginner band zero preserves the prior new-word order', () => {
+  const text = batch(L1_WORDS.flatMap(englishAnchors).join(' '));
+  const before = L1_WORDS.map(({ band, ...word }) => word);
+  expect(L1_WORDS.every((word) => word.band === 0)).toBe(true);
+  expect(select({ batch: text, words: L1_WORDS }).map((word) => word.fr))
+    .toEqual(select({ batch: text, words: before }).map((word) => word.fr));
+});
+
+test('an unbanded personal word keeps its prior one-slot selection', () => {
+  const words = [{ fr: 'hoy', en: 'today', band: 0 },
+    { fr: 'brillar', en: 'shimmer', personalId: 'personal:es:one' }];
+  expect(select({ batch: batch('We saw shimmer today.'), words,
+    settings: { gradual: true, newWordsPerDay: 1 } }).filter((word) => word.status === 'new')
+    .map((word) => word.fr)).toEqual(['brillar']);
+});
+
+test('mixed banded and personal new words have the same order for every input permutation', () => {
+  const words = [{ fr: 'aaa', en: 'raven', band: 3 },
+    { fr: 'bbb', en: 'satin', personalId: 'personal:es:one' },
+    { fr: 'ccc', en: 'tiger', band: 1 }];
+  const text = batch('The raven saw satin and a tiger.');
+  const settings = { gradual: true, newWordsPerDay: 1 };
+  const permutations = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const selections = permutations.map((order) => select({ batch: text,
+    words: order.map((i) => words[i]), settings }).filter((word) => word.status === 'new').map((word) => word.fr));
+  expect(new Set(selections.map((selection) => JSON.stringify(selection))).size).toBe(1);
+  expect(selections[0]).toEqual(['bbb']);
+});
+
 test('due and recent difficulty lead active and new with stable ties and passage relevance', () => {
   const state = cleanReview({ version: 1, cards: {
     'la ventana': { due: now - 1000, interval: 2, reviews: 2 },
@@ -87,7 +125,7 @@ test('due and recent difficulty lead active and new with stable ties and passage
   const first = select({ batch: text, state });
   expect(first.map(({ fr, reasonCode }) => [fr, reasonCode])).toEqual([
     ['la ventana', 'due'], ['el libro', 'recent_difficulty'], ['el día', 'active'],
-    ['la historia', 'new'], ['el pueblo', 'new'], ['hoy', 'new'], ['y', 'new'],
+    ['hoy', 'new'], ['y', 'new'], ['la historia', 'new'], ['el pueblo', 'new'],
   ]);
   expect(select({ batch: text, state })).toEqual(first);
   expect(first.every((w) => !['el gato', 'el perro'].includes(w.fr))).toBe(true);
