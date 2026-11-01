@@ -1,6 +1,6 @@
 # Current state
 
-State: version 0.12.18 is on `main` as an unpacked Chrome extension with a welcome page, a slim popup and a Settings page, FSRS-6 reviews with a My words progress page, gradual learning with encounter ranking and a coverage cap, a stable extension ID and format-2 learning backups, plus a Store build that is packaged and screenshotted but not uploaded. What remains is planned in [ROADMAP.md](ROADMAP.md), and the release history is in [CHANGELOG.md](CHANGELOG.md).
+State: version 0.12.19 is on `main` as an unpacked Chrome extension with a welcome page, a slim popup and a Settings page, FSRS-6 reviews with a My words progress page, gradual learning with encounter ranking and a coverage cap, a stable extension ID, format-2 learning backups and a curriculum build pipeline that ships no new vocabulary rows, plus a Store build that is packaged and screenshotted but not uploaded. What remains is planned in [ROADMAP.md](ROADMAP.md), and the release history is in [CHANGELOG.md](CHANGELOG.md).
 
 Intent and acceptance: [DESIGN.md](DESIGN.md), [LEARNING-MISSION.md](LEARNING-MISSION.md). Fleet acceptance distinguishes payload staging from per-profile Chrome activation; no key or profile is distributed.
 

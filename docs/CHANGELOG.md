@@ -1,8 +1,12 @@
 # Changelog
 
-User-facing changes from 0.11.0 to 0.12.18, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
+User-facing changes from 0.11.0 to 0.12.19, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
 
 Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Amerged>
+
+## 0.12.19 (2026-11-01)
+
+- #41 New words now come in frequency-band order: each of the 226 bundled words gains a coarse band, the Beginner 30 stay first, and unbanded personal words sort with the lowest band present. Adds an offline, pinned curriculum build pipeline with an English-anchor collision gate and a 3,000-row pack ceiling. It ships no new vocabulary rows. See [the pipeline record](CURRICULUM-PIPELINE.md).
 
 ## 0.12.18 (2026-10-31)
 
@@ -10,7 +14,7 @@ Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Ame
 
 ## 0.12.17 (2026-10-30 to 2026-10-31)
 
-- #35 With gradual learning on, reading now ranks due and weak words first, then under-met learning words, and skips a word seen three times in a day. Two same-day peeks bring a learning review forward. "Familiar" words return as occasional maintenance reviews instead of retiring, "Already know" is verified by one later check, and new words are capped near 2% of the words read.
+- #35 With gradual learning on, reading now ranks due and weak words first, then under-met learning words, and skips a word seen three times in a day. Two same-day peeks on a rated learning word bring its review forward. "Familiar" words return as occasional maintenance reviews instead of retiring, "Already know" is verified by one later check, and due, learning and new words together are capped near 2% of the words read.
 - #37 Adds the Chrome Web Store screenshots and promo tile under `docs/store-assets` (no bump).
 - #39 Adds the curriculum sources and validation plan under `docs/research` (no bump).
 
@@ -56,7 +60,7 @@ Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Ame
 
 ## 0.12.6 (2026-10-30)
 
-- #26 Reviews are scheduled with FSRS-6 on the actual time since each review, aiming for 90% recall, and a lapse keeps a word's history. Each review and each seen or peeked word is counted in a local learning log of word IDs, times and outcomes. Learning backups now use format 2.
+- #26 Reviews are scheduled with FSRS-6 on the actual time since each review, aiming for 90% recall, and a lapse keeps a word's history. Each review is recorded, and each seen or peeked word is counted, in a local learning log of word IDs, times, outcomes and counts, with no text. Learning backups now use format 2.
 
 ## 0.12.5 (2026-10-30)
 
