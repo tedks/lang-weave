@@ -1878,5 +1878,485 @@
         "example": "3"
       }
     }
+  },
+  "words_title": {
+    "message": "Lang Weave · My words",
+    "description": "Browser tab title of the My words page. \"Lang Weave\" is the product name."
+  },
+  "words_heading": {
+    "message": "My words",
+    "description": "Main heading of the My words page, which lists the learner's words and progress."
+  },
+  "words_progress_heading": {
+    "message": "Progress",
+    "description": "Heading of the progress section on My words."
+  },
+  "words_stages_note": {
+    "message": "Words by stage, from the pack and your active entries (archived entries are not counted):",
+    "description": "Intro line above the per-stage word counts on My words. \"Pack\" is the bundled word list."
+  },
+  "words_list_heading": {
+    "message": "Words",
+    "description": "Heading of the word list section on My words."
+  },
+  "words_find": {
+    "message": "Find a word$FIELD$",
+    "description": "Label of the search box on My words. $1 is the search box itself; keep it where it belongs in the sentence.",
+    "placeholders": {
+      "FIELD": {
+        "content": "$1",
+        "example": "(search box)"
+      }
+    }
+  },
+  "words_search_placeholder": {
+    "message": "Word, English or meaning",
+    "description": "Placeholder text inside the My words search box."
+  },
+  "words_stage_filter": {
+    "message": "Stage$FIELD$",
+    "description": "Label of the stage filter on My words. $1 is the drop-down list itself; keep it where it belongs.",
+    "placeholders": {
+      "FIELD": {
+        "content": "$1",
+        "example": "(drop-down list)"
+      }
+    }
+  },
+  "words_all_stages": {
+    "message": "All stages",
+    "description": "First option of the stage filter on My words: no filtering."
+  },
+  "words_keys": {
+    "message": "Arrow keys, Home and End move between words; Tab moves through each word's actions; Escape returns to search.",
+    "description": "Keyboard help under the search controls on My words."
+  },
+  "words_working_heading": {
+    "message": "Is this working?",
+    "description": "Heading of the section on My words that measures whether learning is working."
+  },
+  "words_working_note": {
+    "message": "Measured from your own reviews on this device. Nothing is sent anywhere.",
+    "description": "Note under the \"Is this working?\" heading on My words."
+  },
+  "words_footer": {
+    "message": "$ENTRIES$ lists all your own words and exports them as JSON. $SETTINGS$",
+    "description": "Footer of My words. $1 is a link to the Personal entries page, $2 a link to Settings.",
+    "placeholders": {
+      "ENTRIES": {
+        "content": "$1",
+        "example": "Personal entries"
+      },
+      "SETTINGS": {
+        "content": "$2",
+        "example": "Settings"
+      }
+    }
+  },
+  "words_entries_link": {
+    "message": "Personal entries",
+    "description": "Link text in the footer of My words that opens the page listing the learner's own entries."
+  },
+  "words_settings_link": {
+    "message": "Settings",
+    "description": "Link text in the footer of My words that opens the extension settings."
+  },
+  "words_unavailable": {
+    "message": "My words is unavailable",
+    "description": "Error shown on My words when the extension's background worker does not answer."
+  },
+  "words_due_not_scheduled": {
+    "message": "Not scheduled",
+    "description": "Due status of a word that is known and not scheduled for review. Shown in the details line of a word on My words."
+  },
+  "words_due_not_started": {
+    "message": "Not started",
+    "description": "Due status of a word that has not been introduced yet. Shown in the details line of a word on My words."
+  },
+  "words_due_now": {
+    "message": "Due now",
+    "description": "Due status of a word whose review is due. Shown in the details line of a word on My words."
+  },
+  "words_due_today_one": {
+    "message": "Due today in $COUNT$ hour",
+    "description": "Due status of a word due later today, singular. $1 is the number of hours.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_due_today_other": {
+    "message": "Due today in $COUNT$ hours",
+    "description": "Due status of a word due later today, plural. $1 is the number of hours.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "words_due_tomorrow": {
+    "message": "Due tomorrow",
+    "description": "Due status of a word due on the next calendar day."
+  },
+  "words_due_days_one": {
+    "message": "Due in $COUNT$ day",
+    "description": "Due status of a word due in one day, singular. $1 is the number of days.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_due_days_other": {
+    "message": "Due in $COUNT$ days",
+    "description": "Due status of a word due in several days, plural. $1 is the number of days.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "words_language_heading": {
+    "message": "$LANGUAGE$ words on this device",
+    "description": "Line under the My words heading naming the language whose words are listed.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "words_headline_returned_one": {
+    "message": "$HEADLINE$ · $COUNT$ word returned from retirement to be verified",
+    "description": "Progress headline followed by the number of retired words that returned to be verified, singular. $2 is the headline sentence.",
+    "placeholders": {
+      "HEADLINE": {
+        "content": "$2",
+        "example": "2 words verified known"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_headline_returned_other": {
+    "message": "$HEADLINE$ · $COUNT$ words returned from retirement to be verified",
+    "description": "Progress headline followed by the number of retired words that returned to be verified, plural. $2 is the headline sentence.",
+    "placeholders": {
+      "HEADLINE": {
+        "content": "$2",
+        "example": "2 words verified known"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "words_stage_count": {
+    "message": "$STAGE$: $COUNT$",
+    "description": "One item in the per-stage counts on My words: the stage name and how many words are in it.",
+    "placeholders": {
+      "STAGE": {
+        "content": "$1",
+        "example": "Learning"
+      },
+      "COUNT": {
+        "content": "$2",
+        "example": "6"
+      }
+    }
+  },
+  "words_strip_label": {
+    "message": "Days with reviews in the last 30 days: $COUNT$",
+    "description": "Screen-reader label of the 30-day activity strip on My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "words_strip_day_one": {
+    "message": "$DAY$: $COUNT$ review",
+    "description": "Tooltip of one day in the activity strip, singular. $2 is the date, $1 the number of reviews that day.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "2026-10-30"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_strip_day_other": {
+    "message": "$DAY$: $COUNT$ reviews",
+    "description": "Tooltip of one day in the activity strip, plural. $2 is the date, $1 the number of reviews that day.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "2026-10-30"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "words_measure_title": {
+    "message": "$TITLE$:",
+    "description": "Bold title of one measurement in \"Is this working?\" on My words; the result follows after a space.",
+    "placeholders": {
+      "TITLE": {
+        "content": "$1",
+        "example": "Workload"
+      }
+    }
+  },
+  "words_gloss_sense": {
+    "message": "$GLOSS$ ($SENSE$)",
+    "description": "A word's English meaning followed by a short note on which sense of the word is meant.",
+    "placeholders": {
+      "GLOSS": {
+        "content": "$1",
+        "example": "bird"
+      },
+      "SENSE": {
+        "content": "$2",
+        "example": "animal"
+      }
+    }
+  },
+  "words_tag_personal": {
+    "message": "your word",
+    "description": "Tag after a word on My words: the learner added it themselves."
+  },
+  "words_tag_saved": {
+    "message": "saved by you",
+    "description": "Tag after a word on My words: the learner saved this bundled word."
+  },
+  "words_tag_archived": {
+    "message": "archived",
+    "description": "Tag after a word on My words: the word is archived."
+  },
+  "words_meta": {
+    "message": "$STAGE$ · $DUE$ · $SEEN$",
+    "description": "Details line under a word on My words: its stage, when it is due, and how often it was seen while reading.",
+    "placeholders": {
+      "STAGE": {
+        "content": "$1",
+        "example": "Learning"
+      },
+      "DUE": {
+        "content": "$2",
+        "example": "Due now"
+      },
+      "SEEN": {
+        "content": "$3",
+        "example": "seen 5 times on 3 days"
+      }
+    }
+  },
+  "words_seen_times_one": {
+    "message": "$COUNT$ time",
+    "description": "Number of times a word was seen, singular. Used inside the \"seen\" phrase.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_seen_times_other": {
+    "message": "$COUNT$ times",
+    "description": "Number of times a word was seen, plural. Used inside the \"seen\" phrase.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "words_seen_on_one": {
+    "message": "seen $TIMES$ on $COUNT$ day",
+    "description": "How often a word was seen while reading and on how many days, singular days. $2 is the number of times, already worded.",
+    "placeholders": {
+      "TIMES": {
+        "content": "$2",
+        "example": "5 times"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_seen_on_other": {
+    "message": "seen $TIMES$ on $COUNT$ days",
+    "description": "How often a word was seen while reading and on how many days, plural days. $2 is the number of times, already worded.",
+    "placeholders": {
+      "TIMES": {
+        "content": "$2",
+        "example": "5 times"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "words_row_label": {
+    "message": "$TARGET$, $GLOSS$, $STAGE$",
+    "description": "Screen-reader name of a word row on My words: the word, its English meaning and its stage.",
+    "placeholders": {
+      "TARGET": {
+        "content": "$1",
+        "example": "gato"
+      },
+      "GLOSS": {
+        "content": "$2",
+        "example": "cat"
+      },
+      "STAGE": {
+        "content": "$3",
+        "example": "Learning"
+      }
+    }
+  },
+  "words_practise": {
+    "message": "Practice now",
+    "description": "Button on a word row of My words: opens the review page for this word."
+  },
+  "words_known": {
+    "message": "Already know",
+    "description": "Button on a word row of My words: marks the word as already known."
+  },
+  "words_reset": {
+    "message": "Reset",
+    "description": "Button on a word row of My words: starts the confirmation to clear the word's schedule."
+  },
+  "words_reset_group": {
+    "message": "Reset $WORD$",
+    "description": "Screen-reader name of the reset confirmation group for a word.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "gato"
+      }
+    }
+  },
+  "words_reset_confirm_text": {
+    "message": "Reset $WORD$? Its schedule, review count and \"known\" mark are cleared; your history stays in the measurements.",
+    "description": "Question shown before resetting a word on My words.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "gato"
+      }
+    }
+  },
+  "words_reset_confirm": {
+    "message": "Confirm reset",
+    "description": "Button that confirms resetting a word on My words."
+  },
+  "words_cancel": {
+    "message": "Cancel",
+    "description": "Button that cancels resetting a word on My words."
+  },
+  "words_reset_done": {
+    "message": "$WORD$ was reset. $COUNT$",
+    "description": "Status line after a word was reset. $2 is the word count line shown under the search box.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "gato"
+      },
+      "COUNT": {
+        "content": "$2",
+        "example": "150 words"
+      }
+    }
+  },
+  "words_archive": {
+    "message": "Archive",
+    "description": "Button on a word row of My words: archives the learner's entry."
+  },
+  "words_unarchive": {
+    "message": "Unarchive",
+    "description": "Button on a word row of My words: restores an archived entry."
+  },
+  "words_more_left": {
+    "message": "Show more ($COUNT$ left)",
+    "description": "Button at the end of the word list on My words. $1 is how many words are not shown yet.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "90"
+      }
+    }
+  },
+  "words_count_one": {
+    "message": "$COUNT$ word",
+    "description": "Number of words in the list on My words, singular.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_count_other": {
+    "message": "$COUNT$ words",
+    "description": "Number of words in the list on My words, plural.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "150"
+      }
+    }
+  },
+  "words_count_of_one": {
+    "message": "$COUNT$ word of $TOTAL$",
+    "description": "Number of words matching the search out of all words, singular.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "150"
+      }
+    }
+  },
+  "words_count_of_other": {
+    "message": "$COUNT$ words of $TOTAL$",
+    "description": "Number of words matching the search out of all words, plural.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "150"
+      }
+    }
+  },
+  "words_no_match": {
+    "message": "No word matches.",
+    "description": "List message on My words when the search matches nothing."
+  },
+  "words_no_words": {
+    "message": "No words yet.",
+    "description": "List message on My words when there are no words at all."
   }
 }
