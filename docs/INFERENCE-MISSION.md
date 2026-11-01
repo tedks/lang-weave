@@ -2,7 +2,7 @@
 
 ## Current state
 
-State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main` `9cd3dce`. Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. Full exact-head gates, council to fixpoint, rebase and normal merge follow. The PR comment carries the final head and gate output. A ruling on backup export of guesses is pending with the lead (see "Storage and compatibility").
+State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main` `9cd3dce`. Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. Full exact-head gates, council to fixpoint, rebase and normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
 
 ## Context and assumptions
 
@@ -25,7 +25,7 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
    - at least two safe distractors exist.
 
    Otherwise the worker replies `{ plain: true }`. The page then shows the gloss and records the peek as before, and remembers the plain answer for that word for the day.
-3. **One guess a day (a bend).** The brief capped guesses per word at three. Without a daily limit, three hovers within a minute would use up all three on one sighting, and the second and third would measure short-term memory rather than inference. The cap is now three guesses on three different local days.
+3. **One guess a day (a bend, accepted by the lead on 2026-11-01).** The brief capped guesses per word at three. Without a daily limit, three hovers within a minute would use up all three on one sighting, and the second and third would measure short-term memory rather than inference. The cap is now three guesses on three different local days.
 4. **Distractors** (`guess.js`). They are drawn deterministically from the pack, with two or three per word (three when available).
    - A distractor is never the word's gloss, never the gloss of a homograph (an accent-folded target match), and never shares a whole-word sense anchor with the answer or with another distractor ("too much" against "much").
    - Candidates are ranked by the same leading article or "to" as the answer, then by closest length, then by a hash of the word ID and the gloss.
@@ -57,7 +57,7 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
 
 - **Log.** `SOURCES` gains `guess` and `OUTCOMES` gains `correct` and `incorrect`. A tuple is valid only when these values occur together with direction `receptive`. The log version stays 1, with no new field.
 - **Downgrade.** Builds up to 0.12.18 drop guess tuples from local storage on their next log write, losing measurement data only. They also refuse a whole schema 2 backup holding one ("invalid retrieval log entry").
-- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on (`guess-export-enable`). Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. Option A (export now, with an "install 0.12.19 first" warning) or option C (schema 3) was put to the lead as NEEDS RULING; option B is built.
+- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on (`guess-log-export`). Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. The other options were A (export now, with an "install 0.12.19 first" warning) and C (schema 3). They were put to the lead as NEEDS RULING. **Ruling (team lead, 2026-11-01): option B**, as built; export is enabled in a later release under `guess-log-export`.
 - **Settings.** `guessFirst` joins `SETTINGS_FIELDS` and is not a backup preference, so import keeps the target's value. A downgrade while it is on trips the old build's strict settings check (`startupUnsupportedSettings`), exactly as `desiredRetention` already does.
 
 ## What would falsify it
@@ -115,7 +115,7 @@ Recommendation 8 is falsified if, after enough data, guessed words recall no bet
   - **Consensus (Sol Critical, Opus Important):** another tab's ticket could get around the daily limit and the cap. Fixed: the worker rechecks stage, cap and day under the lock at answer time. A two-tab worker test fails without the fix.
   - **Sol Critical:** a failed log write was reported as a recorded guess and still applied a peek. Fixed: it returns an error and applies nothing. The worker test fails without the fix.
   - **Sol Important:** the off-state and repaint tests claimed more than they showed. The Chromium gate now checks that the toggle keeps the same span node with zero mutations inside the passages, and that forced-colour choices stay readable and outlined.
-  - **Sol Important:** backups lose guess history. This is the pending ruling; `guess-export-enable` is filed.
+  - **Sol Important:** backups lose guess history. The lead ruled option B; enabling export later is filed as `guess-log-export`.
   - **Sol Important, Opus nit:** screen readers hear the gloss before guessing. Out of this lane's authority (`text.js`); filed as `guess-screen-reader`.
   - **Opus nits fixed:**
     - tickets moved to session storage, so an idle worker no longer loses them;
