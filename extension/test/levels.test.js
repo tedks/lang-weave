@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import {
-  resolveLevel, L1_WORDS, L2_WORDS, validateSwaps, glossMatches, wordCount, isZeroFrench, normalizeFr, matchCase,
+  resolveLevel, L1_WORDS, L2_WORDS, MAX_PACK_ROWS, assertPackAnchors, validateSwaps, glossMatches, wordCount, isZeroFrench, normalizeFr, matchCase,
 } from '../src/levels.js';
 
 describe('level', () => {
@@ -21,7 +21,7 @@ describe('word lists', () => {
   });
   test('L2 stays bounded, includes L1 and the fixed phrases, every entry glossed with a hint', () => {
     expect(L2_WORDS.length).toBeGreaterThanOrEqual(220);
-    expect(L2_WORDS.length).toBeLessThanOrEqual(240);
+    expect(L2_WORDS.length).toBeLessThanOrEqual(MAX_PACK_ROWS);
     const frs = L2_WORDS.map((w) => w.fr);
     for (const w of L1_WORDS) expect(frs).toContain(w.fr);
     for (const p of ['no sé', 'hay', 'creo que', 'hace falta']) expect(frs).toContain(p);
@@ -30,6 +30,22 @@ describe('word lists', () => {
       expect(w.en.length).toBeGreaterThan(0);
       expect(w.hint.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('candidate pack admission', () => {
+  test('rejects shared normalized English anchors and accepts distinct explicit surfaces', () => {
+    const a = { fr: 'la nube', en: 'the cloud', anchors: ['cloud'], hint: 'lah NOO-beh' };
+    const b = { fr: 'el sombrero', en: 'the hat', anchors: [' HAT '], hint: 'el som-BREH-roh' };
+    expect(() => assertPackAnchors([a, b])).not.toThrow();
+    expect(() => assertPackAnchors([a, { ...b, anchors: [' CLOUD '] }])).toThrow(/shared/);
+    expect(() => assertPackAnchors(Array.from({ length: MAX_PACK_ROWS + 1 }, (_, i) => ({ ...a, fr: `word${i}` }))))
+      .toThrow(/exceeds/);
+  });
+  test('explicit verb anchors are exact: the legacy suffix stemmer cannot invent a form', () => {
+    const word = { fr: 'hablar', en: 'speak', anchors: ['speak', 'speaks', 'speaking'], hint: 'ah-BLAR' };
+    expect(validateSwaps(2, [{ o: 'speaks', f: 'hablar' }], [word])).toHaveLength(1);
+    expect(validateSwaps(2, [{ o: 'spoke', f: 'hablar' }], [word])).toHaveLength(0);
   });
 });
 

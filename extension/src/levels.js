@@ -2,6 +2,7 @@
 
 // L3/L4 prompts are not built yet; anything above this uses L2 rules.
 export const MAX_BUILT_LEVEL = 2;
+export const MAX_PACK_ROWS = 3000;
 
 // stage: optional legacy stage; chosen: after the popup override;
 // effective: what the prompt uses.
@@ -16,6 +17,21 @@ export { L1_WORDS, L2_EXTRA, L2_WORDS, wordsForLevel } from './vocabulary.js';
 import { wordsForLevel } from './vocabulary.js';
 import { locate } from './text.js';
 import { allCaps, sourceIssue } from './semantic.js';
+import { englishAnchors } from './catalog.js';
+
+// Candidate packs must resolve every English surface form to exactly one row.
+// The bundled 226 predate this gate and have two known collisions (only, free);
+// they remain unchanged until the curriculum review makes a product decision.
+export function assertPackAnchors(words) {
+  if (!Array.isArray(words) || words.length > MAX_PACK_ROWS) throw new Error(`pack exceeds ${MAX_PACK_ROWS} rows`);
+  const owner = new Map();
+  for (const word of words) for (const anchor of englishAnchors(word)) {
+    if (owner.has(anchor) && owner.get(anchor) !== word.fr) {
+      throw new Error(`English anchor ${JSON.stringify(anchor)} is shared by ${owner.get(anchor)} and ${word.fr}`);
+    }
+    owner.set(anchor, word.fr);
+  }
+}
 
 // Legacy function names and fr fields mean target-language text. Keep ñ distinct from n.
 export function normalizeFr(s) {
@@ -42,12 +58,12 @@ function indexFor(level, sharedWords, language = 'es') {
   const idx = new Map();
   for (const w of sharedWords || wordsForLevel(lvl)) {
     const full = exactTarget(w.fr, language);
-    idx.set(full, { canon: w.fr, en: w.en, hint: w.hint, word: w.fr, status: w.status });
+    idx.set(full, { canon: w.fr, en: w.en, anchors: w.anchors, hint: w.hint, word: w.fr, status: w.status });
     const stripped = language === 'es' ? full.replace(ARTICLE_RE, '') : full;
     if (stripped !== full && !idx.has(stripped)) {
       // Accept a bare noun ("problema" for "problem") and keep the accents from the list.
       const canon = w.fr.replace(ARTICLE_RE, '');
-      idx.set(stripped, { canon, en: w.en.replace(/^the /, ''), hint: w.hint.replace(/^(el|lah|lohs|lahs|oon|OO-nah) /i, ''), word: w.fr, status: w.status });
+      idx.set(stripped, { canon, en: w.en.replace(/^the /, ''), anchors: w.anchors, hint: w.hint.replace(/^(el|lah|lohs|lahs|oon|OO-nah) /i, ''), word: w.fr, status: w.status });
     }
   }
   const folded = new Map();
@@ -136,7 +152,8 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     let hit = idx.exact.get(exact) || (language === 'es' && !AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
-    if (!hit || !glossMatches(o, hit.en, { inflections: language === 'es' && !ARTICLE_RE.test(hit.word) })) continue;
+    if (!hit || !glossMatches(o, hit.anchors?.join(' / ') || hit.en,
+      { inflections: !hit.anchors && language === 'es' && !ARTICLE_RE.test(hit.word) })) continue;
     // A definite Spanish noun cannot replace the whole indefinite English phrase.
     // The bare-noun fallback below would otherwise drop "a/an" from the sentence.
     if (language === 'es' && DEFINITE_RE.test(hit.word) && /^(?:a|an)\s/i.test(o)) continue;

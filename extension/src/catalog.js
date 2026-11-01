@@ -8,6 +8,8 @@ export function catalogEntries(words, scope) {
 }
 
 export function englishAnchors(word) {
+  if (Array.isArray(word.anchors)) return [...new Set(word.anchors.map((anchor) => anchor.normalize('NFC')
+    .toLocaleLowerCase('en').replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()).filter(Boolean))];
   const anchors = new Set();
   for (const alternative of word.en.split(/\s*[/;,]\s*/)) {
     const plain = alternative.normalize('NFC').toLocaleLowerCase('en')

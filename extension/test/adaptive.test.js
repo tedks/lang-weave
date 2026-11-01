@@ -77,6 +77,23 @@ test('new Spanish cognates rank first and the final 2% cap counts placements acr
     .toEqual({ a: [{ word: 'known' }], b: [{ word: 'due' }] });
 });
 
+test('frequency band precedes cognate and encounter ties for new words', () => {
+  const words = [{ fr: 'hospital', en: 'hospital', band: 3 },
+    { fr: 'ventana', en: 'window', band: 1 },
+    { fr: 'libro', en: 'book', band: 1 }];
+  const encounters = { [entryId('es', words[0])]: 7, [entryId('es', words[2])]: 3 };
+  expect(select({ batch: batch('The hospital window has a book.'), words, encounters })
+    .map((w) => w.fr)).toEqual(['libro', 'ventana', 'hospital']);
+});
+
+test('Beginner band zero preserves the prior new-word order', () => {
+  const text = batch(L1_WORDS.flatMap(englishAnchors).join(' '));
+  const before = L1_WORDS.map(({ band, ...word }) => word);
+  expect(L1_WORDS.every((word) => word.band === 0)).toBe(true);
+  expect(select({ batch: text, words: L1_WORDS }).map((word) => word.fr))
+    .toEqual(select({ batch: text, words: before }).map((word) => word.fr));
+});
+
 test('due and recent difficulty lead active and new with stable ties and passage relevance', () => {
   const state = cleanReview({ version: 1, cards: {
     'la ventana': { due: now - 1000, interval: 2, reviews: 2 },
@@ -87,7 +104,7 @@ test('due and recent difficulty lead active and new with stable ties and passage
   const first = select({ batch: text, state });
   expect(first.map(({ fr, reasonCode }) => [fr, reasonCode])).toEqual([
     ['la ventana', 'due'], ['el libro', 'recent_difficulty'], ['el día', 'active'],
-    ['la historia', 'new'], ['el pueblo', 'new'], ['hoy', 'new'], ['y', 'new'],
+    ['hoy', 'new'], ['y', 'new'], ['la historia', 'new'], ['el pueblo', 'new'],
   ]);
   expect(select({ batch: text, state })).toEqual(first);
   expect(first.every((w) => !['el gato', 'el perro'].includes(w.fr))).toBe(true);
