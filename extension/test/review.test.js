@@ -1,10 +1,38 @@
 import { test, expect } from 'bun:test';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
 import { DAY_MS, cleanReview, introduce, nextDue, nextReview, revealReview, rateReview, reviewCounts, retiredReturnCount, markFamiliar, askable,
-  countCardEncounter, dueAt, claimKnown } from '../src/review.js';
+  countCardEncounter, dueAt, claimKnown, beginInline, revealInline, finishInline, MAX_INLINE_TICKETS } from '../src/review.js';
 import { initialState, nextState, intervalDays } from '../src/fsrs.js';
 import { localDay } from '../src/events.js';
 import { verifiedWords, wordStage } from '../src/progress.js';
+
+test('inline tickets are bounded by tab, preserve document checks, and stay single-use', () => {
+  const now = Date.parse('2026-11-01T12:00:00Z');
+  const words = [{ fr: 'la idea', en: 'the idea' }, { fr: 'la pregunta', en: 'the question' }];
+  const state = cleanReview({ version: 1, cards: Object.fromEntries(words.map(({ fr }) =>
+    [fr, { due: now - 1, interval: 1, reviews: 1, introducedDay: '2020-01-01' }])),
+    current: null, learning: { day: '2026-11-01', count: 0, pending: [] }, inline: null }, words, now, true);
+  const sender = (id) => ({ tab: { id }, frameId: 0, documentId: `doc-${id}` });
+  const a = beginInline(state, words[0].fr, sender(1), 'revision', now).ticket;
+  const b = beginInline(state, words[1].fr, sender(2), 'revision', now).ticket;
+  expect(state.inline.map(({ tabId }) => tabId)).toEqual([1, 2]);
+  expect(revealInline(state, words, a, sender(2), 'revision', now)).toBeNull();
+  expect(revealInline(state, words, a, { ...sender(1), documentId: 'new-document' }, 'revision', now)).toBeNull();
+  expect(revealInline(state, words, a, sender(1), 'revision', now)?.fr).toBe(words[0].fr);
+  expect(revealInline(state, words, b, sender(2), 'revision', now)?.fr).toBe(words[1].fr);
+  expect(finishInline(state, a, sender(1), 'old-revision', now, 'easy')).toBeNull();
+  expect(finishInline(state, a, sender(1), 'revision', now, 'easy')?.record.word).toBe(words[0].fr);
+  expect(state.inline?.map(({ tabId }) => tabId)).toEqual([2]);
+  expect(finishInline(state, a, sender(1), 'revision', now, 'easy')).toBeNull();
+  expect(finishInline(state, b, sender(2), 'revision', now, 'hard')?.record.word).toBe(words[1].fr);
+  expect(state.inline).toBeNull();
+  state.cards[words[1].fr].due = now - 1;
+  for (let id = 1; id <= MAX_INLINE_TICKETS + 2; id++)
+    beginInline(state, words[1].fr, sender(id), 'revision', now);
+  expect(state.inline).toHaveLength(MAX_INLINE_TICKETS);
+  expect(state.inline[0].tabId).toBe(3);
+  expect(cleanReview(state, words, now, true).inline).toHaveLength(MAX_INLINE_TICKETS);
+});
 
 test('nextDue reads offered future cards by local day in western and eastern time zones', () => {
   const previous = process.env.TZ;

@@ -6,6 +6,7 @@ export const REVIEW_KEY = 'recallReview';
 export const DAY_MS = 86400000;
 export const AGAIN_MS = 10 * 60 * 1000;
 export const MAINTENANCE_MS = 21 * DAY_MS;
+export const MAX_INLINE_TICKETS = 16;
 const RATINGS = new Set(['again', 'hard', 'medium', 'easy']);
 
 export function cleanReview(raw, words, now = Date.now(), gradual = false) {
@@ -60,22 +61,28 @@ export function cleanReview(raw, words, now = Date.now(), gradual = false) {
     typeof current.revealed === 'boolean';
   // When the prompt was first shown, for the worker-measured review time. Ephemeral, never exported.
   const shown = (value) => Number.isSafeInteger(value?.shownAt) && value.shownAt >= 0 ? { shownAt: value.shownAt } : {};
-  const inline = raw?.version === 1 ? raw.inline : null;
-  const validInline = inline && Object.hasOwn(cards, inline.word) &&
+  const rawInline = raw?.version === 1 ? raw.inline : null;
+  // Older profiles hold one ticket. Keep it, but bound new per-tab state and
+  // discard duplicate tab entries in a malformed local value.
+  const inlineItems = Array.isArray(rawInline) ? rawInline.slice(-MAX_INLINE_TICKETS) : rawInline ? [rawInline] : [];
+  const validInline = (inline) => inline && Object.hasOwn(cards, inline.word) &&
     typeof inline.ticket === 'string' && /^[0-9a-f-]{36}$/.test(inline.ticket) &&
     typeof inline.documentId === 'string' && inline.documentId.length <= 100 &&
     Number.isSafeInteger(inline.tabId) && Number.isSafeInteger(inline.frameId) &&
     typeof inline.revision === 'string' && inline.revision.length <= 100 &&
     typeof inline.revealed === 'boolean';
+  const byTab = new Map();
+  for (const inline of inlineItems) if (validInline(inline)) byTab.set(inline.tabId,
+    { word: inline.word, ticket: inline.ticket, documentId: inline.documentId,
+      tabId: inline.tabId, frameId: inline.frameId, revision: inline.revision,
+      revealed: inline.revealed, ...shown(inline) });
   // `practice`: the card's due time when the learner chose it with Practice now (My words).
   // While the card still has that due time it may be served before it is due; FSRS schedules it
   // from the real elapsed time (an early review). Any other write to the card voids the grant.
   const practice = (value) => Number.isSafeInteger(value?.practice) && value.practice >= 0 ? { practice: value.practice } : {};
   return { version: 1, cards, current: valid
     ? { word: current.word, ticket: current.ticket, revealed: current.revealed, ...shown(current), ...practice(current) } : null,
-    learning: cleanLearning(raw?.learning, now), inline: validInline ? { word: inline.word, ticket: inline.ticket,
-      documentId: inline.documentId, tabId: inline.tabId, frameId: inline.frameId,
-      revision: inline.revision, revealed: inline.revealed, ...shown(inline) } : null };
+    learning: cleanLearning(raw?.learning, now), inline: byTab.size ? [...byTab.values()] : null };
 }
 
 export function reviewCounts(state, words, now) {
@@ -264,40 +271,47 @@ export function beginInline(state, word, sender, revision, now, ticket = () => c
   const card = state.cards[word];
   if (!card || dueAt(card) > now || (card.introGateDay || card.introducedDay) >= localDay(new Date(now)) || !sender.documentId ||
       !Number.isSafeInteger(sender.tab?.id) || !Number.isSafeInteger(sender.frameId)) return null;
-  state.inline = { word, ticket: ticket(), documentId: sender.documentId,
+  const active = { word, ticket: ticket(), documentId: sender.documentId,
     tabId: sender.tab.id, frameId: sender.frameId, revision, revealed: false, shownAt: now };
-  return { ticket: state.inline.ticket };
+  state.inline = [...(state.inline || []).filter((item) => item.tabId !== active.tabId), active]
+    .slice(-MAX_INLINE_TICKETS);
+  return { ticket: active.ticket };
 }
 
 export function matchesInline(state, ticket, sender, revision) {
-  const active = state.inline;
+  const active = state.inline?.find((item) => item.tabId === sender.tab?.id);
   return !!active && active.ticket === ticket && active.revision === revision &&
     active.documentId === sender.documentId && active.tabId === sender.tab?.id &&
     active.frameId === sender.frameId;
 }
 
 export function revealInline(state, words, ticket, sender, revision, now) {
-  if (!matchesInline(state, ticket, sender, revision) || dueAt(state.cards[state.inline.word]) > now) return null;
-  const word = words.find((w) => w.fr === state.inline.word);
+  if (!matchesInline(state, ticket, sender, revision)) return null;
+  const active = state.inline.find((item) => item.tabId === sender.tab.id);
+  if (dueAt(state.cards[active.word]) > now) return null;
+  const word = words.find((w) => w.fr === active.word);
   if (!word) return null;
-  state.inline.revealed = true;
+  active.revealed = true;
   return { fr: word.fr, en: word.en, hint: word.hint };
 }
 
 export function finishInline(state, ticket, sender, revision, now, rating, retention = DEFAULT_RETENTION) {
-  if (!matchesInline(state, ticket, sender, revision) || !state.inline.revealed ||
-      dueAt(state.cards[state.inline.word]) > now) return null;
-  const card = state.cards[state.inline.word];
-  const prompt = { word: state.inline.word, latencyMs: reviewLatency(state.inline, now) };
+  if (!matchesInline(state, ticket, sender, revision)) return null;
+  const active = state.inline.find((item) => item.tabId === sender.tab.id);
+  if (!active.revealed || dueAt(state.cards[active.word]) > now) return null;
+  const card = state.cards[active.word];
+  const prompt = { word: active.word, latencyMs: reviewLatency(active, now) };
   if (rating === 'known') {
     // "Already know" is a claim, logged as such, never as a recall.
     const record = { ...prompt, prior: card.reviews, outcome: 'known', elapsedDays: null, intervalDays: null, predicted: null };
     claimKnown(card, now);
-    state.inline = null;
+    state.inline = state.inline.filter((item) => item !== active);
+    if (!state.inline.length) state.inline = null;
     return { familiar: true, record };
   }
   if (!RATINGS.has(rating)) return null;
   const result = scheduleCard(card, rating, now, true, retention);
-  state.inline = null;
+  state.inline = state.inline.filter((item) => item !== active);
+  if (!state.inline.length) state.inline = null;
   return { ...result, record: { ...prompt, ...result.record }, familiar: card.familiar === true };
 }

@@ -60,3 +60,56 @@ test('no grants: nothing registered, an earlier registration is removed', async 
   expect(await register(dev, { origins: [], existing: [{ id: 'weave-sites' }] }))
     .toEqual([['unregister', { ids: ['weave-sites'] }]]);
 });
+
+test('startup recovery probes granted tabs, rechecks consent, and injects each absent script once', async () => {
+  const saved = globalThis.chrome;
+  const calls = [];
+  let consentShown = true;
+  const tabs = new Map([
+    [1, { id: 1, url: 'https://example.com/article', title: 'Ordinary reading' }],
+    [2, { id: 2, url: 'https://example.com/already', title: 'Ordinary reading' }],
+    [3, { id: 3, url: 'https://mail.google.com/inbox', title: 'Inbox' }],
+    [4, { id: 4, url: 'chrome-extension://test/src/welcome.html', title: 'Welcome' }],
+    [5, { id: 5, title: 'Hidden URL' }],
+    [7, { id: 7, url: 'https://example.com/importing', title: 'Ordinary reading' }],
+  ]);
+  const ctx = { hasKey: true, paused: false, settings: { enabled: true, newSitesEnabled: true, siteOverrides: {} },
+    origins: ['<all_urls>'] };
+  globalThis.chrome = {
+    permissions: { getAll: async () => ({ origins: ['<all_urls>'] }) },
+    tabs: {
+      query: async (filter) => { calls.push(['query', filter]); return [...tabs.values()]; },
+      get: async (id) => tabs.get(id),
+      sendMessage: async (id, msg, options) => {
+        calls.push(['ping', id, msg, options]);
+        if (id === 2) return { ok: false }; // a false reply still proves a content handler is present
+        throw new Error('No receiving end');
+      },
+    },
+    scripting: {
+      insertCSS: async (args) => { calls.push(['css', args]); },
+      executeScript: async (args) => {
+        calls.push([args.func ? 'marker' : 'script', args]);
+        return args.func ? [{ result: args.target.tabId === 7 }] : [];
+      },
+    },
+  };
+  const store = { get: async () => ({ consentShown }) };
+  try {
+    const sites = createSites({ store, locked: (fn) => fn(), worker: {}, broadcast: () => {}, context: async () => ctx });
+    await sites.recoverOpenTabs();
+    await sites.recoverOpenTabs();
+    expect(calls.filter(([kind]) => kind === 'query')).toHaveLength(2);
+    expect(calls.find(([kind]) => kind === 'query')[1]).toEqual({ url: ['http://*/*', 'https://*/*'] });
+    expect(calls.filter(([kind]) => kind === 'script')).toEqual([
+      ['script', { target: { tabId: 1 }, files: ['src/content-loader.js'] }],
+    ]);
+    expect(calls.filter(([kind]) => kind === 'css')).toHaveLength(1);
+    expect(calls.filter(([kind]) => kind === 'marker')).toHaveLength(3);
+    expect(calls.filter(([kind]) => kind === 'ping').map(([, id]) => id)).toEqual([1, 2, 7, 2, 7]);
+    consentShown = false;
+    tabs.set(6, { id: 6, url: 'https://example.com/new', title: 'Ordinary reading' });
+    await sites.recoverOpenTabs();
+    expect(calls.filter(([kind]) => kind === 'script')).toHaveLength(1);
+  } finally { globalThis.chrome = saved; }
+});

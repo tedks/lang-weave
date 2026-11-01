@@ -143,6 +143,8 @@ try {
   const [registered] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.ok(registered, 'the granted sites are registered dynamically');
   assert.deepEqual(registered.js, ['src/content-bundle.js']);
+  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'),
+    /files: \['src\/content-bundle\.js'\]/, 'Store startup recovery injects the bundle');
   assert.deepEqual(registered.excludeMatches ?? [], []);
   let page = await context.newPage();
   await page.goto('https://x.com/someone/status/1');
@@ -154,6 +156,10 @@ try {
   assert.match(await page.locator('.fw-gloss-on').textContent(), /y · and/);
   await word.click();
   assert.equal(await word.textContent(), 'and');
+  const prime = await context.newPage();
+  await prime.goto('https://reading.example/prime');
+  await prime.locator('#reading .fw-word').waitFor(); // cache this passage before worker restarts
+  await prime.close();
   // Popup fallback injection can run again on the same document. A classic script needs the
   // module loader's old one-evaluation semantics or duplicate listeners and observers result.
   const tabId = await worker.evaluate(async () => (await chrome.tabs.query({ url: 'https://x.com/*' }))[0]?.id);
@@ -194,6 +200,15 @@ try {
   worker = await restartWorker(context, page, id, worker);
   const [cleared] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.deepEqual(cleared.excludeMatches ?? [], [], 'a restarted worker clears a stale exclusion');
+  await worker.evaluate(() => chrome.scripting.unregisterContentScripts({ ids: ['weave-sites'] }));
+  const waiting = await context.newPage();
+  await waiting.goto('https://reading.example/waiting');
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 0);
+  worker = await restartWorker(context, waiting, id, worker);
+  await waiting.locator('#reading .fw-word').waitFor();
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 1,
+    'Store startup recovery injects its bundled script into an already-open granted page');
+  await waiting.close();
   await context.close();
 
   // Dev (unpacked) build: X through the manifest content script; the self-update stays armed. The X grant is

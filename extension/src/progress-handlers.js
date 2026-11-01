@@ -140,7 +140,11 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
   const dropTickets = (state, id) => {
     let changed = false;
     if (state.current?.word === id) { state.current = null; changed = true; }
-    if (state.inline?.word === id) { state.inline = null; changed = true; }
+    if (state.inline?.some((item) => item.word === id)) {
+      state.inline = state.inline.filter((item) => item.word !== id);
+      if (!state.inline.length) state.inline = null;
+      changed = true;
+    }
     return changed;
   };
 
