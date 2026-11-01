@@ -122,3 +122,55 @@ test('fresh profile blocks reading Gemini dispatch until welcome save, while an 
     expect(fetches).toBe(2);
   } finally { globalThis.chrome = old.chrome; globalThis.fetch = old.fetch; }
 }, 30000);
+
+test('welcome page renders its notes and choice results as the exact English', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-welcome/src/welcome.html' });
+  window.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
+  globalThis.document = window.document;
+  let grant = true;
+  let saveOk = true;
+  globalThis.chrome = {
+    runtime: { getManifest: () => ({ content_scripts: [] }), openOptionsPage: async () => {},
+      sendMessage: async (msg) => (saveOk ? { ok: true } : { ok: false }) },
+    permissions: { request: async () => grant },
+  };
+  const wait = async (predicate) => { for (let i = 0; i < 100 && !predicate(); i++) await new Promise((done) => setTimeout(done, 0)); };
+  try {
+    await import('../src/welcome.js?welcome-english');
+    const $ = (id) => window.document.getElementById(id);
+    const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
+    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(2)'))).toBe('Reading level controls which bundled words can appear; Beginner is a good start.');
+    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(3)'))).toBe('Gradual learning introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.');
+    expect($('suggestX').hidden).toBe(false);
+    $('onlySites').click();
+    await wait(() => $('choiceStatus').textContent !== '');
+    expect($('choiceStatus').textContent).toBe('Only sites you turn on selected. Open the popup on a site to allow it.');
+    $('allSites').click();
+    await wait(() => $('choiceStatus').textContent.startsWith('All'));
+    expect($('choiceStatus').textContent).toBe('All permitted sites selected. Sensitive sites still start off.');
+    grant = false;
+    $('allSites').click();
+    await wait(() => $('choiceStatus').textContent.startsWith('Chrome'));
+    expect($('choiceStatus').textContent).toBe('Chrome did not grant all-site access. Choose only sites you turn on, or try again.');
+    saveOk = false;
+    $('onlySites').click();
+    await wait(() => $('choiceStatus').textContent === 'Could not save your choice');
+    expect($('choiceStatus').textContent).toBe('Could not save your choice');
+    $('allowX').click();
+    await wait(() => $('xStatus').textContent !== '');
+    expect($('xStatus').textContent).toBe('Chrome did not grant x.com access.');
+    grant = true;
+    $('allowX').click();
+    await wait(() => $('xStatus').textContent === 'Could not enable x.com');
+    expect($('xStatus').textContent).toBe('Could not enable x.com');
+    saveOk = true;
+    $('allowX').click();
+    await wait(() => $('xStatus').textContent.startsWith('x.com allowed'));
+    expect($('xStatus').textContent).toBe('x.com allowed. After setup, reload any open X page to start there.');
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.chrome = oldChrome;
+    window.happyDOM.abort();
+  }
+});

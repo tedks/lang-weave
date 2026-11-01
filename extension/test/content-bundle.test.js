@@ -72,7 +72,7 @@ test('the shipped content closure wraps in deterministic order with an entry fun
   const files = new Map();
   // Deliberate drift alarm: a new content dependency must be reviewed before shipping it.
   for (const name of ['content', 'catalog', 'events', 'fsrs', 'hash', 'language-name', 'learning', 'levels', 'page',
-    'personal-capture', 'personal', 'review', 'semantic', 'settings', 'text', 'vocabulary']) {
+    'personal-capture', 'personal', 'review', 'semantic', 'settings', 'text', 'vocabulary', 'i18n', 'messages-en']) {
     files.set(`src/${name}.js`, readFileSync(resolve(dir, `${name}.js`), 'utf8'));
   }
   const { code, order } = bundleContent(files);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lang Weave · My words</title>
+<title data-i18n="words_title">Lang Weave · My words</title>
 <link rel="stylesheet" href="ui.css">
 <style>
   * { box-sizing: border-box; }
@@ -38,35 +38,35 @@
 </head>
 <body>
 <main>
-  <h1>My words</h1>
+  <h1 data-i18n="words_heading">My words</h1>
   <p id="language" class="muted"></p>
   <p id="notice" class="error" role="alert"></p>
   <section aria-labelledby="progressHeading">
-    <h2 id="progressHeading">Progress</h2>
+    <h2 id="progressHeading" data-i18n="words_progress_heading">Progress</h2>
     <p id="headline"></p>
-    <p class="muted meta" id="stagesNote">Words by stage, from the pack and your active entries (archived entries are not counted):</p>
+    <p class="muted meta" id="stagesNote" data-i18n="words_stages_note">Words by stage, from the pack and your active entries (archived entries are not counted):</p>
     <ul id="stages" aria-labelledby="stagesNote"></ul>
     <p id="today" class="muted"></p>
     <div id="strip" role="img"></div>
     <p id="week" class="muted"></p>
   </section>
   <section aria-labelledby="listHeading">
-    <h2 id="listHeading">Words</h2>
+    <h2 id="listHeading" data-i18n="words_list_heading">Words</h2>
     <div class="controls">
-      <label for="search">Find a word<input id="search" type="search" autocomplete="off" placeholder="Word, English or meaning" aria-describedby="keys"></label>
-      <label for="stage">Stage<select id="stage"><option value="">All stages</option></select></label>
+      <label for="search" data-i18n="words_find">Find a word<input id="search" type="search" autocomplete="off" placeholder="Word, English or meaning" data-i18n-placeholder="words_search_placeholder" aria-describedby="keys"></label>
+      <label for="stage" data-i18n="words_stage_filter">Stage<select id="stage"><option value="" data-i18n="words_all_stages">All stages</option></select></label>
     </div>
-    <p id="keys" class="muted meta">Arrow keys, Home and End move between words; Tab moves through each word's actions; Escape returns to search.</p>
+    <p id="keys" class="muted meta" data-i18n="words_keys">Arrow keys, Home and End move between words; Tab moves through each word's actions; Escape returns to search.</p>
     <p id="count" class="muted" role="status" aria-live="polite"></p>
     <ul id="words" aria-labelledby="listHeading"></ul>
     <button id="more" type="button" hidden>Show more</button>
   </section>
   <section aria-labelledby="workingHeading">
-    <h2 id="workingHeading">Is this working?</h2>
-    <p class="muted">Measured from your own reviews on this device. Nothing is sent anywhere.</p>
+    <h2 id="workingHeading" data-i18n="words_working_heading">Is this working?</h2>
+    <p class="muted" data-i18n="words_working_note">Measured from your own reviews on this device. Nothing is sent anywhere.</p>
     <ul id="measures"></ul>
   </section>
-  <p class="muted"><a href="capture.html" id="openEntries">Personal entries</a> lists all your own words and exports them as JSON. <a href="options.html" id="openSettings">Settings</a></p>
+  <p class="muted" data-i18n="words_footer"><a href="capture.html" id="openEntries" data-i18n="words_entries_link">Personal entries</a> lists all your own words and exports them as JSON. <a href="options.html" id="openSettings" data-i18n="words_settings_link">Settings</a></p>
 </main>
 <script type="module" src="words.js"></script>
 </body>

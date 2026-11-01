@@ -151,3 +151,44 @@ test('options works without a tab; settings, exception reset and key removal rou
     window.happyDOM.abort();
   }
 });
+
+test('options renders its multi-part sentences and dynamic notes as the exact English', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-options/src/options.html' });
+  window.document.write(readFileSync(new URL('../src/options.html', import.meta.url), 'utf8'));
+  window.setInterval = () => 1;
+  globalThis.document = window.document;
+  const status = { config: { settings: cleanSettings({ newSitesEnabled: true, siteOverrides: { 'a.example': true } }), language: 'fr', hasKey: false, origins: [] },
+    update: '0.12.19', languages: [{ code: 'es', name: 'Spanish' }, { code: 'fr', name: 'French', experimental: true }],
+    words: 21, review: { due: 4, new: 0 }, pastedKey: false, consentShown: false, modelStatus: null };
+  globalThis.chrome = {
+    runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.18' }),
+      sendMessage: async (msg) => { if (msg.type === 'status') return status; throw new Error('no progress'); } },
+    storage: { onChanged: { addListener: () => {} } },
+    permissions: { contains: async () => false, request: async () => true,
+      onAdded: { addListener: () => {} }, onRemoved: { addListener: () => {} } },
+    tabs: { create: async () => ({ id: 1 }) },
+  };
+  try {
+    await import('../src/options.js?options-english');
+    const $ = (id) => window.document.getElementById(id);
+    await waitFor(() => $('version').textContent === '0.12.18');
+    const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
+    expect(text($('levelInfo').parentElement)).toBe('Current effective level: L1');
+    expect(text($('wordInfo').parentElement)).toBe('Eligible vocabulary: 21 French words (not words learned). Recall reviews due: 4.');
+    expect(text($('version').parentElement)).toBe('Lang Weave version 0.12.18 · AGPL-3.0-or-later license · NOTICE and upstream credits');
+    expect(text($('updateVersion').parentElement)).toBe("Update 0.12.19 didn't load by itself: click the reload arrow on Lang Weave in the extensions page.");
+    expect(text($('welcomeLink'))).toBe('Review the first-run privacy choices before testing a key or generating vocabulary.');
+    expect($('welcomeLink').querySelector('a').getAttribute('href')).toBe('welcome.html');
+    expect([...$('language').options].map((o) => o.textContent)).toEqual(['Spanish', 'French · experimental']);
+    expect($('consentNote').textContent).toBe('Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.');
+    expect($('accessNote').textContent).toBe('Chrome needs your OK before it can run on other sites.');
+    expect($('siteList').textContent).toBe('a.example: onReset');
+    expect($('apiKey').placeholder).toBe('AIza…');
+    expect(text($('openMyWords').parentElement)).toBe('My words shows every word\'s stage and next review, lets you practise or reset one, and answers "is this working?".');
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.chrome = oldChrome;
+    window.happyDOM.abort();
+  }
+});

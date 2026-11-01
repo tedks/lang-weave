@@ -149,3 +149,42 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     window.happyDOM.abort();
   }
 });
+
+test('My words row text keeps its English tags, due phrases and plural forms', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-words/src/words.html' });
+  window.document.write(readFileSync(new URL('../src/words.html', import.meta.url), 'utf8'));
+  globalThis.document = window.document;
+  const now = new Date(2026, 9, 30, 10).getTime(); // local morning: +5 hours is still today in any zone
+  const row = (id, extra) => ({ id, kind: 'pack', target: id, gloss: `gloss ${id}`, hint: '', stage: 'learning', due: null,
+    reviews: 0, familiar: false, lapses: 0, exposures: 1, days: 1, version: null, practise: true, reason: '', ...extra });
+  const rows = [
+    row('hour', { due: now + 30 * 60000 }),
+    row('hours', { due: now + 5 * 3600000, exposures: 5, days: 3 }),
+    row('tomorrow', { due: now + 86400000, sense: 'sense', saved: { id: 's', archived: false } }),
+    row('mine', { kind: 'personal', archived: true, familiar: true, due: null }),
+  ];
+  globalThis.chrome = { runtime: { getURL: (path) => path, openOptionsPage: async () => {},
+    sendMessage: async (msg) => (msg.type === 'progress' ? { ...progress, returned: 1, verifiedKnown: 0 }
+      : { language: 'Spanish', scope: 'es', now, rows }) }, tabs: { create: async () => ({}) } };
+  try {
+    await import('../src/words.js?plurals');
+    const items = () => [...window.document.getElementById('words').children].filter((li) => li.dataset.id);
+    await waitFor(() => items().length === 4);
+    const text = (id) => items().find((li) => li.dataset.id === id).querySelector('.meta').textContent;
+    expect(text('hour')).toBe('Learning · Due today in 1 hour · seen 1 time on 1 day');
+    expect(text('hours')).toBe('Learning · Due today in 5 hours · seen 5 times on 3 days');
+    expect(text('tomorrow')).toBe('Learning · Due tomorrow · seen 1 time on 1 day');
+    expect(text('mine')).toBe('Learning · Not scheduled · seen 1 time on 1 day');
+    const head = (id) => items().find((li) => li.dataset.id === id).firstChild.textContent;
+    expect(head('tomorrow')).toBe('tomorrow · gloss tomorrow (sense) · saved by you');
+    expect(head('mine')).toBe('mine · gloss mine · your word · archived');
+    expect(window.document.getElementById('headline').textContent)
+      .toBe('No words verified yet · 1 word returned from retirement to be verified');
+    expect(window.document.getElementById('language').textContent).toBe('Spanish words on this device');
+    expect(items().find((li) => li.dataset.id === 'tomorrow').getAttribute('aria-label')).toBe('tomorrow, gloss tomorrow, Learning');
+  } finally {
+    Object.assign(globalThis, { document: oldDocument, chrome: oldChrome });
+    await window.happyDOM.abort();
+  }
+});

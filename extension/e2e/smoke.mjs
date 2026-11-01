@@ -44,6 +44,7 @@ try {
   // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
   const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+  if (declared.default_locale) await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
   const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
   // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
   manifest.host_permissions.push(...manifest.optional_host_permissions);
@@ -112,7 +113,8 @@ try {
   assert.match(await word.getAttribute('data-tip'), /and/);
   await word.click();
   assert.equal(await word.textContent(), 'and');
-  assert.match(await word.getAttribute('aria-label'), /Show Spanish/);
+  assert.equal(await word.getAttribute('lang'), null); // English face: no target lang
+  assert.equal(await word.evaluate((el) => document.getElementById(el.getAttribute('aria-describedby'))?.textContent), 'Show Spanish');
   await word.press('Enter');
   assert.equal(await word.textContent(), 'y');
   assert.equal(await page.locator('#health .fw-word, form .fw-word, [contenteditable] .fw-word, pre .fw-word, [lang=es] .fw-word').count(), 0);

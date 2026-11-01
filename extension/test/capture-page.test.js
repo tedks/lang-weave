@@ -86,3 +86,56 @@ test('an open confirmation keeps its short-lived draft active and stops on cance
     await window.happyDOM.abort();
   }
 });
+
+test('capture page composes provenance, archive and save copy exactly as before', async () => {
+  const previous = { document: globalThis.document, location: globalThis.location,
+    window: globalThis.window, chrome: globalThis.chrome };
+  const window = new Window({ url: 'chrome-extension://id/src/capture.html?nonce=nonce-1234567890123456' });
+  window.document.body.innerHTML = markup();
+  Object.assign(globalThis, { document: window.document, location: window.location, window });
+  let saveResult = { archived: true };
+  globalThis.chrome = { runtime: { sendMessage: async (message) => {
+    if (message.type === 'captureDraft') return { selectedText: 'gato', matches: [
+      { id: 'p1', en: 'cat', fr: 'gato', sense: 'animal', reviewOnly: true },
+      { en: 'dog', fr: 'perro', provenance: 'bundled-suggestion' },
+      { en: 'bird', fr: 'pájaro', reviewOnly: true, reason: 'ambiguous' },
+      { en: 'fish', fr: 'pez' }] };
+    if (message.type === 'personalList') return { entries: [
+      { id: 'e1', en: 'cat', fr: 'gato', sense: 'animal', archived: true, reviewOnly: true },
+      { id: 'e2', en: 'dog', fr: 'perro', reviewOnly: true, reason: 'ambiguous' }] };
+    if (message.type === 'captureSave') return saveResult;
+    throw new Error(`Unexpected message ${message.type}`);
+  } } };
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  try {
+    await import('../src/capture-page.js?copy');
+    await flush();
+    const doc = window.document;
+    expect(doc.getElementById('language').textContent).toBe('Selected language: unknown');
+    const lines = [...doc.querySelectorAll('#matches article')].map((a) => [...a.querySelectorAll('p')].map((p) => p.textContent));
+    expect(lines).toEqual([
+      ['cat ⇄ gato · animal', 'Your saved personal entry · Review only: automatic reading is disabled for this entry'],
+      ['dog ⇄ perro', 'Bundled suggestion; meaning has not been independently dictionary checked'],
+      ['bird ⇄ pájaro', 'Local suggestion · Review only: ambiguous'],
+      ['fish ⇄ pez', 'Local suggestion']]);
+    expect(doc.querySelector('#matches h2').textContent).toBe('Local suggestions');
+    expect(doc.querySelector('#matches button').textContent).toBe('Use suggestion');
+    const rows = [...doc.querySelectorAll('#entries li')];
+    expect(rows[0].textContent).toBe('cat ⇄ gato · animal · ArchivedReview only; automatic reading is disabled.Unarchive');
+    expect(rows[1].textContent).toBe('dog ⇄ perroReview only; automatic reading is disabled: ambiguousAdd to reviewArchive');
+    const save = async (result, expected) => {
+      saveResult = result;
+      doc.getElementById('capture-form').dispatchEvent(new window.Event('submit', { cancelable: true }));
+      await flush(); await flush();
+      expect(doc.getElementById('notice').textContent).toBe(expected);
+    };
+    await save({ archived: true }, 'This entry already exists in your archive. Unarchive it below to use it.');
+    // After a save the draft is gone, so a second save reports the expiry.
+    doc.getElementById('capture-form').dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await flush();
+    expect(doc.getElementById('notice').textContent).toBe('Capture expired. Retry from the page selection.');
+  } finally {
+    Object.assign(globalThis, previous);
+    await window.happyDOM.abort();
+  }
+});

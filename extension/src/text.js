@@ -1,6 +1,7 @@
 // DOM side of a swap: flatten a tweet's text, locate the model's anchor, wrap one text-node slice.
 // Pure DOM functions (use node.ownerDocument), so they run under happy-dom in tests.
 import { sentenceStart, sourceIssue } from './semantic.js';
+import { t } from './i18n.js';
 export { quotedRanges, sentenceStart } from './semantic.js';
 
 const SKIP_TAGS = new Set(['A', 'CODE', 'PRE', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'SCRIPT', 'STYLE', 'KBD', 'SAMP']);
@@ -19,6 +20,19 @@ const displaySwap = new WeakMap();
 const practice = new WeakSet();
 const cuedPractice = new WeakSet();
 const introductions = new WeakMap();
+// The target-language face of a span carries its BCP-47 code, so a screen reader voices "y" as Spanish.
+// The accessible name is the shown word alone; the English gloss and action live in a hidden description.
+const targetLang = new WeakMap();
+const descriptions = new WeakMap(); // span -> its description element
+const described = new Set(); // spans with a description, pruned once the page drops them
+const descriptionHosts = new WeakMap(); // document -> hidden English container
+// A page may strip foreign children of <html>; re-attach a few times a minute, never fight it.
+const HOST_REATTACH = { max: 3, windowMs: 60000 };
+const hostReattached = new WeakMap(); // document -> [ms]
+const hostRetry = new WeakMap(); // document -> one timer for when the budget window reopens
+let pruned = false; // once any description is taken out, added subtrees are scanned for restores
+let descriptionPrefix = '';
+let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
@@ -39,8 +53,8 @@ export function setPracticeCue(span, active) {
     span.append(mark);
     span.tabIndex = 0;
     span.setAttribute('role', 'button');
-    span.setAttribute('title', 'Open inline recall');
-    span.setAttribute('aria-label', `${sourceEnglish.get(span)}. Open inline recall`);
+    span.setAttribute('title', t('practice_cue_title'));
+    span.setAttribute('aria-label', t('practice_cue_label', sourceEnglish.get(span)));
   } else {
     span.removeAttribute('tabindex');
     span.removeAttribute('role');
@@ -48,6 +62,101 @@ export function setPracticeCue(span, active) {
     span.removeAttribute('aria-label');
   }
   return true;
+}
+function bcp47(language) {
+  try { return Intl.getCanonicalLocales(language)[0] || ''; } catch { return ''; }
+}
+// One hidden container per document, outside every passage: a hidden or aria-hidden element inside a
+// passage would make the scanner treat that passage as unreadable on its next pass.
+function descriptionHost(doc) {
+  let host = descriptionHosts.get(doc);
+  if (!host) {
+    host = doc.createElement('div');
+    host.className = 'fw-descriptions';
+    host.hidden = true;
+    host.setAttribute('lang', 'en');
+    host.style.setProperty('display', 'none', 'important');
+    descriptionHosts.set(doc, host);
+  }
+  if (!host.isConnected) doc.documentElement.append(host);
+  return host;
+}
+function describe(span, text) {
+  const doc = span.ownerDocument;
+  let el = descriptions.get(span);
+  if (!el) {
+    if (!descriptionPrefix) {
+      const bytes = new Uint8Array(6);
+      crypto.getRandomValues(bytes);
+      descriptionPrefix = `fw-d${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+    }
+    el = doc.createElement('span');
+    el.id = `${descriptionPrefix}-${++descriptionCount}`;
+    descriptions.set(span, el);
+  }
+  described.add(span);
+  el.textContent = text;
+  const host = descriptionHost(doc);
+  if (el.parentNode !== host) host.append(el);
+  span.setAttribute('aria-describedby', el.id);
+}
+function undescribe(span) {
+  descriptions.get(span)?.remove();
+  descriptions.delete(span);
+  described.delete(span);
+  span.removeAttribute('aria-describedby');
+}
+// Take the descriptions of spans the page has removed out of the container. The span keeps its
+// description and aria-describedby, so a page that puts the same span back can restore it.
+export function pruneDescriptions() {
+  let live = null;
+  for (const span of described) {
+    if (span.isConnected) { live = span; continue; }
+    descriptions.get(span)?.remove();
+    described.delete(span);
+    pruned = true;
+  }
+  // A page that removed the container while keeping swaps gets it back, so no reference dangles,
+  // but only within a small budget: a page that keeps removing it must not start a loop.
+  const doc = live?.ownerDocument;
+  const host = doc && descriptionHosts.get(doc);
+  if (host && !host.isConnected) {
+    const now = Date.now();
+    const times = (hostReattached.get(doc) || []).filter((at) => now - at < HOST_REATTACH.windowMs);
+    if (times.length < HOST_REATTACH.max) { times.push(now); descriptionHost(doc); }
+    else if (!hostRetry.has(doc)) {
+      // One retry when the window reopens, so a quiet page does not keep dangling references.
+      hostRetry.set(doc, setTimeout(() => { hostRetry.delete(doc); pruneDescriptions(); },
+        HOST_REATTACH.windowMs - (now - times[0]) + 1));
+    }
+    hostReattached.set(doc, times);
+  }
+}
+// Put back the descriptions of this extension's spans in a subtree the page has (re)attached.
+export function restoreDescriptions(root) {
+  if (!pruned || root?.nodeType !== ELEMENT_NODE) return;
+  const spans = root.matches(`span.${SWAP_CLASS}`) ? [root] : [];
+  spans.push(...root.querySelectorAll(`span.${SWAP_CLASS}`));
+  for (const span of spans) {
+    const el = descriptions.get(span);
+    if (!el || described.has(span) || !span.isConnected) continue;
+    descriptionHost(span.ownerDocument).append(el);
+    described.add(span);
+  }
+}
+export const swapDescription = (span) => descriptions.get(span)?.textContent || '';
+// Show the validated target word, voiced in the target language, with its gloss as the description.
+function showTarget(span, text, display) {
+  span.textContent = text;
+  const lang = targetLang.get(span);
+  if (lang) span.setAttribute('lang', lang);
+  span.removeAttribute('aria-label');
+  describe(span, t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip')));
+}
+// Show English: the page's own language, so no lang of our own.
+function showEnglish(span, text) {
+  span.textContent = text;
+  span.removeAttribute('lang');
 }
 export const introductionTicket = (span) => introductions.get(span) || '';
 export function replaceIntroductionTicket(span, oldTicket, nextTicket) {
@@ -63,6 +172,7 @@ export function dropIntroduction(span) {
   const group = spanGroups.get(span);
   if (group) { group.pieces.delete(span); group.pieces.add(node); }
   span.parentNode.replaceChild(node, span);
+  undescribe(span);
   introductions.delete(span);
   return true;
 }
@@ -76,8 +186,7 @@ export function finishIntroduction(span) {
   span.dataset.fwStatus = 'new';
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
-  span.textContent = display.f;
-  span.setAttribute('aria-label', `${display.f}: ${tipFor(display)}. Show English`);
+  showTarget(span, display.f, display);
   return true;
 }
 
@@ -99,8 +208,7 @@ export function finishPractice(span, answer, familiar = false) {
   span.setAttribute('data-fr', display.f);
   span.setAttribute('data-tip', tipFor(display));
   span.dataset.fwStatus = familiar ? 'known' : 'active';
-  span.setAttribute('aria-label', `${display.f}: ${tipFor(display)}. Show English`);
-  span.textContent = display.f;
+  showTarget(span, display.f, display);
   return true;
 }
 
@@ -220,7 +328,7 @@ export function tipFor(swap) {
   return swap.h ? `${swap.g} · "${swap.h}"` : swap.g;
 }
 
-function wrap(place, swap) {
+function wrap(place, swap, language) {
   const { node, offset, length } = place;
   const doc = node.ownerDocument;
   const mid = node.splitText(offset);
@@ -237,8 +345,12 @@ function wrap(place, swap) {
   span.setAttribute('data-fw-split', '1');
   if (swap.status && !swap.practice && !swap.introTicket) span.dataset.fwStatus = swap.status;
   if (!swap.introTicket && !swap.practice) { span.tabIndex = 0; span.setAttribute('role', 'button'); }
-  if (!swap.practice) span.setAttribute('aria-label', swap.introTicket ? mid.data : `${swap.f}: ${tipFor(swap)}. Show English`);
-  span.textContent = swap.practice || swap.introTicket ? mid.data : swap.f;
+  const lang = bcp47(language);
+  if (lang) targetLang.set(span, lang);
+  if (swap.practice || swap.introTicket) {
+    if (swap.introTicket) span.setAttribute('aria-label', mid.data);
+    span.textContent = mid.data;
+  } else showTarget(span, swap.f, swap);
   mid.parentNode.replaceChild(span, mid);
   owned.set(span, swap.word || '');
   sourceEnglish.set(span, mid.data);
@@ -275,7 +387,7 @@ export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
   }
   // Later positions first, so earlier offsets in the same text node stay valid.
   placed.sort((a, b) => b.place.seg - a.place.seg || b.place.offset - a.place.offset);
-  for (const { place, swap } of placed) onPlaced(wrap(place, swap), swap);
+  for (const { place, swap } of placed) onPlaced(wrap(place, swap, language), swap);
   return placed.length;
 }
 
@@ -290,6 +402,7 @@ export function revert(root) {
     splitGroups.delete(group.node);
   }
   for (const span of spans) {
+    undescribe(span);
     const parent = span.parentNode;
     if (!parent) continue;
     const en = sourceEnglish.get(span) ?? span.getAttribute('data-en') ?? span.textContent;
@@ -314,7 +427,10 @@ export function revert(root) {
 export function toggle(span, language = 'Spanish') {
   const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
-  span.textContent = showEn ? (sourceEnglish.get(span) ?? span.getAttribute('data-en')) : span.getAttribute('data-fr');
-  span.setAttribute('aria-label', `${span.textContent}. Show ${showEn ? language : 'English'}`);
+  if (showEn) {
+    showEnglish(span, sourceEnglish.get(span) ?? span.getAttribute('data-en'));
+    span.removeAttribute('aria-label');
+    describe(span, t('swap_show_language', language));
+  } else showTarget(span, span.getAttribute('data-fr'), displaySwap.get(span));
   return showEn;
 }

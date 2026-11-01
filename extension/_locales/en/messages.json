@@ -1,0 +1,2856 @@
+{
+  "locale_lang": {
+    "message": "en",
+    "description": "BCP-47 code of the language these messages are written in. Set it to your locale's code (for example fr or pt-BR). Pages use it for their lang attribute and plural rules."
+  },
+  "ext_name": {
+    "message": "Lang Weave",
+    "description": "Extension name in Chrome and the Web Store. A product name; usually not translated."
+  },
+  "ext_description": {
+    "message": "Learn languages through the English you already read: contextual words, hover hints and click-to-English.",
+    "description": "Extension description in Chrome and the Web Store."
+  },
+  "action_title": {
+    "message": "Lang Weave",
+    "description": "Tooltip of the toolbar button."
+  },
+  "command_pause": {
+    "message": "Pause or resume Lang Weave on this site",
+    "description": "Keyboard shortcut description in chrome://extensions/shortcuts."
+  },
+  "command_review": {
+    "message": "Open Lang Weave review",
+    "description": "Keyboard shortcut description in chrome://extensions/shortcuts."
+  },
+  "swap_description": {
+    "message": "$GLOSS$. Show English",
+    "description": "Screen-reader description of a word shown in the target language: its English gloss, then the click action.",
+    "placeholders": {
+      "GLOSS": {
+        "content": "$1",
+        "example": "and · \"ee\""
+      }
+    }
+  },
+  "swap_show_language": {
+    "message": "Show $LANGUAGE$",
+    "description": "Screen-reader description of a word flipped to English: the click action.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "practice_cue_title": {
+    "message": "Open inline recall",
+    "description": "Tooltip of an English word marked for practice."
+  },
+  "practice_cue_label": {
+    "message": "$WORD$. Open inline recall",
+    "description": "Screen-reader name of an English word marked for practice.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "the idea"
+      }
+    }
+  },
+  "recall_label": {
+    "message": "Inline recall",
+    "description": "Screen-reader name of the inline practice panel."
+  },
+  "recall_prompt": {
+    "message": "Recall the translation before revealing.",
+    "description": "Instruction at the top of the inline practice panel."
+  },
+  "recall_dismiss": {
+    "message": "Dismiss",
+    "description": "Button that closes the inline practice panel."
+  },
+  "recall_cue_unavailable": {
+    "message": "Cue unavailable. Dismiss and try again.",
+    "description": "Inline practice status when it could not start."
+  },
+  "recall_reveal": {
+    "message": "Reveal answer",
+    "description": "Button that shows the answer in the inline practice panel."
+  },
+  "rating_again": {
+    "message": "Again",
+    "description": "Recall rating: forgot the word."
+  },
+  "rating_hard": {
+    "message": "Hard",
+    "description": "Recall rating: remembered with difficulty."
+  },
+  "rating_medium": {
+    "message": "Medium",
+    "description": "Recall rating: remembered."
+  },
+  "rating_easy": {
+    "message": "Easy",
+    "description": "Recall rating: remembered easily."
+  },
+  "rating_known": {
+    "message": "Already know",
+    "description": "Marks a word as already known instead of rating this recall."
+  },
+  "recall_rating_failed": {
+    "message": "Rating was not saved. Try again or dismiss.",
+    "description": "Inline practice status when saving a rating failed."
+  },
+  "recall_answer_failed": {
+    "message": "Answer unavailable. Try again or dismiss.",
+    "description": "Inline practice status when the answer could not be shown."
+  },
+  "status_key_rejected": {
+    "message": "Gemini rejected this key. Paste a new one.",
+    "description": "Model status when Gemini rejects the API key. Fixed copy: never include provider or error text."
+  },
+  "status_key_isolation": {
+    "message": "This browser cannot keep the key private. Update Chrome to 140 or newer.",
+    "description": "Model status when the browser cannot isolate the key. Fixed copy: never include provider or error text."
+  },
+  "status_local_budget": {
+    "message": "Daily local model-call budget reached.",
+    "description": "Model status when the local daily call budget is used. Fixed copy: never include provider or error text."
+  },
+  "status_daily_quota_later": {
+    "message": "Daily model quota reached. Try again later.",
+    "description": "Model status for an exhausted daily quota without a retry time. Fixed copy: never include provider or error text."
+  },
+  "status_daily_quota_retry": {
+    "message": "Daily model quota reached. Retry after $TIME$.",
+    "description": "Model status for an exhausted daily quota with a retry time. Fixed copy: never include provider or error text.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "Oct 31, 3:00 PM"
+      }
+    }
+  },
+  "status_rate_limit_later": {
+    "message": "Model rate limit reached. Try again shortly.",
+    "description": "Model status for a rate limit without a retry time. Fixed copy: never include provider or error text."
+  },
+  "status_rate_limit_retry": {
+    "message": "Model rate limit reached. Retry after $TIME$.",
+    "description": "Model status for a rate limit with a retry time. Fixed copy: never include provider or error text.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "Oct 31, 3:00 PM"
+      }
+    }
+  },
+  "status_overloaded_later": {
+    "message": "Model service is busy. Try again shortly.",
+    "description": "Model status when the service is overloaded, without a retry time. Fixed copy: never include provider or error text."
+  },
+  "status_overloaded_retry": {
+    "message": "Model service is busy. Retry after $TIME$.",
+    "description": "Model status when the service is overloaded, with a retry time. Fixed copy: never include provider or error text.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "Oct 31, 3:00 PM"
+      }
+    }
+  },
+  "status_storage_failed": {
+    "message": "Local reading storage failed. Try again.",
+    "description": "Model status when saving reading data failed. Fixed copy: never include provider or error text."
+  },
+  "status_request_failed": {
+    "message": "Model request failed. Try again later.",
+    "description": "Model status for any other failed request. Fixed copy: never include provider or error text."
+  },
+  "badge_new_text": {
+    "message": "NEW",
+    "description": "Toolbar badge text when an update is waiting. At most 4 characters."
+  },
+  "badge_new": {
+    "message": "New Lang Weave version available; reload the extension",
+    "description": "Badge tooltip when an update is waiting. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_working": {
+    "message": "Lang Weave is on here",
+    "description": "Badge tooltip when the extension is active on this page. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_needs_setup": {
+    "message": "Finish setup in the welcome page",
+    "description": "Badge tooltip before setup is finished. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_needs_key": {
+    "message": "Add your Gemini key",
+    "description": "Badge tooltip when no API key is saved. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_key_rejected": {
+    "message": "Gemini rejected this key. Paste a new one.",
+    "description": "Badge tooltip when Gemini rejects the API key. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_needs_site": {
+    "message": "Click to turn on here",
+    "description": "Badge tooltip when this site has not been allowed. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_paused": {
+    "message": "Lang Weave is paused; click to turn it on",
+    "description": "Badge tooltip when the extension is paused. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_sensitive": {
+    "message": "Off on sensitive sites; click to turn on here",
+    "description": "Badge tooltip on a sensitive site. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_site_off": {
+    "message": "Off on this site; click to turn it on",
+    "description": "Badge tooltip when this site is turned off. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_unavailable": {
+    "message": "Open Lang Weave to check this page",
+    "description": "Badge tooltip when the page state is unknown. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_unsupported": {
+    "message": "Open a website to use Lang Weave",
+    "description": "Badge tooltip on browser pages. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_local_budget": {
+    "message": "Daily model-call budget reached; review still works",
+    "description": "Badge tooltip when the local daily call budget is used. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_model_error": {
+    "message": "Model request failed; review still works",
+    "description": "Badge tooltip after a failed model request. Toolbar badge tooltip; fixed copy."
+  },
+  "badge_paused_until": {
+    "message": "Paused until $TIME$; review still works",
+    "description": "Badge tooltip during a model cooldown with a known end. Toolbar badge tooltip; fixed copy.",
+    "placeholders": {
+      "TIME": {
+        "content": "$1",
+        "example": "3:00 PM"
+      }
+    }
+  },
+  "badge_reading_paused": {
+    "message": "Reading is paused; review still works",
+    "description": "Badge tooltip during a model cooldown without a known end. Toolbar badge tooltip; fixed copy."
+  },
+  "popup_title": {
+    "message": "Lang Weave",
+    "description": "Toolbar popup: window title and heading. A product name; usually not translated."
+  },
+  "popup_switch_on": {
+    "message": "On",
+    "description": "Toolbar popup: visible label next to the master on/off switch when Lang Weave is on."
+  },
+  "popup_switch_off": {
+    "message": "Off",
+    "description": "Toolbar popup: visible label next to the master on/off switch when Lang Weave is off."
+  },
+  "popup_enabled_label": {
+    "message": "Lang Weave enabled",
+    "description": "Toolbar popup: screen-reader name of the master on/off switch."
+  },
+  "popup_this_site": {
+    "message": "This site",
+    "description": "Toolbar popup: initial label of the per-site switch before the page is known."
+  },
+  "popup_not_a_website": {
+    "message": "This page is not a website",
+    "description": "Toolbar popup: label of the disabled per-site switch on a browser-internal page."
+  },
+  "popup_turn_on_site": {
+    "message": "Turn on for this site",
+    "description": "Toolbar popup: label of the per-site switch when the site is not yet on."
+  },
+  "popup_on_for_site": {
+    "message": "On for $HOST$",
+    "description": "Toolbar popup: label of the per-site switch when the site is on. Also its screen-reader name.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "popup_practice": {
+    "message": "Practice",
+    "description": "Toolbar popup: initial text of the main button, shown until the progress summary decides its label."
+  },
+  "popup_budget_warning": {
+    "message": "The saved introduction date ($DATE$) is over seven days ahead of your local date. New introductions stay paused. Reset only today's introduction budget? Your reviews and progress stay saved.",
+    "description": "Toolbar popup: warning when the stored daily-introduction date is far in the future; asks whether to reset only the daily budget. $DATE$ is a calendar day.",
+    "placeholders": {
+      "DATE": {
+        "content": "$1",
+        "example": "2026-11-20"
+      }
+    }
+  },
+  "popup_budget_reset": {
+    "message": "Reset today's introduction budget",
+    "description": "Toolbar popup: button that confirms resetting the daily new-word budget."
+  },
+  "popup_budget_keep": {
+    "message": "Keep paused",
+    "description": "Toolbar popup: button that dismisses the budget reset prompt and leaves new words paused."
+  },
+  "popup_more": {
+    "message": "More",
+    "description": "Toolbar popup: screen-reader name of the navigation with the Settings, My words and Help links."
+  },
+  "popup_settings": {
+    "message": "Settings",
+    "description": "Toolbar popup: link that opens the settings page."
+  },
+  "popup_my_words": {
+    "message": "My words",
+    "description": "Toolbar popup: link that opens the page listing the learner's words."
+  },
+  "popup_help": {
+    "message": "Help",
+    "description": "Toolbar popup: link to the online help."
+  },
+  "popup_state_off": {
+    "message": "Off",
+    "description": "Toolbar popup: status line when Lang Weave is switched off."
+  },
+  "popup_state_needs_setup": {
+    "message": "Finish setup in the welcome page",
+    "description": "Toolbar popup: status line before the first-run choices are made."
+  },
+  "popup_state_needs_key": {
+    "message": "Add a Gemini key to start",
+    "description": "Toolbar popup: status line when no Gemini API key is saved."
+  },
+  "popup_state_site_off": {
+    "message": "Off on this site",
+    "description": "Toolbar popup: status line when the current site is off or never allowed (for example webmail or banking)."
+  },
+  "popup_state_needs_site": {
+    "message": "This site needs your OK",
+    "description": "Toolbar popup: status line when Chrome has not yet granted access to the current site."
+  },
+  "popup_state_on": {
+    "message": "On",
+    "description": "Toolbar popup: status line when everything is working."
+  },
+  "popup_error_generic": {
+    "message": "Could not do that",
+    "description": "Toolbar popup: error shown when an action fails without a specific reason."
+  },
+  "popup_error_reload": {
+    "message": "Reload this page to start. Chrome blocks extensions on some pages.",
+    "description": "Toolbar popup: error shown when Lang Weave cannot start on the open tab."
+  },
+  "popup_error_budget_changed": {
+    "message": "Budget changed. Refresh and try again.",
+    "description": "Toolbar popup: error shown when the introduction budget changed before the reset was applied."
+  },
+  "options_title": {
+    "message": "Lang Weave · Settings",
+    "description": "Settings page: browser tab title."
+  },
+  "options_heading": {
+    "message": "Settings",
+    "description": "Settings page: main heading."
+  },
+  "options_intro": {
+    "message": "Choose how Lang Weave learns from the sites you allow.",
+    "description": "Settings page: introduction under the main heading."
+  },
+  "options_learning_heading": {
+    "message": "Learning",
+    "description": "Settings page: heading of the Learning section."
+  },
+  "options_language_label": {
+    "message": "Language",
+    "description": "Settings page: label of the learning-language selector."
+  },
+  "options_language_hint": {
+    "message": "Spanish is bundled; generated languages are experimental and stored locally.",
+    "description": "Settings page: hint under the language selector."
+  },
+  "options_remove_language": {
+    "message": "Remove this generated language and its local progress",
+    "description": "Settings page: button that deletes a generated language pack and its progress."
+  },
+  "options_add_language_summary": {
+    "message": "Add a language",
+    "description": "Settings page: collapsible heading for adding a generated language."
+  },
+  "options_add_language_intro": {
+    "message": "Generated vocabulary is experimental. Add your Gemini key below first. Use a language code such as fr or ja.",
+    "description": "Settings page: explanation inside the add-a-language section. fr and ja are example language codes."
+  },
+  "options_new_language_label": {
+    "message": "Language code",
+    "description": "Settings page: label of the field for a new language code."
+  },
+  "options_new_language_hint": {
+    "message": "A new pack is generated with Gemini and stored only in this extension.",
+    "description": "Settings page: hint under the new language code field."
+  },
+  "options_generate_vocabulary": {
+    "message": "Generate vocabulary",
+    "description": "Settings page: button that generates vocabulary for the new language."
+  },
+  "options_level_info": {
+    "message": "Current effective level: $LEVEL$",
+    "description": "Settings page: line showing the reading level in effect. $LEVEL$ is the level, for example L1.",
+    "placeholders": {
+      "LEVEL": {
+        "content": "$1",
+        "example": "L1"
+      }
+    }
+  },
+  "options_level_label": {
+    "message": "Reading level",
+    "description": "Settings page: label of the reading-level selector."
+  },
+  "options_level_default": {
+    "message": "Beginner (default)",
+    "description": "Settings page: reading-level choice that follows the default (Beginner)."
+  },
+  "options_level_1": {
+    "message": "1 · Beginner",
+    "description": "Settings page: reading-level choice for level 1."
+  },
+  "options_level_2": {
+    "message": "2 · Expanded",
+    "description": "Settings page: reading-level choice for level 2."
+  },
+  "options_level_hint": {
+    "message": "Choose which vocabulary levels may appear; these are not CEFR grades.",
+    "description": "Settings page: hint under the reading-level selector. CEFR is the Common European Framework of Reference for languages."
+  },
+  "options_gradual_label": {
+    "message": "Gradual learning",
+    "description": "Settings page: label of the gradual-learning checkbox."
+  },
+  "options_gradual_hint": {
+    "message": "Introduce only words that fit what you read, with due words first.",
+    "description": "Settings page: hint under the gradual-learning checkbox."
+  },
+  "options_new_words_label": {
+    "message": "New words per day",
+    "description": "Settings page: label of the new-words-per-day selector."
+  },
+  "options_new_words_hint": {
+    "message": "The daily introduction budget applies when gradual learning is on.",
+    "description": "Settings page: hint under the new-words-per-day selector."
+  },
+  "options_density_label": {
+    "message": "Translation density",
+    "description": "Settings page: label of the translation-density selector."
+  },
+  "options_density_light": {
+    "message": "Light",
+    "description": "Settings page: translation-density choice with the fewest woven words."
+  },
+  "options_density_normal": {
+    "message": "Normal",
+    "description": "Settings page: translation-density choice with a normal number of woven words."
+  },
+  "options_density_heavy": {
+    "message": "Heavy",
+    "description": "Settings page: translation-density choice with the most woven words."
+  },
+  "options_density_hint": {
+    "message": "Control how many eligible words are woven into a passage.",
+    "description": "Settings page: hint under the translation-density selector."
+  },
+  "options_recall_label": {
+    "message": "Inline recall",
+    "description": "Settings page: label of the inline-recall checkbox."
+  },
+  "options_recall_hint": {
+    "message": "Activate a marked word to reveal and rate recall within the page.",
+    "description": "Settings page: hint under the inline-recall checkbox."
+  },
+  "options_vocabulary_info": {
+    "message": "Eligible vocabulary: $WORDS$ (not words learned). Recall reviews due: $DUE$.",
+    "description": "Settings page: counts of eligible vocabulary and recall reviews due. $WORDS$ is a phrase such as \"30 Spanish words\"; $DUE$ is a number.",
+    "placeholders": {
+      "WORDS": {
+        "content": "$1",
+        "example": "30 Spanish words"
+      },
+      "DUE": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "options_reading_help": {
+    "message": "While reading, hover for meaning; click a woven word to flip it or open inline recall when available.",
+    "description": "Settings page: reminder of how to use woven words while reading."
+  },
+  "options_sites_heading": {
+    "message": "Sites and privacy",
+    "description": "Settings page: heading of the Sites and privacy section."
+  },
+  "options_age_notice": {
+    "message": "The Gemini API requires users to be 18 or older.",
+    "description": "Settings page: notice about the Gemini API age requirement."
+  },
+  "options_welcome_link": {
+    "message": "$LINK$ before testing a key or generating vocabulary.",
+    "description": "Settings page: sentence shown before the first-run choices are made. $LINK$ is the link to the welcome page, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Review the first-run privacy choices"
+      }
+    }
+  },
+  "options_welcome_link_text": {
+    "message": "Review the first-run privacy choices",
+    "description": "Settings page: text of the link to the welcome page. Starts a sentence."
+  },
+  "options_new_sites_label": {
+    "message": "Other sites",
+    "description": "Settings page: label of the selector for sites not listed as exceptions."
+  },
+  "options_new_sites_on": {
+    "message": "On by default",
+    "description": "Settings page: choice meaning new sites start on."
+  },
+  "options_new_sites_off": {
+    "message": "Only sites I turn on",
+    "description": "Settings page: choice meaning only sites the learner turns on are active."
+  },
+  "options_new_sites_hint": {
+    "message": "Choose whether new permitted sites start on; sensitive sites still start off.",
+    "description": "Settings page: hint under the other-sites selector."
+  },
+  "options_grant_sites": {
+    "message": "Allow all websites",
+    "description": "Settings page: button that asks Chrome for access to all websites."
+  },
+  "options_exceptions_heading": {
+    "message": "Site exceptions",
+    "description": "Settings page: heading above the list of per-site exceptions."
+  },
+  "options_privacy_note": {
+    "message": "Sites where it's on send readable page text to Gemini with your key. With a free key, Google may use it to improve its products; a paid key avoids that. Links and inline code go with their sentence but are never changed; code blocks, forms and editable text are skipped.",
+    "description": "Settings page: explanation of what is sent to Gemini and what is skipped."
+  },
+  "options_gemini_heading": {
+    "message": "Gemini",
+    "description": "Settings page: heading of the Gemini section. Gemini is a product name."
+  },
+  "options_model_label": {
+    "message": "Model",
+    "description": "Settings page: label of the Gemini model selector."
+  },
+  "options_model_hint": {
+    "message": "Choose the Gemini model that selects words in context.",
+    "description": "Settings page: hint under the model selector."
+  },
+  "options_key_label": {
+    "message": "Gemini key",
+    "description": "Settings page: label of the API key field."
+  },
+  "options_key_hint": {
+    "message": "$LINK$: open AI Studio, create a key, then paste it here.",
+    "description": "Settings page: hint under the key field. $LINK$ is a link to Google AI Studio, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Get a Gemini key"
+      }
+    }
+  },
+  "options_key_hint_link": {
+    "message": "Get a Gemini key",
+    "description": "Settings page: text of the link to Google AI Studio. Starts a sentence that continues with a colon."
+  },
+  "options_billing_note": {
+    "message": "Use a billed key: Google may use free-tier text to improve products, and EEA, UK and Swiss users need paid services.",
+    "description": "Settings page: advice to use a billed key. EEA is the European Economic Area."
+  },
+  "options_call_cap_note": {
+    "message": "Lang Weave allows up to 1,000 model calls per local day. This is a request cap, not a spending limit; provider quotas and pricing still apply.",
+    "description": "Settings page: explanation of the daily request cap."
+  },
+  "options_save_key": {
+    "message": "Save key",
+    "description": "Settings page: button that saves the pasted key."
+  },
+  "options_test_key": {
+    "message": "Test key",
+    "description": "Settings page: button that tests the saved key."
+  },
+  "options_remove_key": {
+    "message": "Remove key",
+    "description": "Settings page: button that deletes the saved key."
+  },
+  "options_data_heading": {
+    "message": "Your data",
+    "description": "Settings page: heading of the Your data section."
+  },
+  "options_backup_info": {
+    "message": "$LINK$ exports or restores learning progress without keys or site grants.",
+    "description": "Settings page: description of the backup page. $LINK$ is its link, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Learning backup"
+      }
+    }
+  },
+  "options_backup_link": {
+    "message": "Learning backup",
+    "description": "Settings page: text of the link to the backup page. Starts a sentence."
+  },
+  "options_words_info": {
+    "message": "$LINK$ shows every word's stage and next review, lets you practise or reset one, and answers \"is this working?\".",
+    "description": "Settings page: description of the My words page. $LINK$ is its link, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "My words"
+      }
+    }
+  },
+  "options_words_link": {
+    "message": "My words",
+    "description": "Settings page: text of the link to the My words page. Starts a sentence."
+  },
+  "options_personal_info": {
+    "message": "$LINK$ lets you find, archive and export your own words.",
+    "description": "Settings page: description of the personal entries page. $LINK$ is its link, whose text is its own message.",
+    "placeholders": {
+      "LINK": {
+        "content": "$1",
+        "example": "Personal entries"
+      }
+    }
+  },
+  "options_personal_link": {
+    "message": "Personal entries",
+    "description": "Settings page: text of the link to the personal entries page. Starts a sentence."
+  },
+  "options_clear_cache": {
+    "message": "Clear cache",
+    "description": "Settings page: button that clears the cache of replacement choices."
+  },
+  "options_clear_cache_note": {
+    "message": "Forget cached replacement choices so the next eligible reading request asks Gemini again. Learning progress stays saved.",
+    "description": "Settings page: explanation under the clear-cache button."
+  },
+  "options_about_heading": {
+    "message": "About",
+    "description": "Settings page: heading of the About section."
+  },
+  "options_version_line": {
+    "message": "Lang Weave version $VERSION$ · $LICENSE$ · $NOTICE$",
+    "description": "Settings page: version and legal links. $VERSION$ is a version number; $LICENSE$ and $NOTICE$ are links whose text is their own messages.",
+    "placeholders": {
+      "VERSION": {
+        "content": "$1",
+        "example": "0.12.18"
+      },
+      "LICENSE": {
+        "content": "$2",
+        "example": "AGPL-3.0-or-later license"
+      },
+      "NOTICE": {
+        "content": "$3",
+        "example": "NOTICE and upstream credits"
+      }
+    }
+  },
+  "options_license_link": {
+    "message": "AGPL-3.0-or-later license",
+    "description": "Settings page: text of the link to the license. AGPL-3.0-or-later is a license identifier."
+  },
+  "options_notice_link": {
+    "message": "NOTICE and upstream credits",
+    "description": "Settings page: text of the link to the NOTICE file with upstream credits."
+  },
+  "options_credits": {
+    "message": "Based on Jackie Oliver's French Weave, with attribution and the inherited MIT license retained. The Spanish starter vocabulary is not a certified curriculum or native-speaker review. Generated packs are experimental; contextual or grammatical mistakes remain possible.",
+    "description": "Settings page: attribution and limitations of the bundled vocabulary."
+  },
+  "options_update_notice": {
+    "message": "Update $VERSION$ didn't load by itself: click the reload arrow on Lang Weave in the extensions page.",
+    "description": "Settings page: shown when a new version downloaded but did not load by itself. $VERSION$ is the new version number.",
+    "placeholders": {
+      "VERSION": {
+        "content": "$1",
+        "example": "0.12.19"
+      }
+    }
+  },
+  "options_open_extensions": {
+    "message": "Open extensions page",
+    "description": "Settings page: button that opens Chrome's extensions page."
+  },
+  "options_consent_chosen": {
+    "message": "Your site policy has been chosen. You can change it below.",
+    "description": "Settings page: note shown after the first-run site policy was chosen."
+  },
+  "options_consent_pending": {
+    "message": "Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.",
+    "description": "Settings page: note shown before the first-run site policy is chosen."
+  },
+  "options_access_all": {
+    "message": "On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off. Reload pages already open to start there.",
+    "description": "Settings page: access note when all websites are allowed."
+  },
+  "options_access_needs_ok": {
+    "message": "Chrome needs your OK before it can run on other sites.",
+    "description": "Settings page: access note when sites are on by default but Chrome has not granted access to all of them."
+  },
+  "options_access_off": {
+    "message": "Off on sites until you turn them on here.",
+    "description": "Settings page: access note when new sites start off."
+  },
+  "options_level_value": {
+    "message": "L$LEVEL$",
+    "description": "Settings page: the reading level in effect, written as a short label (L for level).",
+    "placeholders": {
+      "LEVEL": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "options_language_experimental": {
+    "message": "$NAME$ · experimental",
+    "description": "Settings page: language selector entry for a generated language. $NAME$ is the language name.",
+    "placeholders": {
+      "NAME": {
+        "content": "$1",
+        "example": "French"
+      }
+    }
+  },
+  "options_word_count": {
+    "message": "$COUNT$ $LANGUAGE$ words",
+    "description": "Settings page: how many eligible words the learning language has. $COUNT$ is a number and $LANGUAGE$ is the language name.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "30"
+      },
+      "LANGUAGE": {
+        "content": "$2",
+        "example": "Spanish"
+      }
+    }
+  },
+  "options_key_saved_placeholder": {
+    "message": "saved (paste to replace)",
+    "description": "Settings page: placeholder of the key field when a key is already saved."
+  },
+  "options_site_on": {
+    "message": "$HOST$: on",
+    "description": "Settings page: a site exception that is on. $HOST$ is a website name.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "options_site_off": {
+    "message": "$HOST$: off",
+    "description": "Settings page: a site exception that is off. $HOST$ is a website name.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "options_site_reset": {
+    "message": "Reset",
+    "description": "Settings page: button that removes one site exception."
+  },
+  "options_no_exceptions": {
+    "message": "None",
+    "description": "Settings page: shown when there are no site exceptions."
+  },
+  "options_error_generic": {
+    "message": "Could not do that",
+    "description": "Settings page: error shown when an action fails without a specific reason."
+  },
+  "options_generating": {
+    "message": "Generating experimental vocabulary…",
+    "description": "Settings page: progress message while a generated language is being created."
+  },
+  "options_key_paste_first": {
+    "message": "Paste a key first.",
+    "description": "Settings page: key feedback when Save key is used with an empty field."
+  },
+  "options_key_saved": {
+    "message": "Saved ✓",
+    "description": "Settings page: key feedback after the key was saved."
+  },
+  "options_key_testing": {
+    "message": "Testing key…",
+    "description": "Settings page: key feedback while the key is being tested."
+  },
+  "options_key_works": {
+    "message": "Key works.",
+    "description": "Settings page: key feedback after a successful test."
+  },
+  "options_key_add_first": {
+    "message": "Add a Gemini key first.",
+    "description": "Settings page: key feedback when testing without a saved key."
+  },
+  "options_key_changed": {
+    "message": "Key or settings changed. Test again.",
+    "description": "Settings page: key feedback when the key or settings changed during the test."
+  },
+  "options_key_model_failed": {
+    "message": "Model request failed. Try again later.",
+    "description": "Settings page: key feedback when the test failed for an unclassified reason."
+  },
+  "options_key_removed": {
+    "message": "Key removed.",
+    "description": "Settings page: key feedback after the key was removed."
+  },
+  "options_cleared": {
+    "message": "Cleared $COUNT$",
+    "description": "Settings page: result of Clear cache. $COUNT$ is the number of cached entries removed.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "options_error_refresh": {
+    "message": "Could not refresh settings",
+    "description": "Settings page: error shown when the page cannot reload its state."
+  },
+  "welcome_title": {
+    "message": "Welcome to Lang Weave",
+    "description": "First-run welcome page: browser tab title and main heading."
+  },
+  "welcome_intro": {
+    "message": "Learn Spanish a little at a time while reading English pages.",
+    "description": "First-run welcome page: introduction under the main heading."
+  },
+  "welcome_demo_heading": {
+    "message": "1. See it in a sentence",
+    "description": "First-run welcome page: heading of step 1. Keep the number."
+  },
+  "welcome_demo_help": {
+    "message": "Hover over an underlined word for its meaning. Click it to flip between Spanish and English. This sample uses bundled words and stays on your device.",
+    "description": "First-run welcome page: how to use the sample sentence above it."
+  },
+  "welcome_privacy_heading": {
+    "message": "2. Choose where it may read",
+    "description": "First-run welcome page: heading of step 2. Keep the number."
+  },
+  "welcome_privacy_sends": {
+    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
+    "description": "First-run welcome page: what is sent to Google's Gemini API when Lang Weave is on for a site."
+  },
+  "welcome_privacy_free_key": {
+    "message": "Google may use requests made with a free key to improve its products, and human reviewers may see them. A billed key avoids that use. Provider quotas and charges can still apply.",
+    "description": "First-run welcome page: how Google may use requests made with a free key."
+  },
+  "welcome_age_notice": {
+    "message": "The Gemini API requires users to be 18 or older.",
+    "description": "First-run welcome page: notice about the Gemini API age requirement."
+  },
+  "welcome_privacy_conditions": {
+    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
+    "description": "First-run welcome page: conditions before any page text is sent, and which sites start off."
+  },
+  "welcome_only_sites": {
+    "message": "Only sites I turn on · recommended",
+    "description": "First-run welcome page: button choosing the recommended site policy (only sites the learner turns on)."
+  },
+  "welcome_all_sites": {
+    "message": "All sites except sensitive ones",
+    "description": "First-run welcome page: button choosing the all-sites policy (sensitive sites still start off)."
+  },
+  "welcome_x_question": {
+    "message": "Read on X? You can allow x.com explicitly.",
+    "description": "First-run welcome page: offer to allow x.com, shown when it is not already allowed. x.com is a website name."
+  },
+  "welcome_x_allow": {
+    "message": "Allow x.com",
+    "description": "First-run welcome page: button that allows x.com."
+  },
+  "welcome_learn_heading": {
+    "message": "3. Add a key and start learning",
+    "description": "First-run welcome page: heading of step 3. Keep the number."
+  },
+  "welcome_learn_key": {
+    "message": "Open Settings to get a Gemini key, save it, and test it. The key stays in extension storage and is sent to Google with model requests.",
+    "description": "First-run welcome page: how to add and test the Gemini key."
+  },
+  "welcome_open_settings": {
+    "message": "Open settings",
+    "description": "First-run welcome page: button that opens the settings page."
+  },
+  "welcome_level_note": {
+    "message": "$TERM$ controls which bundled words can appear; Beginner is a good start.",
+    "description": "First-run welcome page: explains the reading level setting. $TERM$ is the setting name in bold, its own message.",
+    "placeholders": {
+      "TERM": {
+        "content": "$1",
+        "example": "Reading level"
+      }
+    }
+  },
+  "welcome_level_term": {
+    "message": "Reading level",
+    "description": "First-run welcome page: name of the reading level setting, in bold. Starts a sentence."
+  },
+  "welcome_gradual_note": {
+    "message": "$TERM$ introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.",
+    "description": "First-run welcome page: explains the gradual learning setting. $TERM$ is the setting name in bold, its own message.",
+    "placeholders": {
+      "TERM": {
+        "content": "$1",
+        "example": "Gradual learning"
+      }
+    }
+  },
+  "welcome_gradual_term": {
+    "message": "Gradual learning",
+    "description": "First-run welcome page: name of the gradual learning setting, in bold. Starts a sentence."
+  },
+  "welcome_chose_all": {
+    "message": "All permitted sites selected. Sensitive sites still start off.",
+    "description": "First-run welcome page: confirmation after choosing all sites."
+  },
+  "welcome_chose_only": {
+    "message": "Only sites you turn on selected. Open the popup on a site to allow it.",
+    "description": "First-run welcome page: confirmation after choosing only the sites the learner turns on."
+  },
+  "welcome_all_denied": {
+    "message": "Chrome did not grant all-site access. Choose only sites you turn on, or try again.",
+    "description": "First-run welcome page: shown when Chrome refused all-site access."
+  },
+  "welcome_error_save": {
+    "message": "Could not save your choice",
+    "description": "First-run welcome page: error when the site policy could not be saved."
+  },
+  "welcome_error_x": {
+    "message": "Could not enable x.com",
+    "description": "First-run welcome page: error when allowing x.com failed. x.com is a website name."
+  },
+  "welcome_x_allowed": {
+    "message": "x.com allowed. After setup, reload any open X page to start there.",
+    "description": "First-run welcome page: confirmation after allowing x.com. X is the social network at x.com."
+  },
+  "welcome_x_denied": {
+    "message": "Chrome did not grant x.com access.",
+    "description": "First-run welcome page: shown when Chrome refused access to x.com."
+  },
+  "progress_stage_new": {
+    "message": "New",
+    "description": "Label of the \"new\" word stage in the stage counts and filter. Words not yet introduced. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_learning": {
+    "message": "Learning",
+    "description": "Label of the \"learning\" word stage. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_maintenance": {
+    "message": "Maintenance",
+    "description": "Label of the \"maintenance\" word stage: words reviewed only occasionally. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_known": {
+    "message": "Marked known",
+    "description": "Label of the stage for words the learner marked as already known. Progress text shared by the popup, settings and My words."
+  },
+  "progress_stage_verified": {
+    "message": "Verified known",
+    "description": "Label of the stage for words recalled after a gap of three weeks or more. Progress text shared by the popup, settings and My words."
+  },
+  "progress_today": {
+    "message": "Today: $PARTS$",
+    "description": "One-line summary of today's activity. $1 is a list of counts joined by \" · \". Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "PARTS": {
+        "content": "$1",
+        "example": "1 introduced · 4 seen"
+      }
+    }
+  },
+  "progress_today_none": {
+    "message": "Today: nothing yet",
+    "description": "Today line when there has been no activity yet today. Progress text shared by the popup, settings and My words."
+  },
+  "progress_today_introduced": {
+    "message": "$COUNT$ introduced",
+    "description": "One part of the Today line: new words introduced today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_seen": {
+    "message": "$COUNT$ seen",
+    "description": "One part of the Today line: words seen while reading today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_peeked": {
+    "message": "$COUNT$ peeked",
+    "description": "One part of the Today line: words whose English was peeked at today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_flipped": {
+    "message": "$COUNT$ flipped",
+    "description": "One part of the Today line: words flipped to English today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_today_reviewed": {
+    "message": "$COUNT$ reviewed",
+    "description": "One part of the Today line: words reviewed today. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_week_one": {
+    "message": "Practised on $COUNT$ day of the last 7",
+    "description": "Weekly practice line, singular. $1 is the number of days. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_week_other": {
+    "message": "Practised on $COUNT$ days of the last 7",
+    "description": "Weekly practice line, plural. $1 is the number of days. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "progress_headline_one": {
+    "message": "$COUNT$ word verified known",
+    "description": "Headline count of verified words, singular. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_headline_other": {
+    "message": "$COUNT$ words verified known",
+    "description": "Headline count of verified words, plural. Progress text shared by the popup, settings and My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "progress_headline_none": {
+    "message": "No words verified yet",
+    "description": "Headline when no word has been verified yet. Progress text shared by the popup, settings and My words."
+  },
+  "progress_review_due_one": {
+    "message": "Review $COUNT$ due word",
+    "description": "Label of the popup's primary button when one word is due.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_review_due_other": {
+    "message": "Review $COUNT$ due words",
+    "description": "Label of the popup's primary button when several words are due.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_add_words": {
+    "message": "Add words",
+    "description": "Label of the popup's primary button when nothing is due but new words are available."
+  },
+  "progress_practice": {
+    "message": "Practice",
+    "description": "Label of the popup's primary button when nothing is due and no new words are available."
+  },
+  "progress_measure_verified_title": {
+    "message": "Verified known",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_verified_value_one": {
+    "message": "$COUNT$ word recalled after a gap of 3 weeks or more, with no miss since.",
+    "description": "Result of the verified-known measurement, singular. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_verified_value_other": {
+    "message": "$COUNT$ words recalled after a gap of 3 weeks or more, with no miss since.",
+    "description": "Result of the verified-known measurement, plural. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "progress_measure_verified_none": {
+    "message": "No word has been recalled after a 3-week gap yet.",
+    "description": "Result of the verified-known measurement when there are none yet."
+  },
+  "progress_measure_verified_why": {
+    "message": "This counts lasting learning, not words seen. It grows when words survive long gaps between reviews.",
+    "description": "One-sentence explanation under the verified-known measurement."
+  },
+  "progress_measure_next_day_title": {
+    "message": "Next-day recall",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_next_day_value_one": {
+    "message": "$PERCENT$ of new words recalled the day after you met them ($COUNT$ review).",
+    "description": "Result of the next-day recall measurement, singular. $1 is the number of reviews, $2 a percentage.",
+    "placeholders": {
+      "PERCENT": {
+        "content": "$2",
+        "example": "80%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_next_day_value_other": {
+    "message": "$PERCENT$ of new words recalled the day after you met them ($COUNT$ reviews).",
+    "description": "Result of the next-day recall measurement, plural. $1 is the number of reviews, $2 a percentage.",
+    "placeholders": {
+      "PERCENT": {
+        "content": "$2",
+        "example": "80%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "progress_measure_next_day_few_one": {
+    "message": "Not enough data yet: $COUNT$ first review made the day after introduction; 10 are needed.",
+    "description": "Next-day recall measurement with too little data, singular. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_next_day_few_other": {
+    "message": "Not enough data yet: $COUNT$ first reviews made the day after introduction; 10 are needed.",
+    "description": "Next-day recall measurement with too little data, plural. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_next_day_why": {
+    "message": "Low next-day recall means words arrive faster than they stick; fewer new words a day, or reviewing the next day, raises it.",
+    "description": "One-sentence explanation under the next-day recall measurement."
+  },
+  "progress_measure_retention_title": {
+    "message": "Retention after 3 weeks",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_retention_value_one": {
+    "message": "$RATE$ recalled after gaps of 21 days or more, against a target of $TARGET$ ($COUNT$ review).",
+    "description": "Result of the long-retention measurement, singular. $1 is the number of reviews, $2 and $3 percentages.",
+    "placeholders": {
+      "RATE": {
+        "content": "$2",
+        "example": "88%"
+      },
+      "TARGET": {
+        "content": "$3",
+        "example": "90%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_retention_value_other": {
+    "message": "$RATE$ recalled after gaps of 21 days or more, against a target of $TARGET$ ($COUNT$ reviews).",
+    "description": "Result of the long-retention measurement, plural. $1 is the number of reviews, $2 and $3 percentages.",
+    "placeholders": {
+      "RATE": {
+        "content": "$2",
+        "example": "88%"
+      },
+      "TARGET": {
+        "content": "$3",
+        "example": "90%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "40"
+      }
+    }
+  },
+  "progress_measure_retention_few_one": {
+    "message": "Not enough data yet: $COUNT$ review after a 21-day gap; 10 are needed.",
+    "description": "Long-retention measurement with too little data, singular. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_retention_few_other": {
+    "message": "Not enough data yet: $COUNT$ reviews after a 21-day gap; 10 are needed.",
+    "description": "Long-retention measurement with too little data, plural. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_retention_why": {
+    "message": "Well below the target means the schedule is too optimistic for you; near it means the spacing is working.",
+    "description": "One-sentence explanation under the long-retention measurement."
+  },
+  "progress_measure_calibration_title": {
+    "message": "Predicted against actual recall",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_calibration_bucket": {
+    "message": "predicted $FROM$–$TO$: recalled $OBSERVED$ of $COUNT$",
+    "description": "One predicted-probability band in the calibration measurement: the predicted range, the share actually recalled, and how many reviews fell in it. Bands are joined with \"; \".",
+    "placeholders": {
+      "FROM": {
+        "content": "$1",
+        "example": "70%"
+      },
+      "TO": {
+        "content": "$2",
+        "example": "80%"
+      },
+      "OBSERVED": {
+        "content": "$3",
+        "example": "75%"
+      },
+      "COUNT": {
+        "content": "$4",
+        "example": "40"
+      }
+    }
+  },
+  "progress_measure_calibration_beats": {
+    "message": "$BANDS$. The scheduler beats a constant guess.",
+    "description": "Result of the calibration measurement when the scheduler beats a constant guess. $1 is the list of bands.",
+    "placeholders": {
+      "BANDS": {
+        "content": "$1",
+        "example": "predicted 70%–80%: recalled 75% of 40"
+      }
+    }
+  },
+  "progress_measure_calibration_no_beat": {
+    "message": "$BANDS$. The scheduler does not beat a constant guess.",
+    "description": "Result of the calibration measurement when the scheduler does not beat a constant guess. $1 is the list of bands.",
+    "placeholders": {
+      "BANDS": {
+        "content": "$1",
+        "example": "predicted 70%–80%: recalled 75% of 40"
+      }
+    }
+  },
+  "progress_measure_calibration_few_one": {
+    "message": "Not enough data yet: $COUNT$ scheduled review; 50 are needed, and a fair test needs a few hundred.",
+    "description": "Calibration measurement with too little data, singular. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_calibration_few_other": {
+    "message": "Not enough data yet: $COUNT$ scheduled reviews; 50 are needed, and a fair test needs a few hundred.",
+    "description": "Calibration measurement with too little data, plural. $1 is the number of reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "progress_measure_calibration_why": {
+    "message": "If predictions do not beat a constant guess after a few hundred reviews, the scheduler is not fitting your memory.",
+    "description": "One-sentence explanation under the calibration measurement."
+  },
+  "progress_measure_hard_title": {
+    "message": "Hard words",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_hard_few_one": {
+    "message": "Not enough data yet: $COUNT$ rated review; 20 are needed.",
+    "description": "Hard-words measurement with too little data, singular. $1 is the number of rated reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_hard_few_other": {
+    "message": "Not enough data yet: $COUNT$ rated reviews; 20 are needed.",
+    "description": "Hard-words measurement with too little data, plural. $1 is the number of rated reviews so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "progress_measure_hard_value_one": {
+    "message": "$COUNT$ word missed 4 or more times after a gap of a day or more: $WORDS$.",
+    "description": "Hard-words measurement result, singular. $2 is a comma-separated list of the words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "gato, perro"
+      }
+    }
+  },
+  "progress_measure_hard_value_other": {
+    "message": "$COUNT$ words missed 4 or more times after a gap of a day or more: $WORDS$.",
+    "description": "Hard-words measurement result, plural. $2 is a comma-separated list of the words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "gato, perro"
+      }
+    }
+  },
+  "progress_measure_hard_none": {
+    "message": "No word has been missed 4 or more times.",
+    "description": "Hard-words measurement result when there are none."
+  },
+  "progress_measure_hard_why": {
+    "message": "Words that keep slipping need a new context or a memory aid; Reset starts one over.",
+    "description": "One-sentence explanation under the hard-words measurement. \"Reset\" is the label of a button on My words."
+  },
+  "progress_measure_exposure_title": {
+    "message": "Meetings while reading",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_exposure_value_one": {
+    "message": "Your learning words were met on a median of $COUNT$ day; $REACHED$ of $WORDS$ reached 8 different days.",
+    "description": "Reading-exposure measurement result, singular. $1 is the median number of days, $2 and $3 are word counts.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      },
+      "REACHED": {
+        "content": "$2",
+        "example": "3"
+      },
+      "WORDS": {
+        "content": "$3",
+        "example": "6"
+      }
+    }
+  },
+  "progress_measure_exposure_value_other": {
+    "message": "Your learning words were met on a median of $COUNT$ days; $REACHED$ of $WORDS$ reached 8 different days.",
+    "description": "Reading-exposure measurement result, plural. $1 is the median number of days, $2 and $3 are word counts.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      },
+      "REACHED": {
+        "content": "$2",
+        "example": "3"
+      },
+      "WORDS": {
+        "content": "$3",
+        "example": "6"
+      }
+    }
+  },
+  "progress_measure_exposure_none": {
+    "message": "Not enough data yet: no words are being learned.",
+    "description": "Reading-exposure measurement when no word is being learned."
+  },
+  "progress_measure_exposure_why": {
+    "message": "Words met on 8 or more different days stick far better; reading on more days moves this.",
+    "description": "One-sentence explanation under the reading-exposure measurement."
+  },
+  "progress_measure_workload_title": {
+    "message": "Workload",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_workload_value": {
+    "message": "$RATE$ reviews a day over the last 30 days.",
+    "description": "Workload measurement result. $1 is the average number of reviews a day.",
+    "placeholders": {
+      "RATE": {
+        "content": "$1",
+        "example": "1.5"
+      }
+    }
+  },
+  "progress_measure_workload_value_seconds": {
+    "message": "$RATE$ reviews a day over the last 30 days, about $SECONDS$ seconds each.",
+    "description": "Workload measurement result with a typical time per review. $1 is reviews a day, $2 is seconds.",
+    "placeholders": {
+      "RATE": {
+        "content": "$1",
+        "example": "1.5"
+      },
+      "SECONDS": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_workload_none": {
+    "message": "No reviews in the last 30 days.",
+    "description": "Workload measurement when there were no reviews."
+  },
+  "progress_measure_workload_why": {
+    "message": "If this feels heavy, lower the new words per day in Settings; reviews shrink as intervals grow.",
+    "description": "One-sentence explanation under the workload measurement. \"Settings\" is the name of the settings page."
+  },
+  "review_title": {
+    "message": "Lang Weave · Review",
+    "description": "Browser tab title of the review page. \"Lang Weave\" is the product name."
+  },
+  "review_heading": {
+    "message": "Recall practice",
+    "description": "Main heading of the review page."
+  },
+  "review_intro": {
+    "message": "Say each English prompt in $LANGUAGE$, then reveal the answer and rate your recall. Reading sightings do not count as reviews.",
+    "description": "Introduction under the heading of the review page. $1 is the name of the language being learned.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "review_target_language": {
+    "message": "your target language",
+    "description": "Placeholder for the language name on the review page, shown until the real language name loads. Replaces $LANGUAGE$ in the review page text."
+  },
+  "review_loading": {
+    "message": "Loading your review queue…",
+    "description": "Status text on the review page while the queue loads."
+  },
+  "review_done_heading": {
+    "message": "Done for now",
+    "description": "Heading of the review page after the learner finishes the cards that were due."
+  },
+  "review_say_this": {
+    "message": "Say this in $LANGUAGE$:",
+    "description": "Label above an English prompt on a review card. $1 is the name of the language being learned.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "review_reveal": {
+    "message": "Reveal answer $KEY$",
+    "description": "Button that shows the answer on a review card. $1 is the label of the keyboard shortcut key.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "Space"
+      }
+    }
+  },
+  "review_key_space": {
+    "message": "Space",
+    "description": "Label of the Space key, shown inside the Reveal answer button as a keyboard hint."
+  },
+  "review_how_well": {
+    "message": "How well did you recall it? Press 1 to 4, or Enter for the highlighted choice.",
+    "description": "Question above the four rating buttons on a review card. Refers to the keys 1 to 4 and Enter."
+  },
+  "review_rating_again": {
+    "message": "$KEY$ Again",
+    "description": "Rating button: the learner did not recall the word. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_rating_hard": {
+    "message": "$KEY$ Hard",
+    "description": "Rating button: the learner recalled the word with difficulty. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "review_rating_medium": {
+    "message": "$KEY$ Medium",
+    "description": "Rating button: the learner recalled the word after some effort. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_rating_easy": {
+    "message": "$KEY$ Easy",
+    "description": "Rating button: the learner recalled the word easily. $1 is the shortcut key number.",
+    "placeholders": {
+      "KEY": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "review_known": {
+    "message": "Already know",
+    "description": "Button on a review card that marks the word as already known."
+  },
+  "review_rating_help": {
+    "message": "Again returns in 10 minutes. For a new word, Hard returns in a day, Medium in 2 days and Easy in 8 days; after that, intervals grow with each successful recall. With gradual learning on, Already know waits for one later check before it counts as verified, and three Easy ratings move a word to occasional maintenance reviews.",
+    "description": "Help text under the rating buttons explaining when each rating brings the word back. Names the buttons Again, Hard, Medium, Easy and Already know."
+  },
+  "review_reload": {
+    "message": "Reload queue",
+    "description": "Button on the review page that reloads the review queue after an error."
+  },
+  "review_unavailable": {
+    "message": "Review is unavailable",
+    "description": "Error shown on the review page when the extension's background worker does not answer."
+  },
+  "review_failed": {
+    "message": "Review failed",
+    "description": "Error shown on the review page when an action fails without a more specific message."
+  },
+  "review_counts": {
+    "message": "$DUE$ due · $NEW$ available to add",
+    "description": "Status line on the review page: cards due and new words available to add.",
+    "placeholders": {
+      "DUE": {
+        "content": "$1",
+        "example": "4"
+      },
+      "NEW": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "review_counts_returned_one": {
+    "message": "$DUE$ due · $NEW$ available to add · $COUNT$ word returned from retirement to be verified",
+    "description": "Status line on the review page when one retired word has returned to be verified. $1 is the number of returned words.",
+    "placeholders": {
+      "DUE": {
+        "content": "$2",
+        "example": "4"
+      },
+      "NEW": {
+        "content": "$3",
+        "example": "10"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_counts_returned_other": {
+    "message": "$DUE$ due · $NEW$ available to add · $COUNT$ words returned from retirement to be verified",
+    "description": "Status line on the review page when several retired words have returned to be verified. $1 is the number of returned words.",
+    "placeholders": {
+      "DUE": {
+        "content": "$2",
+        "example": "4"
+      },
+      "NEW": {
+        "content": "$3",
+        "example": "10"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "review_introduce_one": {
+    "message": "Add $COUNT$ new word",
+    "description": "Button on the review page that adds one new word to the queue.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_introduce_other": {
+    "message": "Add $COUNT$ new words",
+    "description": "Button on the review page that adds several new words to the queue. $1 is how many (at most 5).",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "review_pronunciation": {
+    "message": "Pronunciation: $HINT$",
+    "description": "Pronunciation hint shown under the revealed answer on a review card.",
+    "placeholders": {
+      "HINT": {
+        "content": "$1",
+        "example": "ee"
+      }
+    }
+  },
+  "review_empty_new": {
+    "message": "No reviews due. Add a few words when you are ready.",
+    "description": "Review page message when no card is due but new words can be added."
+  },
+  "review_empty_caught_up": {
+    "message": "You are caught up. Come back when a card is due.",
+    "description": "Review page message when no card is due and no new words are available."
+  },
+  "review_completed_one": {
+    "message": "You completed $COUNT$ review.",
+    "description": "Summary on the review page after finishing, singular. $1 is the number of reviews in this session.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_completed_other": {
+    "message": "You completed $COUNT$ reviews.",
+    "description": "Summary on the review page after finishing, plural. $1 is the number of reviews in this session.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "8"
+      }
+    }
+  },
+  "review_card_position": {
+    "message": "Card $POSITION$ of $TOTAL$",
+    "description": "Progress line above a review card.",
+    "placeholders": {
+      "POSITION": {
+        "content": "$1",
+        "example": "3"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "review_reviewing": {
+    "message": "Reviewing $LANGUAGE$",
+    "description": "Line on the review page naming the language being reviewed.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "review_next_session_today_one": {
+    "message": "Next review from this session: today from $TIME$, $COUNT$ word.",
+    "description": "After finishing: when this session's earliest card returns, later today, singular. $1 is the number of words returning that day, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_next_session_today_other": {
+    "message": "Next review from this session: today from $TIME$, $COUNT$ words.",
+    "description": "After finishing: when this session's earliest card returns, later today, plural. $1 is the number of words returning that day, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_next_session_tomorrow_one": {
+    "message": "Next review from this session: tomorrow, $COUNT$ word.",
+    "description": "After finishing: this session's earliest card returns tomorrow, singular. $1 is the number of words returning that day.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_next_session_tomorrow_other": {
+    "message": "Next review from this session: tomorrow, $COUNT$ words.",
+    "description": "After finishing: this session's earliest card returns tomorrow, plural. $1 is the number of words returning that day.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_next_session_on_one": {
+    "message": "Next review from this session: on $DAY$, $COUNT$ word.",
+    "description": "After finishing: this session's earliest card returns on a later day, singular. $1 is the number of words returning that day, $2 a weekday name or a date.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "Friday"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_next_session_on_other": {
+    "message": "Next review from this session: on $DAY$, $COUNT$ words.",
+    "description": "After finishing: this session's earliest card returns on a later day, plural. $1 is the number of words returning that day, $2 a weekday name or a date.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "Friday"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_deck_empty": {
+    "message": "No future reviews in this deck.",
+    "description": "After finishing: nothing is scheduled in the deck."
+  },
+  "review_deck_today_one": {
+    "message": "Next review today from $TIME$, $COUNT$ word.",
+    "description": "After finishing: the deck's next review is later today, singular. $1 is the number of words, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_deck_today_other": {
+    "message": "Next review today from $TIME$, $COUNT$ words.",
+    "description": "After finishing: the deck's next review is later today, plural. $1 is the number of words, $2 a local time.",
+    "placeholders": {
+      "TIME": {
+        "content": "$2",
+        "example": "3:45 PM"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_deck_tomorrow_one": {
+    "message": "Next review tomorrow, $COUNT$ word.",
+    "description": "After finishing: the deck's next review is tomorrow, singular. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_deck_tomorrow_other": {
+    "message": "Next review tomorrow, $COUNT$ words.",
+    "description": "After finishing: the deck's next review is tomorrow, plural. $1 is the number of words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "review_deck_later_one": {
+    "message": "Nothing due until $DATE$ ($COUNT$ word).",
+    "description": "After finishing: the deck's next review is on a later date, singular. $1 is the number of words, $2 a date.",
+    "placeholders": {
+      "DATE": {
+        "content": "$2",
+        "example": "November 5"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "review_deck_later_other": {
+    "message": "Nothing due until $DATE$ ($COUNT$ words).",
+    "description": "After finishing: the deck's next review is on a later date, plural. $1 is the number of words, $2 a date.",
+    "placeholders": {
+      "DATE": {
+        "content": "$2",
+        "example": "November 5"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "words_title": {
+    "message": "Lang Weave · My words",
+    "description": "Browser tab title of the My words page. \"Lang Weave\" is the product name."
+  },
+  "words_heading": {
+    "message": "My words",
+    "description": "Main heading of the My words page, which lists the learner's words and progress."
+  },
+  "words_progress_heading": {
+    "message": "Progress",
+    "description": "Heading of the progress section on My words."
+  },
+  "words_stages_note": {
+    "message": "Words by stage, from the pack and your active entries (archived entries are not counted):",
+    "description": "Intro line above the per-stage word counts on My words. \"Pack\" is the bundled word list."
+  },
+  "words_list_heading": {
+    "message": "Words",
+    "description": "Heading of the word list section on My words."
+  },
+  "words_find": {
+    "message": "Find a word$FIELD$",
+    "description": "Label of the search box on My words. $1 is the search box itself; keep it where it belongs in the sentence.",
+    "placeholders": {
+      "FIELD": {
+        "content": "$1",
+        "example": "(search box)"
+      }
+    }
+  },
+  "words_search_placeholder": {
+    "message": "Word, English or meaning",
+    "description": "Placeholder text inside the My words search box."
+  },
+  "words_stage_filter": {
+    "message": "Stage$FIELD$",
+    "description": "Label of the stage filter on My words. $1 is the drop-down list itself; keep it where it belongs.",
+    "placeholders": {
+      "FIELD": {
+        "content": "$1",
+        "example": "(drop-down list)"
+      }
+    }
+  },
+  "words_all_stages": {
+    "message": "All stages",
+    "description": "First option of the stage filter on My words: no filtering."
+  },
+  "words_keys": {
+    "message": "Arrow keys, Home and End move between words; Tab moves through each word's actions; Escape returns to search.",
+    "description": "Keyboard help under the search controls on My words."
+  },
+  "words_working_heading": {
+    "message": "Is this working?",
+    "description": "Heading of the section on My words that measures whether learning is working."
+  },
+  "words_working_note": {
+    "message": "Measured from your own reviews on this device. Nothing is sent anywhere.",
+    "description": "Note under the \"Is this working?\" heading on My words."
+  },
+  "words_footer": {
+    "message": "$ENTRIES$ lists all your own words and exports them as JSON. $SETTINGS$",
+    "description": "Footer of My words. $1 is a link to the Personal entries page, $2 a link to Settings.",
+    "placeholders": {
+      "ENTRIES": {
+        "content": "$1",
+        "example": "Personal entries"
+      },
+      "SETTINGS": {
+        "content": "$2",
+        "example": "Settings"
+      }
+    }
+  },
+  "words_entries_link": {
+    "message": "Personal entries",
+    "description": "Link text in the footer of My words that opens the page listing the learner's own entries."
+  },
+  "words_settings_link": {
+    "message": "Settings",
+    "description": "Link text in the footer of My words that opens the extension settings."
+  },
+  "words_unavailable": {
+    "message": "My words is unavailable",
+    "description": "Error shown on My words when the extension's background worker does not answer."
+  },
+  "words_due_not_scheduled": {
+    "message": "Not scheduled",
+    "description": "Due status of a word that is known and not scheduled for review. Shown in the details line of a word on My words."
+  },
+  "words_due_not_started": {
+    "message": "Not started",
+    "description": "Due status of a word that has not been introduced yet. Shown in the details line of a word on My words."
+  },
+  "words_due_now": {
+    "message": "Due now",
+    "description": "Due status of a word whose review is due. Shown in the details line of a word on My words."
+  },
+  "words_due_today_one": {
+    "message": "Due today in $COUNT$ hour",
+    "description": "Due status of a word due later today, singular. $1 is the number of hours.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_due_today_other": {
+    "message": "Due today in $COUNT$ hours",
+    "description": "Due status of a word due later today, plural. $1 is the number of hours.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "words_due_tomorrow": {
+    "message": "Due tomorrow",
+    "description": "Due status of a word due on the next calendar day."
+  },
+  "words_due_days_one": {
+    "message": "Due in $COUNT$ day",
+    "description": "Due status of a word due in one day, singular. $1 is the number of days.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_due_days_other": {
+    "message": "Due in $COUNT$ days",
+    "description": "Due status of a word due in several days, plural. $1 is the number of days.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "words_language_heading": {
+    "message": "$LANGUAGE$ words on this device",
+    "description": "Line under the My words heading naming the language whose words are listed.",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "Spanish"
+      }
+    }
+  },
+  "words_headline_returned_one": {
+    "message": "$HEADLINE$ · $COUNT$ word returned from retirement to be verified",
+    "description": "Progress headline followed by the number of retired words that returned to be verified, singular. $2 is the headline sentence.",
+    "placeholders": {
+      "HEADLINE": {
+        "content": "$2",
+        "example": "2 words verified known"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_headline_returned_other": {
+    "message": "$HEADLINE$ · $COUNT$ words returned from retirement to be verified",
+    "description": "Progress headline followed by the number of retired words that returned to be verified, plural. $2 is the headline sentence.",
+    "placeholders": {
+      "HEADLINE": {
+        "content": "$2",
+        "example": "2 words verified known"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "words_stage_count": {
+    "message": "$STAGE$: $COUNT$",
+    "description": "One item in the per-stage counts on My words: the stage name and how many words are in it.",
+    "placeholders": {
+      "STAGE": {
+        "content": "$1",
+        "example": "Learning"
+      },
+      "COUNT": {
+        "content": "$2",
+        "example": "6"
+      }
+    }
+  },
+  "words_strip_label": {
+    "message": "Days with reviews in the last 30 days: $COUNT$",
+    "description": "Screen-reader label of the 30-day activity strip on My words.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "words_strip_day_one": {
+    "message": "$DAY$: $COUNT$ review",
+    "description": "Tooltip of one day in the activity strip, singular. $2 is the date, $1 the number of reviews that day.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "2026-10-30"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_strip_day_other": {
+    "message": "$DAY$: $COUNT$ reviews",
+    "description": "Tooltip of one day in the activity strip, plural. $2 is the date, $1 the number of reviews that day.",
+    "placeholders": {
+      "DAY": {
+        "content": "$2",
+        "example": "2026-10-30"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "words_measure_title": {
+    "message": "$TITLE$:",
+    "description": "Bold title of one measurement in \"Is this working?\" on My words; the result follows after a space.",
+    "placeholders": {
+      "TITLE": {
+        "content": "$1",
+        "example": "Workload"
+      }
+    }
+  },
+  "words_gloss_sense": {
+    "message": "$GLOSS$ ($SENSE$)",
+    "description": "A word's English meaning followed by a short note on which sense of the word is meant.",
+    "placeholders": {
+      "GLOSS": {
+        "content": "$1",
+        "example": "bird"
+      },
+      "SENSE": {
+        "content": "$2",
+        "example": "animal"
+      }
+    }
+  },
+  "words_tag_personal": {
+    "message": "your word",
+    "description": "Tag after a word on My words: the learner added it themselves."
+  },
+  "words_tag_saved": {
+    "message": "saved by you",
+    "description": "Tag after a word on My words: the learner saved this bundled word."
+  },
+  "words_tag_archived": {
+    "message": "archived",
+    "description": "Tag after a word on My words: the word is archived."
+  },
+  "words_meta": {
+    "message": "$STAGE$ · $DUE$ · $SEEN$",
+    "description": "Details line under a word on My words: its stage, when it is due, and how often it was seen while reading.",
+    "placeholders": {
+      "STAGE": {
+        "content": "$1",
+        "example": "Learning"
+      },
+      "DUE": {
+        "content": "$2",
+        "example": "Due now"
+      },
+      "SEEN": {
+        "content": "$3",
+        "example": "seen 5 times on 3 days"
+      }
+    }
+  },
+  "words_seen_times_one": {
+    "message": "$COUNT$ time",
+    "description": "Number of times a word was seen, singular. Used inside the \"seen\" phrase.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_seen_times_other": {
+    "message": "$COUNT$ times",
+    "description": "Number of times a word was seen, plural. Used inside the \"seen\" phrase.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "words_seen_on_one": {
+    "message": "seen $TIMES$ on $COUNT$ day",
+    "description": "How often a word was seen while reading and on how many days, singular days. $2 is the number of times, already worded.",
+    "placeholders": {
+      "TIMES": {
+        "content": "$2",
+        "example": "5 times"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_seen_on_other": {
+    "message": "seen $TIMES$ on $COUNT$ days",
+    "description": "How often a word was seen while reading and on how many days, plural days. $2 is the number of times, already worded.",
+    "placeholders": {
+      "TIMES": {
+        "content": "$2",
+        "example": "5 times"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "words_row_label": {
+    "message": "$TARGET$, $GLOSS$, $STAGE$",
+    "description": "Screen-reader name of a word row on My words: the word, its English meaning and its stage.",
+    "placeholders": {
+      "TARGET": {
+        "content": "$1",
+        "example": "gato"
+      },
+      "GLOSS": {
+        "content": "$2",
+        "example": "cat"
+      },
+      "STAGE": {
+        "content": "$3",
+        "example": "Learning"
+      }
+    }
+  },
+  "words_practise": {
+    "message": "Practice now",
+    "description": "Button on a word row of My words: opens the review page for this word."
+  },
+  "words_known": {
+    "message": "Already know",
+    "description": "Button on a word row of My words: marks the word as already known."
+  },
+  "words_reset": {
+    "message": "Reset",
+    "description": "Button on a word row of My words: starts the confirmation to clear the word's schedule."
+  },
+  "words_reset_group": {
+    "message": "Reset $WORD$",
+    "description": "Screen-reader name of the reset confirmation group for a word.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "gato"
+      }
+    }
+  },
+  "words_reset_confirm_text": {
+    "message": "Reset $WORD$? Its schedule, review count and \"known\" mark are cleared; your history stays in the measurements.",
+    "description": "Question shown before resetting a word on My words.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "gato"
+      }
+    }
+  },
+  "words_reset_confirm": {
+    "message": "Confirm reset",
+    "description": "Button that confirms resetting a word on My words."
+  },
+  "words_cancel": {
+    "message": "Cancel",
+    "description": "Button that cancels resetting a word on My words."
+  },
+  "words_reset_done": {
+    "message": "$WORD$ was reset. $COUNT$",
+    "description": "Status line after a word was reset. $2 is the word count line shown under the search box.",
+    "placeholders": {
+      "WORD": {
+        "content": "$1",
+        "example": "gato"
+      },
+      "COUNT": {
+        "content": "$2",
+        "example": "150 words"
+      }
+    }
+  },
+  "words_archive": {
+    "message": "Archive",
+    "description": "Button on a word row of My words: archives the learner's entry."
+  },
+  "words_unarchive": {
+    "message": "Unarchive",
+    "description": "Button on a word row of My words: restores an archived entry."
+  },
+  "words_more_left": {
+    "message": "Show more ($COUNT$ left)",
+    "description": "Button at the end of the word list on My words. $1 is how many words are not shown yet.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "90"
+      }
+    }
+  },
+  "words_count_one": {
+    "message": "$COUNT$ word",
+    "description": "Number of words in the list on My words, singular.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "words_count_other": {
+    "message": "$COUNT$ words",
+    "description": "Number of words in the list on My words, plural.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "150"
+      }
+    }
+  },
+  "words_count_of_one": {
+    "message": "$COUNT$ word of $TOTAL$",
+    "description": "Number of words matching the search out of all words, singular.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "150"
+      }
+    }
+  },
+  "words_count_of_other": {
+    "message": "$COUNT$ words of $TOTAL$",
+    "description": "Number of words matching the search out of all words, plural.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "12"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "150"
+      }
+    }
+  },
+  "words_no_match": {
+    "message": "No word matches.",
+    "description": "List message on My words when the search matches nothing."
+  },
+  "words_no_words": {
+    "message": "No words yet.",
+    "description": "List message on My words when there are no words at all."
+  },
+  "capture_title": {
+    "message": "Lang Weave · Capture a word",
+    "description": "Browser tab title of the capture confirmation page. Capture page (capture.html)."
+  },
+  "capture_heading": {
+    "message": "Capture a word",
+    "description": "Main heading. Capture page (capture.html)."
+  },
+  "capture_retry": {
+    "message": "Retry capture",
+    "description": "Button that reloads the pending capture draft after a failure. Capture page (capture.html)."
+  },
+  "capture_suggestions_title": {
+    "message": "Local suggestions",
+    "description": "Heading above the list of local suggestions, and the accessible name of that region. Capture page (capture.html)."
+  },
+  "capture_direction_legend": {
+    "message": "What did you select?",
+    "description": "Legend of the two-choice group asking which language the selected text is in. Capture page (capture.html)."
+  },
+  "capture_direction_english": {
+    "message": "$INPUT$ English, to learn in the selected language",
+    "description": "Radio option: the selection is English. $INPUT$ stands for the radio button itself and must stay in the message exactly once. Capture page (capture.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(radio button)"
+      }
+    }
+  },
+  "capture_direction_target": {
+    "message": "$INPUT$ Selected-language phrase, with its English meaning",
+    "description": "Radio option: the selection is a phrase in the language being learned. $INPUT$ stands for the radio button itself and must stay in the message exactly once. Capture page (capture.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(radio button)"
+      }
+    }
+  },
+  "capture_label_english": {
+    "message": "English",
+    "description": "Label of the English text field. Capture page (capture.html)."
+  },
+  "capture_label_target": {
+    "message": "Selected language",
+    "description": "Label of the field for the phrase in the language being learned. Capture page (capture.html)."
+  },
+  "capture_label_sense": {
+    "message": "Sense (optional)",
+    "description": "Label of the optional field that distinguishes meanings of the same word. Capture page (capture.html)."
+  },
+  "capture_distinct": {
+    "message": "$INPUT$ This is a different sense from an existing entry",
+    "description": "Checkbox label: save as a separate entry even if the words match an existing one. $INPUT$ stands for the checkbox itself and must stay in the message exactly once. Capture page (capture.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(checkbox)"
+      }
+    }
+  },
+  "capture_save": {
+    "message": "Save personal entry",
+    "description": "Submit button that saves the entry. Capture page (capture.html)."
+  },
+  "capture_cancel": {
+    "message": "Cancel",
+    "description": "Button that cancels the capture. Capture page (capture.html)."
+  },
+  "capture_entries_heading": {
+    "message": "Personal entries",
+    "description": "Heading of the list of the user's saved personal entries. Capture page (capture.html)."
+  },
+  "capture_entry_search_label": {
+    "message": "Find an entry",
+    "description": "Label of the search field over the personal entries. Capture page (capture.html)."
+  },
+  "capture_entry_search_placeholder": {
+    "message": "English, target or sense",
+    "description": "Placeholder of the entry search field; \"target\" means the language being learned. Capture page (capture.html)."
+  },
+  "capture_refresh": {
+    "message": "Refresh entries",
+    "description": "Button that reloads the personal entries list. Capture page (capture.html)."
+  },
+  "capture_export": {
+    "message": "Export JSON",
+    "description": "Button that downloads the personal entries as a JSON file. Capture page (capture.html)."
+  },
+  "capture_expired_select": {
+    "message": "Capture expired. Select the word again on the page.",
+    "description": "Status shown when the pending capture timed out or its keep-alive failed. Capture page (capture.html)."
+  },
+  "capture_expired_retry": {
+    "message": "Capture expired. Retry from the page selection.",
+    "description": "Error shown when saving without a live capture draft. Capture page (capture.html)."
+  },
+  "capture_request_failed": {
+    "message": "The request could not be completed.",
+    "description": "Error shown when the background worker gave no usable reply. Capture page (capture.html)."
+  },
+  "capture_no_suggestions": {
+    "message": "No local suggestions. Enter both forms yourself.",
+    "description": "Shown when no local suggestion matches the selected text. Capture page (capture.html)."
+  },
+  "capture_use_suggestion": {
+    "message": "Use suggestion",
+    "description": "Button on a suggestion that copies it into the form. Capture page (capture.html)."
+  },
+  "capture_origin_personal": {
+    "message": "Your saved personal entry",
+    "description": "Provenance label of a suggestion that is one of the user's own entries. Capture page (capture.html)."
+  },
+  "capture_origin_bundled": {
+    "message": "Bundled suggestion; meaning has not been independently dictionary checked",
+    "description": "Provenance label of a suggestion that ships with the extension and has not been verified against a dictionary. Keep this honest. Capture page (capture.html)."
+  },
+  "capture_origin_local": {
+    "message": "Local suggestion",
+    "description": "Provenance label of any other local suggestion. Capture page (capture.html)."
+  },
+  "capture_review_only_default_reason": {
+    "message": "automatic reading is disabled for this entry",
+    "description": "Fallback reason inside the \"Review only\" provenance note when the entry gives no reason. Lowercase: it continues a sentence. Capture page (capture.html)."
+  },
+  "capture_provenance_review_only": {
+    "message": "$ORIGIN$ · Review only: $REASON$",
+    "description": "Provenance line of a suggestion that can only be reviewed, never read automatically. Capture page (capture.html).",
+    "placeholders": {
+      "ORIGIN": {
+        "content": "$1",
+        "example": "Local suggestion"
+      },
+      "REASON": {
+        "content": "$2",
+        "example": "automatic reading is disabled for this entry"
+      }
+    }
+  },
+  "capture_entry_archived": {
+    "message": "$ENTRY$ · Archived",
+    "description": "Personal entry text followed by a marker that the entry is archived. Capture page (capture.html).",
+    "placeholders": {
+      "ENTRY": {
+        "content": "$1",
+        "example": "hello ⇄ bonjour"
+      }
+    }
+  },
+  "capture_entry_review_only": {
+    "message": "Review only; automatic reading is disabled.",
+    "description": "Note under a personal entry that can only be reviewed. Capture page (capture.html)."
+  },
+  "capture_entry_review_only_reason": {
+    "message": "Review only; automatic reading is disabled: $REASON$",
+    "description": "Note under a personal entry that can only be reviewed, with the reason. Capture page (capture.html).",
+    "placeholders": {
+      "REASON": {
+        "content": "$1",
+        "example": "too ambiguous"
+      }
+    }
+  },
+  "capture_entry_none": {
+    "message": "No personal entries yet.",
+    "description": "Shown when the user has no personal entries. Capture page (capture.html)."
+  },
+  "capture_add_to_review": {
+    "message": "Add to review",
+    "description": "Button that adds a personal entry to the review queue. Capture page (capture.html)."
+  },
+  "capture_unarchive": {
+    "message": "Unarchive",
+    "description": "Button that restores an archived personal entry. Capture page (capture.html)."
+  },
+  "capture_archive": {
+    "message": "Archive",
+    "description": "Button that archives a personal entry. Capture page (capture.html)."
+  },
+  "capture_added_to_review": {
+    "message": "Added to review.",
+    "description": "Status after a personal entry was added to the review queue. Capture page (capture.html)."
+  },
+  "capture_not_added_to_review": {
+    "message": "No new review card was added.",
+    "description": "Status when adding to review created no new card. Capture page (capture.html)."
+  },
+  "capture_selected_language": {
+    "message": "Selected language: $LANGUAGE$",
+    "description": "Line naming the language of the selected text. Capture page (capture.html).",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "French"
+      }
+    }
+  },
+  "capture_language_unknown": {
+    "message": "unknown",
+    "description": "Fallback shown after \"Selected language:\" when the language is not known. Lowercase. Capture page (capture.html)."
+  },
+  "capture_load_failed": {
+    "message": "$ERROR$ You can retry this page or cancel the capture.",
+    "description": "Status when loading the capture draft failed; $ERROR$ is the reason, a full sentence. Capture page (capture.html).",
+    "placeholders": {
+      "ERROR": {
+        "content": "$1",
+        "example": "Capture expired."
+      }
+    }
+  },
+  "capture_saved_archived": {
+    "message": "This entry already exists in your archive. Unarchive it below to use it.",
+    "description": "Status after saving an entry that matches an archived one. Capture page (capture.html)."
+  },
+  "capture_saved_duplicate": {
+    "message": "This personal entry already exists.",
+    "description": "Status after saving an entry that already exists. Capture page (capture.html)."
+  },
+  "capture_saved_review_only": {
+    "message": "Saved as a review-only personal entry.",
+    "description": "Status after saving an entry that can only be reviewed. Capture page (capture.html)."
+  },
+  "capture_saved": {
+    "message": "Saved as a personal entry. It was not added to review.",
+    "description": "Status after saving a new personal entry. Capture page (capture.html)."
+  },
+  "capture_cancelled": {
+    "message": "Capture cancelled.",
+    "description": "Status after the capture was cancelled. Capture page (capture.html)."
+  },
+  "capture_export_done": {
+    "message": "Personal export downloaded.",
+    "description": "Status after the personal entries file was downloaded. Capture page (capture.html)."
+  },
+  "backup_title": {
+    "message": "Lang Weave · Learning backup",
+    "description": "Browser tab title of the learning backup page. Learning backup page (backup.html)."
+  },
+  "backup_heading": {
+    "message": "Learning backup",
+    "description": "Main heading. Learning backup page (backup.html)."
+  },
+  "backup_intro": {
+    "message": "Keep your old unpacked installation and its profile intact. Update that installation to a version with this page, export there, then open this page in the separate new installation. Do not remove the old one until you have checked your restored review queue.",
+    "description": "Introductory paragraph explaining the two-installation backup procedure. \"Unpacked installation\" means an extension loaded from a folder. Learning backup page (backup.html)."
+  },
+  "backup_export_heading": {
+    "message": "Export from this installation",
+    "description": "Heading of the export section. Learning backup page (backup.html)."
+  },
+  "backup_export_description": {
+    "message": "Download supported learning progress, personal entries, generated packs and learning preferences. Export only reads local state.",
+    "description": "Paragraph describing what the export contains. Learning backup page (backup.html)."
+  },
+  "backup_export_blocked": {
+    "message": "An unverified card from an old or removed language pack blocks the whole backup. The old installation and its history stay intact; this tool cannot safely include that card or import part of the history.",
+    "description": "Paragraph warning that one unverified card blocks the whole export. Learning backup page (backup.html)."
+  },
+  "backup_export_button": {
+    "message": "Download learning backup",
+    "description": "Button that downloads the backup file. Learning backup page (backup.html)."
+  },
+  "backup_import_heading": {
+    "message": "Import into a fresh learning profile",
+    "description": "Heading of the import section. Learning backup page (backup.html)."
+  },
+  "backup_import_description": {
+    "message": "Choose a backup file from your computer. Import is available only when this installation has no meaningful learning progress and no Gemini key. Initialized defaults are okay. Existing progress, generated packs or an unknown storage format are conflicts; this page cannot merge or replace them.",
+    "description": "Paragraph explaining when import is allowed. Gemini is a product name. Learning backup page (backup.html)."
+  },
+  "backup_file_label": {
+    "message": "Learning backup JSON file",
+    "description": "Label of the file chooser for the backup file. Learning backup page (backup.html)."
+  },
+  "backup_preview_button": {
+    "message": "Preview backup",
+    "description": "Button that validates the chosen file and shows a summary. Learning backup page (backup.html)."
+  },
+  "backup_check_heading": {
+    "message": "Check before importing",
+    "description": "Heading of the preview summary shown before importing. Learning backup page (backup.html)."
+  },
+  "backup_excluded": {
+    "message": "Excluded: Gemini keys, model/cache/quota data, site choices and host permissions, page text and URLs, pending captures, introduction reservations, reveal and inline tickets. Import never grants a host, enables a site, or calls Gemini. Re-enter a key and choose sites separately afterward.",
+    "description": "Note in the preview listing what a backup never contains or does. Gemini is a product name. Learning backup page (backup.html)."
+  },
+  "backup_confirm": {
+    "message": "$INPUT$ I checked this preview and want to import into this fresh learning profile.",
+    "description": "Checkbox label confirming the import. $INPUT$ stands for the checkbox itself and must stay in the message exactly once. Learning backup page (backup.html).",
+    "placeholders": {
+      "INPUT": {
+        "content": "$1",
+        "example": "(checkbox)"
+      }
+    }
+  },
+  "backup_import_button": {
+    "message": "Import this backup",
+    "description": "Button that performs the import once the preview is confirmed. Learning backup page (backup.html)."
+  },
+  "backup_connection_ended": {
+    "message": "This backup page connection ended. Reload the page before importing.",
+    "description": "Status when the page's link to the background worker was lost. Learning backup page (backup.html)."
+  },
+  "backup_unavailable": {
+    "message": "Learning backup is unavailable.",
+    "description": "Error when the background worker gave no usable reply. Learning backup page (backup.html)."
+  },
+  "backup_failed": {
+    "message": "Learning backup failed.",
+    "description": "Error shown when an action fails without a specific reason. Learning backup page (backup.html)."
+  },
+  "backup_source_version": {
+    "message": "Exported by Lang Weave $VERSION$.",
+    "description": "Preview line naming the extension version that wrote the backup; $VERSION$ may be a question mark when unknown. Learning backup page (backup.html).",
+    "placeholders": {
+      "VERSION": {
+        "content": "$1",
+        "example": "0.12.18"
+      }
+    }
+  },
+  "backup_languages_none": {
+    "message": "none",
+    "description": "Shown after \"Languages:\" in the preview when the backup lists no languages. Lowercase. Learning backup page (backup.html)."
+  },
+  "backup_counts": {
+    "message": "Languages: $LANGUAGES$ · Generated packs: $PACKS$ · Review cards: $CARDS$ · Personal entries: $ENTRIES$.",
+    "description": "Preview line with the backup's contents. $LANGUAGES$ is a comma-separated list; the counts may be a question mark when unknown. Learning backup page (backup.html).",
+    "placeholders": {
+      "LANGUAGES": {
+        "content": "$1",
+        "example": "fr, es"
+      },
+      "PACKS": {
+        "content": "$2",
+        "example": "2"
+      },
+      "CARDS": {
+        "content": "$3",
+        "example": "120"
+      },
+      "ENTRIES": {
+        "content": "$4",
+        "example": "14"
+      }
+    }
+  },
+  "backup_preferences": {
+    "message": "Learning preferences: language $LANGUAGE$, level $LEVEL$, gradual $GRADUAL$, new words/day $NEW_WORDS$, density $DENSITY$, inline recall $RECALL$.",
+    "description": "Preview line listing the learning preferences stored in the backup. Values are settings such as on, off or numbers. Learning backup page (backup.html).",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "fr"
+      },
+      "LEVEL": {
+        "content": "$2",
+        "example": "A2"
+      },
+      "GRADUAL": {
+        "content": "$3",
+        "example": "on"
+      },
+      "NEW_WORDS": {
+        "content": "$4",
+        "example": "5"
+      },
+      "DENSITY": {
+        "content": "$5",
+        "example": "medium"
+      },
+      "RECALL": {
+        "content": "$6",
+        "example": "on"
+      }
+    }
+  },
+  "backup_preferences_retention": {
+    "message": "Learning preferences: language $LANGUAGE$, level $LEVEL$, gradual $GRADUAL$, new words/day $NEW_WORDS$, density $DENSITY$, inline recall $RECALL$, target recall $RETENTION$.",
+    "description": "Same as the plain preferences line, with the target recall rate added at the end. Learning backup page (backup.html).",
+    "placeholders": {
+      "LANGUAGE": {
+        "content": "$1",
+        "example": "fr"
+      },
+      "LEVEL": {
+        "content": "$2",
+        "example": "A2"
+      },
+      "GRADUAL": {
+        "content": "$3",
+        "example": "on"
+      },
+      "NEW_WORDS": {
+        "content": "$4",
+        "example": "5"
+      },
+      "DENSITY": {
+        "content": "$5",
+        "example": "medium"
+      },
+      "RECALL": {
+        "content": "$6",
+        "example": "on"
+      },
+      "RETENTION": {
+        "content": "$7",
+        "example": "0.9"
+      }
+    }
+  },
+  "backup_measurements": {
+    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words.",
+    "description": "Preview line counting logged reviews and exposure counts in the backup. Learning backup page (backup.html).",
+    "placeholders": {
+      "REVIEWS": {
+        "content": "$1",
+        "example": "340"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "95"
+      }
+    }
+  },
+  "backup_measurements_omitted": {
+    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: $OMITTED_REVIEWS$ reviews and exposure counts for $OMITTED_WORDS$ words.",
+    "description": "Same as the measurements line, followed by a second sentence counting what the export had to leave out. Learning backup page (backup.html).",
+    "placeholders": {
+      "REVIEWS": {
+        "content": "$1",
+        "example": "340"
+      },
+      "WORDS": {
+        "content": "$2",
+        "example": "95"
+      },
+      "OMITTED_REVIEWS": {
+        "content": "$3",
+        "example": "12"
+      },
+      "OMITTED_WORDS": {
+        "content": "$4",
+        "example": "3"
+      }
+    }
+  },
+  "backup_choose_preview": {
+    "message": "Choose Preview backup to validate the selected file.",
+    "description": "Status after a file is chosen; \"Preview backup\" names the button and should match its translation. Learning backup page (backup.html)."
+  },
+  "backup_not_prepared": {
+    "message": "The backup could not be prepared.",
+    "description": "Error when the export produced no file. Learning backup page (backup.html)."
+  },
+  "backup_downloaded": {
+    "message": "Learning backup downloaded. Keep the file private and the old installation intact.",
+    "description": "Status after the backup file was downloaded. Learning backup page (backup.html)."
+  },
+  "backup_choose_file": {
+    "message": "Choose a learning backup JSON file first.",
+    "description": "Error when Preview is pressed with no file chosen. Learning backup page (backup.html)."
+  },
+  "backup_too_large": {
+    "message": "The backup file is over the 1 MiB limit.",
+    "description": "Error when the chosen file is larger than one mebibyte. Learning backup page (backup.html)."
+  },
+  "backup_port_unavailable": {
+    "message": "The backup page connection is unavailable. Reload this page.",
+    "description": "Error when the page cannot reach the background worker. Learning backup page (backup.html)."
+  },
+  "backup_preview_incomplete": {
+    "message": "The preview was incomplete.",
+    "description": "Error when the worker's preview reply was missing parts. Learning backup page (backup.html)."
+  },
+  "backup_preview_validated": {
+    "message": "Preview validated. Import requires your confirmation and a fresh target check.",
+    "description": "Status after a backup file passed validation. Learning backup page (backup.html)."
+  },
+  "backup_import_unconfirmed": {
+    "message": "Import was not confirmed. Preview again.",
+    "description": "Error when the worker did not confirm the import. Learning backup page (backup.html)."
+  },
+  "backup_already_imported": {
+    "message": "This exact backup was already imported. No progress changed.",
+    "description": "Status when the same backup had been imported before. Learning backup page (backup.html)."
+  },
+  "backup_imported": {
+    "message": "Learning progress imported. Open review to check it, then enter your key and choose sites separately.",
+    "description": "Status after a successful import. Learning backup page (backup.html)."
+  }
+}

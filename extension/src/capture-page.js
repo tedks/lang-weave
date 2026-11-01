@@ -1,3 +1,6 @@
+import { localize, t } from './i18n.js';
+
+localize();
 const $ = (id) => document.getElementById(id);
 const nonce = new URL(location.href).searchParams.get('nonce') || '';
 let draft = null;
@@ -14,15 +17,15 @@ function startHeartbeat() {
     if (!draft) { stopHeartbeat(); return; }
     void send('captureKeepAlive', { nonce }).then((result) => {
       if (!draft) return;
-      if (!result.ok) { stopHeartbeat(); notice('Capture expired. Select the word again on the page.'); }
-    }).catch(() => { stopHeartbeat(); if (draft) notice('Capture expired. Select the word again on the page.'); });
+      if (!result.ok) { stopHeartbeat(); notice(t('capture_expired_select')); }
+    }).catch(() => { stopHeartbeat(); if (draft) notice(t('capture_expired_select')); });
   }, 15000);
 }
 
 async function send(type, fields = {}) {
   const result = await chrome.runtime.sendMessage({ type, ...fields });
   if (!result || result.error && !(type === 'captureDraft' && Object.hasOwn(result, 'selectedText')))
-    throw new Error(result?.error || 'The request could not be completed.');
+    throw new Error(result?.error || t('capture_request_failed'));
   return result;
 }
 function notice(message) { $('notice').textContent = String(message || ''); }
@@ -34,9 +37,9 @@ function drawSuggestions(matches) {
   const container = $('matches');
   container.replaceChildren();
   if (!Array.isArray(matches) || !matches.length) {
-    const p = document.createElement('p'); p.textContent = 'No local suggestions. Enter both forms yourself.'; container.append(p); return;
+    const p = document.createElement('p'); p.textContent = t('capture_no_suggestions'); container.append(p); return;
   }
-  const title = document.createElement('h2'); title.textContent = 'Local suggestions'; container.append(title);
+  const title = document.createElement('h2'); title.textContent = t('capture_suggestions_title'); container.append(title);
   for (const match of matches.slice(0, 32)) {
     const item = document.createElement('article');
     const text = document.createElement('p');
@@ -44,11 +47,13 @@ function drawSuggestions(matches) {
     const target = String(match?.fr ?? match?.target ?? '');
     text.textContent = `${source} ⇄ ${target}${match?.sense ? ` · ${String(match.sense)}` : ''}`;
     const provenance = document.createElement('p'); provenance.className = 'muted';
-    const origin = match?.id ? 'Your saved personal entry' : match?.provenance === 'bundled-suggestion'
-      ? 'Bundled suggestion; meaning has not been independently dictionary checked'
-      : 'Local suggestion';
-    provenance.textContent = `${origin}${match?.reviewOnly ? ` · Review only: ${String(match.reason || 'automatic reading is disabled for this entry')}` : ''}`;
-    const choose = document.createElement('button'); choose.type = 'button'; choose.textContent = 'Use suggestion';
+    const origin = match?.id ? t('capture_origin_personal') : match?.provenance === 'bundled-suggestion'
+      ? t('capture_origin_bundled')
+      : t('capture_origin_local');
+    provenance.textContent = match?.reviewOnly
+      ? t('capture_provenance_review_only', origin, String(match.reason || t('capture_review_only_default_reason')))
+      : origin;
+    const choose = document.createElement('button'); choose.type = 'button'; choose.textContent = t('capture_use_suggestion');
     choose.addEventListener('click', () => {
       $('source').value = source;
       $('target').value = target;
@@ -62,30 +67,31 @@ function drawSuggestions(matches) {
 function drawEntries(entries) {
   const list = $('entries'); list.replaceChildren();
   if (!Array.isArray(entries) || !entries.length) {
-    const li = document.createElement('li'); li.textContent = 'No personal entries yet.'; list.append(li); return;
+    const li = document.createElement('li'); li.textContent = t('capture_entry_none'); list.append(li); return;
   }
   for (const entry of entries.slice(0, 300)) {
     const li = document.createElement('li');
     const label = document.createElement('span');
-    label.textContent = `${String(entry?.en || '')} ⇄ ${String(entry?.fr || entry?.target || '')}${entry?.sense ? ` · ${String(entry.sense)}` : ''}${entry?.archived ? ' · Archived' : ''}`;
+    const pair = `${String(entry?.en || '')} ⇄ ${String(entry?.fr || entry?.target || '')}${entry?.sense ? ` · ${String(entry.sense)}` : ''}`;
+    label.textContent = entry?.archived ? t('capture_entry_archived', pair) : pair;
     li.append(label);
     if (entry?.reviewOnly) {
       const why = document.createElement('p'); why.className = 'muted';
-      why.textContent = `Review only; automatic reading is disabled${entry.reason ? `: ${String(entry.reason)}` : '.'}`;
+      why.textContent = entry.reason ? t('capture_entry_review_only_reason', String(entry.reason)) : t('capture_entry_review_only');
       li.append(why);
     }
     if (!entry?.archived && entry?.id) {
-      const introduce = document.createElement('button'); introduce.type = 'button'; introduce.textContent = 'Add to review';
+      const introduce = document.createElement('button'); introduce.type = 'button'; introduce.textContent = t('capture_add_to_review');
       introduce.addEventListener('click', () => act(introduce, async () => {
         const result = await send('personalIntroduce', { id: String(entry.id) });
-        notice(result.added ? 'Added to review.' : 'No new review card was added.');
+        notice(result.added ? t('capture_added_to_review') : t('capture_not_added_to_review'));
         await loadEntries();
       }));
       li.append(introduce);
     }
     if (entry?.id) {
       const archive = document.createElement('button'); archive.type = 'button';
-      archive.textContent = entry.archived ? 'Unarchive' : 'Archive';
+      archive.textContent = entry.archived ? t('capture_unarchive') : t('capture_archive');
       archive.addEventListener('click', () => act(archive, async () => {
         await send('personalArchive', { id: String(entry.id), archived: !entry.archived });
         await loadEntries();
@@ -125,14 +131,14 @@ async function loadDraft() {
     const result = await send('captureDraft', { nonce });
     draft = result;
     $('selected').textContent = String(result.selectedText || '');
-    $('language').textContent = `Selected language: ${String(result.language || 'unknown')}`;
+    $('language').textContent = t('capture_selected_language', String(result.language || t('capture_language_unknown')));
     if (result.error) notice(result.error);
     else startHeartbeat();
     $('retry').hidden = false;
     $('editor').hidden = false;
     drawSuggestions(result.matches);
   } catch (error) {
-    notice(`${error.message} You can retry this page or cancel the capture.`);
+    notice(t('capture_load_failed', error.message));
     $('retry').hidden = false;
     $('editor').hidden = false;
   }
@@ -140,14 +146,14 @@ async function loadDraft() {
 $('capture-form').addEventListener('submit', (event) => {
   event.preventDefault();
   void act($('save'), async () => {
-    if (!draft || !nonce) throw new Error('Capture expired. Retry from the page selection.');
+    if (!draft || !nonce) throw new Error(t('capture_expired_retry'));
     const fields = new FormData(event.currentTarget);
     const result = await send('captureSave', { nonce, direction: fields.get('direction'), source: fields.get('source'), target: fields.get('target'), sense: fields.get('sense'), distinct: $('distinct').checked });
     stopHeartbeat();
-    notice(result.archived ? 'This entry already exists in your archive. Unarchive it below to use it.' :
-      result.duplicate ? 'This personal entry already exists.' :
-      result.reviewOnly ? 'Saved as a review-only personal entry.' :
-      'Saved as a personal entry. It was not added to review.');
+    notice(result.archived ? t('capture_saved_archived') :
+      result.duplicate ? t('capture_saved_duplicate') :
+      result.reviewOnly ? t('capture_saved_review_only') :
+      t('capture_saved'));
     draft = null;
     await loadEntries();
   });
@@ -157,7 +163,7 @@ $('cancel').addEventListener('click', () => act($('cancel'), async () => {
   draft = null;
   stopHeartbeat();
   $('editor').hidden = true;
-  notice('Capture cancelled.');
+  notice(t('capture_cancelled'));
 }));
 $('refresh').addEventListener('click', () => act($('refresh'), loadEntries));
 $('retry').addEventListener('click', () => act($('retry'), loadDraft));
@@ -168,7 +174,7 @@ $('export').addEventListener('click', () => act($('export'), async () => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'lang-weave-personal-export.json';
   anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 0);
-  notice('Personal export downloaded.');
+  notice(t('capture_export_done'));
 }));
 void Promise.all([loadDraft(), loadEntries()]).catch((error) => notice(error.message));
 window.addEventListener('pagehide', stopHeartbeat);

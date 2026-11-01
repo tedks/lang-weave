@@ -157,7 +157,10 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     await wait(800);
     expect(span.classList.contains('fw-tip')).toBe(true);
     expect(win.document.querySelector('div.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
-    expect(span.getAttribute('aria-label')).toBe('y: and · "ee". Show English');
+    // The name is the Spanish word alone, voiced as Spanish; the gloss is its description.
+    expect(span.hasAttribute('aria-label')).toBe(false);
+    expect(span.getAttribute('lang')).toBe('es');
+    expect(win.document.getElementById(span.getAttribute('aria-describedby'))?.textContent).toBe('and · "ee". Show English');
     expect(win.document.querySelector('div.fw-gloss-on')?.getAttribute('aria-hidden')).toBe('true');
     expect(local[PENDING_KEY]).toHaveLength(1);
     span.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));

@@ -1,3 +1,6 @@
+import { localize, t } from './i18n.js';
+
+localize();
 const $ = (id) => document.getElementById(id);
 const MAX_BYTES = 1024 * 1024;
 let previewToken = null;
@@ -22,7 +25,7 @@ const portReady = new Promise((resolve) => {
     if (active) {
       active = false;
       clearPreview();
-      notice('This backup page connection ended. Reload the page before importing.');
+      notice(t('backup_connection_ended'));
     }
   });
 });
@@ -31,7 +34,7 @@ void portReady.then((ready) => { if (ready && active) keepPageAlive(); });
 
 async function send(type, fields = {}) {
   const result = await chrome.runtime.sendMessage({ type, ...fields });
-  if (!result || result.error) throw new Error(result?.error || 'Learning backup is unavailable.');
+  if (!result || result.error) throw new Error(result?.error || t('backup_unavailable'));
   return result;
 }
 
@@ -56,7 +59,7 @@ async function run(button, action) {
   button.disabled = true;
   notice('');
   try { await action(); }
-  catch (error) { notice(error.message || 'Learning backup failed.'); }
+  catch (error) { notice(error.message || t('backup_failed')); }
   finally {
     busy = false;
     button.disabled = !active || button.id === 'import' && (!previewToken || !$('confirm').checked);
@@ -72,33 +75,38 @@ function count(value) { return Number.isSafeInteger(value) && value >= 0 ? value
 function renderPreview(preview) {
   const languages = Array.isArray(preview.languages) ? preview.languages.join(', ') : String(preview.languages ?? '?');
   const preferences = preview.preferences || {};
-  $('sourceVersion').textContent = `Exported by Lang Weave ${String(preview.exportedByVersion ?? '?')}.`;
-  $('counts').textContent = `Languages: ${languages || 'none'} · Generated packs: ${count(preview.packs)} · Review cards: ${count(preview.cards)} · Personal entries: ${count(preview.personal)}.`;
-  $('preferences').textContent = `Learning preferences: language ${String(preferences.language ?? '?')}, level ${String(preferences.levelOverride ?? '?')}, gradual ${String(preferences.gradual ?? '?')}, new words/day ${String(preferences.newWordsPerDay ?? '?')}, density ${String(preferences.density ?? '?')}, inline recall ${String(preferences.inlineRecall ?? '?')}${Object.hasOwn(preferences, 'desiredRetention') ? `, target recall ${String(preferences.desiredRetention)}` : ''}.`;
+  $('sourceVersion').textContent = t('backup_source_version', String(preview.exportedByVersion ?? '?'));
+  $('counts').textContent = t('backup_counts', languages || t('backup_languages_none'), count(preview.packs), count(preview.cards), count(preview.personal));
+  const prefs = [String(preferences.language ?? '?'), String(preferences.levelOverride ?? '?'), String(preferences.gradual ?? '?'),
+    String(preferences.newWordsPerDay ?? '?'), String(preferences.density ?? '?'), String(preferences.inlineRecall ?? '?')];
+  $('preferences').textContent = Object.hasOwn(preferences, 'desiredRetention')
+    ? t('backup_preferences_retention', ...prefs, String(preferences.desiredRetention))
+    : t('backup_preferences', ...prefs);
   const omitted = [preview.omittedRetrievals, preview.omittedExposureWords].some((n) => n !== 0);
-  $('measurements').textContent = `Learning measurements: ${count(preview.retrievals)} logged reviews, exposure counts for ${count(preview.exposureWords)} words.` +
-    (omitted ? ` Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: ${count(preview.omittedRetrievals)} reviews and exposure counts for ${count(preview.omittedExposureWords)} words.` : '');
+  $('measurements').textContent = omitted
+    ? t('backup_measurements_omitted', count(preview.retrievals), count(preview.exposureWords), count(preview.omittedRetrievals), count(preview.omittedExposureWords))
+    : t('backup_measurements', count(preview.retrievals), count(preview.exposureWords));
   $('summary').hidden = false;
 }
 
 $('file').addEventListener('change', () => {
   clearPreview();
   if (active) port.postMessage({ pageId, invalidate: true });
-  notice('Choose Preview backup to validate the selected file.');
+  notice(t('backup_choose_preview'));
 });
 
 $('confirm').addEventListener('change', () => { $('import').disabled = !previewToken || !$('confirm').checked || busy; });
 
 $('export').addEventListener('click', () => void run($('export'), async () => {
   const { json } = await send('learningExport');
-  if (!active || typeof json !== 'string') throw new Error('The backup could not be prepared.');
+  if (!active || typeof json !== 'string') throw new Error(t('backup_not_prepared'));
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
   try {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = 'lang-weave-learning-backup.json';
     anchor.click();
-    notice('Learning backup downloaded. Keep the file private and the old installation intact.');
+    notice(t('backup_downloaded'));
   } finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
 }));
 
@@ -106,18 +114,18 @@ $('preview').addEventListener('click', () => void run($('preview'), async () => 
   clearPreview();
   const mine = generation;
   const file = $('file').files?.[0];
-  if (!file) throw new Error('Choose a learning backup JSON file first.');
-  if (file.size > MAX_BYTES) throw new Error('The backup file is over the 1 MiB limit.');
+  if (!file) throw new Error(t('backup_choose_file'));
+  if (file.size > MAX_BYTES) throw new Error(t('backup_too_large'));
   const json = await file.text();
   if (!active || mine !== generation) return;
-  if (new TextEncoder().encode(json).length > MAX_BYTES) throw new Error('The backup file is over the 1 MiB limit.');
-  if (!await portReady) throw new Error('The backup page connection is unavailable. Reload this page.');
+  if (new TextEncoder().encode(json).length > MAX_BYTES) throw new Error(t('backup_too_large'));
+  if (!await portReady) throw new Error(t('backup_port_unavailable'));
   const result = await send('learningPreview', { json, pageId });
   if (!active || mine !== generation) return;
-  if (typeof result.token !== 'string' || !result.token || !result.preview) throw new Error('The preview was incomplete.');
+  if (typeof result.token !== 'string' || !result.token || !result.preview) throw new Error(t('backup_preview_incomplete'));
   previewToken = result.token;
   renderPreview(result.preview);
-  notice('Preview validated. Import requires your confirmation and a fresh target check.');
+  notice(t('backup_preview_validated'));
 }));
 
 $('import').addEventListener('click', () => void run($('import'), async () => {
@@ -126,12 +134,11 @@ $('import').addEventListener('click', () => void run($('import'), async () => {
   clearPreview(); // A failed or stale confirmation requires a new preview.
   $('file').disabled = true;
   $('preview').disabled = true;
-  if (!await portReady) throw new Error('The backup page connection is unavailable. Reload this page.');
+  if (!await portReady) throw new Error(t('backup_port_unavailable'));
   const result = await send('learningImport', { token, pageId });
   if (!active) return;
-  if (result.ok !== true) throw new Error('Import was not confirmed. Preview again.');
-  notice(result.already ? 'This exact backup was already imported. No progress changed.' :
-    'Learning progress imported. Open review to check it, then enter your key and choose sites separately.');
+  if (result.ok !== true) throw new Error(t('backup_import_unconfirmed'));
+  notice(result.already ? t('backup_already_imported') : t('backup_imported'));
 }));
 
 window.addEventListener('pagehide', () => {

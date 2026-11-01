@@ -340,6 +340,72 @@ function resolveRef(fromFile, url) {
   return target.startsWith('../') || target === '..' ? null : target;
 }
 
+// Chrome refuses to load a locale file that is not a JSON object of { message } entries, and shows a
+// manifest __MSG_name__ literally when the default locale lacks it. Message names are case-insensitive.
+function localeProblems(manifest, files, defaultLocale) {
+  const problems = [];
+  const tables = new Map();
+  for (const f of files) {
+    const match = /^_locales\/([^/]+)\/messages\.json$/.exec(f.name);
+    if (!match) continue;
+    let table;
+    try { table = JSON.parse(f.data.toString('utf8')); } catch { table = null; }
+    if (!table || typeof table !== 'object' || Array.isArray(table) ||
+        Object.values(table).some((entry) => typeof entry?.message !== 'string')) {
+      problems.push(`${f.name}: not a JSON object of { message } entries`);
+      continue;
+    }
+    // Chrome also refuses a message naming a $placeholder$ its entry does not define, a malformed
+    // placeholder, and names that differ only in case.
+    const lowered = Object.keys(table).map((name) => name.toLowerCase());
+    if (new Set(lowered).size !== lowered.length) problems.push(`${f.name}: message names differ only in case`);
+    for (const [name, entry] of Object.entries(table)) {
+      const placeholders = 'placeholders' in entry ? entry.placeholders : {};
+      if (!placeholders || typeof placeholders !== 'object' || Array.isArray(placeholders) ||
+          Object.values(placeholders).some((value) => typeof value?.content !== 'string')) {
+        problems.push(`${f.name}: ${name} has malformed placeholders`);
+        continue;
+      }
+      const defined = new Set(Object.keys(placeholders).map((key) => key.toLowerCase()));
+      for (const [whole, key] of entry.message.matchAll(/\$([A-Za-z0-9_@]+)\$/g))
+        if (!defined.has(key.toLowerCase())) problems.push(`${f.name}: ${name} uses undefined placeholder ${whole}`);
+    }
+    const lang = Object.entries(table).find(([name]) => name.toLowerCase() === 'locale_lang')?.[1];
+    if (lang) {
+      let tag = '';
+      try { [tag] = Intl.getCanonicalLocales(lang.message); } catch { tag = ''; }
+      if (!tag) problems.push(`${f.name}: locale_lang ${JSON.stringify(lang.message)} is not a BCP-47 tag`);
+    }
+    // i18n.js marks child elements with U+E001..U+E009; neither a message nor its placeholder
+    // content may contain them.
+    for (const [name, entry] of Object.entries(table))
+      if (/[\uE001-\uE009]/.test([entry.message, ...Object.values(entry.placeholders ?? {}).map((p) => p?.content)].join(''))) problems.push(`${f.name}: ${name} contains a reserved character U+E001..U+E009`);
+    tables.set(match[1], new Set(lowered));
+  }
+  const names = tables.get(defaultLocale);
+  if (!names) return problems;
+  // Chrome falls back key by key to the default locale, but i18n.js picks plural forms by the
+  // locale's own locale_lang. A translation must therefore carry locale_lang and every plural form
+  // pair, or a count would be rendered by one language's rules in another's words.
+  const plurals = [...names].filter((name) => /_(one|other)$/.test(name));
+  for (const [locale, own] of tables) {
+    if (locale === defaultLocale) continue;
+    if (names.has('locale_lang') && !own.has('locale_lang')) problems.push(`_locales/${locale}/messages.json: locale_lang is missing`);
+    const missing = plurals.filter((name) => !own.has(name));
+    if (missing.length) problems.push(`_locales/${locale}/messages.json: plural forms missing: ${missing.join(', ')}`);
+  }
+  const visit = (value, label) => {
+    if (typeof value === 'string') {
+      for (const [, name] of value.matchAll(/__MSG_(\w+)__/g))
+        if (!names.has(name.toLowerCase())) problems.push(`manifest ${label}: __MSG_${name}__ is not in _locales/${defaultLocale}/messages.json`);
+    } else if (value && typeof value === 'object') {
+      for (const [key, inner] of Object.entries(value)) visit(inner, label ? `${label}.${key}` : key);
+    }
+  };
+  visit(manifest, '');
+  return problems;
+}
+
 /**
  * Check the manifest and all local references against the payload.
  * Returns an array of problem strings (empty when everything resolves).
@@ -373,6 +439,7 @@ export function verifyPackage(manifest, files) {
     const loc = manifest.default_locale;
     if (typeof loc !== 'string' || !/^[\w-]+$/.test(loc)) problems.push(`manifest default_locale: invalid value ${JSON.stringify(loc)}`);
     else if (!have.has(`_locales/${loc}/messages.json`)) problems.push(`manifest default_locale: _locales/${loc}/messages.json is not in the package`);
+    else problems.push(...localeProblems(manifest, files, loc));
   } else if (locales) {
     problems.push('_locales/ is packaged but manifest has no default_locale');
   }

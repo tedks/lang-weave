@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Welcome to Lang Weave</title>
+<title data-i18n="welcome_title">Welcome to Lang Weave</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="content.css">
 <style>
@@ -23,36 +23,36 @@
 </head>
 <body>
 <main>
-  <h1>Welcome to Lang Weave</h1>
-  <p class="muted">Learn Spanish a little at a time while reading English pages.</p>
+  <h1 data-i18n="welcome_title">Welcome to Lang Weave</h1>
+  <p class="muted" data-i18n="welcome_intro">Learn Spanish a little at a time while reading English pages.</p>
   <section aria-labelledby="demoHeading">
-    <h2 id="demoHeading">1. See it in a sentence</h2>
+    <h2 id="demoHeading" data-i18n="welcome_demo_heading">1. See it in a sentence</h2>
     <p id="demo" class="demo">Today I read with a friend, and we talk about an important idea. We always ask a question because learning is difficult, but it is possible.</p>
-    <p class="muted">Hover over an underlined word for its meaning. Click it to flip between Spanish and English. This sample uses bundled words and stays on your device.</p>
+    <p class="muted" data-i18n="welcome_demo_help">Hover over an underlined word for its meaning. Click it to flip between Spanish and English. This sample uses bundled words and stays on your device.</p>
   </section>
   <section aria-labelledby="privacyHeading">
-    <h2 id="privacyHeading">2. Choose where it may read</h2>
-    <p>When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.</p>
-    <p>Google may use requests made with a free key to improve its products, and human reviewers may see them. A billed key avoids that use. Provider quotas and charges can still apply.</p>
-    <p>The Gemini API requires users to be 18 or older.</p>
-    <p>Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.</p>
+    <h2 id="privacyHeading" data-i18n="welcome_privacy_heading">2. Choose where it may read</h2>
+    <p data-i18n="welcome_privacy_sends">When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.</p>
+    <p data-i18n="welcome_privacy_free_key">Google may use requests made with a free key to improve its products, and human reviewers may see them. A billed key avoids that use. Provider quotas and charges can still apply.</p>
+    <p data-i18n="welcome_age_notice">The Gemini API requires users to be 18 or older.</p>
+    <p data-i18n="welcome_privacy_conditions">Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.</p>
     <div class="choices">
-      <button id="onlySites" type="button">Only sites I turn on · recommended</button>
-      <button id="allSites" type="button">All sites except sensitive ones</button>
+      <button id="onlySites" type="button" data-i18n="welcome_only_sites">Only sites I turn on · recommended</button>
+      <button id="allSites" type="button" data-i18n="welcome_all_sites">All sites except sensitive ones</button>
     </div>
     <p id="choiceStatus" role="status" aria-live="polite"></p>
     <div id="suggestX" hidden>
-      <p>Read on X? You can allow x.com explicitly.</p>
-      <button id="allowX" type="button">Allow x.com</button>
+      <p data-i18n="welcome_x_question">Read on X? You can allow x.com explicitly.</p>
+      <button id="allowX" type="button" data-i18n="welcome_x_allow">Allow x.com</button>
       <p id="xStatus" role="status" aria-live="polite"></p>
     </div>
   </section>
   <section aria-labelledby="learnHeading">
-    <h2 id="learnHeading">3. Add a key and start learning</h2>
-    <p>Open Settings to get a Gemini key, save it, and test it. The key stays in extension storage and is sent to Google with model requests.</p>
-    <button id="openSettings" type="button">Open settings</button>
-    <p><strong>Reading level</strong> controls which bundled words can appear; Beginner is a good start.</p>
-    <p><strong>Gradual learning</strong> introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.</p>
+    <h2 id="learnHeading" data-i18n="welcome_learn_heading">3. Add a key and start learning</h2>
+    <p data-i18n="welcome_learn_key">Open Settings to get a Gemini key, save it, and test it. The key stays in extension storage and is sent to Google with model requests.</p>
+    <button id="openSettings" type="button" data-i18n="welcome_open_settings">Open settings</button>
+    <p data-i18n="welcome_level_note"><strong data-i18n="welcome_level_term">Reading level</strong> controls which bundled words can appear; Beginner is a good start.</p>
+    <p data-i18n="welcome_gradual_note"><strong data-i18n="welcome_gradual_term">Gradual learning</strong> introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.</p>
   </section>
 </main>
 <script type="module" src="welcome.js"></script>

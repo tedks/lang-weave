@@ -116,3 +116,31 @@ test('popup shows one action and grants this site before saving or injecting', a
     window.happyDOM.abort();
   }
 });
+
+test('popup status lines, site label and budget warning render the exact English', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-popup/src/popup.html' });
+  window.document.write(readFileSync(new URL('../src/popup.html', import.meta.url), 'utf8'));
+  globalThis.document = window.document;
+  globalThis.chrome = {
+    runtime: { getURL: (path) => `chrome-extension://fw-popup/${path}`,
+      sendMessage: async (msg) => {
+        if (msg.type === 'status') return { config: { settings: { enabled: true, newSitesEnabled: true, siteOverrides: {} },
+          language: 'es', hasKey: false, origins: [] }, review: { due: 0, new: 0 }, budgetWarning: '2026-11-20', modelStatus: null };
+        throw new Error('no progress');
+      } },
+    tabs: { query: async () => [{ id: 5, url: 'https://example.org/page' }] },
+  };
+  try {
+    await import('../src/popup.js?budget-english');
+    const $ = (id) => window.document.getElementById(id);
+    await waitFor(() => $('budgetWarning').textContent !== '');
+    expect($('budgetWarning').textContent).toBe("The saved introduction date (2026-11-20) is over seven days ahead of your local date. New introductions stay paused. Reset only today's introduction budget? Your reviews and progress stay saved.");
+    expect($('budgetRecovery').hidden).toBe(false);
+    expect($('siteName').textContent).toBe('Turn on for this site');
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.chrome = oldChrome;
+    window.happyDOM.abort();
+  }
+});

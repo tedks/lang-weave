@@ -252,6 +252,28 @@ test('verify: manifest references a missing file', () => {
   expectRefusal({}, { options_ui: { page: 'src/options.html' } }, /options_ui\.page: src\/options\.html/);
   expectRefusal({}, { side_panel: { default_path: 'src/panel.html' } }, /side_panel\.default_path/);
   expectRefusal({}, { default_locale: 'en' }, /_locales\/en\/messages\.json/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ other: { message: 'x' } }) },
+    { default_locale: 'en', name: '__MSG_ext_name__' }, /manifest name: __MSG_ext_name__ is not in _locales\/en\/messages\.json/);
+  expectRefusal({ '_locales/en/messages.json': '{"ext_name": {"message": "x"}' },
+    { default_locale: 'en' }, /_locales\/en\/messages\.json: not a JSON object/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }), '_locales/fr/messages.json': '[]' },
+    { default_locale: 'en' }, /_locales\/fr\/messages\.json: not a JSON object/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }),
+    '_locales/fr/messages.json': JSON.stringify({ ext_name: { message: 'Bonjour $WHO$' },
+      ok: { message: 'Salut $Who$', placeholders: { who: { content: '$1' } } } }) },
+    { default_locale: 'en' }, /_locales\/fr\/messages\.json: ext_name uses undefined placeholder \$WHO\$/);
+  const en = JSON.stringify({ locale_lang: { message: 'en' }, n_one: { message: '$1 word' }, n_other: { message: '$1 words' } });
+  expectRefusal({ '_locales/en/messages.json': en,
+    '_locales/fr/messages.json': JSON.stringify({ n_other: { message: '$1 mots' } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: locale_lang is missing[\s\S]*fr\/messages\.json: plural forms missing: n_one/);
+  expectRefusal({ '_locales/en/messages.json': en,
+    '_locales/fr/messages.json': JSON.stringify({ a: { message: 'x', placeholders: [] }, A: { message: 'y' },
+      b: { message: 'z', placeholders: null }, LOCALE_LANG: { message: 'not a tag!' }, c: { message: 'x\uE001' },
+      d: { message: '$P$', placeholders: { p: { content: '\uE002' } } } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: message names differ only in case[\s\S]*a has malformed placeholders[\s\S]*b has malformed placeholders[\s\S]*locale_lang "not a tag!" is not a BCP-47 tag[\s\S]*c contains a reserved character[\s\S]*d contains a reserved character/);
+  const { root, ext } = fixture({ '_locales/en/messages.json': en, '_locales/fr/messages.json': JSON.stringify({
+    locale_lang: { message: 'fr' }, n_one: { message: '$1 mot' }, n_other: { message: '$1 mots' } }) }, { default_locale: 'en' });
+  expect(packageExtension({ extensionDir: ext, licenseDir: root, outDir: join(root, 'out') }).entries).toBe(9);
   expectRefusal({}, { options_page: 'test/x.html' }, /options_page: test\/x\.html/);
   expectRefusal({}, { devtools_page: '../outside.html' }, /devtools_page: invalid path/);
 });
@@ -316,6 +338,22 @@ test('verify: pure helpers', () => {
   const files = [{ name: 'src/a.js', data: Buffer.from('') }];
   expect(verifyPackage({ version: '1', background: { service_worker: 'src/a.js' } }, files)).toEqual([]);
   expect(verifyPackage({ background: { service_worker: 'src/a.js' } }, files).length).toBe(1);
+});
+
+test('package: both builds ship the English locale and every manifest message resolves', () => {
+  const source = JSON.parse(readFileSync(join(EXT, '_locales', 'en', 'messages.json'), 'utf8'));
+  for (const store of [false, true]) {
+    const zip = readZip(build({ store }).bytes);
+    const messages = zip.find((e) => e.name === '_locales/en/messages.json');
+    expect(messages).toBeDefined();
+    expect(JSON.parse(messages.data.toString())).toEqual(source);
+    const manifest = JSON.parse(zip.find((e) => e.name === 'manifest.json').data.toString());
+    expect(manifest.default_locale).toBe('en');
+    const used = [...JSON.stringify(manifest).matchAll(/__MSG_(\w+)__/g)].map(([, name]) => name);
+    expect(used.sort()).toEqual(['action_title', 'command_pause', 'command_review', 'ext_description', 'ext_name']);
+    for (const name of used) expect(typeof source[name].message).toBe('string');
+    expect(source.ext_name.message).toBe('Lang Weave');
+  }
 });
 
 test('package: the real extension verifies cleanly', () => {
