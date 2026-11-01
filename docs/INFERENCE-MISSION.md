@@ -32,6 +32,7 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
    - The options are shuffled with a seed of the word ID and the local day, so the order is stable within a day.
    - Every one of the 226 bundled Spanish words gets a safe set, and the answer lands in every position across the pack. Fewer than two safe distractors means the plain gloss; this happens only for tiny generated packs.
 5. **Panel behaviour.**
+   - Focus returns to the word after a keyboard answer only; a mouse answer leaves focus alone.
    - It is placed by the cue's `placeTip` and coloured with the ui.css tokens in light and dark mode. Forced colours use system colours. Correctness is stated in words and shown by border style, never by colour alone.
    - Opening never moves focus.
    - Keyboard (trusted events only):
@@ -45,8 +46,10 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
    - It never appears in a form, an input, a button or an editable region, even if a page moves a swap there after painting. It never appears in the welcome demo, which does not load the content script.
 6. **The record.** `guessAnswer` writes one retrieval in the existing ten-field tuple: `[word, at, 'guess', 'receptive', 'correct' | 'incorrect', prior reviews, latency, null, null, null]`.
    - Latency is the worker's time from `guessBegin` to the answer, capped by the log's ten-minute maximum. A ticket older than that is refused.
-   - Tickets are single-use, held in memory per tab and document, and replaced by the next `guessBegin`. A worker restart loses an open ticket, and that answer is not recorded.
-   - The write runs under the worker lock after the same revision, site-access and permission-generation recheck as a peek.
+   - Tickets are single-use, one per tab and document, and replaced by the next `guessBegin`. They are held in `chrome.storage.session`, so they survive an idle MV3 worker shutdown while a panel stays open. They are never in local storage or a backup, and they end with the browser. Without session storage they fall back to worker memory.
+   - At answer time the worker rechecks the word's stage, the cap and the daily limit under the lock, because another tab may have answered the same word first. The write runs after the same revision, site-access and permission-generation recheck as a peek.
+   - An answer whose log write fails counts for nothing: the page gets an error and shows the meaning unjudged, and no peek is applied.
+   - Guesses count within the card's current life: guesses from before a Reset (a later introduction day) do not count toward the cap, matching `verifiedWords`.
 7. **Scheduling: weak evidence only.** A wrong guess is then applied exactly as a peek, through the same function the `peek` event uses: the reading event, the card's daily peek counter, and the exposure aggregate's peek count. Two peeks in a day on a rated learning card bring its effective due to at most 24 hours ahead (`peekDue`), never later. A wrong guess plus a later plain-gloss peek on the same day is such a pair. A right guess changes no card and no exposure. FSRS state, due, interval and the formulas are untouched.
 8. **Measurements stay honest.** A guess is not a review. Every existing measure excludes `source 'guess'`: next-day recall, long retention, calibration, verified known, workload, leeches, the review page summary, My words stages, the activity strip and Today's review count.
 
@@ -54,7 +57,7 @@ State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main
 
 - **Log.** `SOURCES` gains `guess` and `OUTCOMES` gains `correct` and `incorrect`. A tuple is valid only when these values occur together with direction `receptive`. The log version stays 1, with no new field.
 - **Downgrade.** Builds up to 0.12.18 drop guess tuples from local storage on their next log write, losing measurement data only. They also refuse a whole schema 2 backup holding one ("invalid retrieval log entry").
-- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on. Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. Option A (export now, with an "install 0.12.19 first" warning) or option C (schema 3) was put to the lead as NEEDS RULING; option B is built.
+- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on (`guess-export-enable`). Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. Option A (export now, with an "install 0.12.19 first" warning) or option C (schema 3) was put to the lead as NEEDS RULING; option B is built.
 - **Settings.** `guessFirst` joins `SETTINGS_FIELDS` and is not a backup preference, so import keeps the target's value. A downgrade while it is on trips the old build's strict settings check (`startupUnsupportedSettings`), exactly as `desiredRetention` already does.
 
 ## What would falsify it
@@ -101,6 +104,23 @@ Recommendation 8 is falsified if, after enough data, guessed words recall no bet
 ## Not verified
 
 - No live Gemini, real site or real profile was used.
-- No screen reader was used. The swap's existing `aria-describedby` description already contains the gloss, so a screen-reader user hears the meaning before guessing. Changing per-word descriptions is in `text.js` and is filed as a follow-up.
+- No screen reader was used. The swap's existing `aria-describedby` description already contains the gloss, so a screen-reader user hears the meaning before guessing. Changing per-word descriptions is in `text.js` and needs a delivery flag from the worker. It is filed as `guess-screen-reader`.
 - No learning effect is claimed. The measurement exists to test one.
-- Behaviour after an MV3 worker restart mid-panel was tested only by reasoning: the in-memory ticket is lost, and the answer then shows the meaning unrecorded.
+- Ticket survival across a real MV3 worker restart was not exercised in Chromium. The worker test checks that the ticket is written to session storage and never to local storage.
+- A hostile page can restyle the panel, because it is plain light DOM like the inline cue. Filed as `guess-panel-isolation`.
+
+## Council
+
+- **Round 1** at `a68e584`. Seats: Anthropic (native Opus), OpenAI (Sol via ask-agent); Google agy EMPTY on quota.
+  - **Consensus (Sol Critical, Opus Important):** another tab's ticket could get around the daily limit and the cap. Fixed: the worker rechecks stage, cap and day under the lock at answer time. A two-tab worker test fails without the fix.
+  - **Sol Critical:** a failed log write was reported as a recorded guess and still applied a peek. Fixed: it returns an error and applies nothing. The worker test fails without the fix.
+  - **Sol Important:** the off-state and repaint tests claimed more than they showed. The Chromium gate now checks that the toggle keeps the same span node with zero mutations inside the passages, and that forced-colour choices stay readable and outlined.
+  - **Sol Important:** backups lose guess history. This is the pending ruling; `guess-export-enable` is filed.
+  - **Sol Important, Opus nit:** screen readers hear the gloss before guessing. Out of this lane's authority (`text.js`); filed as `guess-screen-reader`.
+  - **Opus nits fixed:**
+    - tickets moved to session storage, so an idle worker no longer loses them;
+    - the cap is scoped to the card's life after a Reset;
+    - focus returns to the word only after a keyboard answer;
+    - a panel the page detaches is closed;
+    - the test comment is fixed and an out-of-range choice is now tested.
+  - **Opus nit filed:** page-CSS isolation (`guess-panel-isolation`).

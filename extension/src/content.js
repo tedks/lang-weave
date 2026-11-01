@@ -323,7 +323,7 @@ async function beginGuess(span, peek, gen) {
 }
 function guessAlive(state) {
   const { span } = state;
-  return state.gen === generation && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
+  return state.gen === generation && state.panel?.isConnected !== false && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
     !introductionTicket(span) && !span.classList.contains('fw-en') && guessMode() && guessPlace(span);
 }
 function closeGuess(focusWord = false) {
@@ -364,7 +364,8 @@ function openGuess(span, ticket, choices) {
     const label = document.createElement('span');
     label.textContent = choice;
     button.append(key, label);
-    button.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void answerGuess(state, index); });
+    // A keyboard-activated click has detail 0: only then does focus go back to the word.
+    button.addEventListener('click', (e) => { e.stopPropagation(); if (e.isTrusted) void answerGuess(state, index, e.detail === 0); });
     list.append(button);
     return button;
   });
@@ -386,11 +387,11 @@ function openGuess(span, ticket, choices) {
   guess = state;
   placeTip(span, panel);
 }
-async function answerGuess(state, index) {
+async function answerGuess(state, index, keyboard) {
   if (guess !== state || state.answered || !guessAlive(state)) return;
   state.answered = true;
   for (const button of state.buttons) button.disabled = true;
-  const hadFocus = state.panel.contains(document.activeElement);
+  const hadFocus = keyboard && state.panel.contains(document.activeElement);
   state.buttons[index].classList.add('fw-guess-chosen');
   plainToday.add(plainKey(state.span)); // one guess a word a day; the worker enforces it too
   let reply = null;

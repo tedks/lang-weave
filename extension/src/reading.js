@@ -8,7 +8,7 @@ import { exactTarget, isZeroFrench, wordCount } from './levels.js';
 import { hashKey } from './hash.js';
 import { localDay, queueEvents, shownToday } from './events.js';
 import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
-import { policyWords, remaining } from './learning.js';
+import { policyWords, remaining, validDay } from './learning.js';
 import { scopedStorage } from './scope.js';
 import { catalogEntries, matchingEntries } from './catalog.js';
 import { selectWorkingSet, capUnknownSwaps } from './adaptive.js';
@@ -358,13 +358,37 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
 
   // Guess first. guessBegin offers choices for a learning word whose guesses are under the cap
   // (at most one a local day), or answers { plain: true } so the page shows the gloss as before.
-  // guessAnswer records one retrieval (source 'guess', direction receptive, correct/incorrect,
-  // worker-measured latency) at the same consent-checked point as a peek. A wrong guess is then
-  // applied exactly as a peek; a right guess changes no card. Tickets are in memory only: a worker
-  // restart loses an open one, and that answer is not recorded.
-  const guessTickets = new Map(); // tab:document -> ticket
+  // guessAnswer rechecks the same rules under the lock (another tab may have answered first),
+  // then records one retrieval (source 'guess', direction receptive, correct/incorrect,
+  // worker-measured latency) at the same consent-checked point as a peek. Only a recorded wrong
+  // guess is then applied exactly as a peek; a right guess changes no card.
+  // Open tickets live in chrome.storage.session, one per tab and document: they survive an idle
+  // MV3 worker shutdown while the panel is open, are never exported, and end with the browser.
+  // Where session storage is unavailable they fall back to this worker's memory.
+  const TICKETS_KEY = 'guessTickets';
   const MAX_GUESS_TICKETS = 64;
+  let memoryTickets = {};
   const ticketKey = (sender) => `${sender.tab?.id}:${sender.documentId || ''}`;
+  async function readTickets() {
+    const session = globalThis.chrome?.storage?.session;
+    if (session) {
+      try {
+        const { [TICKETS_KEY]: raw } = await session.get(TICKETS_KEY);
+        return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+      } catch { /* fall back to memory */ }
+    }
+    return { ...memoryTickets };
+  }
+  async function writeTickets(tickets, now) {
+    const kept = Object.entries(tickets).filter(([, t]) => Number.isSafeInteger(t?.at) && t.at <= now &&
+      now - t.at <= MAX_LATENCY_MS).sort(([, a], [, b]) => b.at - a.at).slice(0, MAX_GUESS_TICKETS);
+    const next = Object.fromEntries(kept);
+    const session = globalThis.chrome?.storage?.session;
+    if (session) {
+      try { await session.set({ [TICKETS_KEY]: next }); memoryTickets = {}; return; } catch { /* memory */ }
+    }
+    memoryTickets = next;
+  }
   const guessOn = (ctx, msg, sender) => ctx.settings.gradual && ctx.settings.guessFirst === true &&
     msg.revision === ctx.revision && activeOn(ctx, sender.url) && sender.frameId === 0 &&
     (!sender.documentLifecycle || sender.documentLifecycle === 'active') && Number.isSafeInteger(sender.tab?.id);
@@ -372,62 +396,76 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
     return found.personal ? own.state.cards[found.personal.id] : legacy.state.cards[found.word.fr];
   }
+  // Whether this card may take a guess today. Guesses count within the card's current life: a
+  // Reset re-introduces the word with a later introduction day, like verifiedWords' rule.
+  async function guessAllowed(ctx, found, card, id, day) {
+    if (!card || wordStage(card) !== 'learning') return false;
+    const own = (await retrievalsFor(ctx, !!found.personal)).filter((e) => e.word === id);
+    const introduced = card.introGateDay || card.introducedDay;
+    let lifeStart = -Infinity; // local midnight of the introduction day
+    if (validDay(introduced)) {
+      const [y, m, d] = introduced.split('-').map(Number);
+      lifeStart = new Date(y, m - 1, d).getTime();
+    }
+    const guesses = own.filter((e) => isGuess(e) && e.at >= lifeStart);
+    return guesses.length < GUESS_LIMIT && !guesses.some((e) => localDay(new Date(e.at)) === day) &&
+      !verifiedWords(reviewEntries(own), { [id]: card }).has(id);
+  }
   async function guess(msg, sender) {
     return locked(async () => {
       const ctx = await context();
       if (!guessOn(ctx, msg, sender)) return { plain: true, stale: true };
+      const now = Date.now(), day = localDay(new Date(now));
       if (msg.type === 'guessBegin') {
         const found = resolveWord(ctx, msg.word);
         if (!found) return { plain: true };
-        const now = Date.now(), day = localDay(new Date(now));
         const id = found.personal?.id || found.word.fr;
         const card = await guessCard(ctx, found, day, now);
-        if (!card || wordStage(card) !== 'learning') return { plain: true };
-        let entries;
-        try { entries = await retrievalsFor(ctx, !!found.personal); } catch { return { plain: true } }
-        const own = entries.filter((e) => e.word === id);
-        const guesses = own.filter(isGuess);
-        if (guesses.length >= GUESS_LIMIT || guesses.some((e) => localDay(new Date(e.at)) === day) ||
-            verifiedWords(reviewEntries(own), { [id]: card }).has(id)) return { plain: true };
+        try { if (!(await guessAllowed(ctx, found, card, id, day))) return { plain: true }; }
+        catch { return { plain: true }; }
         const offered = guessChoices(found.word, ctx.legacyAllWords, { wordId: id, day });
         if (!offered) return { plain: true };
+        const ticket = crypto.randomUUID();
+        const tickets = await readTickets();
+        tickets[ticketKey(sender)] = { ticket, id, target: found.word.fr, answer: offered.answer,
+          count: offered.choices.length, at: now, revision: ctx.revision, url: sender.url };
+        await writeTickets(tickets, now);
         const latest = await context();
         if (!guessOn(latest, msg, sender) || latest.revision !== ctx.revision) return { plain: true, stale: true };
-        const ticket = crypto.randomUUID();
-        const key = ticketKey(sender);
-        guessTickets.delete(key);
-        guessTickets.set(key, { ticket, id, target: found.word.fr, answer: offered.answer,
-          count: offered.choices.length, at: now, revision: ctx.revision, url: sender.url });
-        while (guessTickets.size > MAX_GUESS_TICKETS) guessTickets.delete(guessTickets.keys().next().value);
         return { ticket, choices: offered.choices };
       }
       // guessAnswer: one use per ticket, from the document that opened it.
+      const stale = { error: 'This guess is stale.' };
+      const tickets = await readTickets();
       const key = ticketKey(sender);
-      const open = guessTickets.get(key);
-      if (!open || open.ticket !== msg.ticket || open.revision !== ctx.revision || open.url !== sender.url)
-        return { error: 'This guess is stale.' };
-      guessTickets.delete(key);
-      const now = Date.now();
+      const open = tickets[key];
+      if (!open || open.ticket !== msg.ticket || open.revision !== ctx.revision || open.url !== sender.url) return stale;
+      delete tickets[key];
+      await writeTickets(tickets, now);
       if (!Number.isSafeInteger(msg.choice) || msg.choice < 0 || msg.choice >= open.count ||
-          now < open.at || now - open.at > MAX_LATENCY_MS) return { error: 'This guess is stale.' };
+          now < open.at || now - open.at > MAX_LATENCY_MS) return stale;
       const correct = msg.choice === open.answer;
       const found = resolveWord(ctx, open.target);
-      if (!found || (found.personal?.id || found.word.fr) !== open.id) return { error: 'This guess is stale.' };
+      if (!found || (found.personal?.id || found.word.fr) !== open.id) return stale;
       const consent = worker.permissionGeneration;
-      const day = localDay(new Date(now));
       const card = await guessCard(ctx, found, day, now);
+      let allowed;
+      try { allowed = await guessAllowed(ctx, found, card, open.id, day); } catch { allowed = false; }
+      if (!allowed) return stale; // e.g. another tab's answer for this word already counted today
       const latest = await context();
-      if (!card || latest.revision !== ctx.revision || !activeOn(latest, sender.url) ||
-          worker.permissionGeneration !== consent) return { error: 'This guess is stale.' };
+      if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) ||
+          worker.permissionGeneration !== consent) return stale;
       const logged = await logRetrieval(ctx, !!found.personal, { word: open.id, outcome: correct ? 'correct' : 'incorrect',
         prior: Number.isSafeInteger(card.reviews) ? card.reviews : 0, latencyMs: now - open.at }, 'guess', now);
+      // An answer that could not be logged counts for nothing: no cap, no measurement, no peek.
+      if (!logged) return { error: 'This guess could not be recorded.' };
       // A wrong guess is weak failure evidence, exactly a peek: it may bring a review earlier.
       if (!correct) {
         const fresh = await context();
         if (fresh.revision === ctx.revision && activeOn(fresh, sender.url) && worker.permissionGeneration === consent)
           await applyEvent(ctx, found, 'peek', sender, consent);
       }
-      return { ok: true, correct, answer: open.answer, logged };
+      return { ok: true, correct, answer: open.answer, logged: true };
     });
   }
   return { swaps, record, guess };

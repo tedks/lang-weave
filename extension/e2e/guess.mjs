@@ -119,6 +119,15 @@ try {
   await page.screenshot({ path: join(artifacts, 'guess-dark.png') });
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'active' });
   assert.equal(await panel.evaluate((el) => getComputedStyle(el).boxShadow), 'none');
+  const forced = await panel.evaluate((el) => {
+    const button = el.querySelector('.fw-guess-choices button');
+    const style = (node) => getComputedStyle(node);
+    return { panel: [style(el).color, style(el).backgroundColor], button: [style(button).color, style(button).backgroundColor],
+      border: style(button).borderTopColor };
+  });
+  assert.notEqual(forced.panel[0], forced.panel[1]); // readable text on the system canvas
+  assert.notEqual(forced.button[0], forced.button[1]);
+  assert.notEqual(forced.border, forced.button[1]); // each choice keeps a visible outline
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'none' });
 
   // A click away dismisses without recording; then a wrong choice by mouse.
@@ -187,6 +196,11 @@ try {
 
   // Settings off: no new model call or repaint, and a hover is the plain gloss again.
   const callsBefore = (await worker.evaluate(() => globalThis.calls)).length;
+  await page.evaluate(() => {
+    globalThis.guessE2E = { word: document.querySelector('#one .fw-word'), changes: 0 };
+    new MutationObserver((records) => { globalThis.guessE2E.changes += records.filter((r) =>
+      r.target.closest?.('main')).length; }).observe(document.querySelector('main'), { childList: true, subtree: true, characterData: true });
+  });
   const options = await browser.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
   await options.locator('#guessFirst').waitFor();
@@ -201,7 +215,9 @@ try {
   await o.hover();
   await page.locator('.fw-gloss-on').waitFor();
   assert.equal(await page.locator('.fw-guess').count(), 0);
-  assert.equal(await y.getAttribute('data-fr'), 'y'); // the swaps were not repainted
+  // The swaps were not repainted: the same span node, and no change at all inside the passages.
+  assert.deepEqual(await page.evaluate(() => ({ same: document.querySelector('#one .fw-word') === globalThis.guessE2E.word,
+    changes: globalThis.guessE2E.changes })), { same: true, changes: 0 });
   assert.equal((await worker.evaluate(() => globalThis.calls)).length, callsBefore);
   assert.ok((await worker.evaluate(() => globalThis.calls)).every((text) => !/Private form|Editable/.test(text)));
   console.log('PASS: Chromium MV3 guess first: hover and keyboard panels after the beat, light/dark/forced colours, placement, ' +

@@ -25,12 +25,18 @@ test('the worker offers, records and caps guesses for learning words only', asyn
   const permissionRemoved = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
+  const session = {};
+  let logWritesFail = false;
   globalThis.chrome = {
-    storage: { local: {
+    storage: { session: {
+      async get(key) { await tick(); return key in session ? { [key]: structuredClone(session[key]) } : {}; },
+      async set(values) { await tick(); Object.assign(session, structuredClone(values)); },
+    }, local: {
       async setAccessLevel() {},
       async get(keys) { await tick(); const pick = typeof keys === 'string' ? [keys] : keys || Object.keys(data);
         return structuredClone(Object.fromEntries(pick.filter((k) => k in data).map((k) => [k, data[k]]))); },
-      async set(values) { await tick(); Object.assign(data, structuredClone(values)); },
+      async set(values) { await tick(); if (logWritesFail && 'learningRetrievals' in values) throw new Error('Storage failed');
+        Object.assign(data, structuredClone(values)); },
       async remove(keys) { for (const key of keys) delete data[key]; },
     } },
     runtime: { id: 'fw-test', getURL: (p) => `chrome-extension://fw-test/${p}`,
@@ -69,8 +75,14 @@ test('the worker offers, records and caps guesses for learning words only', asyn
     expect(begin.choices.length).toBeGreaterThanOrEqual(3);
     expect(begin).not.toHaveProperty('answer'); // the page never learns which index is right before answering
     const right = begin.choices.indexOf('and');
-    // Another document cannot answer this ticket; a bad index is refused and spends it.
+    // The open ticket is held in session storage (it outlives an idle worker), never in local storage.
+    expect(Object.values(session.guessTickets).map((t) => t.ticket)).toEqual([begin.ticket]);
+    expect(Object.keys(data)).not.toContain('guessTickets');
+    // Another document cannot answer this ticket.
     expect((await send({ type: 'guessAnswer', ticket: begin.ticket, choice: right, revision }, other)).error).toBeTruthy();
+    // Another tab opens its own ticket for the same word while this one is open.
+    const otherTab = await send({ type: 'guessBegin', word: 'y', revision }, other);
+    expect(otherTab.ticket).toBeTruthy();
     clock += 4200;
     const wrong = (right + 1) % begin.choices.length;
     const before = structuredClone(data.recallReview.cards.y);
@@ -86,6 +98,10 @@ test('the worker offers, records and caps guesses for learning words only', asyn
     expect(data.readingEvents.at(-1)).toEqual({ word: 'y', kind: 'peek', day: today });
     // A ticket is single use.
     expect((await send({ type: 'guessAnswer', ticket: begin.ticket, choice: right, revision }, page)).error).toBeTruthy();
+    // The other tab's ticket no longer passes: the answer rules are rechecked when it is answered.
+    expect((await send({ type: 'guessAnswer', ticket: otherTab.ticket, choice: right, revision }, other)).error).toBeTruthy();
+    expect(log()).toHaveLength(1);
+    expect(data.recallReview.cards.y.peekCount).toBe(1);
     // One guess a word a day: the next hover today gets the plain gloss.
     expect(await send({ type: 'guessBegin', word: 'y', revision }, page)).toEqual({ plain: true });
     // A second peek today (the plain hover) brings the rated card's review earlier, never later.
@@ -105,6 +121,24 @@ test('the worker offers, records and caps guesses for learning words only', asyn
     expect(data.recallReview.cards.y).toEqual(cardBefore);
     expect(data.learningExposures.words.y).toEqual(exposureBefore);
 
+    // An out-of-range choice from the right document is refused and spends the ticket.
+    clock += day;
+    const bad = await send({ type: 'guessBegin', word: 'y', revision }, page);
+    expect((await send({ type: 'guessAnswer', ticket: bad.ticket, choice: bad.choices.length, revision }, page)).error).toBeTruthy();
+    expect((await send({ type: 'guessAnswer', ticket: bad.ticket, choice: 0, revision }, page)).error).toBeTruthy();
+    expect(log()).toHaveLength(2);
+    // A failed log write is not a recorded guess: an error, and no peek.
+    const failing = await send({ type: 'guessBegin', word: 'y', revision }, page);
+    const peeksBefore = data.recallReview.cards.y.peekCount;
+    logWritesFail = true;
+    const failed = await send({ type: 'guessAnswer', ticket: failing.ticket,
+      choice: (failing.choices.indexOf('and') + 1) % failing.choices.length, revision }, page);
+    logWritesFail = false;
+    expect(failed.ok).not.toBe(true);
+    expect(failed.error).toBeTruthy();
+    expect(log()).toHaveLength(2);
+    expect(data.recallReview.cards.y.peekCount).toBe(peeksBefore);
+
     // Dismissing (no answer) records nothing; the ticket simply lapses.
     clock += day;
     const dismissed = await send({ type: 'guessBegin', word: 'y', revision }, page);
@@ -117,6 +151,9 @@ test('the worker offers, records and caps guesses for learning words only', asyn
     clock += day;
     expect(await send({ type: 'guessBegin', word: 'y', revision }, page)).toEqual({ plain: true });
     expect(log().filter((t) => t[2] === 'guess')).toHaveLength(3);
+    // A Reset re-introduces the word later: guesses count within the card's current life.
+    data.recallReview.cards.y = { due: clock + day, interval: 0, reviews: 0, introducedDay: localDay(new Date(clock)) };
+    expect((await send({ type: 'guessBegin', word: 'y', revision }, page)).ticket).toBeTruthy();
 
     // A stale ticket (over ten minutes) is refused and records nothing.
     data.recallReview.cards.con = { due: clock + day, interval: 1, reviews: 0, introducedDay: localDay(new Date(clock)) };
