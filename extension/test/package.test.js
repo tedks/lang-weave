@@ -258,6 +258,20 @@ test('verify: manifest references a missing file', () => {
     { default_locale: 'en' }, /_locales\/en\/messages\.json: not a JSON object/);
   expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }), '_locales/fr/messages.json': '[]' },
     { default_locale: 'en' }, /_locales\/fr\/messages\.json: not a JSON object/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }),
+    '_locales/fr/messages.json': JSON.stringify({ ext_name: { message: 'Bonjour $WHO$' },
+      ok: { message: 'Salut $Who$', placeholders: { who: { content: '$1' } } } }) },
+    { default_locale: 'en' }, /_locales\/fr\/messages\.json: ext_name uses undefined placeholder \$WHO\$/);
+  const en = JSON.stringify({ locale_lang: { message: 'en' }, n_one: { message: '$1 word' }, n_other: { message: '$1 words' } });
+  expectRefusal({ '_locales/en/messages.json': en,
+    '_locales/fr/messages.json': JSON.stringify({ n_other: { message: '$1 mots' } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: locale_lang is missing[\s\S]*fr\/messages\.json: plural forms missing: n_one/);
+  expectRefusal({ '_locales/en/messages.json': en,
+    '_locales/fr/messages.json': JSON.stringify({ a: { message: 'x', placeholders: [] }, A: { message: 'y' } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: message names differ only in case[\s\S]*fr\/messages\.json: a has malformed placeholders/);
+  const { root, ext } = fixture({ '_locales/en/messages.json': en, '_locales/fr/messages.json': JSON.stringify({
+    locale_lang: { message: 'fr' }, n_one: { message: '$1 mot' }, n_other: { message: '$1 mots' } }) }, { default_locale: 'en' });
+  expect(packageExtension({ extensionDir: ext, licenseDir: root, outDir: join(root, 'out') }).entries).toBe(9);
   expectRefusal({}, { options_page: 'test/x.html' }, /options_page: test\/x\.html/);
   expectRefusal({}, { devtools_page: '../outside.html' }, /devtools_page: invalid path/);
 });

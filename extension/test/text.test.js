@@ -1,7 +1,8 @@
 import { describe, test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
 import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
-  introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, swapDescription } from '../src/text.js';
+  introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, restoreDescriptions,
+  swapDescription } from '../src/text.js';
 import { readable, selector, TWEET, PROSE } from '../src/page.js';
 
 const win = new Window();
@@ -461,7 +462,22 @@ describe('lang and description on swapped words', () => {
       pruneDescriptions();
       expect(document.getElementById(id)).toBeNull();
       expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('and · "ay". Show English');
-      // A page that removes the host gets a fresh one on the next description, not a dangling reference.
+      // A page that detaches a passage and later puts the same span back gets its description back.
+      const parent = kept.parentNode;
+      kept.remove();
+      pruneDescriptions();
+      const keptSpan = kept.querySelector('.fw-word');
+      expect(document.getElementById(keptSpan.getAttribute('aria-describedby'))).toBeNull();
+      parent.append(kept);
+      restoreDescriptions(kept);
+      expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
+      restoreDescriptions(kept); // idempotent
+      expect(document.querySelectorAll(`[id="${keptSpan.getAttribute('aria-describedby')}"]`)).toHaveLength(1);
+      // A page that removes the host gets it back on the next prune, not a dangling reference.
+      host.remove();
+      pruneDescriptions();
+      expect(hosts()).toHaveLength(1);
+      expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
       host.remove();
       toggle(kept.querySelector('.fw-word'));
       expect(hosts()).toHaveLength(1);

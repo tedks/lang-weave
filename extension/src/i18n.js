@@ -4,7 +4,8 @@
 import { EN } from './messages-en.js';
 
 // Chrome resolves named placeholders to $1..$9 when it loads a bundle; EN holds that resolved form.
-const substitute = (text, subs) => text.replace(/\$([1-9])/g, (_, n) => subs[n - 1] ?? '');
+// Like getMessage, a $n without a substitution is blank and $$ is a literal $.
+const substitute = (text, subs) => text.replace(/\$(\$|[1-9])/g, (_, c) => c === '$' ? '$' : subs[c - 1] ?? '');
 
 // t('key', ...subs): Chrome's message for the UI locale, else the bundled English, else ''.
 // A missing key returns '' exactly as chrome.i18n does; a test checks every key used in source.
@@ -27,6 +28,9 @@ export function tn(key, count, ...subs) {
 }
 
 const ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt'];
+// chrome.i18n blanks a $n it has no substitution for, so the child markers are passed back in
+// verbatim; Chrome and substitute() both insert substitutions without re-reading them.
+const CHILD_MARKERS = Array.from({ length: 9 }, (_, i) => `$${i + 1}`);
 // Fill a page from its data-i18n keys. An element with child elements keeps them: its message
 // names them $1..$9 in document order, so a translation can reorder text around a link without
 // any markup in messages. A message that does not name every child is skipped, never applied.
@@ -34,7 +38,7 @@ export function localize(root = document) {
   const doc = root.ownerDocument || root;
   if (doc.documentElement?.hasAttribute('lang')) doc.documentElement.setAttribute('lang', messageLanguage());
   for (const el of root.querySelectorAll('[data-i18n]')) {
-    const text = t(el.getAttribute('data-i18n'));
+    const text = t(el.getAttribute('data-i18n'), ...CHILD_MARKERS);
     if (!text) continue;
     const children = [...el.children];
     if (!children.length) { el.textContent = text; continue; }

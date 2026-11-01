@@ -101,9 +101,29 @@ function undescribe(span) {
   described.delete(span);
   span.removeAttribute('aria-describedby');
 }
-// Drop descriptions of spans the page has removed. A reattached passage is reverted and repainted.
+// Take the descriptions of spans the page has removed out of the container. The span keeps its
+// description and aria-describedby, so a page that puts the same span back can restore it.
 export function pruneDescriptions() {
-  for (const span of described) if (!span.isConnected) undescribe(span);
+  let live = null;
+  for (const span of described) {
+    if (span.isConnected) { live = span; continue; }
+    descriptions.get(span)?.remove();
+    described.delete(span);
+  }
+  // A page that removed the container while keeping swaps gets it back, so no reference dangles.
+  if (live) descriptionHost(live.ownerDocument);
+}
+// Put back the descriptions of this extension's spans in a subtree the page has (re)attached.
+export function restoreDescriptions(root) {
+  if (root?.nodeType !== ELEMENT_NODE) return;
+  const spans = root.matches(`span.${SWAP_CLASS}`) ? [root] : [];
+  spans.push(...root.querySelectorAll(`span.${SWAP_CLASS}`));
+  for (const span of spans) {
+    const el = descriptions.get(span);
+    if (!el || described.has(span) || !span.isConnected) continue;
+    descriptionHost(span.ownerDocument).append(el);
+    described.add(span);
+  }
 }
 export const swapDescription = (span) => descriptions.get(span)?.textContent || '';
 // Show the validated target word, voiced in the target language, with its gloss as the description.

@@ -355,10 +355,35 @@ function localeProblems(manifest, files, defaultLocale) {
       problems.push(`${f.name}: not a JSON object of { message } entries`);
       continue;
     }
-    tables.set(match[1], new Set(Object.keys(table).map((name) => name.toLowerCase())));
+    // Chrome also refuses a message naming a $placeholder$ its entry does not define, a malformed
+    // placeholder, and names that differ only in case.
+    const lowered = Object.keys(table).map((name) => name.toLowerCase());
+    if (new Set(lowered).size !== lowered.length) problems.push(`${f.name}: message names differ only in case`);
+    for (const [name, entry] of Object.entries(table)) {
+      const placeholders = entry.placeholders ?? {};
+      if (!placeholders || typeof placeholders !== 'object' || Array.isArray(placeholders) ||
+          Object.values(placeholders).some((value) => typeof value?.content !== 'string')) {
+        problems.push(`${f.name}: ${name} has malformed placeholders`);
+        continue;
+      }
+      const defined = new Set(Object.keys(placeholders).map((key) => key.toLowerCase()));
+      for (const [whole, key] of entry.message.matchAll(/\$([A-Za-z0-9_@]+)\$/g))
+        if (!defined.has(key.toLowerCase())) problems.push(`${f.name}: ${name} uses undefined placeholder ${whole}`);
+    }
+    tables.set(match[1], new Set(lowered));
   }
   const names = tables.get(defaultLocale);
   if (!names) return problems;
+  // Chrome falls back key by key to the default locale, but i18n.js picks plural forms by the
+  // locale's own locale_lang. A translation must therefore carry locale_lang and every plural form
+  // pair, or a count would be rendered by one language's rules in another's words.
+  const plurals = [...names].filter((name) => /_(one|other)$/.test(name));
+  for (const [locale, own] of tables) {
+    if (locale === defaultLocale) continue;
+    if (names.has('locale_lang') && !own.has('locale_lang')) problems.push(`_locales/${locale}/messages.json: locale_lang is missing`);
+    const missing = plurals.filter((name) => !own.has(name));
+    if (missing.length) problems.push(`_locales/${locale}/messages.json: plural forms missing: ${missing.join(', ')}`);
+  }
   const visit = (value, label) => {
     if (typeof value === 'string') {
       for (const [, name] of value.matchAll(/__MSG_(\w+)__/g))

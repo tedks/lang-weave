@@ -16,6 +16,9 @@ const collapse = (text) => text.replace(/\s+/g, ' ').trim();
 const sources = readdirSync(resolve(EXT, 'src')).filter((f) => f.endsWith('.js'));
 const pages = readdirSync(resolve(EXT, 'src')).filter((f) => f.endsWith('.html'));
 
+// Like chrome.i18n.getMessage: named placeholders are already $n, and a $n without a substitution is blanked.
+const chromeLike = (messages) => ({ i18n: { getMessage: (key, subs = []) =>
+  (messages[key] ?? '').replace(/\$([1-9])/g, (_, n) => subs[n - 1] ?? '') } });
 const withChrome = (chrome, fn) => {
   const saved = globalThis.chrome;
   globalThis.chrome = chrome;
@@ -105,6 +108,7 @@ describe('the helper', () => {
     expect(calls).toEqual([['recall_dismiss', ['3']]]);
     expect(withChrome(undefined, () => t('no_such_message'))).toBe('');
     expect(withChrome(undefined, () => t('badge_paused_until', '$2 $1'))).toBe('Paused until $2 $1; review still works');
+    expect(withChrome(undefined, () => t('badge_paused_until'))).toBe('Paused until ; review still works'); // as Chrome blanks it
   });
 
   test('tn picks the plural form by the messages language and falls back to other', () => {
@@ -130,7 +134,7 @@ describe('the helper', () => {
     let clicks = 0;
     link.addEventListener('click', () => clicks++);
     const messages = { a: 'New text', b: 'Label', c: 'Puis $2, lire $1.', d: 'Without its link', locale_lang: 'fr' };
-    withChrome({ i18n: { getMessage: (key) => messages[key] ?? '' } }, () => localize(doc));
+    withChrome(chromeLike(messages), () => localize(doc));
     expect(doc.querySelector('[data-i18n="a"]').textContent).toBe('New text');
     expect(doc.querySelector('button').getAttribute('aria-label')).toBe('Label');
     expect(doc.querySelector('button').getAttribute('title')).toBe('Label');
@@ -143,6 +147,27 @@ describe('the helper', () => {
     expect(doc.documentElement.getAttribute('lang')).toBe('fr');
     win.close();
   });
+});
+
+test('a locale reaches every data-i18n element on every page, children and all', () => {
+  // A stand-in translation: every resolved English message wrapped in markers, placeholders kept.
+  const marked = Object.fromEntries(Object.keys(MESSAGES).map((name) => [name, `«${english(name)}»`]));
+  for (const file of pages) {
+    const win = new Window();
+    const doc = win.document;
+    doc.write(read(`src/${file}`));
+    const elements = [...doc.querySelectorAll('[data-i18n]')];
+    const children = elements.map((el) => [...el.children]);
+    withChrome(chromeLike(marked), () => localize(doc));
+    for (const [i, el] of elements.entries()) {
+      const name = el.getAttribute('data-i18n');
+      expect(`${file} ${name}: ${el.textContent.startsWith('«')}`).toBe(`${file} ${name}: true`);
+      expect([...el.children]).toEqual(children[i]); // the same child elements, moved, not copied
+    }
+    for (const attr of ['aria-label', 'title', 'placeholder', 'alt'])
+      for (const el of doc.querySelectorAll(`[data-i18n-${attr}]`)) expect(el.getAttribute(attr).startsWith('«')).toBe(true);
+    win.close();
+  }
 });
 
 describe('fixed copy stays allowlisted against the messages file', () => {

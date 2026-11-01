@@ -2,7 +2,7 @@
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
 import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
-  finishIntroduction, pruneDescriptions, SWAP_CLASS } from './text.js';
+  finishIntroduction, pruneDescriptions, restoreDescriptions, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -417,7 +417,7 @@ function busy(el, kind, text = '') {
   churn.set(el, c);
   if (c.live || (kind === 'asks' && c.text === text)) return c.live;
   const now = Date.now();
-  c[kind] = c[kind].filter((t) => now - t < CHURN_WINDOW_MS);
+  c[kind] = c[kind].filter((at) => now - at < CHURN_WINDOW_MS);
   if (c[kind].length >= CHURN[kind]) return (c.live = true);
   c[kind].push(now);
   if (kind === 'asks') c.text = text;
@@ -507,7 +507,7 @@ function mutations(records) {
       introductionTicket(tipTarget) || tipTarget.classList.contains('fw-en'))) hideTip();
   const changed = new Set();
   for (const r of records) {
-    for (const n of r.addedNodes || []) if (n.nodeType === 1) track(n);
+    for (const n of r.addedNodes || []) if (n.nodeType === 1) { track(n); restoreDescriptions(n); }
     const base = r.target.nodeType === 1 ? r.target : r.target.parentElement;
     const el = base?.closest(targets());
     if (el && tracked.has(el)) changed.add(el);

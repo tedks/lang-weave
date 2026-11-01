@@ -17,8 +17,9 @@ State: implementation merged on branch `i18n-lang` (PR #38, 0.12.18). Full gates
 
 - A target-language span gets `lang` set to the canonical BCP-47 code (`es` for the bundled pack; the generated pack's code from the content-script config). An unparseable code leaves `lang` off.
 - The span has no `aria-label` while it shows the target word, so its accessible name is the word alone, computed from its `lang`-tagged text. `aria-describedby` points at a description holding the gloss and the action, for example `and · "ee". Show English`. A flipped span's description is the action (`Show Spanish`) and its name is the English word.
-- Descriptions live in one hidden, `lang="en"` container appended to the document element, never inside a passage. Ids carry a random per-instance prefix. `revert` and `dropIntroduction` remove a span's description. The content script prunes descriptions of spans the page removed after every mutation batch. A container the page removes is re-attached on the next description.
+- Descriptions live in one hidden, `lang="en"` container appended to the document element, never inside a passage. Ids carry a random per-instance prefix. `revert` and `dropIntroduction` remove a span's description. After every mutation batch the content script takes the descriptions of spans the page removed out of the container, and puts them back for spans in a subtree the page reattaches. A container the page removes is re-attached on the next description. The container stays under `<html>` for the page's lifetime, like the extension's swap spans in page text.
 - The gloss box stays `aria-hidden`, the 700 ms beat and fixed placement are unchanged, and the scanner rule is unchanged.
+- This is the one intended behaviour change: what a screen reader announces for a swapped word. The old single label (`y: and · "ee". Show English`) becomes the name `y`, voiced in Spanish, with the gloss and action as its description.
 - Evidence: Bun tests prove a passage holding its own `es` spans stays readable and repaints identically on a rescan, the non-English skip rule still skips, the container is never a passage on X or prose pages, pruning follows the page, and in the churn harness the tagged span is not repainted and costs no model call. The gloss Chromium gate asserts the real painted span's `lang` and description and reads Chrome's own accessibility tree over the DevTools protocol: name `y`, description the gloss. The highlights gate asserts the `lang`-tagged fixture keeps the reader's font and line box and the container never renders.
 
 ## i18n scaffold: what moved
@@ -38,14 +39,18 @@ State: implementation merged on branch `i18n-lang` (PR #38, 0.12.18). Full gates
 - Symbols and separators (`!`, `•`, `–`, `·`, `⇄`), identifiers, file names, option values, model names, numbers and dates formatted by `Intl`, and user or product data, which enter messages only as substitutions.
 - `progress-text.js` still exports its old English `plural()` for compatibility; nothing in the pages uses it.
 
+## Council
+
+- Round 1 at `e580676`: Anthropic (native Opus) and OpenAI (Sol via ask-agent) both found that `localize()` could never apply a message naming child elements, because `getMessage` blanks `$n` without substitutions; English was unaffected only because those elements were skipped. Anthropic also reproduced a reattached passage losing its descriptions. OpenAI found a partial plural translation falling back to English forms, a removed container leaving dangling references, and loose placeholder validation. Google agy was EMPTY (individual quota exhausted). All Critical and Important findings were fixed with failing-first tests in the fix delta; the record and PR comment carry the convergence round.
+
 ## How a translator adds a locale
 
 1. Copy `extension/_locales/en/messages.json` to `extension/_locales/<code>/messages.json`, using Chrome's locale directory names (for example `fr`, `pt_BR`).
 2. Translate each `message`. Keep every `$NAME$` placeholder; reorder them freely. Read the `description` for context and the placeholder `example` for its shape. Never add markup.
 3. Set `locale_lang` to the locale's BCP-47 code (for example `pt-BR`). Pages use it for their `lang` attribute and plural rules.
-4. For each `_one`/`_other` pair, add any other CLDR plural forms the language needs (`_zero`, `_two`, `_few`, `_many`) with the same placeholders. A missing form falls back to `_other`.
-5. A missing message falls back to English, key by key. Keep `badge_new_text` to four characters or fewer.
-6. Run `cd extension && node scripts/package.mjs` (it refuses malformed locale files) and load the extension with Chrome set to that UI language.
+4. Translate every `_one`/`_other` pair, and add any other CLDR plural forms the language needs (`_zero`, `_two`, `_few`, `_many`) with the same placeholders. A form English lacks falls back to your `_other`.
+5. Any other missing message falls back to English, key by key. Keep `badge_new_text` to four characters or fewer.
+6. Run `cd extension && node scripts/package.mjs`. It refuses a malformed locale file, an undefined or malformed placeholder, names that differ only in case, a missing `locale_lang`, and any missing `_one`/`_other` form, because plural forms are chosen by your language's rules. Then load the extension with Chrome set to that UI language.
 
 ## What was not tested
 
