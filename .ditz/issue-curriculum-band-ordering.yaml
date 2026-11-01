@@ -1,0 +1,19 @@
+id: curriculum-band-ordering
+title: Add a frequency band field to new-word ordering (currently falls back to alphabetical)
+desc: 'Source: docs/research/curriculum-sources.md code issues. New-word ordering
+  has no frequency term; a band field from the generated pack must enter the sort
+  in adaptive.js/encounters.js so lower bands introduce first. Prerequisite for shipping
+  a 300-row band.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:41:55-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:41:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
