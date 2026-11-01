@@ -1,0 +1,21 @@
+id: curriculum-legacy-anchor-overlap
+title: Audit candidate anchors against legacy inflection matching
+desc: 'PR #41 council nit. Candidate admission checks exact shared English surface
+  anchors, but existing bundled non-noun words may also match regular English inflections
+  via legacy glossMatches. Before admitting a larger pack, enumerate collisions between
+  proposed explicit anchors and legacy runtime inflection surfaces (e.g. likes vs
+  like), then decide whether to extend the admission gate or migrate legacy anchors.
+  Keep the 226 shipped rows unchanged pending product review.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:01:54-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:01:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
