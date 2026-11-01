@@ -1,0 +1,21 @@
+id: guess-export-enable
+title: Export guess-first retrievals in backups once the tolerant reader has shipped
+desc: 'Guess first (PR #42) adds source ''guess'' to the learning log; builds <= 0.12.18
+  refuse a schema 2 backup holding one, so portability.js EXPORT_GUESSES=false leaves
+  guesses out of export (counted in logOmitted) per the Release order rule. After
+  0.12.19 (the tolerant reader) has shipped, turn export on in a later release and
+  say in its notes to install 0.12.19+ first. Until then guess history and the 3-guess
+  cap do not survive backup/restore. Pending the lead''s ruling on options A/B/C.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:06:20-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:06:20-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
