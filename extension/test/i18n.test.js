@@ -12,7 +12,9 @@ const EXT = resolve(import.meta.dir, '..');
 const read = (path) => readFileSync(resolve(EXT, path), 'utf8');
 const MESSAGES = JSON.parse(read('_locales/en/messages.json'));
 const english = (name) => resolveMessage(name, MESSAGES[name]);
-const collapse = (text) => text.replace(/\s+/g, ' ').trim();
+// Whitespace runs render as one space; edges are kept, since localize() writes the message as-is
+// and a dropped edge space inside an inline element would join two words.
+const collapse = (text) => text.replace(/\s+/g, ' ');
 const sources = readdirSync(resolve(EXT, 'src')).filter((f) => f.endsWith('.js'));
 const pages = readdirSync(resolve(EXT, 'src')).filter((f) => f.endsWith('.html'));
 
