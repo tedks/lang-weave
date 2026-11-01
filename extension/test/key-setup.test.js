@@ -92,15 +92,22 @@ test('a fresh profile cannot test a key or generate a pack before choosing site 
 test('Test key reports rejection with fixed category and a removed key cannot receive stale status', async () => {
   const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
   const f = fixture();
+  let calls = 0;
   globalThis.chrome = { storage: { local: f.store } };
-  globalThis.fetch = async () => ({ ok: false, status: 403, headers: { get: () => null },
-    text: async () => 'provider secret-key explanation' });
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 403, headers: { get: () => null },
+    text: async () => 'provider secret-key explanation' }; };
   try {
     expect(await f.handlers.testKey()).toEqual({ ok: false, category: 'key_rejected' });
     expect(f.data.modelStatus).toMatchObject({ category: 'key_rejected' });
+    expect(f.data.modelStatus.keyEpoch).toBe('old-key');
     expect(JSON.stringify(f.data.modelStatus)).not.toContain('secret-key');
+    expect(await f.handlers.testKey()).toEqual({ ok: false, category: 'key_rejected' });
+    expect(calls).toBe(1);
+    await expect(f.handlers.addLanguage({ code: 'fr' })).rejects.toThrow(/rejected this key/);
+    expect(calls).toBe(1);
+    await f.handlers.save({ apiKey: 'replacement-key' });
     let release;
-    globalThis.fetch = async () => new Promise((done) => { release = done; });
+    globalThis.fetch = async () => { calls++; return new Promise((done) => { release = done; }); };
     const pending = f.handlers.testKey();
     while (!release) await new Promise((done) => setTimeout(done, 0));
     await f.handlers.removeKey();

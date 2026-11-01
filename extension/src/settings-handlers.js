@@ -1,7 +1,7 @@
 // Popup handlers: settings, key, language packs, cache and status.
 import { chromeStorage } from './cache.js';
 import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, readBoundedBody,
-  safeModelStatus, statusLabel, visibleModelStatus, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+  safeModelStatus, statusLabel, visibleModelStatus, rejectedForEpoch, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 import { API_BASE } from './gemini.js';
 import { cleanSettings } from './settings.js';
 import { MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
@@ -27,10 +27,12 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     if (worker.keyIsolationUnavailable) throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
     const code = languageCode(msg.code);
     if (!code) throw new Error('Enter a valid target-language code such as fr or ja');
-    const before = await store.get(['settings', 'apiKey', PACKS_KEY]);
+    const before = await store.get(['settings', 'apiKey', 'keyEpoch', STATUS_KEY, PACKS_KEY]);
     if ((await store.get('consentShown')).consentShown === false) throw new Error('Choose site access on the welcome page first');
     const selected = cleanSettings(before.settings).language;
     if (!before.apiKey) throw new Error('Add your Gemini key first');
+    if (worker.keyRejectedEpoch === before.keyEpoch || rejectedForEpoch(before[STATUS_KEY], before.keyEpoch))
+      throw new Error(statusLabel({ category: 'key_rejected' }));
     if (cleanPacks(before[PACKS_KEY])[code]) throw new Error('This language is already available');
     if (Object.keys(cleanPacks(before[PACKS_KEY])).length >= MAX_PACKS) throw new Error(`Maximum of ${MAX_PACKS} generated languages reached`);
     const model = cleanSettings(before.settings).model;
@@ -136,6 +138,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
           patch[STATUS_KEY] = null;
           cooldown.clear();
           cooldownKinds.clear();
+          worker.keyRejectedEpoch = '';
         }
         await store.set(patch);
       }
@@ -153,10 +156,12 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     if (worker.keyIsolationUnavailable) return { ok: false, category: 'key_isolation_unavailable' };
     return modelCall(async () => {
       const settingsGeneration = worker.settingsGeneration;
-      const before = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY]);
+      const before = await store.get(['apiKey', 'keyEpoch', 'settings', QUOTA_STATE_KEY, STATUS_KEY]);
       if ((await store.get('consentShown')).consentShown === false) return { ok: false, category: 'consent_required' };
       if (!before.apiKey) return { ok: false, category: 'no_key' };
       const epoch = before.keyEpoch || '';
+      if (worker.keyRejectedEpoch === epoch || rejectedForEpoch(before[STATUS_KEY], epoch))
+        return { ok: false, category: 'key_rejected' };
       const model = cleanSettings(before.settings).model;
       if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { ok: false, category: 'local_budget' };
       const cooldowns = cleanQuotaState(before[QUOTA_STATE_KEY], epoch).cooldowns;
@@ -205,7 +210,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
             current.apiKey !== before.apiKey || cleanSettings(current.settings).model !== model) {
           return { ok: false, category: 'changed' };
         }
-        const patch = { [STATUS_KEY]: safeModelStatus({ category, at: Date.now(), model }) };
+        if (category === 'key_rejected') worker.keyRejectedEpoch = epoch;
+        const patch = { [STATUS_KEY]: safeModelStatus({ category, at: Date.now(), model, keyEpoch: epoch }) };
         if (failure?.retryAfterMs && ['daily_quota', 'rate_limit', 'overloaded'].includes(category)) {
           const state = cleanQuotaState(current[QUOTA_STATE_KEY], epoch);
           const kind = category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded' : 'short';

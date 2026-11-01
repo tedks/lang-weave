@@ -37,6 +37,7 @@ const worker = {
   importBlocked: false, // a failed journal commit needs startup recovery before any other mutation
   startupUnsupportedSettings: false,
   keyIsolationUnavailable: true, // cleared only after Chrome accepts trusted-context storage
+  keyRejectedEpoch: '', // an unsaved diagnostic must still stop this worker's rejected key
 };
 const captureDrafts = new Map(); // worker memory only; a restart invalidates every nonce
 const completedCaptures = new Map(); // short-lived idempotent receipts; no draft/page metadata

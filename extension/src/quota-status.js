@@ -136,12 +136,18 @@ export function safeModelStatus(value) {
   if (finite(value.at)) out.at = value.at;
   if (finite(value.retryAt)) out.retryAt = value.retryAt;
   if (MODEL_IDS.has(value.model)) out.model = value.model;
+  if (typeof value.keyEpoch === 'string' && value.keyEpoch.length > 0 && value.keyEpoch.length <= 64)
+    out.keyEpoch = value.keyEpoch;
   return out;
 }
+
+export const rejectedForEpoch = (value, keyEpoch) => !!keyEpoch &&
+  safeModelStatus(value)?.category === 'key_rejected' && value.keyEpoch === keyEpoch;
 
 // The popup and toolbar must ignore the same expired or stale operational status.
 export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReached, now = Date.now()) {
   let status = safeModelStatus(value);
+  if (status?.category === 'key_rejected' && !rejectedForEpoch(status, keyEpoch)) status = null;
   if (status && ['daily_quota', 'rate_limit', 'overloaded'].includes(status.category)) {
     const kind = status.category === 'daily_quota' ? 'daily'
       : status.category === 'overloaded' ? 'overloaded' : 'short';
