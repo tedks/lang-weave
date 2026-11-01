@@ -1,0 +1,21 @@
+id: curriculum-wordfreq-hash-lock
+title: Hash-lock the one-off wordfreq regeneration environment
+desc: 'PR #41 convergence nit. scripts/curriculum/wordfreq-toolchain.txt pins dependency
+  versions, but pip install -r can resolve unpinned transitive packages and does not
+  check archive hashes. Before regenerating the committed frequency table, capture
+  a complete wheel lock with SHA-256 for wordfreq 3.1.1 and every helper, then verify
+  the regenerated CSV byte-for-byte. The normal Node build already consumes the committed
+  table and has no Python dependency.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:06:14-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:06:14-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
