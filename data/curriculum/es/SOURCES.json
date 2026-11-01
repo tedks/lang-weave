@@ -46,8 +46,14 @@
     ]
   },
   "fixture": {
+    "source_archive_sha256": "5ff2c072f8099f2d2ce484bd6957bf179f046d2ad37bc36555edf8bb84cb5291",
     "wiktextract_url_1": "https://kaikki.org/dictionary/Spanish/meaning/s/so/sombrero.jsonl",
     "wiktextract_url_2": "https://kaikki.org/dictionary/Spanish/meaning/n/nu/nube.jsonl",
-    "wiktextract_sha256": "282ddbd216a6f4fb5fc3475b053f08888b4f8179b4f35bb09797ee8f26fc72e1"
+    "wiktextract_sha256": "282ddbd216a6f4fb5fc3475b053f08888b4f8179b4f35bb09797ee8f26fc72e1",
+    "entry_sha256": {
+      "sombrero": "cffbdc3f01f72bc8d0e60c3e10d8aae067949c27e43e8b789c8c3fad3f2ea064",
+      "nube": "5d2f04b417749b5f535fe63135d17bfd04bffb72eb9837efaf446529815d2258"
+    },
+    "prepared_examples_sha256": "41aed13eafc89200ace4cd202eb51b257d2e1cb3c7f904a0934e4233db894949"
   }
 }

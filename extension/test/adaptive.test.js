@@ -94,7 +94,7 @@ test('Beginner band zero preserves the prior new-word order', () => {
     .toEqual(select({ batch: text, words: before }).map((word) => word.fr));
 });
 
-test('a manually saved personal word keeps the one fresh slot ahead of pack frequency', () => {
+test('an unbanded personal word keeps its prior one-slot selection', () => {
   const words = [{ fr: 'hoy', en: 'today', band: 0 },
     { fr: 'brillar', en: 'shimmer', personalId: 'personal:es:one' }];
   expect(select({ batch: batch('We saw shimmer today.'), words,

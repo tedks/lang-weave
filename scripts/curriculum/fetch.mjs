@@ -38,12 +38,16 @@ async function download(source, out) {
 async function bzRows(path, filter, callback) {
   const child = spawn('bzip2', ['-dc', path], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
+  let spawnError;
+  child.once('error', (error) => { spawnError = error; });
+  const closed = new Promise((done) => child.once('close', done));
   child.stderr.on('data', (data) => { stderr += data; });
   for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
     const cells = line.split('\t');
     if (filter(cells)) callback(cells);
   }
-  const code = await new Promise((resolveCode) => child.on('close', resolveCode));
+  const code = await closed;
+  if (spawnError) throw Error(`cannot start bzip2 for ${path}: ${spawnError.message}`);
   if (code !== 0) throw Error(`bzip2 failed on ${path}: ${stderr}`);
 }
 
@@ -64,7 +68,8 @@ async function prepareExamples(out) {
       throw Error(`Tatoeba pair ${row.example_id}:${row.translation_id} is absent from the pinned export`);
     const fields = [row.example_id, row.translation_id, a[2], b[2], a[3], b[3],
       esCc0.has(row.example_id) && enCc0.has(row.translation_id) ? 'CC0' : 'CC BY 2.0 FR'];
-    if (fields.some((value) => !value || /[\t\r\n]/.test(value))) throw Error(`invalid Tatoeba fields for ${row.id}`);
+    if (fields.some((value) => !value || value === '\\N' || /[\t\r\n]/.test(value)))
+      throw Error(`invalid Tatoeba fields for ${row.id}`);
     return fields.join('\t');
   });
   writeFileSync(join(out, 'examples.tsv'), header + lines.join('\n') + '\n');

@@ -48,6 +48,12 @@ describe('candidate pack admission', () => {
     expect(validateSwaps(2, [{ o: 'spoke', f: 'hablar' }], [word])).toHaveLength(0);
     expect(validateSwaps(2, [{ o: 'to speak', f: 'hablar' }], [word])).toHaveLength(0);
   });
+  test('explicit noun anchors admit bare and definite forms but refuse the indefinite phrase', () => {
+    const word = { fr: 'el sombrero', en: 'the hat', anchors: ['hat', 'the hat'], hint: 'el som-BREH-roh' };
+    expect(validateSwaps(2, [{ o: 'the hat', f: 'el sombrero' }], [word])[0]?.f).toBe('el sombrero');
+    expect(validateSwaps(2, [{ o: 'hat', f: 'sombrero' }], [word])[0]?.f).toBe('sombrero');
+    expect(validateSwaps(2, [{ o: 'a hat', f: 'el sombrero' }], [word])).toHaveLength(0);
+  });
 });
 
 describe('validateSwaps', () => {

@@ -13,6 +13,7 @@ const additions = () => L2_WORDS.slice(OLD_EXPANDED);
 
 test('the original Beginner and Expanded entries retain their forms, glosses, hints and order', () => {
   expect(L1_WORDS).toHaveLength(30);
+  expect(L2_WORDS).toHaveLength(226);
   expect(hash(L1_WORDS)).toBe('95c5d607d1146c6e6d974d7829dfbe960fd24079b38066157be6ec98621ced37');
   expect(hash(L2_WORDS.slice(0, OLD_EXPANDED))).toBe('5f3fd6cc79a5bef41112c202422076abc7b482ab27673a27f9f7caafe780c6d1');
   expect(L2_WORDS.slice(0, OLD_EXPANDED).map((w) => w.fr)).toContain('el gato');

@@ -23,7 +23,8 @@ import { englishAnchors } from './catalog.js';
 // The bundled 226 predate this gate and have two known collisions (only, free);
 // they remain unchanged until the curriculum review makes a product decision.
 export function assertPackAnchors(words) {
-  if (!Array.isArray(words) || words.length > MAX_PACK_ROWS) throw new Error(`pack exceeds ${MAX_PACK_ROWS} rows`);
+  if (!Array.isArray(words)) throw new Error('pack must be an array');
+  if (words.length > MAX_PACK_ROWS) throw new Error(`pack exceeds ${MAX_PACK_ROWS} rows`);
   const owner = new Map();
   for (const word of words) for (const anchor of englishAnchors(word)) {
     if (owner.has(anchor) && owner.get(anchor) !== word.fr) {

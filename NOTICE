@@ -16,6 +16,15 @@ they are satisfied by keeping LICENSE-MIT with every copy.
 
 Bundled Spanish vocabulary selection credits wordfreq by Robyn Speer (data
 CC BY-SA 4.0) for frequency ordering; see docs/UPSTREAM-CURRICULUM-MISSION.md.
+The coarse frequency bands in extension/src/vocabulary.js and the rounded
+frequency table in data/curriculum/es/wordfreq-bands.csv were derived from
+wordfreq 3.1.1 by Robyn Speer (https://github.com/rspeer/wordfreq). Its
+underlying data is CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/). The table rounds Zipf
+values to two decimals and maps their lower Spanish/English score to a band;
+the Beginner 30 are assigned band 0 by product rule. The table is distributed
+under CC BY-SA 4.0. The licence and native-review ruling for future new
+vocabulary rows remains open.
 
 The scheduler in extension/src/fsrs.js is an independent port of the published
 FSRS-6 algorithm (Free Spaced Repetition Scheduler, open-spaced-repetition,

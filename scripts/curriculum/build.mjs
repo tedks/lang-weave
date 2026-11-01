@@ -21,6 +21,26 @@ async function fileSha(path) {
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const simple = (value) => String(value).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").trim();
 const bare = (fr) => fr.replace(/^(?:el|la|los|las) /, '');
+const englishBases = (value) => String(value).split(/\s*[/;,]\s*/).map((part) => simple(part)
+  .replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
+  .flatMap((part) => [part, part.replace(/^(?:the|a|an|to) /, '')]);
+function supportsAnchor(base, anchor, row) {
+  if (base === anchor) return true;
+  if (row.pos === 'noun' && anchor.startsWith('the ')) return supportsAnchor(base, anchor.slice(4), row);
+  if (!/^[a-z]+$/.test(base) || !/^[a-z]+$/.test(anchor)) return false;
+  if (row.pos === 'verb') {
+    const forms = [base + 's', base + 'es', base + 'ing', base + 'ed'];
+    if (base.endsWith('e')) forms.push(base.slice(0, -1) + 'ing', base + 'd');
+    if (base.endsWith('y')) forms.push(base.slice(0, -1) + 'ies');
+    return forms.includes(anchor);
+  }
+  if (row.pos === 'noun' && row.number === 'plural') {
+    const forms = [base + 's', base + 'es'];
+    if (base.endsWith('y')) forms.push(base.slice(0, -1) + 'ies');
+    return forms.includes(anchor);
+  }
+  return false;
+}
 const forbidden = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'if', 'in', 'is', 'like',
   'no', 'of', 'on', 'or', 'so', 'the', 'to', 'with', 'yes']);
 const badChars = /[<>|\r\n\t\u0000-\u001f]/u;
@@ -31,17 +51,28 @@ function readJson(path) { return JSON.parse(readFileSync(path, 'utf8')); }
 function readTsv(path) {
   const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
   const header = lines.shift().split('\t');
-  return lines.map((line) => Object.fromEntries(line.split('\t').map((value, i) => [header[i], value])));
+  if (header.join('\t') !== 'es_id\ten_id\tes\ten\tes_author\ten_author\tlicence')
+    throw Error('invalid Tatoeba table header');
+  return lines.map((line) => {
+    const cells = line.split('\t');
+    if (cells.length !== header.length) throw Error(`invalid Tatoeba table row: ${line}`);
+    return Object.fromEntries(cells.map((value, i) => [header[i], value]));
+  });
 }
 function readBands(path) {
   const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
   if (lines.shift() !== 'fr,zipf_es,zipf_en,target_zipf_en,band') throw Error('invalid wordfreq table header');
-  return new Map(lines.map((line) => {
-    const [fr, es, en, targetEn, band] = line.split(',');
-    if (!fr || !Number.isFinite(+es) || !Number.isFinite(+en) || !Number.isFinite(+targetEn) || !Number.isInteger(+band))
+  const bands = new Map();
+  for (const line of lines) {
+    const fields = line.split(',');
+    const [fr, es, en, targetEn, band] = fields;
+    if (fields.length !== 5 || !fr || !Number.isFinite(+es) || !Number.isFinite(+en) ||
+        !Number.isFinite(+targetEn) || !Number.isInteger(+band))
       throw Error(`invalid wordfreq row: ${line}`);
-    return [fr, { es: +es, en: +en, targetEn: +targetEn, band: +band }];
-  }));
+    if (bands.has(fr)) throw Error(`duplicate wordfreq form: ${fr}`);
+    bands.set(fr, { es: +es, en: +en, targetEn: +targetEn, band: +band });
+  }
+  return bands;
 }
 async function wikiRows(path, wanted) {
   const input = createReadStream(path);
@@ -67,7 +98,12 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
   if (L2_WORDS.length + selected.length > MAX_PACK_ROWS) throw Error(`combined Spanish pack exceeds ${MAX_PACK_ROWS} rows`);
   const frequencies = readBands(bands);
   const source = await wikiRows(wiki, new Set(selected.map((row) => row.lemma)));
-  const sentences = new Map(readTsv(examples).map((row) => [row.es_id, row]));
+  const sentences = new Map();
+  for (const sentence of readTsv(examples)) {
+    const key = `${sentence.es_id}:${sentence.en_id}`;
+    if (sentences.has(key)) throw Error(`duplicate Tatoeba pair ${key}`);
+    sentences.set(key, sentence);
+  }
   const reviewRows = readJson(reviews);
   if (!Array.isArray(reviewRows)) throw Error('reviews must be an array');
   if (reviewRows.some((review) => typeof review.reviewer_id !== 'string' || !review.reviewer_id ||
@@ -90,7 +126,7 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
     if (row.status && !['candidate', 'machine-checked', 'native-reviewed'].includes(row.status))
       throw Error(`${row.id}: unknown review status`);
     if (!Array.isArray(row.anchors) || !row.anchors.length || row.anchors.some((a) => typeof a !== 'string' ||
-      !a || badChars.test(a) || a !== a.normalize('NFC'))) throw Error(`${row.id}: invalid anchors`);
+      !a || badChars.test(a) || a !== simple(a))) throw Error(`${row.id}: invalid or noncanonical anchors`);
     const form = exactFr(row.fr), fold = normalizeFr(row.fr);
     if (oldForms.has(form) || newForms.has(form)) throw Error(`${row.id}: duplicate target form ${row.fr}`);
     if (oldFolds.has(fold) || newFolds.has(fold)) throw Error(`${row.id}: accent-fold collision ${row.fr}`);
@@ -117,16 +153,21 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
       throw Error(`${row.id}: forbidden or existing English anchor`);
     if (anchors.some((anchor) => newAnchors.has(anchor))) throw Error(`${row.id}: shared English anchor`);
     for (const anchor of anchors) newAnchors.add(anchor);
-    if (anchors.some((anchor) => anchor !== simple(anchor))) throw Error(`${row.id}: noncanonical English anchor`);
+    const glossBases = englishBases(row.en);
+    if (!anchors.every((anchor) => glossBases.some((base) => supportsAnchor(base, anchor, row))))
+      throw Error(`${row.id}: anchor is unsupported by the English gloss`);
     const sourceEntries = (source.get(row.lemma) || []).filter((entry) => entry.data.pos === row.pos &&
-      entry.data.senses?.some((sense) => (sense.glosses || []).some((gloss) => anchors.some((anchor) => simple(gloss) === anchor)) &&
-      (row.pos !== 'noun' || (sense.tags || []).includes(row.gender === 'm' ? 'masculine' : 'feminine'))));
+      entry.data.senses?.some((sense) => {
+        const bases = (sense.glosses || []).flatMap(englishBases);
+        return anchors.every((anchor) => bases.some((base) => supportsAnchor(base, anchor, row))) &&
+          (row.pos !== 'noun' || (sense.tags || []).includes(row.gender === 'm' ? 'masculine' : 'feminine'));
+      }));
     if (sourceEntries.length > 1 && !row.wiktextract_entry_sha256)
       throw Error(`${row.id}: multiple Wiktextract entries match; pin one entry hash in the overlay`);
     const sourceEntry = row.wiktextract_entry_sha256 ? sourceEntries.find((entry) => entry.hash === row.wiktextract_entry_sha256) : sourceEntries[0];
     if (!sourceEntry)
       throw Error(`${row.id}: Wiktextract lemma, gender, POS or gloss missing`);
-    const example = sentences.get(row.example_id);
+    const example = sentences.get(`${row.example_id}:${row.translation_id}`);
     if (!example || example.en_id !== row.translation_id || !example.es_author || !example.en_author ||
         !['CC0', 'CC BY 2.0 FR'].includes(example.licence) ||
         count(example.es, bare(row.fr)) !== 1 || !anchors.some((anchor) => count(example.en, anchor) === 1) ||
@@ -140,6 +181,9 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
         licence: example.licence, author: example.es_author, translation_author: example.en_author } };
     const rowHash = sha(JSON.stringify(core));
     const approvals = reviewRows.filter((review) => review.row_hash === rowHash && review.verdict === 'approve');
+    const rejected = reviewRows.some((review) => review.row_hash === rowHash && review.verdict === 'reject');
+    if (row.status === 'native-reviewed' && rejected)
+      throw Error(`${row.id}: unresolved native rejection for row hash ${rowHash}`);
     if (row.status === 'native-reviewed' && new Set(approvals.map((review) => review.reviewer_id)).size < 2)
       throw Error(`${row.id}: native-reviewed status lacks two independent approvals for row hash ${rowHash}`);
     rows.push({ ...core, row_hash: rowHash, status: row.status === 'native-reviewed' ? 'native-reviewed' : 'machine-checked',
@@ -148,10 +192,7 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
         wordfreq_version: '3.1.1' } });
   }
   assertPackAnchors(rows);
-  for (const a of rows) for (const b of rows) if (a !== b && a.family_id === b.family_id &&
-    a.number !== b.number && a.anchors.some((anchor) => b.anchors.includes(anchor)))
-    throw Error(`singular/plural anchors overlap: ${a.fr}, ${b.fr}`);
-  rows.sort((a, b) => a.band - b.band || a.fr.localeCompare(b.fr, 'en'));
+  rows.sort((a, b) => a.band - b.band || (a.fr < b.fr ? -1 : a.fr > b.fr ? 1 : 0));
   const inputHashes = Object.fromEntries(await Promise.all([['wiktextract', wiki], ['examples', examples], ['bands', bands],
     ['overlay', overlay], ['reviews', reviews]].map(async ([name, path]) => [name, await fileSha(path)])));
   const manifest = { schema: 1, count: rows.length, shipped: false, input_sha256: inputHashes,
