@@ -2788,7 +2788,7 @@
     }
   },
   "backup_measurements_omitted": {
-    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: $OMITTED_REVIEWS$ reviews and exposure counts for $OMITTED_WORDS$ words.",
+    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached, the words are not in this backup's word lists or personal vocabulary, or they are guess-first answers, which backups do not carry yet: $OMITTED_REVIEWS$ reviews or guesses and exposure counts for $OMITTED_WORDS$ words.",
     "description": "Same as the measurements line, followed by a second sentence counting what the export had to leave out. Learning backup page (backup.html).",
     "placeholders": {
       "REVIEWS": {

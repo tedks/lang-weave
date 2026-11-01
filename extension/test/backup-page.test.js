@@ -231,7 +231,7 @@ test('preview and outcome copy keep the exact English, with and without the opti
       'Exported by Lang Weave ?.',
       'Languages: none · Generated packs: ? · Review cards: ? · Personal entries: 0.',
       'Learning preferences: language ?, level ?, gradual ?, new words/day ?, density ?, inline recall ?.',
-      "Learning measurements: 7 logged reviews, exposure counts for 3 words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: 4 reviews and exposure counts for 1 words."]);
+      "Learning measurements: 7 logged reviews, exposure counts for 3 words. Left out, because the exporter's size limit was reached, the words are not in this backup's word lists or personal vocabulary, or they are guess-first answers, which backups do not carry yet: 4 reviews or guesses and exposure counts for 1 words."]);
     $('confirm').checked = true;
     $('confirm').dispatchEvent(new ui.window.Event('change'));
     $('import').click();

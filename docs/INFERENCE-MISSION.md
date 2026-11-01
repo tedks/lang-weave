@@ -1,0 +1,106 @@
+# Guess first (M4 inference-step)
+
+## Current state
+
+State: draft PR #42 on branch `inference-step` at 0.12.19, based on `origin/main` `9cd3dce`. Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. Full exact-head gates, council to fixpoint, rebase and normal merge follow. The PR comment carries the final head and gate output. A ruling on backup export of guesses is pending with the lead (see "Storage and compatibility").
+
+## Context and assumptions
+
+- Lead: Claude Opus 5.5 (Anthropic), a native subagent of the session team lead; worktree `/home/tedks/Projects/lang-weave/inference-step`; ditz `inference-step`.
+- Intent: turn passive exposure into retrieval on a word's first encounters, opt-in and measurable. Research basis: learning-science.md recommendation 8, evidence section 4 (guessing before feedback, mixed replications) and section 5 (multiple-choice glosses were the most effective gloss type in one meta-analysis).
+- Assumption: "new/learning stage" is `progress.js` `wordStage(card) === 'learning'`: a word with a card that is not maintenance, a claim or verified. A word without a card is never swapped as a hover target in gradual mode, because introductions show English until acknowledged.
+- Assumption: the correct meaning is the pack gloss `en` that swap validation already puts in `g`. Distractors come from the scope's full pack list (`legacyAllWords`), including for personal words.
+- Assumption: the content script cannot be trusted with correctness or latency. The worker keeps the answer index and the prompt time. The page sends only the chosen index.
+- Boundaries kept: no FSRS formula change, no new log field, no consent recheck change, no telemetry, no dependency, no live Gemini. `vocabulary.js`, `levels.js` and adaptive ordering are untouched.
+- Wiring outside the listed repair authority, minimal and necessary: two message names in `router.js` (the existing page surface, same sender) and in `background.js`; the log allowlist in `learning-log.js` (pre-authorised as additive); the export filter, the `guessFirst` settings field and one message string in `portability.js`, `_locales` and `backup-page.test.js`.
+
+## Rules
+
+1. **Setting.** `guessFirst`, default off. Settings shows a toggle under Inline recall, disabled while gradual learning is off. It is stored only while on, like `desiredRetention`, so a profile that never opts in stores nothing new. Pages receive it in their config, but it is excluded from the reading revision and from the save handler's epoch comparison. Turning it on or off costs no cache entry, model call or repaint. The content script takes a same-revision config whose only change is this flag.
+2. **When the panel appears.** Gradual learning and the setting are on, and a hover or focus dwell on a swapped word reaches the existing 700 ms beat. The worker then answers `guessBegin` with choices only when all of these hold:
+   - the word's stage is learning;
+   - it has fewer than three logged guesses (`GUESS_LIMIT`);
+   - no guess was logged for it today;
+   - it is not verified;
+   - at least two safe distractors exist.
+
+   Otherwise the worker replies `{ plain: true }`. The page then shows the gloss and records the peek as before, and remembers the plain answer for that word for the day.
+3. **One guess a day (a bend).** The brief capped guesses per word at three. Without a daily limit, three hovers within a minute would use up all three on one sighting, and the second and third would measure short-term memory rather than inference. The cap is now three guesses on three different local days.
+4. **Distractors** (`guess.js`). They are drawn deterministically from the pack, with two or three per word (three when available).
+   - A distractor is never the word's gloss, never the gloss of a homograph (an accent-folded target match), and never shares a whole-word sense anchor with the answer or with another distractor ("too much" against "much").
+   - Candidates are ranked by the same leading article or "to" as the answer, then by closest length, then by a hash of the word ID and the gloss.
+   - The options are shuffled with a seed of the word ID and the local day, so the order is stable within a day.
+   - Every one of the 226 bundled Spanish words gets a safe set, and the answer lands in every position across the pack. Fewer than two safe distractors means the plain gloss; this happens only for tiny generated packs.
+5. **Panel behaviour.**
+   - It is placed by the cue's `placeTip` and coloured with the ui.css tokens in light and dark mode. Forced colours use system colours. Correctness is stated in words and shown by border style, never by colour alone.
+   - Opening never moves focus.
+   - Keyboard (trusted events only):
+     - Arrows and 1–4 move to a choice, and Enter confirms through the button's own click.
+     - Tab returns focus to the word.
+     - Escape closes the panel and returns focus. A dismissed word does not reopen until the pointer or focus leaves it.
+   - A trusted choice reveals `word · gloss` with "Right:" or "Not quite:". If the worker refused the answer, the meaning is still shown, unjudged and unrecorded.
+   - These close it without recording: Escape, a click away, Dismiss, focus moving to another element (a window blur does not), a full dwell on another word, scrolling the word out of view, or the setting turning off.
+   - Clicking the word or pressing Enter on it flips the word as before and closes the panel.
+   - There is at most one panel per page.
+   - It never appears in a form, an input, a button or an editable region, even if a page moves a swap there after painting. It never appears in the welcome demo, which does not load the content script.
+6. **The record.** `guessAnswer` writes one retrieval in the existing ten-field tuple: `[word, at, 'guess', 'receptive', 'correct' | 'incorrect', prior reviews, latency, null, null, null]`.
+   - Latency is the worker's time from `guessBegin` to the answer, capped by the log's ten-minute maximum. A ticket older than that is refused.
+   - Tickets are single-use, held in memory per tab and document, and replaced by the next `guessBegin`. A worker restart loses an open ticket, and that answer is not recorded.
+   - The write runs under the worker lock after the same revision, site-access and permission-generation recheck as a peek.
+7. **Scheduling: weak evidence only.** A wrong guess is then applied exactly as a peek, through the same function the `peek` event uses: the reading event, the card's daily peek counter, and the exposure aggregate's peek count. Two peeks in a day on a rated learning card bring its effective due to at most 24 hours ahead (`peekDue`), never later. A wrong guess plus a later plain-gloss peek on the same day is such a pair. A right guess changes no card and no exposure. FSRS state, due, interval and the formulas are untouched.
+8. **Measurements stay honest.** A guess is not a review. Every existing measure excludes `source 'guess'`: next-day recall, long retention, calibration, verified known, workload, leeches, the review page summary, My words stages, the activity strip and Today's review count.
+
+## Storage and compatibility
+
+- **Log.** `SOURCES` gains `guess` and `OUTCOMES` gains `correct` and `incorrect`. A tuple is valid only when these values occur together with direction `receptive`. The log version stays 1, with no new field.
+- **Downgrade.** Builds up to 0.12.18 drop guess tuples from local storage on their next log write, losing measurement data only. They also refuse a whole schema 2 backup holding one ("invalid retrieval log entry").
+- **Export.** That second fact is the stop condition "a log change that would break the schema-2 reader". This build therefore reads, validates and imports guess tuples, but schema 2 export leaves them out and counts them in `state.logOmitted.retrievals`. The flag is `EXPORT_GUESSES = false` in `portability.js`. This follows the existing "Release order" rule: ship a tolerant reader one release before the first writer. A later release can turn export on. Until then, guess history and the three-guess cap do not survive backup and restore. The import preview's "left out" sentence now names guesses as a reason. Option A (export now, with an "install 0.12.19 first" warning) or option C (schema 3) was put to the lead as NEEDS RULING; option B is built.
+- **Settings.** `guessFirst` joins `SETTINGS_FIELDS` and is not a backup preference, so import keeps the target's value. A downgrade while it is on trips the old build's strict settings check (`startupUnsupportedSettings`), exactly as `desiredRetention` already does.
+
+## What would falsify it
+
+My words "Is this working?" shows two items whenever the setting is on or any guess has been logged:
+
+- **First-guess accuracy:** each word's first guess, right or wrong, over at least 10 words. Near-chance accuracy (about 25–33%) means the options give too little to infer from. Near-perfect accuracy means the distractors are too easy.
+- **Next-day recall after guessing:** the next-day recall population (first reviews the day after introduction), split by whether the word was guessed before that review. At least 10 reviews are needed in each group.
+
+Recommendation 8 is falsified if, after enough data, guessed words recall no better the next day than other words, or if users turn the option off. This is a within-learner comparison, not a controlled experiment. Which words get guessed depends on what the reader hovers, and hovered words may differ from the rest. A causal test would randomise words between conditions (research section 9.8), which this release does not do.
+
+## Evidence
+
+- **Bun.** `test/guess.test.js` covers:
+  - the distractor constraints over all 226 Spanish words;
+  - determinism, the stable set across days and the day reshuffle;
+  - shape and length ranking, homograph and sense-overlap refusals, and the null fallback;
+  - the log tuple and its value pairing, and the exclusion of guesses from every measure;
+  - export omission and import acceptance;
+  - the progress measurement and its text.
+- **Bun.** `test/guess-worker.test.js` runs the real worker listener and covers:
+  - eligibility (maintenance, claim, unknown word and missing card all get the plain gloss);
+  - the record shape with worker latency, and a wrong guess as a peek with FSRS and due unchanged;
+  - a single-use ticket, the other-document refusal, one guess a day, a right guess changing nothing, the three-guess cap, and stale-ticket refusal;
+  - a site turned off between begin and answer recording nothing;
+  - the setting off giving a stale plain reply, and the Settings toggle never changing the epoch.
+- **Bun.** `test/guess-content.test.js` runs in happy-dom and covers:
+  - with the setting off, every DOM snapshot and message of a hover, leave, flip and focus scenario matches the same scenario recorded on the base commit, both with gradual on and with gradual off. A mutation adding one attribute to the gloss path fails it;
+  - the panel after the beat, with no peek and no focus theft, and untrusted clicks and keys ignored;
+  - right, wrong and failed answers;
+  - the keyboard map with focus return;
+  - click-away, Dismiss, focus-out and dwell replacement, with at most one panel;
+  - plain replies cached and stale ones not;
+  - forms and editable regions, the setting turning off, and the welcome demo;
+  - CSS tokens pinned to ui.css.
+- **Chromium.** `e2e/guess.mjs` uses real MV3 Chromium, synthetic Gemini and network denial. It covers:
+  - the hover panel after the beat, placement inside the viewport beside the word, and light, dark and forced colours, with screenshots in `docs/artifacts/guess-*.png`;
+  - an untrusted page click, Escape and a click away, none of which record;
+  - a wrong mouse guess logged with worker latency, the card's peek count set and its due unchanged;
+  - one guess a day, the keyboard path (focus, ArrowDown, 2, Enter, focus returned) and flip unchanged;
+  - My words in its not-enough-data state;
+  - Settings off without a model call or repaint.
+
+## Not verified
+
+- No live Gemini, real site or real profile was used.
+- No screen reader was used. The swap's existing `aria-describedby` description already contains the gloss, so a screen-reader user hears the meaning before guessing. Changing per-word descriptions is in `text.js` and is filed as a follow-up.
+- No learning effect is claimed. The measurement exists to test one.
+- Behaviour after an MV3 worker restart mid-panel was tested only by reasoning: the in-memory ticket is lost, and the answer then shows the meaning unrecorded.

@@ -431,7 +431,7 @@ export const EN = Object.freeze({
   backup_preferences: "Learning preferences: language $1, level $2, gradual $3, new words/day $4, density $5, inline recall $6.",
   backup_preferences_retention: "Learning preferences: language $1, level $2, gradual $3, new words/day $4, density $5, inline recall $6, target recall $7.",
   backup_measurements: "Learning measurements: $1 logged reviews, exposure counts for $2 words.",
-  backup_measurements_omitted: "Learning measurements: $1 logged reviews, exposure counts for $2 words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: $3 reviews and exposure counts for $4 words.",
+  backup_measurements_omitted: "Learning measurements: $1 logged reviews, exposure counts for $2 words. Left out, because the exporter's size limit was reached, the words are not in this backup's word lists or personal vocabulary, or they are guess-first answers, which backups do not carry yet: $3 reviews or guesses and exposure counts for $4 words.",
   backup_choose_preview: "Choose Preview backup to validate the selected file.",
   backup_not_prepared: "The backup could not be prepared.",
   backup_downloaded: "Learning backup downloaded. Keep the file private and the old installation intact.",
