@@ -42,7 +42,7 @@ export function createSites({ store, locked, worker, broadcast, context }) {
     if (!matches.length) return;
     // URL filtering is part of the query: a host grant exposes these tab URLs without `tabs`.
     const tabs = await chrome.tabs.query({ url: matches });
-    await Promise.allSettled(tabs.map(async ({ id, url }) => {
+    const recoverOne = async ({ id, url }) => {
       if (!Number.isSafeInteger(id) || typeof url !== 'string' || recoveredTabs.has(id)) return;
       const eligible = async () => {
         const [ctx, consent, tab] = await Promise.all([context(), store.get('consentShown'), chrome.tabs.get(id)]);
@@ -70,6 +70,15 @@ export function createSites({ store, locked, worker, broadcast, context }) {
         if (!(await eligible())) return;
         await chrome.scripting.executeScript({ target: { tabId: id }, files: ['src/content-loader.js'] });
       } catch { /* A closed or newly ungranted tab is no longer eligible. */ }
+    };
+    // A tab-heavy session must not start a burst of storage reads and script
+    // probes on every MV3 wake. Each tab is independent, including failures.
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, tabs.length) }, async () => {
+      while (next < tabs.length) {
+        try { await recoverOne(tabs[next++]); }
+        catch { /* A disappearing tab does not stop recovery of the others. */ }
+      }
     }));
   }
   const permissionsChanged = () => {

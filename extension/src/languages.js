@@ -2,6 +2,7 @@
 import { buildRequest, API_BASE } from './gemini.js';
 import { hashKey } from './hash.js';
 import { languageCode, languageName } from './language-name.js';
+import { classifyProviderFailure, readBoundedBody } from './quota-status.js';
 export { languageCode, languageName } from './language-name.js';
 
 export const PACKS_KEY = 'languagePacks';
@@ -63,7 +64,13 @@ export async function generatePack({ code, apiKey, model, fetchImpl = fetch }) {
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(body),
     signal: AbortSignal.timeout(30000),
   });
-  if (!response.ok) throw new Error(`Vocabulary generation failed (HTTP ${response.status})`);
+  if (!response.ok) {
+    const body = await readBoundedBody(response);
+    const category = classifyProviderFailure({ status: response.status, body }).category;
+    if (category === 'key_rejected')
+      throw Object.assign(new Error('Gemini rejected this key. Paste a new one.'), { category });
+    throw new Error(`Vocabulary generation failed (HTTP ${response.status})`);
+  }
   const data = await response.json();
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
   if (text.length > MAX_RESPONSE) throw new Error('Generated vocabulary is too large');

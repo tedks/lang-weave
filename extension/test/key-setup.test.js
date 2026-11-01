@@ -117,6 +117,45 @@ test('Test key reports rejection with fixed category and a removed key cannot re
   } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
 });
 
+test('vocabulary generation records its own rejected key and queued work spends no second call', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const f = fixture();
+  let calls = 0;
+  globalThis.chrome = { storage: { local: f.store } };
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 403, headers: { get: () => null },
+    text: async () => 'private provider text' }; };
+  try {
+    await expect(f.handlers.addLanguage({ code: 'fr' })).rejects.toThrow('Gemini rejected this key');
+    expect(calls).toBe(1);
+    expect(f.data.modelStatus).toMatchObject({ category: 'key_rejected', keyEpoch: 'old-key' });
+    expect(JSON.stringify(f.data.modelStatus)).not.toContain('private provider text');
+    await expect(f.handlers.addLanguage({ code: 'ja' })).rejects.toThrow('Gemini rejected this key');
+    expect(await f.handlers.testKey()).toEqual({ ok: false, category: 'key_rejected' });
+    expect(calls).toBe(1);
+    await f.handlers.save({ apiKey: 'replacement-key' });
+    globalThis.fetch = async () => { calls++; return { ok: true, status: 200 }; };
+    expect(await f.handlers.testKey()).toEqual({ ok: true, category: 'ok' });
+    expect(calls).toBe(2);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
+test('a vocabulary request queued behind a rejected Test key cannot dispatch', async () => {
+  const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
+  const f = fixture();
+  let calls = 0, release;
+  globalThis.chrome = { storage: { local: f.store } };
+  globalThis.fetch = async () => { calls++; return new Promise((done) => { release = done; }); };
+  try {
+    const first = f.handlers.testKey();
+    while (!release) await new Promise((done) => setTimeout(done, 0));
+    const queued = f.handlers.addLanguage({ code: 'fr' });
+    release({ ok: false, status: 403, headers: { get: () => null }, text: async () => '' });
+    expect(await first).toEqual({ ok: false, category: 'key_rejected' });
+    await expect(queued).rejects.toThrow('Gemini rejected this key');
+    expect(calls).toBe(1);
+  } finally { globalThis.chrome = oldChrome; globalThis.fetch = oldFetch; }
+});
+
 test('Test key respects a default 429 cooldown without a second request', async () => {
   const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
   const f = fixture();

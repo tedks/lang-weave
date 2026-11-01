@@ -213,7 +213,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
           throw Object.assign(new Error('Choose site access on the welcome page first'), { category: 'consent_required' });
         const keyEpoch = keyData.keyEpoch || '';
         requestEpoch = keyEpoch;
-        if (worker.keyRejectedEpoch === keyEpoch || rejectedForEpoch(keyData[STATUS_KEY], keyEpoch))
+        if ((keyEpoch && worker.keyRejectedEpoch === keyEpoch) || rejectedForEpoch(keyData[STATUS_KEY], keyEpoch))
           throw Object.assign(new Error('Gemini rejected this key. Paste a new one.'), { category: 'key_rejected' });
         const persisted = cleanQuotaState(keyData[QUOTA_STATE_KEY], keyEpoch);
         if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) {
@@ -254,10 +254,15 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       });
     } catch (e) {
       if (e?.stale) return { results: {}, stale: true };
+      const category = e?.category || 'request_failed';
+      // Provider rejection belongs to the key, not this page. A site/settings
+      // change while the response was in flight cannot authorize another call.
+      if (category === 'key_rejected') {
+        worker.keyRejectedEpoch = requestEpoch;
+        await saveModelStatus({ category }, requestEpoch);
+      }
       const latest = await context();
       if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
-      const category = e?.category || 'request_failed';
-      if (category === 'key_rejected') worker.keyRejectedEpoch = requestEpoch;
       const error = category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
         : category === 'key_rejected' ? 'Gemini rejected this key. Paste a new one.'
@@ -265,7 +270,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         : category === 'storage_failed' ? 'Local reading storage failed'
         : category === 'consent_required' ? 'Choose site access on the welcome page first' : 'Model request failed';
       // A missing site choice is local policy, not a model failure or quota diagnostic.
-      if (category !== 'consent_required') await saveModelStatus({ category, retryAt: e?.retryAt,
+      if (category !== 'consent_required' && category !== 'key_rejected') await saveModelStatus({ category, retryAt: e?.retryAt,
         coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
       try {
         // Cache entries are raw validated swaps. They still need the current gradual

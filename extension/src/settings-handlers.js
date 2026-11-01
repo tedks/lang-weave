@@ -31,15 +31,51 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     if ((await store.get('consentShown')).consentShown === false) throw new Error('Choose site access on the welcome page first');
     const selected = cleanSettings(before.settings).language;
     if (!before.apiKey) throw new Error('Add your Gemini key first');
-    if (worker.keyRejectedEpoch === before.keyEpoch || rejectedForEpoch(before[STATUS_KEY], before.keyEpoch))
+    if ((before.keyEpoch && worker.keyRejectedEpoch === before.keyEpoch) || rejectedForEpoch(before[STATUS_KEY], before.keyEpoch))
       throw new Error(statusLabel({ category: 'key_rejected' }));
     if (cleanPacks(before[PACKS_KEY])[code]) throw new Error('This language is already available');
     if (Object.keys(cleanPacks(before[PACKS_KEY])).length >= MAX_PACKS) throw new Error(`Maximum of ${MAX_PACKS} generated languages reached`);
     const model = cleanSettings(before.settings).model;
     const pack = await modelCall(async () => {
+      const current = await store.get(['apiKey', 'keyEpoch', 'settings', STATUS_KEY, 'consentShown']);
+      if (current.apiKey !== before.apiKey || current.keyEpoch !== before.keyEpoch ||
+          cleanSettings(current.settings).model !== model || cleanSettings(current.settings).language !== selected)
+        throw new Error('Model settings changed while generating; try again');
+      if (current.consentShown === false) throw new Error('Choose site access on the welcome page first');
+      if ((current.keyEpoch && worker.keyRejectedEpoch === current.keyEpoch) || rejectedForEpoch(current[STATUS_KEY], current.keyEpoch))
+        throw new Error(statusLabel({ category: 'key_rejected' }));
       if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) throw new Error('Daily model limit reached; try again tomorrow');
-      return generatePack({ code, apiKey: before.apiKey, model,
-        fetchImpl: async (...args) => { await countCall(chromeStorage); return fetch(...args); } });
+      try {
+        return await generatePack({ code, apiKey: before.apiKey, model,
+          fetchImpl: async (...args) => {
+            const { response } = await locked(async () => {
+              const latest = await store.get(['apiKey', 'keyEpoch', 'settings', STATUS_KEY, 'consentShown']);
+              if (latest.apiKey !== before.apiKey || latest.keyEpoch !== before.keyEpoch ||
+                  cleanSettings(latest.settings).model !== model ||
+                  cleanSettings(latest.settings).language !== selected)
+                throw new Error('Model settings changed while generating; try again');
+              if (latest.consentShown === false) throw new Error('Choose site access on the welcome page first');
+              if ((latest.keyEpoch && worker.keyRejectedEpoch === latest.keyEpoch) || rejectedForEpoch(latest[STATUS_KEY], latest.keyEpoch))
+                throw new Error(statusLabel({ category: 'key_rejected' }));
+              await countCall(chromeStorage);
+              return { response: fetch(...args) };
+            });
+            return response;
+          } });
+      } catch (error) {
+        if (error?.category === 'key_rejected') {
+          try {
+            await locked(async () => {
+              const latest = await store.get(['apiKey', 'keyEpoch']);
+              if (latest.apiKey !== before.apiKey || latest.keyEpoch !== before.keyEpoch) return;
+              worker.keyRejectedEpoch = before.keyEpoch;
+              await store.set({ [STATUS_KEY]: safeModelStatus({ category: 'key_rejected',
+                at: Date.now(), model, keyEpoch: before.keyEpoch }) });
+            });
+          } catch { /* the worker-memory rejection still prevents another call */ }
+        }
+        throw error;
+      }
     });
     await locked(async () => {
       const current = await store.get(['settings', 'apiKey', PACKS_KEY]);
@@ -160,7 +196,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       if ((await store.get('consentShown')).consentShown === false) return { ok: false, category: 'consent_required' };
       if (!before.apiKey) return { ok: false, category: 'no_key' };
       const epoch = before.keyEpoch || '';
-      if (worker.keyRejectedEpoch === epoch || rejectedForEpoch(before[STATUS_KEY], epoch))
+      if ((epoch && worker.keyRejectedEpoch === epoch) || rejectedForEpoch(before[STATUS_KEY], epoch))
         return { ok: false, category: 'key_rejected' };
       const model = cleanSettings(before.settings).model;
       if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) return { ok: false, category: 'local_budget' };

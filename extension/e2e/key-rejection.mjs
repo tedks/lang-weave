@@ -23,7 +23,7 @@ try {
   });
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: '<!doctype html><title>Ordinary reading</title><main><p id="reading">We read books and enjoy quiet evenings every week.</p></main>' }));
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
   const waitStatus = async (predicate) => {
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -75,7 +75,58 @@ try {
   await third.goto('https://reading.example/third');
   await third.locator('#reading .fw-word').waitFor();
   assert.ok(await worker.evaluate(() => globalThis.syntheticCalls) > 1);
-  console.log('key-rejection: one request for rejected epoch; replacement resumes reading');
+  await Promise.all([first.close(), second.close(), third.close()]);
+  // A provider reply can arrive after its originating site was turned off. The
+  // rejection still belongs to this key and must stop an unrelated enabled tab.
+  await options.evaluate(() => chrome.runtime.sendMessage({ type: 'save', apiKey: 'late-synthetic-key' }));
+  await worker.evaluate(() => {
+    const previous = fetch;
+    globalThis.lateCalls = 0;
+    globalThis.fetch = (url, init) => {
+      if (!String(url).startsWith('https://generativelanguage.googleapis.com/')) return previous(url, init);
+      globalThis.lateCalls++;
+      return new Promise((done) => { globalThis.releaseLate = done; });
+    };
+  });
+  const stale = await browser.newPage();
+  await stale.goto('https://reading.example/stale');
+  for (let attempt = 0; attempt < 80 && !(await worker.evaluate(() => !!globalThis.releaseLate)); attempt++)
+    await new Promise((done) => setTimeout(done, 100));
+  assert.equal(await worker.evaluate(() => globalThis.lateCalls), 1);
+  await options.evaluate(() => chrome.runtime.sendMessage({ type: 'save',
+    siteOverride: { host: 'reading.example', enabled: false } }));
+  await worker.evaluate(() => globalThis.releaseLate(new Response(JSON.stringify({ error: { status: 'API_KEY_INVALID' } }),
+    { status: 400, headers: { 'Content-Type': 'application/json' } })));
+  await waitStatus((status) => status?.category === 'key_rejected' && status.keyEpoch !== stored.keyEpoch);
+  const staleAt = (await worker.evaluate(() => chrome.storage.local.get('modelStatus'))).modelStatus.at;
+  await browser.route('https://other.example/**', (route) => route.fulfill({ contentType: 'text/html',
+    body: '<!doctype html><title>Ordinary reading</title><main><p>We read books and enjoy quiet evenings every week.</p></main>' }));
+  await new Promise((done) => setTimeout(done, 30));
+  const other = await browser.newPage();
+  await other.goto('https://other.example/article');
+  await waitStatus((status) => status?.at > staleAt);
+  assert.equal(await worker.evaluate(() => globalThis.lateCalls), 1);
+  const beforeRestart = await worker.evaluate(() => chrome.storage.local.get(['modelCalls', 'modelStatus']));
+  const cdp = await browser.newCDPSession(other);
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const target = targetInfos.find((item) => item.type === 'service_worker' &&
+    item.url === `chrome-extension://${id}/src/background.js`);
+  assert.ok(target);
+  await cdp.send('Target.closeTarget', { targetId: target.targetId });
+  await cdp.send('ServiceWorker.enable');
+  await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${id}/` });
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const candidate = browser.serviceWorkers().find((item) => item !== worker);
+    if (candidate) { worker = candidate; break; }
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  await new Promise((done) => setTimeout(done, 30));
+  const afterRestart = await browser.newPage();
+  await afterRestart.goto('https://other.example/after-restart');
+  await waitStatus((status) => status?.at > beforeRestart.modelStatus.at);
+  assert.deepEqual((await worker.evaluate(() => chrome.storage.local.get('modelCalls'))).modelCalls,
+    beforeRestart.modelCalls, 'a new worker spends no call on the persisted rejected epoch');
+  console.log('key-rejection: one request per rejected epoch; stale page and worker restart retain the block');
 } finally {
   await browser?.close();
   await rm(scratch, { recursive: true, force: true });
