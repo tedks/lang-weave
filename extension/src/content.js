@@ -2,7 +2,7 @@
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
 import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
-  finishIntroduction, SWAP_CLASS } from './text.js';
+  finishIntroduction, pruneDescriptions, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -100,7 +100,7 @@ function showTip(span) {
   if (!word || !gloss) return false;
   const box = document.createElement('div');
   box.className = 'fw-gloss fw-gloss-on';
-  box.setAttribute('aria-hidden', 'true'); // the word's existing label describes its meaning to screen readers
+  box.setAttribute('aria-hidden', 'true'); // the word's own description already gives screen readers its meaning
   box.textContent = `${word} · ${gloss}`;
   document.documentElement.append(box);
   tipBox = box;
@@ -520,6 +520,8 @@ function mutations(records) {
   observer?.takeRecords();
   for (const el of tracked) if (!el.isConnected) { tracked.delete(el); near.unobserve(el); }
   for (const span of visibleWords) if (!span.isConnected) { visibleWords.delete(span); visible.unobserve(span); }
+  pruneDescriptions();
+  observer?.takeRecords();
   queuePracticeCues();
 }
 function start() {
