@@ -103,12 +103,12 @@ const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalL
   personalIntroduce, personalExportResult, registerCaptureMenu, captureMenuListener } =
   createCaptureHandlers({ store, locked, worker, captureDrafts, completedCaptures, contentDocuments,
     context, broadcast, reviewState });
-const { registerSites, permissionsChanged } = createSites({ store, locked, worker, broadcast });
+const { registerSites, recoverOpenTabs, permissionsChanged } = createSites({ store, locked, worker, broadcast, context });
 // The first routed reply must not run ahead of restoring a granted site's
-// content script after an MV3 worker wake. A page loaded before this reply
-// can still miss injection (see startup-injection-gap).
+// content script after an MV3 worker wake. Restore already-open pages separately
+// so a page loaded before any routed reply does not wait for a user reload.
 const sitesReady = ready.then(async () => {
-  try { await registerSites(); }
+  try { await registerSites(); void recoverOpenTabs().catch((e) => console.warn('Site recovery failed:', e)); }
   catch (e) { console.warn('Site registration failed:', e); }
 });
 // Registration failures do not block settings and permission recovery. Startup

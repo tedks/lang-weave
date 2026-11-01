@@ -584,11 +584,12 @@ export function packageExtension({
     const exposed = manifest.web_accessible_resources?.[0]?.resources;
     if (manifest.web_accessible_resources?.length !== 1 || !sameSet(exposed, order))
       throw new PackageError('store bundle: web_accessible_resources is not exactly the content import closure');
-    // Only the Store payload changes these two injection paths. The source/dev tree keeps
-    // its modular loader, while the dynamically registered script and popup fallback name
+    // Only the Store payload changes these injection paths. The source/dev tree keeps
+    // its modular loader, while registration, startup recovery and popup fallback name
     // the generated classic script directly. Refuse source drift instead of missing a path.
     for (const [name, before, after] of [
       ['src/sites.js', "js: ['src/content-loader.js']", "js: ['src/content-bundle.js']"],
+      ['src/sites.js', "files: ['src/content-loader.js']", "files: ['src/content-bundle.js']"],
       ['src/popup.js', "files: ['src/content-loader.js']", "files: ['src/content-bundle.js']"],
     ]) {
       const file = files.find((f) => f.name === name);
