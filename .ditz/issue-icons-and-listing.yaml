@@ -58,3 +58,10 @@ log_events:
     Council OpenAI native Sol and Anthropic Opus converged CLEAN; agy EMPTY on quota.
     Leave this issue open for listing text and 18+ statement approval; no Store upload
     was done.'
+- time: 2026-11-01T04:24:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): The in-product 18+ line now exists
+    (PR #36: welcome.html:37 and Settings, _locales/en/messages.json:497 and 863),
+    so the listing''s 18+ statement is backed by product copy. Remaining: Ted''s approval
+    of the listing text in draft PR #33, then upload under store-publisher-submission.'
