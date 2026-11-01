@@ -1,0 +1,22 @@
+id: inline-cue-stale-rating-copy
+title: Distinguish stale inline rating from an unrevealed cue
+desc: 'PR #44 council nit: when two tabs hold revealed tickets for the same due card,
+  the first rating moves the card due date, and the second tab''s rating correctly
+  fails. The worker returns the generic ''Reveal the current cue before rating it''
+  error and the panel says ''Rating was not saved''. Consider a clear stale-cue state
+  that closes or refreshes the second panel without permitting a second review mutation.
+  Preserve document/frame/revision checks and single-use ratings; no backup or log
+  changes.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:50:59-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:50:59-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
