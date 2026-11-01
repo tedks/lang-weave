@@ -1,0 +1,20 @@
+id: curriculum-inflection-validation
+title: Narrow generated English inflection support for candidate anchors
+desc: 'PR #41 convergence nit. supportsAnchor accepts some malformed regular surfaces
+  such as carrys, carryed and boxs from base glosses. They would still need native
+  review and are not shipped, but candidate admission should fail them before review.
+  Implement explicit regular verb/plural rules or require an exact source surface;
+  test consonant-y and sibilant endings without inventing irregular forms.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:06:14-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:06:14-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
