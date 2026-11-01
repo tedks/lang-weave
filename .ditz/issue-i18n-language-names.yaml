@@ -1,0 +1,21 @@
+id: i18n-language-names
+title: Name languages in the UI locale
+desc: 'Follow-up to i18n-and-lang-attr (PR #38). language-name.js names languages
+  with Intl.DisplayNames([''en'']) and hard-codes ''Spanish'', so ''Show Spanish'',
+  the review and options language names stay English in every locale. Use the messages''
+  language (t(''locale_lang'') via i18n.js messageLanguage()) as the DisplayNames
+  locale, keeping prompt text sent to Gemini in English. Product decision for the
+  CEO only if the Gemini prompt should change.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:53:42-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:53:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
