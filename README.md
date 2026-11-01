@@ -7,7 +7,7 @@ Learn a language through the English you already read. This Chrome extension rep
 
 A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-weave) by Jackie Oliver. Lang Weave is free software under the [GNU AGPL v3 or later](LICENSE). The upstream history and its [MIT license](LICENSE-MIT) are preserved (see [NOTICE](NOTICE)). No terminal plugin, Python setup or native messaging host is required.
 
-This describes version 0.12.18. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
+This describes version 0.12.19. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
 
 ## Install in Chrome
 
@@ -61,13 +61,14 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 **Which Gemini terms apply.** Lang Weave has no server, account or telemetry, so no Lang Weave server sees your reading. Google does. With a free key, Google may use requests to improve its products, and human reviewers may read them. A billed key avoids that use, though provider quotas and charges still apply. Google's [API terms](https://ai.google.dev/gemini-api/terms) say users must be 18 or older. They also say paid services only may be used for users in the European Economic Area, Switzerland and the United Kingdom. Lang Weave cannot tell whether your key is billed. Read the terms for your account and region before enabling it on private reading. The extension limits itself to 1,000 model calls per local day, which is a request cap and not a spending limit. The default model is Gemini 3.5 Flash-Lite. Gemini 3.8 Flash is available in Settings and falls back to Flash-Lite on failure. A QA pass on 2026-10-15 found that on free keys 3.8 Flash mostly answered 503 or timed out.
 
 **What stays in your browser.**
-- Settings and cached replacement choices. Cached choices contain short English fragments, and at most 5,000 are kept. **Clear cache** forgets them without touching learning progress.
+- Settings and cached replacement choices. Cached choices contain short English fragments, and about 5,000 are kept. **Clear cache** forgets them without touching learning progress.
 - Review cards and their schedule.
 - Up to 500 word events per target, each a word, a kind (seen, peek or flip) and a date.
-- A learning log of word IDs, times and outcomes only, never pages, URLs or text. It is described under Learning.
+- A learning log. Each review adds a word ID, a time, an outcome and some numbers: response time, days since the last review, the scheduled interval and predicted recall. Each word also keeps counts of sightings and peeks with first and last day. It never holds pages, URLs or text.
+- Coarse per-word encounter counts that guide gradual learning.
 - Up to five generated vocabulary packs and your personal entries.
 
-None of this stored data is sent anywhere. Each model request does carry the page text and a list of candidate vocabulary. Removing the extension clears the stored data. A Learning backup copies it into a file that you control. There is no Duolingo login, account sync or tab takeover.
+Apart from the key, which authenticates your requests to Google, none of this stored history is sent anywhere. Each model request does carry the page text and a list of candidate vocabulary: target forms and English glosses from the bundled pack, a generated pack, or your personal entries. For the bundled pack it also tells Gemini which candidates you are still learning and which you treat as known. Removing the extension clears the stored data. A Learning backup copies the learning part of it into a file that you control. It leaves out the key, site choices and caches, and it may drop log entries that do not fit its size limit, which the import preview counts. There is no Duolingo login, account sync or tab takeover.
 
 **Your own words.** Select a word or short phrase in readable text on an enabled, permitted site and choose **Add to Lang Weave** from Chrome's selection menu. Say whether the selection is English or the target language. Check any local suggestion or enter both forms yourself, then press **Save personal entry**. The menu and Save do not call Gemini or an online dictionary. **Personal entries** lets you find entries, add one to manual review, archive or unarchive it without losing history, and export your entries and history as local JSON. A saved entry does not spend a daily introduction or count as practice. With gradual learning on, an unambiguous single-word entry may enter the normal budgeted reading flow when it appears in a passage. Phrases and unresolved collisions stay available for manual review only. The bundled suggestions have not been checked against a dictionary.
 
@@ -81,8 +82,8 @@ The gloss appears after a 700 ms pause, so you have a beat to recall the word fi
 
 **Gradual learning** is off by default, and the welcome page recommends turning it on at 5 new words a day. With it on:
 - Only a bounded number of new words are introduced per local day, 1 to 10 in Settings. A word counts only once it is actually visible on the page.
-- Due and weak words come first. Then come words you have met on fewer than eight days in their first three weeks, then new words, with Spanish cognates leading.
-- A learning word seen three times in one local day is left out of requests for the rest of that day. Two same-day peeks on a rated learning word bring its review forward to within 24 hours.
+- Due words come first, then weak ones, then learning words met on fewer than eight days in their first three weeks, then other learning words, then new words. Among new words, a lower frequency band comes first, with the Beginner 30 at band 0, and Spanish cognates break ties.
+- A learning word seen three times in one local day is left out of requests for the rest of that day. Two same-day peeks on a learning word you have already rated bring its review forward to within 24 hours.
 - Across one request, new, due and learning swaps are capped near 2% of the words read, with a minimum of one, whatever the density.
 - A pile of five or more due or weak words pauses new introductions.
 
@@ -92,9 +93,9 @@ The gloss appears after a 700 ms pause, so you have a beat to recall the word fi
 
 Reviews are scheduled with FSRS-6 on the actual time since each review, aiming for 90% recall. The code accepts a target of 85% to 90%, but Settings has no control for it yet. A lapse keeps a word's history. Again returns in 10 minutes, and a new word rated Hard, Medium or Easy returns in 1, 2 or 8 days. Intervals are capped at 365 days. An old card keeps its due date and moves to FSRS at its next rating. With gradual learning on, a word rated Easy three times in a row moves to occasional maintenance reviews. Maintenance cards stay in the schedule.
 
-**My words** lists every word's stage and next review, with search and a stage filter. Stages are new, learning, maintenance (stability of 21 days or more), marked known (your claim), and verified known (recalled after a gap of 21 days or more, within the card's current life). You can practise a word early, mark it known, reset it after a confirmation, or archive a personal entry. **Is this working?** shows measurements from your own reviews on this device, each marked "not enough data yet" until it has enough: next-day recall, retention after three weeks against your target, predicted against actual recall, hard words, meetings while reading, and workload.
+**My words** lists every word's stage and next review, with search and a stage filter. Stages are new, learning, maintenance (long-interval reviews: stability of 21 days or more, or a card flagged for maintenance), marked known (your claim), and verified known (recalled after a gap of 21 days or more, within the card's current life). You can practise a word early, mark it known, reset it after a confirmation, or archive a personal entry. **Is this working?** shows measurements from your own reviews on this device, each marked "not enough data yet" until it has enough: next-day recall, retention after three weeks against your target, predicted against actual recall, hard words, meetings while reading, and workload.
 
-**The vocabulary** is a curated starter set, not a certified curriculum or a native-speaker review. The first Expanded addition selects 79 everyday nouns from an upstream AI-drafted list. [Selection, credits and limits](docs/UPSTREAM-CURRICULUM-MISSION.md) are documented. The selection and approximate sound hints lean Latin American. Spanish accents and ñ are preserved, and generated target forms are matched exactly.
+**The vocabulary** is a curated starter set, not a certified curriculum or a native-speaker review. Each bundled word also carries a coarse frequency band, which orders new words. The first Expanded addition selects 79 everyday nouns from an upstream AI-drafted list. [Selection, credits and limits](docs/UPSTREAM-CURRICULUM-MISSION.md) are documented. The selection and approximate sound hints lean Latin American. Spanish accents and ñ are preserved, and generated target forms are matched exactly.
 
 **Other languages.** In Settings, **Add a language**, enter a code such as `fr` or `ja`, and generate a local experimental pack with Gemini. It needs your key and a chosen site policy, and it counts toward the daily call cap. Quality is not certified. Each pack has its own progress and reviews. **Remove this generated language** frees a slot and deletes that pack's reading and review progress. Personal entries and their history stay under the target language.
 
@@ -112,7 +113,7 @@ bunx playwright install chromium
 bun run test:browser
 ```
 
-The other Chromium gates are the scripts in `extension/e2e`, run with `node`, for example `node e2e/gradual.mjs`. The inherited Python tests run from the repository root with `python3 -m unittest discover -s tests`. A change to a shipped file needs a version bump, and the version files must agree. Check both with `python3 tests/check_version_bump.py --base origin/main`.
+The other Chromium gates are the scripts in `extension/e2e`, run with `node`, for example `node e2e/gradual.mjs`. A candidate-vocabulary build pipeline under `scripts/curriculum` is pinned, offline and reproducible, and it ships no new vocabulary rows. See [docs/CURRICULUM-PIPELINE.md](docs/CURRICULUM-PIPELINE.md). The inherited Python tests run from the repository root with `python3 -m unittest discover -s tests`. A change to a shipped file needs a version bump, and the version files must agree. Check both with `python3 tests/check_version_bump.py --base origin/main`.
 
 `node extension/scripts/package.mjs` zips what ships. Add `--store` for the Chrome Web Store build. That build drops the x.com content script, the web-accessible resources and the `alarms` permission, so it has no self-update check. It also bundles the content script into one file. Its listing screenshots are in [docs/store-assets](docs/store-assets/README.md).
 
