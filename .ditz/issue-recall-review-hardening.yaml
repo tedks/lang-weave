@@ -30,3 +30,11 @@ log_events:
     skip later coverage. Deferred because source behavior and existing regression
     coverage are accepted; production fixes are not needed for these test-maintainability
     improvements. Evidence head/count nit fixed in LEARNING-MISSION.'
+- time: 2026-11-01T04:24:07-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Partly stale. Refresh was removed
+    in PR #20, and FSRS replaced the interval rules in PR #26. The unchanged reviewNext
+    write is tracked in review-idle-recheck-write. Still open: forward clock-jump
+    recovery, isolating a review-status read failure from reading settings, override-path
+    error messages, and the popup smoke and worker test split.'
