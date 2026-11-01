@@ -1,0 +1,23 @@
+id: guess-screen-reader
+title: 'Guess first: withhold the gloss from screen-reader descriptions until the
+  guess'
+desc: 'Guess first (PR #42): the swapped word''s aria-describedby description already
+  holds the gloss, so a screen-reader user hears the meaning on focus, before the
+  panel opens. Nothing announces the panel and nothing links the word to it; arrows
+  and 1-4 are the only way in (Tab passes it). Fix needs the worker to flag guess-eligible
+  swaps at delivery and text.js to withhold the gloss from those descriptions until
+  answered, plus aria-controls/announcement. Raised by OpenAI Sol (Important) and
+  Anthropic Opus (nit) in council round 1. Overlaps a11y-screen-reader-check.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:06:20-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:06:20-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
