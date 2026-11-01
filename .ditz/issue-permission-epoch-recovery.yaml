@@ -19,3 +19,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): DONE-STALE. extension/src/sites.js:33-39
+    catches a failed epoch write and still calls registerSites() and broadcast(''retry''),
+    and bumps worker.permissionGeneration in memory before the write. extension/test/language-worker.test.js:721-723
+    (failEpochOnce) fails the epoch write once and asserts registration still runs.
+    This recovery has been on main since PR #3 (31b1cc3); listeners are registered
+    synchronously at top level in background.js:159-160.'
