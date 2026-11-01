@@ -1,0 +1,21 @@
+id: curriculum-realistic-performance
+title: Benchmark curriculum matching on longer realistic passages
+desc: 'PR #41 council nit. The 500/1,000/3,000-row benchmark uses unique single-token
+  synthetic anchors and a 60-word passage. Initial 3k matching median was 28.78 ms
+  versus 1.01 ms at 1k, under the generous gate but superlinear. Before releasing
+  a large pack, measure overlapping and multiword anchors, long pages, loaded-host
+  variance and browser latency; set a justified ceiling or optimize matching without
+  weakening exact-match safeguards.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T04:01:55-00:00
+references: []
+log_events:
+- time: 2026-11-01T04:01:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
