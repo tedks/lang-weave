@@ -1,0 +1,23 @@
+id: i18n-worker-copy
+title: Move worker-sent English to chrome.i18n
+desc: 'Follow-up to i18n-and-lang-attr (PR #38). English that the worker sends and
+  pages only display is still literal: worker error strings returned in replies (review,
+  words, capture-handlers.js, backup-handlers.js), the My words practice ''reason''
+  (compared byte-for-byte in words.js with ''Its bundled word is not in this pack''),
+  and the capture context-menu title ''Add to Lang Weave'' in capture-handlers.js.
+  Move them to chrome.i18n (the worker can call chrome.i18n.getMessage; src/i18n.js
+  t() works there) without changing the comparisons: replace text comparisons with
+  a stable code first. Outside the i18n lane''s repair authority.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-01T02:53:42-00:00
+references: []
+log_events:
+- time: 2026-11-01T02:53:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
