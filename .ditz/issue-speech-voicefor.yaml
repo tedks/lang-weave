@@ -17,3 +17,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-01T04:24:14-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: pronunciation is
+    otherwise only a text hint. Local voices add sound without sending the word to
+    a voice provider. Waits on audio-local-voices-ruling.'
