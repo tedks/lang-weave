@@ -252,6 +252,12 @@ test('verify: manifest references a missing file', () => {
   expectRefusal({}, { options_ui: { page: 'src/options.html' } }, /options_ui\.page: src\/options\.html/);
   expectRefusal({}, { side_panel: { default_path: 'src/panel.html' } }, /side_panel\.default_path/);
   expectRefusal({}, { default_locale: 'en' }, /_locales\/en\/messages\.json/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ other: { message: 'x' } }) },
+    { default_locale: 'en', name: '__MSG_ext_name__' }, /manifest name: __MSG_ext_name__ is not in _locales\/en\/messages\.json/);
+  expectRefusal({ '_locales/en/messages.json': '{"ext_name": {"message": "x"}' },
+    { default_locale: 'en' }, /_locales\/en\/messages\.json: not a JSON object/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }), '_locales/fr/messages.json': '[]' },
+    { default_locale: 'en' }, /_locales\/fr\/messages\.json: not a JSON object/);
   expectRefusal({}, { options_page: 'test/x.html' }, /options_page: test\/x\.html/);
   expectRefusal({}, { devtools_page: '../outside.html' }, /devtools_page: invalid path/);
 });

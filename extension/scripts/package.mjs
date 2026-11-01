@@ -340,6 +340,37 @@ function resolveRef(fromFile, url) {
   return target.startsWith('../') || target === '..' ? null : target;
 }
 
+// Chrome refuses to load a locale file that is not a JSON object of { message } entries, and shows a
+// manifest __MSG_name__ literally when the default locale lacks it. Message names are case-insensitive.
+function localeProblems(manifest, files, defaultLocale) {
+  const problems = [];
+  const tables = new Map();
+  for (const f of files) {
+    const match = /^_locales\/([^/]+)\/messages\.json$/.exec(f.name);
+    if (!match) continue;
+    let table;
+    try { table = JSON.parse(f.data.toString('utf8')); } catch { table = null; }
+    if (!table || typeof table !== 'object' || Array.isArray(table) ||
+        Object.values(table).some((entry) => typeof entry?.message !== 'string')) {
+      problems.push(`${f.name}: not a JSON object of { message } entries`);
+      continue;
+    }
+    tables.set(match[1], new Set(Object.keys(table).map((name) => name.toLowerCase())));
+  }
+  const names = tables.get(defaultLocale);
+  if (!names) return problems;
+  const visit = (value, label) => {
+    if (typeof value === 'string') {
+      for (const [, name] of value.matchAll(/__MSG_(\w+)__/g))
+        if (!names.has(name.toLowerCase())) problems.push(`manifest ${label}: __MSG_${name}__ is not in _locales/${defaultLocale}/messages.json`);
+    } else if (value && typeof value === 'object') {
+      for (const [key, inner] of Object.entries(value)) visit(inner, label ? `${label}.${key}` : key);
+    }
+  };
+  visit(manifest, '');
+  return problems;
+}
+
 /**
  * Check the manifest and all local references against the payload.
  * Returns an array of problem strings (empty when everything resolves).
@@ -373,6 +404,7 @@ export function verifyPackage(manifest, files) {
     const loc = manifest.default_locale;
     if (typeof loc !== 'string' || !/^[\w-]+$/.test(loc)) problems.push(`manifest default_locale: invalid value ${JSON.stringify(loc)}`);
     else if (!have.has(`_locales/${loc}/messages.json`)) problems.push(`manifest default_locale: _locales/${loc}/messages.json is not in the package`);
+    else problems.push(...localeProblems(manifest, files, loc));
   } else if (locales) {
     problems.push('_locales/ is packaged but manifest has no default_locale');
   }
