@@ -2,7 +2,7 @@
 
 ## Current state
 
-State: PR #42 on branch `inference-step` at 0.12.20, rebased on `origin/main` `e72d0a0` (curriculum pipeline, 0.12.19). Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. The council reached fixpoint in round 3. Exact-head gates and the normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
+State: PR #42 on branch `inference-step` at 0.12.20, rebased on `origin/main` `a78ced9` (after the curriculum pipeline at 0.12.19 and two docs-only merges). Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. The council reached fixpoint in round 3. Exact-head gates and the normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").
 
 ## Context and assumptions
 
