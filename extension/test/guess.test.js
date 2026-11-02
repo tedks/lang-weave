@@ -185,11 +185,11 @@ test('the progress measurement: first-guess accuracy and next-day recall of gues
   const { guess: _, ...restWithout } = without;
   expect(rest).toEqual(restWithout);
   const items = measurementItems(withGuesses, 0);
-  expect(items.at(-2)).toEqual({ title: 'First-guess accuracy', value: '77% of first guesses were right (13 words).',
+  expect(items.at(-3)).toEqual({ title: 'First-guess accuracy', value: '77% of first guesses were right (13 words).',
     why: expect.stringContaining('retrieval') });
-  expect(items.at(-1).value).toBe('83% for guessed words (12 reviews), 55% for other words (11 reviews).');
+  expect(items.at(-2).value).toBe('83% for guessed words (12 reviews), 55% for other words (11 reviews).');
   const few = measurementItems(measurements([g('a', 1, 'correct')], opts), 0);
-  expect(few.at(-2).value).toBe('Not enough data yet: 1 word guessed; 10 are needed.');
-  expect(few.at(-1).value).toBe('Not enough data yet: 0 next-day reviews of guessed words and 0 of other words; 10 of each are needed.');
+  expect(few.at(-3).value).toBe('Not enough data yet: 1 word guessed; 10 are needed.');
+  expect(few.at(-2).value).toBe('Not enough data yet: 0 next-day reviews of guessed words and 0 of other words; 10 of each are needed.');
   expect(measurementItems(measurements([], opts), 0).map((i) => i.title)).not.toContain('First-guess accuracy');
 });

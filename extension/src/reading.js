@@ -195,6 +195,25 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         if (!(await stillSafe())) return { results: {}, stale: true };
         output = await commitAdaptive(latest,
           capUnknownSwaps(raw, items, candidates, current.state.cards), sender, stillSafe);
+        // Mark only a word that can actually receive safe choices. This flag is added
+        // after cache validation and is never sent to Gemini or stored in the cache.
+        if (latest.settings.guessFirst === true) {
+          const eligible = new Map();
+          for (const swaps of Object.values(output)) for (const swap of swaps) {
+            if (eligible.has(swap.word)) continue;
+            const found = resolveWord(latest, swap.word);
+            const id = found?.personal?.id || found?.word.fr;
+            const card = current.state.cards[id];
+            let allowed = false;
+            if (found && !swap.introTicket && !swap.practice &&
+                guessChoices(found.word, latest.legacyAllWords, { wordId: id, day })) {
+              try { allowed = await guessAllowed(latest, found, card, id, day); } catch { /* show the gloss */ }
+            }
+            eligible.set(swap.word, allowed);
+          }
+          output = Object.fromEntries(Object.entries(output).map(([key, swaps]) => [key,
+            swaps.map((swap) => eligible.get(swap.word) ? { ...swap, guessEligible: true } : swap)]));
+        }
       }
       catch (error) {
         if (error?.stale) return { results: {}, stale: true };

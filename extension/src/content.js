@@ -2,7 +2,7 @@
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
 import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
-  finishIntroduction, pruneDescriptions, restoreDescriptions, SWAP_CLASS } from './text.js';
+  finishIntroduction, pruneDescriptions, restoreDescriptions, revealGuessMeaning, isGuessPending, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -11,6 +11,7 @@ import { localDay } from './events.js';
 import { languageName } from './language-name.js';
 import { t } from './i18n.js';
 import { capturePageAllowed, verifyCaptureSelection } from './personal-capture.js';
+import { panelStyle } from './panel-style.js';
 
 let config = null;
 let observer = null;
@@ -48,6 +49,7 @@ let focusScrollUntil = 0;
 const TIP_GAP = 8;
 const FOCUS_SCROLL_MS = 250; // focus() may scroll its word just after focusin
 let cue = null;
+let cueHost = null;
 let cueWord = null;
 let cueFrame = null;
 // Guess first (opt-in, gradual): docs/INFERENCE-MISSION.md. At most one panel per page.
@@ -136,9 +138,26 @@ function hideTip(keepFocus = false) {
   if (!keepFocus) { focusedTip = null; focusedAt = 0; focusScrollUntil = 0; }
 }
 function closeCue(focusWord = null) {
-  cue?.remove(); cue = null; cueWord = null;
+  cueHost?.remove(); cueHost = null; cue = null; cueWord = null;
   if (focusWord?.isConnected) focusWord.focus();
   updatePracticeCues();
+}
+
+function panelHost(kind, label) {
+  const host = document.createElement('div');
+  host.className = `fw-${kind}-host`;
+  host.setAttribute('role', 'group');
+  host.setAttribute('aria-label', label);
+  // Inline important styles protect the host; the closed root protects its controls.
+  for (const [name, value] of Object.entries({ all: 'initial', display: 'block', position: 'fixed',
+    width: 'min(292px, calc(100vw - 16px))', 'max-height': 'calc(100vh - 16px)',
+    'box-sizing': 'border-box', 'z-index': '2147483647', 'pointer-events': 'auto' }))
+    host.style.setProperty(name, value, 'important');
+  const root = host.attachShadow({ mode: 'closed' });
+  const style = document.createElement('style');
+  style.textContent = `${panelStyle}\n.fw-guess, .fw-recall { position: relative; z-index: auto; }`;
+  root.append(style);
+  return { host, root };
 }
 
 // The worker has already selected due words. This only chooses which two visible
@@ -166,7 +185,7 @@ function queuePracticeCues() {
   cueFrame = window.requestAnimationFrame(() => {
     cueFrame = null;
     updatePracticeCues();
-    if (cue && cueWord?.isConnected) placeTip(cueWord, cue);
+    if (cueHost && cueWord?.isConnected) placeTip(cueWord, cueHost);
     placeGuess();
   });
 }
@@ -176,10 +195,9 @@ async function openCue(span) {
   cueWord = span;
   const gen = generation;
   const revision = config.revision;
+  const shell = panelHost('recall', t('recall_label'));
   const panel = document.createElement('div');
   panel.className = 'fw-recall';
-  panel.setAttribute('role', 'group');
-  panel.setAttribute('aria-label', t('recall_label'));
   const prompt = document.createElement('div');
   prompt.textContent = t('recall_prompt');
   const status = document.createElement('div');
@@ -199,9 +217,10 @@ async function openCue(span) {
       e.preventDefault(); e.stopPropagation(); closeCue(span);
     }
   });
-  document.documentElement.append(panel); cue = panel;
+  shell.root.append(panel);
+  document.documentElement.append(shell.host); cue = panel; cueHost = shell.host;
   button(actions, t('recall_dismiss'), () => closeCue(span));
-  placeTip(span, panel);
+  placeTip(span, shell.host);
   const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
   let ticket;
   let answer;
@@ -260,7 +279,7 @@ async function openCue(span) {
         });
         if (rating === 'hard') firstRating = rated; // preserve the prior keyboard focus
       }
-      placeTip(span, panel);
+      placeTip(span, shell.host);
       firstRating?.focus();
     } catch {
       if (!liveCue()) { closeCue(); return; }
@@ -269,7 +288,7 @@ async function openCue(span) {
     }
   });
   actions.prepend(revealButton);
-  placeTip(span, panel);
+  placeTip(span, shell.host);
   revealButton.focus();
 }
 function tipEligible(span) {
@@ -289,6 +308,7 @@ function startTip(span, peek, delay = TIP_DELAY_MS) {
   }, delay);
 }
 function showPlainTip(span, peek) {
+  revealGuessMeaning(span);
   if (!showTip(span)) { hideTip(); return; }
   span.classList.add('fw-tip');
   if (peek && tipHovered) record(span, 'peek'); // focus alone never counts
@@ -302,7 +322,7 @@ const guessMode = () => !!(config?.settings?.gradual && config.settings.guessFir
 const plainKey = (span) => `${config?.revision}:${localDay()}:${swapWord(span)}`;
 const guessPlace = (span) => !span.closest(GUESS_EDITABLE) && !span.parentElement?.isContentEditable;
 function wantsGuess(span) {
-  return guessMode() && guessPlace(span) && !plainToday.has(plainKey(span));
+  return guessMode() && isGuessPending(span) && guessPlace(span) && !plainToday.has(plainKey(span));
 }
 function guessChoicesFrom(reply) {
   const choices = reply?.choices;
@@ -323,25 +343,26 @@ async function beginGuess(span, peek, gen) {
 }
 function guessAlive(state) {
   const { span } = state;
-  return state.gen === generation && state.panel?.isConnected !== false && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
+  return state.gen === generation && state.host?.isConnected !== false && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
     !introductionTicket(span) && !span.classList.contains('fw-en') && guessMode() && guessPlace(span);
 }
 function closeGuess(focusWord = false) {
   if (!guess) return;
-  const { panel, span } = guess;
-  const returnFocus = focusWord && (panel.contains(document.activeElement) || document.activeElement === span);
+  const { host, root, span } = guess;
+  const returnFocus = focusWord && (root.activeElement || document.activeElement === span);
   guess = null;
-  panel.remove();
+  span.removeAttribute('aria-controls');
+  span.removeAttribute('aria-expanded');
+  host.remove();
   if (returnFocus && span.isConnected) { guessQuiet = span; span.focus(); }
 }
 function openGuess(span, ticket, choices) {
   hideTip(true);
   closeGuess();
   const state = { span, ticket, answered: false, gen: generation, revision: config.revision };
+  const shell = panelHost('guess', t('guess_label'));
   const panel = document.createElement('div');
   panel.className = 'fw-guess';
-  panel.setAttribute('role', 'group');
-  panel.setAttribute('aria-label', t('guess_label'));
   const prompt = document.createElement('div');
   prompt.className = 'fw-guess-prompt';
   const word = document.createElement('span');
@@ -383,15 +404,24 @@ function openGuess(span, ticket, choices) {
   actions.append(dismiss);
   panel.append(prompt, list, status, actions);
   state.panel = panel;
-  document.documentElement.append(panel);
+  state.host = shell.host;
+  state.root = shell.root;
+  shell.root.append(panel);
+  shell.root.addEventListener('keydown', guessKey, true);
+  shell.root.addEventListener('focusout', guessFocusOut, true);
+  document.documentElement.append(shell.host);
+  shell.host.id = `fw-guess-${crypto.randomUUID()}`;
+  span.setAttribute('aria-controls', shell.host.id);
+  span.setAttribute('aria-expanded', 'true');
   guess = state;
-  placeTip(span, panel);
+  placeTip(span, shell.host);
+  status.textContent = t('guess_opened');
 }
 async function answerGuess(state, index, keyboard) {
   if (guess !== state || state.answered || !guessAlive(state)) return;
   state.answered = true;
   for (const button of state.buttons) button.disabled = true;
-  const hadFocus = keyboard && state.panel.contains(document.activeElement);
+  const hadFocus = keyboard && !!state.root.activeElement;
   state.buttons[index].classList.add('fw-guess-chosen');
   plainToday.add(plainKey(state.span)); // one guess a word a day; the worker enforces it too
   let reply = null;
@@ -406,7 +436,8 @@ async function answerGuess(state, index, keyboard) {
     if (right !== index) state.buttons[index].classList.add('fw-guess-wrong');
     state.status.textContent = `${right === index ? t('guess_correct') : t('guess_incorrect')} ${meaning}`;
   } else state.status.textContent = meaning; // not recorded; the meaning is still shown
-  placeTip(state.span, state.panel);
+  revealGuessMeaning(state.span);
+  placeTip(state.span, state.host);
   if (hadFocus && state.span.isConnected) { guessQuiet = state.span; state.span.focus(); }
 }
 // Keyboard: with focus on the panel or its word, arrows and 1-4 move to a choice, Enter (the
@@ -415,7 +446,7 @@ async function answerGuess(state, index, keyboard) {
 function guessKey(e) {
   if (!guess || !e.isTrusted) return;
   const state = guess;
-  const inPanel = state.panel.contains(e.target);
+  const inPanel = state.root.contains(e.target);
   const onWord = e.target === state.span;
   const consume = () => { e.preventDefault(); e.stopImmediatePropagation(); };
   if (e.key === 'Escape') {
@@ -424,10 +455,15 @@ function guessKey(e) {
     return;
   }
   if (!inPanel && !onWord) return;
-  if (inPanel && e.key === 'Tab') { consume(); guessQuiet = state.span; state.span.focus(); return; }
+  if (onWord && e.key === 'Tab' && !e.shiftKey && !state.answered) {
+    consume(); state.buttons[0].focus(); return;
+  }
+  if (inPanel && e.key === 'Tab' && e.shiftKey && e.target === state.buttons[0]) {
+    consume(); guessQuiet = state.span; state.span.focus(); return;
+  }
   if (state.answered || e.altKey || e.ctrlKey || e.metaKey) return;
   const count = state.buttons.length;
-  const at = state.buttons.indexOf(document.activeElement);
+  const at = state.buttons.indexOf(state.root.activeElement || document.activeElement);
   let next = -1;
   if (/^[1-9]$/.test(e.key)) next = Number(e.key) - 1 < count ? Number(e.key) - 1 : -1;
   else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = at < 0 ? 0 : (at + 1) % count;
@@ -437,13 +473,14 @@ function guessKey(e) {
   state.buttons[next].focus();
 }
 function guessPointer(e) {
-  if (guess && e.isTrusted && !guess.panel.contains(e.target)) closeGuess();
+  if (guess && e.isTrusted && e.target !== guess.host) closeGuess();
 }
 // Focus leaving the panel and its word for another element closes it; a window blur does not.
 function guessFocusOut(e) {
   if (!guess || !e.isTrusted || !e.relatedTarget) return;
-  const { panel, span } = guess;
-  if ((panel.contains(e.target) || e.target === span) && !panel.contains(e.relatedTarget) && e.relatedTarget !== span)
+  const { host, root, span } = guess;
+  if ((root.contains(e.target) || e.target === host || e.target === span) &&
+      !root.contains(e.relatedTarget) && e.relatedTarget !== host && e.relatedTarget !== span)
     closeGuess();
 }
 // A panel whose word has scrolled out of view closes rather than sticking to the viewport edge.
@@ -452,7 +489,7 @@ function placeGuess() {
   const rect = guess.span.getBoundingClientRect();
   const height = document.documentElement.clientHeight || window.innerHeight;
   if (!guess.span.isConnected || rect.bottom < 0 || rect.top > height) { closeGuess(); return; }
-  placeTip(guess.span, guess.panel);
+  placeTip(guess.span, guess.host);
 }
 function restoreFocusedTip() {
   const span = focusedTip;
@@ -752,7 +789,10 @@ function update(next, retry = false) {
     // Guess first is outside the revision (it changes no swap): take it without repainting.
     if (config && (next.settings.guessFirst === true) !== (config.settings.guessFirst === true)) {
       config = next;
-      if (!guessMode()) closeGuess();
+      if (!guessMode()) {
+        closeGuess();
+        for (const span of document.querySelectorAll(`span.${SWAP_CLASS}`)) revealGuessMeaning(span);
+      }
     }
     return;
   }

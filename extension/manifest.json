@@ -63,6 +63,7 @@
         "src/levels.js",
         "src/messages-en.js",
         "src/page.js",
+        "src/panel-style.js",
         "src/personal-capture.js",
         "src/personal.js",
         "src/review.js",

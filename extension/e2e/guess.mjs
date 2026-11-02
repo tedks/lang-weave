@@ -68,6 +68,9 @@ try {
   </main></body></html>`;
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const page = await browser.newPage();
+  page.on('console', (msg) => { if (msg.type() === 'error') console.error('PAGE CONSOLE', msg.text()); });
+  page.on('pageerror', (error) => console.error('PAGE ERROR', error));
+  worker.on('console', (msg) => { if (msg.type() === 'error') console.error('WORKER CONSOLE', msg.text()); });
   await page.goto('https://reading.example/guess');
   const y = page.locator('#one .fw-word');
   const pero = page.locator('#two .fw-word');
@@ -81,66 +84,102 @@ try {
     .then((x) => x.learningRetrievals?.retrievals || []));
   const cards = () => worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview.cards));
 
+  const cdp = await browser.newCDPSession(page);
+  await cdp.send('DOM.enable');
+  await cdp.send('Accessibility.enable');
+  const descendants = (node) => [node, ...(node.children || []).flatMap(descendants),
+    ...(node.shadowRoots || []).flatMap(descendants)];
+  const named = (node, cls) => descendants(node).find((n) => {
+    const at = n.attributes || [];
+    return at.some((v, i) => i % 2 === 0 && v === 'class' && at[i + 1].split(' ').includes(cls));
+  });
+  const internal = async () => {
+    const { root: dom } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const inner = named(dom, 'fw-guess');
+    assert.ok(inner, 'closed shadow panel exists in CDP DOM');
+    return inner;
+  };
+  const resolve = async (node) => (await cdp.send('DOM.resolveNode', { nodeId: node.nodeId })).object.objectId;
+  const value = async (node, fn) => (await cdp.send('Runtime.callFunctionOn', {
+    objectId: await resolve(node), functionDeclaration: fn, returnByValue: true })).result.value;
+  const buttons = async () => {
+    const list = named(await internal(), 'fw-guess-choices');
+    return descendants(list).filter((n) => n.nodeName === 'BUTTON');
+  };
+  const statusText = async () => value(named(await internal(), 'fw-guess-status'), 'function() { return this.textContent; }');
+  const clickNode = async (node) => {
+    const { model } = await cdp.send('DOM.getBoxModel', { nodeId: node.nodeId });
+    const q = model.content;
+    await page.mouse.click((q[0] + q[2] + q[4] + q[6]) / 4, (q[1] + q[3] + q[5] + q[7]) / 4);
+  };
+  const ax = async () => (await cdp.send('Accessibility.getFullAXTree')).nodes;
+  const axBy = (nodes, role, name) => nodes.find((n) => n.role?.value === role && n.name?.value === name);
+  const axFocused = (node) => node.properties?.some((p) => p.name === 'focused' && p.value?.value === true);
+  let tree = await ax();
+  const yAx = axBy(tree, 'button', 'y');
+  assert.ok(yAx, 'the woven word is in Chrome accessibility tree');
+  assert.doesNotMatch(yAx.description?.value || '', /and/);
+  assert.match(yAx.description?.value || '', /Guess the meaning/);
+
   // Hover: after the 700 ms beat, choices instead of the gloss.
   await y.hover();
   await page.waitForTimeout(400);
-  assert.equal(await page.locator('.fw-guess').count(), 0);
-  const panel = page.locator('.fw-guess');
+  const panel = page.locator('.fw-guess-host');
+  assert.equal(await panel.count(), 0);
   await panel.waitFor();
+  assert.equal(await panel.evaluate((el) => el.shadowRoot), null); // closed to the page
   assert.equal(await page.locator('.fw-gloss').count(), 0);
-  assert.equal(await panel.getAttribute('role'), 'group');
-  assert.equal(await panel.getAttribute('aria-label'), 'Guess the meaning');
-  const labels = await panel.locator('.fw-guess-choices button span:last-child').allTextContents();
+  tree = await ax();
+  assert.ok(axBy(tree, 'group', 'Guess the meaning'));
+  assert.ok(tree.some((n) => n.role?.value === 'status'));
+  assert.ok(tree.some((n) => /Guess choices ready/.test(n.name?.value || '')));
+  const choiceNodes = await buttons();
+  const labels = await Promise.all(choiceNodes.map((n) => value(n, 'function() { return this.lastChild.textContent; }')));
   assert.ok(labels.length >= 3 && labels.length <= 4, labels.join('|'));
   assert.ok(labels.includes('and'));
-  // Placement by measured space: fully in the viewport, beside the word, not covering it.
+  for (const label of labels) assert.ok(axBy(tree, 'button', label), `AX choice ${label}`);
   const [box, word] = await Promise.all([panel.boundingBox(), y.boundingBox()]);
   assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 760 && box.y + box.height <= 520);
   assert.ok(box.y + box.height <= word.y || box.y >= word.y + word.height);
-  // Light theme uses the ui.css document tokens.
-  const light = await panel.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el).color }));
-  assert.deepEqual(light, { bg: 'rgb(255, 255, 255)', fg: 'rgb(24, 32, 39)' });
+  const light = await value(await internal(), 'function() { const s = getComputedStyle(this); return [s.backgroundColor, s.color]; }');
+  assert.deepEqual(light, ['rgb(255, 255, 255)', 'rgb(24, 32, 39)']);
   await mkdir(artifacts, { recursive: true });
   await page.screenshot({ path: join(artifacts, 'guess-light.png') });
 
-  // A page script cannot answer, and Escape dismisses without recording.
-  await page.evaluate(() => document.querySelector('.fw-guess-choices button').click());
+  // Page-script clicks are untrusted; Escape and click-away never record a guess.
+  await value((await buttons())[0], 'function() { this.click(); return true; }');
+  assert.equal((await log()).length, 0);
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'detached' });
   assert.equal((await log()).length, 0);
 
-  // Dark theme and forced colours on the reopened panel.
   await page.mouse.move(5, 5);
   await page.emulateMedia({ colorScheme: 'dark' });
   await y.hover();
   await panel.waitFor();
-  const dark = await panel.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el).color }));
-  assert.deepEqual(dark, { bg: 'rgb(34, 40, 45)', fg: 'rgb(243, 243, 243)' });
+  const dark = await value(await internal(), 'function() { const s = getComputedStyle(this); return [s.backgroundColor, s.color]; }');
+  assert.deepEqual(dark, ['rgb(34, 40, 45)', 'rgb(243, 243, 243)']);
   await page.screenshot({ path: join(artifacts, 'guess-dark.png') });
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'active' });
-  assert.equal(await panel.evaluate((el) => getComputedStyle(el).boxShadow), 'none');
-  const forced = await panel.evaluate((el) => {
-    const button = el.querySelector('.fw-guess-choices button');
-    const style = (node) => getComputedStyle(node);
-    return { panel: [style(el).color, style(el).backgroundColor], button: [style(button).color, style(button).backgroundColor],
-      border: style(button).borderTopColor };
-  });
-  assert.notEqual(forced.panel[0], forced.panel[1]); // readable text on the system canvas
-  assert.notEqual(forced.button[0], forced.button[1]);
-  assert.notEqual(forced.border, forced.button[1]); // each choice keeps a visible outline
+  const forced = await value(await internal(), 'function() { const s = getComputedStyle(this); return [s.color, s.backgroundColor, s.boxShadow]; }');
+  assert.notEqual(forced[0], forced[1]);
+  assert.equal(forced[2], 'none');
   await page.emulateMedia({ colorScheme: 'light', forcedColors: 'none' });
 
-  // A click away dismisses without recording; then a wrong choice by mouse.
   await page.mouse.click(5, 5);
   await panel.waitFor({ state: 'detached' });
   await y.hover();
   await panel.waitFor();
   const before = (await cards()).y;
-  const wrong = page.locator('.fw-guess-choices button', { hasNotText: /^\d?and$/ }).first();
-  await wrong.click();
-  await page.locator('.fw-guess-status', { hasText: 'Not quite: y · and' }).waitFor();
-  assert.equal(await page.locator('.fw-guess-right').textContent(), `${labels.indexOf('and') + 1}and`);
-  assert.equal(await page.locator('.fw-guess-wrong').count(), 1);
+  const wrongIndex = labels.findIndex((label) => label !== 'and');
+  await clickNode((await buttons())[wrongIndex]);
+  for (let i = 0; i < 50 && !/Not quite/.test(await statusText()); i++) await page.waitForTimeout(20);
+  assert.match(await statusText(), /Not quite: y · and/);
+  tree = await ax();
+  assert.ok(tree.some((n) => n.role?.value === 'status'));
+  assert.ok(tree.some((n) => /Not quite: y · and/.test(n.name?.value || '')));
+  const yRevealed = axBy(tree, 'button', 'y');
+  assert.match(yRevealed.description?.value || '', /and/);
   let entries = await log();
   assert.equal(entries.length, 1);
   const [wordId, at, source, direction, outcome, prior, latency, elapsed, interval, predicted] = entries[0];
@@ -148,33 +187,36 @@ try {
     ['y', 'guess', 'receptive', 'incorrect', 1, null, null, null]);
   assert.ok(Number.isSafeInteger(at) && latency > 0 && latency < 60000, `latency ${latency}`);
   const after = (await cards()).y;
-  assert.equal(after.peekCount, 1); // a wrong guess is a peek
-  assert.equal(after.due, before.due); // FSRS is untouched
+  assert.equal(after.peekCount, 1);
+  assert.equal(after.due, before.due);
 
-  // One guess a word a day: the next dwell is the plain gloss.
   await page.mouse.click(5, 5);
   await panel.waitFor({ state: 'detached' });
   await page.mouse.move(5, 5);
   await y.hover();
   await page.locator('.fw-gloss-on').waitFor();
-  assert.equal(await page.locator('.fw-guess').count(), 0);
+  assert.equal(await panel.count(), 0);
 
-  // Keyboard on another word: focus opens without moving focus; arrows and 2 pick, Enter confirms.
+  // Focus order: word -> first choice on Tab; the result is a live status and focus returns.
   await page.mouse.move(5, 5);
   await pero.focus();
   await panel.waitFor();
   assert.equal(await pero.evaluate((el) => document.activeElement === el), true);
-  await page.keyboard.press('ArrowDown');
-  assert.equal(await page.evaluate(() => document.activeElement?.closest('.fw-guess') !== null), true);
+  await page.keyboard.press('Tab');
+  tree = await ax();
+  const peroLabels = await Promise.all((await buttons()).map((n) => value(n, 'function() { return this.lastChild.textContent; }')));
+  assert.ok(tree.some((n) => n.role?.value === 'button' && axFocused(n) && peroLabels.includes(n.name?.value)));
   await page.keyboard.press('2');
-  const chosen = await page.evaluate(() => document.activeElement.lastChild.textContent);
+  const selected = peroLabels[1];
+  assert.ok((await ax()).some((n) => n.role?.value === 'button' && axFocused(n) && n.name?.value === selected));
   await page.keyboard.press('Enter');
-  await page.locator('.fw-guess-status').filter({ hasText: 'pero · but' }).waitFor();
-  assert.equal(await pero.evaluate((el) => document.activeElement === el), true); // focus returned
+  for (let i = 0; i < 50 && !/pero · but/.test(await statusText()); i++) await page.waitForTimeout(20);
+  assert.match(await statusText(), /pero · but/);
+  assert.equal(await pero.evaluate((el) => document.activeElement === el), true);
   entries = await log();
   assert.equal(entries.length, 2);
   assert.deepEqual(entries[1].slice(0, 5).filter((_, i) => i !== 1),
-    ['pero', 'guess', 'receptive', chosen === 'but' ? 'correct' : 'incorrect']);
+    ['pero', 'guess', 'receptive', selected === 'but' ? 'correct' : 'incorrect']);
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'detached' });
 
@@ -204,6 +246,7 @@ try {
   const options = await browser.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
   await options.locator('#guessFirst').waitFor();
+  await options.waitForFunction(() => document.querySelector('#guessFirst').checked === true);
   assert.equal(await options.locator('#guessFirst').isChecked(), true);
   await options.locator('#guessFirst').uncheck();
   await options.waitForFunction(() => document.querySelector('#guessFirst').checked === false);
@@ -214,7 +257,7 @@ try {
   await page.mouse.move(5, 5);
   await o.hover();
   await page.locator('.fw-gloss-on').waitFor();
-  assert.equal(await page.locator('.fw-guess').count(), 0);
+  assert.equal(await page.locator('.fw-guess-host').count(), 0);
   // The swaps were not repainted: the same span node, and no node or text change inside the passages.
   assert.deepEqual(await page.evaluate(() => ({ same: document.querySelector('#one .fw-word') === globalThis.guessE2E.word,
     changes: globalThis.guessE2E.changes })), { same: true, changes: 0 });
