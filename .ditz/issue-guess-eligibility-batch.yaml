@@ -1,0 +1,19 @@
+id: guess-eligibility-batch
+title: Batch Guess first eligibility lookups if latency warrants
+desc: 'Council performance nit on PR #45: reading.js awaits guessAllowed once per
+  unique delivered word when Guess first is on. Assess latency with generated packs
+  and batch catalog/log lookups if it is material, preserving consent and stale-result
+  rechecks.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:10:53-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:10:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
