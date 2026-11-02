@@ -1,0 +1,22 @@
+id: legacy-gloss-suffix-overreach
+title: Review legacy suffix matching on bundled gloss synonyms
+desc: 'PR #46 council nit: the pre-existing bundled legacy matcher accepts suffix-derived
+  surfaces from every synonym, including `hi` -> `his` for hola, and `too` -> `toos`.
+  The candidate admission gate now correctly sees these claims, but runtime semantics
+  remain byte-for-byte unchanged under the 226-row compatibility boundary. After the
+  curriculum release, decide which legacy surface expansions are linguistically valid,
+  then narrow the matcher with explicit compatibility tests and product review. This
+  does not block PR #46.'
+type: bugfix
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:48:00-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:48:00-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
