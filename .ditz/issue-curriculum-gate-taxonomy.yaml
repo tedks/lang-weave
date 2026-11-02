@@ -1,0 +1,21 @@
+id: curriculum-gate-taxonomy
+title: Clarify admission gate names for invalid metadata
+desc: 'PR #46 convergence nit: an unknown review status is reported under the `reserved`
+  gate class so every rejected row has a named gate and hash while keeping the established
+  twelve-class taxonomy. This is fail-closed and tested, but the label is broader
+  than reserved characters. Before a future admission UI presents gate names to authors,
+  decide whether to split invalid metadata into its own named class and update docs/tests
+  together. No candidate row ships in PR #46.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:53:06-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:53:06-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
