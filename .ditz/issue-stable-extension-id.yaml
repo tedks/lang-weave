@@ -85,3 +85,15 @@ log_events:
     1) into 0.12.17 passed with the old install unchanged. Runbook docs/LANG-WEAVE-0120-MIGRATION.md
     updated for 0.12.17 first-run changes (Learning backup now in Settings > Your
     data). Not merged, not deployed.'
+- time: 2026-11-02T17:55:12-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Dotfiles #225 now pins 0.12.22 (lang-weave 37b060d, archive sha256 6b914c2c...40c5,
+    same on two downloads); head c20f5a4, reviewed b540d48, council CLEAN (Opus, Codex;
+    agy empty, quota). The installer gained _locales/<locale>/messages.json support
+    with a port of Chrome''s ReplaceVariables for __MSG_ names and placeholders (the
+    previous installer refused 0.12.22 on identity). Offline install: 82/82 files
+    match git; Chromium smoke on installed dir passed; loads as stable ID with the
+    locale-resolved name; rehearsal from fleet 0.11.0 into 0.12.22 passed with the
+    old install unchanged. Runbook updated for 0.12.18-0.12.22. Follow-up filed in
+    dotfiles: lang-weave-installer-linear-substitution. Not merged, not deployed.'
