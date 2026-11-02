@@ -71,7 +71,7 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     expect($('week').textContent).toBe('Practised on 3 days of the last 7');
     expect($('strip').children).toHaveLength(30);
     expect($('strip').getAttribute('aria-label')).toBe('Days with reviews in the last 30 days: 10');
-    expect($('measures').children).toHaveLength(7);
+    expect($('measures').children).toHaveLength(8);
     expect($('more').hidden).toBe(false);
     expect($('more').textContent).toBe('Show more (91 left)');
     $('more').click();

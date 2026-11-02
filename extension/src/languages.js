@@ -3,6 +3,7 @@ import { buildRequest, API_BASE } from './gemini.js';
 import { hashKey } from './hash.js';
 import { languageCode, languageName } from './language-name.js';
 import { classifyProviderFailure, readBoundedBody } from './quota-status.js';
+import { validPackForm } from './word-form.js';
 export { languageCode, languageName } from './language-name.js';
 
 export const PACKS_KEY = 'languagePacks';
@@ -18,10 +19,10 @@ export function cleanPack(raw, code) {
   const seen = new Set();
   let beginner = 0;
   for (const w of raw.words) {
-    if (!w || ![1, 2].includes(w.level) || !validField(w.fr, true) || !validField(w.en) || !validField(w.hint) ||
-        !/\p{L}/u.test(w.fr) || !/\p{L}/u.test(w.en)) return null;
+    if (!w || ![1, 2].includes(w.level) || !validPackForm(w.fr) || !validField(w.en) || !validField(w.hint) ||
+        !/\p{L}/u.test(w.en)) return null;
     const key = w.fr.normalize('NFC').toLocaleLowerCase(code);
-    if (seen.has(key) || w.fr.length > 50 || w.en.length > 60 || w.hint.length > 60) return null;
+    if (seen.has(key) || w.en.length > 60 || w.hint.length > 60) return null;
     seen.add(key);
     if (w.level === 1) beginner++;
     words.push({ fr: w.fr.normalize('NFC'), en: w.en, hint: w.hint, level: w.level });

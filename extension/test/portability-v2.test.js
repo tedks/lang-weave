@@ -156,7 +156,7 @@ test('malformed or out-of-schema schema 2 content fails closed', () => {
     [v2, (b) => { b.state.scopes.es.retrievals.version = 2; }, /unsupported retrieval log version/],
     [v2, (b) => { b.state.scopes.es.retrievals.extra = 1; }, /unsupported retrieval log field/],
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][2] = 'webpage'; }, /invalid retrieval log entry/],
-    [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][0] = 'https://private.example/page'; }, /invalid retrieval log entry/],
+    [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][0] = '<private>'; }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals.push([spanish, 1, 'inline', 'productive', 'easy', 1, null, null, null, null, 'extra passage']); }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.exposures.words[spanish] = [1, 0, 9, '2026-10-01', '2026-10-01']; }, /invalid exposure log entry/],
     [v2, (b) => { Object.defineProperty(b.state.scopes.es.exposures.words, '__proto__', { value: [1, 0, 1, '2026-10-01', '2026-10-01'], enumerable: true }); }, /unsafe exposure log key/],

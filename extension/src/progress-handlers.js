@@ -16,6 +16,7 @@ import { entryId } from './catalog.js';
 import { personalReview } from './review-state.js';
 import { verifiedWords, wordStage, stageCounts, todayCounts, activity, practisedThisWeek,
   measurements } from './progress.js';
+import { measurementsSkipped } from './measurement-skips.js';
 
 const LOG_KEYS = [RETRIEVALS_KEY, EXPOSURES_KEY, SENT_KEY, PENDING_KEY];
 const STALE = 'Your language or words changed. Reload the list and try again.';
@@ -64,9 +65,9 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       stages: stageCounts(ids, cards, verified),
       verifiedKnown: ids.filter((id) => verified.has(id)).length,
       activity: strip, practisedThisWeek: practisedThisWeek(strip),
-      measurements: measurements(snap.logged, { now, retention: ctx.settings.desiredRetention ?? DEFAULT_RETENTION,
+      measurements: { ...measurements(snap.logged, { now, retention: ctx.settings.desiredRetention ?? DEFAULT_RETENTION,
         exposures: snap.exposures, learningWords, label: (id) => labels.get(id) ?? id,
-        guessFirst: ctx.settings.guessFirst === true }),
+        guessFirst: ctx.settings.guessFirst === true }), skipped: await measurementsSkipped(chromeStorage) },
     };
   }
 

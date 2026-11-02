@@ -201,5 +201,7 @@ test('progress copy: plural forms, the week line and the stage labels read as be
     'Not enough data yet: 1 scheduled review; 50 are needed, and a fair test needs a few hundred.',
     '1 word missed 4 or more times after a gap of a day or more: gato.',
     'Your learning words were met on a median of 1 day; 1 of 6 reached 8 different days.',
-    '2.0 reviews a day over the last 30 days.']);
+    '2.0 reviews a day over the last 30 days.',
+    '0 measurements skipped.']);
+  expect(measurementItems({ ...base, skipped: 2 }, 1).at(-1).value).toBe('2 measurements skipped.');
 });

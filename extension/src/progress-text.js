@@ -86,5 +86,8 @@ export function measurementItems(m, verifiedKnown) {
         : t('progress_measure_guess_recall_few', guessed.n, unguessed.n),
       why: t('progress_measure_guess_recall_why') });
   }
+  items.push({ title: t('progress_measure_skipped_title'),
+    value: tn('progress_measure_skipped_value', m.skipped ?? 0),
+    why: t('progress_measure_skipped_why') });
   return items;
 }

@@ -20,6 +20,7 @@
 // Guesses are not reviews: every recall measure below excludes them (reviewEntries).
 import { localDay } from './events.js';
 import { validDay } from './learning.js';
+import { validPackForm } from './word-form.js';
 
 export const RETRIEVALS_KEY = 'learningRetrievals';
 export const EXPOSURES_KEY = 'learningExposures';
@@ -48,19 +49,14 @@ const has = (allowed, id) => {
   throw new TypeError('learning log: a scope catalog (Set or Array of word IDs) is required');
 };
 
-// Second line behind catalog membership, which is the real guarantee: an ID is either an
-// exact personal ID (a UUID, never the learner's text) or a short catalog form with no
-// colon, slash, '@', markup, control character or dot followed by a letter or digit, so
-// nothing shaped like a URL, host, host:port or address passes even when listed. A shape
-// check cannot tell a five-word phrase from a short passage; the catalog decides that.
-// Zero-width (non-)joiners are allowed inside forms, as portability.js allows them.
+// An ID is either an exact personal UUID or a generated-pack form. The latter's
+// shape is deliberately the same one cleanPack accepts; catalog membership is
+// the privacy guarantee, including for punctuation and fixed phrases.
 const PERSONAL_ID = /^personal:[a-z]{2,3}(?:-[a-z0-9]{2,8})*:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function validWordId(id) {
   if (typeof id !== 'string') return false;
   if (PERSONAL_ID.test(id)) return id.length <= 100;
-  return id.length > 0 && id.length <= 50 && id.trim() === id && id.split(/\s+/).length <= 5 &&
-    !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
-    !/\.[\p{L}\p{N}]/u.test(id);
+  return validPackForm(id);
 }
 
 const nullableInt = (v, max) => v === null || (Number.isSafeInteger(v) && v >= 0 && v <= max);

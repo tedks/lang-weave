@@ -4,6 +4,7 @@ import { EXPOSURES_KEY, MAX_EXPOSURE_WORDS, MAX_LATENCY_MS, MAX_RETRIEVALS, RETR
   nextDayRecall, peekRate, recordExposures, recordRetrieval, retrievalEntries, summarize, validWordId,
   verifiedKnown, workload } from '../src/learning-log.js';
 import { scopedStorage } from '../src/scope.js';
+import { cleanPack } from '../src/languages.js';
 
 const memory = () => {
   const data = {};
@@ -33,16 +34,14 @@ test('a retrieval stores only the fixed fields, compactly, for catalog words', (
     outcome: 'medium', prior: 2, latencyMs: 4200, elapsedDays: 5, intervalDays: 11, predicted: 0.9123 });
 });
 
-test('words outside the scope catalog and text-like IDs are never logged', () => {
+test('only catalog words with an admitted form are logged', () => {
   const state = cleanRetrievals(null);
   const ok = { ...base, word: 'casa', at: at(1), outcome: 'easy' };
-  for (const word of ['mesa', 'https://example.com', 'example.com', 'www.example', 'a@b', 'a/b', '<b>', ' casa', 'see www.example now',
-    'one two three four five six', 'x'.repeat(101), 'casa\u0000', '']) {
-    expect(appendRetrieval(state, { ...ok, word }, new Set([...CATALOG, word]))).toBe(word === 'mesa');
-  }
-  // Host:port, abbreviations with inner dots, colons, long forms and six or more words are refused.
-  for (const id of ['example.com:443', 'localhost:8080', 'p.ej.', 'foo.bar', 'personal:es:not-a-uuid', `personal:es${'-abcdefgh'.repeat(6)}:0b5c3f1e-8d2a-4c1b-9f3e-2a7d6c5b4e3f`, 'a:b',
-    'x'.repeat(51), 'uno dos tres cuatro cinco seis']) expect(validWordId(id)).toBe(false);
+  for (const word of ['mesa', 'https://example.com', 'example.com', 'a@b', 'a/b', 'see www.example now'])
+    expect(appendRetrieval(state, { ...ok, word }, CATALOG)).toBe(false);
+  for (const id of ['<b>', ' casa', 'x'.repeat(51), 'casa\u0000', '',
+    `personal:es${'-abcdefgh'.repeat(6)}:0b5c3f1e-8d2a-4c1b-9f3e-2a7d6c5b4e3f`])
+    expect(validWordId(id)).toBe(false);
   for (const id of ['etc.', 'au fur et à mesure', 'x'.repeat(50), 'personal:zh-hant:0b5c3f1e-8d2a-4c1b-9f3e-2a7d6c5b4e3f',
     'می\u200cخواهم']) expect(validWordId(id)).toBe(true);
   expect(validWordId('por favor')).toBe(true);
@@ -51,6 +50,25 @@ test('words outside the scope catalog and text-like IDs are never logged', () =>
   expect(appendRetrieval(state, ok, ['casa'])).toBe(true); // an array catalog is accepted
   expect(() => appendRetrieval(state, ok)).toThrow(TypeError);
   expect(() => appendRetrieval(state, ok, 'casa')).toThrow(TypeError);
+});
+
+test('every punctuation form admitted by cleanPack can record retrievals and exposures', () => {
+  for (const form of ['il/elle', 'z.B.', 'EU:n', 'au fur et à mesure', 'می\u200cخواهم']) {
+    const words = Array.from({ length: 20 }, (_, i) => ({ fr: `forma${i}`, en: `gloss${i}`, hint: '', level: i < 10 ? 1 : 2 }));
+    // A pack hint must be nonempty; the generated form replaces one valid row.
+    for (const word of words) word.hint = 'hint';
+    words[0].fr = form;
+    const pack = cleanPack({ words }, 'fr');
+    expect(pack?.words[0].fr).toBe(form.normalize('NFC'));
+    const allowed = new Set(pack.words.map((word) => word.fr));
+    const state = cleanRetrievals(null);
+    expect(appendRetrieval(state, { ...base, word: form, at: at(1), outcome: 'easy' }, allowed)).toBe(true);
+    const exposure = cleanExposures(null);
+    expect(countExposures(exposure, [form], allowed, '2026-10-01')).toBe(1);
+    expect(cleanExposures(exposure).words[form]).toEqual([1, 0, 1, '2026-10-01', '2026-10-01']);
+  }
+  // 1.000 has no letter, so cleanPack has never admitted it; the shared rule preserves that boundary.
+  expect(validWordId('1.000')).toBe(false);
 });
 
 test('invalid enums and numbers are rejected; latency is capped and missing values are null', () => {
@@ -69,7 +87,7 @@ test('the retrieval log is bounded, drops the oldest first and cleans malformed 
   for (let i = 0; i < MAX_RETRIEVALS + 7; i++) appendRetrieval(state, { ...base, word: 'y', at: i, outcome: 'easy' }, CATALOG);
   expect(state.retrievals.length).toBe(MAX_RETRIEVALS);
   expect(state.retrievals[0][1]).toBe(7);
-  const raw = { version: 1, retrievals: [...state.retrievals.slice(-2), ['https://x.com', 1, 'inline', 'productive', 'easy', 0, null, null, null, null],
+  const raw = { version: 1, retrievals: [...state.retrievals.slice(-2), ['<b>', 1, 'inline', 'productive', 'easy', 0, null, null, null, null],
     ['y', 1, 'inline', 'productive', 'easy', 0, null, null, null], 'junk', null] };
   expect(cleanRetrievals(raw).retrievals.length).toBe(2);
   expect(cleanRetrievals({ version: 2, retrievals: raw.retrievals }).retrievals).toEqual([]);
@@ -107,11 +125,11 @@ test('the exposure map is bounded and evicts the word seen longest ago', () => {
   expect(Object.keys(state.words).length).toBe(MAX_EXPOSURE_WORDS);
   expect(state.words.w0).toBeUndefined();
   expect(state.words.fresh).toEqual([1, 0, 1, '2026-10-04', '2026-10-04']);
-  const raw = { version: 1, words: { ...state.words, 'bad.com': [1, 0, 1, '2026-10-01', '2026-10-01'],
+  const raw = { version: 1, words: { ...state.words, '<bad>': [1, 0, 1, '2026-10-01', '2026-10-01'],
     y: [1, 0, 1, '2026-10-05', '2026-10-01'], z: [1, 0, 1, '2026-13-01', '2026-13-01'] } };
   const clean = cleanExposures(raw);
   expect(Object.keys(clean.words).length).toBe(MAX_EXPOSURE_WORDS);
-  expect(clean.words['bad.com']).toBeUndefined();
+  expect(clean.words['<bad>']).toBeUndefined();
   expect(clean.words.y).toBeUndefined();
   // Counters must be mutually consistent.
   const counters = cleanExposures({ version: 1, words: {

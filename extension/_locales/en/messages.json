@@ -33,6 +33,10 @@
       }
     }
   },
+  "swap_guess_pending": {
+    "message": "Guess the meaning before the gloss is shown. Focus this word, then press Tab for choices. Show English",
+    "description": "Screen-reader description of a guess-eligible target word; omits its English meaning until the guess is answered."
+  },
   "swap_show_language": {
     "message": "Show $LANGUAGE$",
     "description": "Screen-reader description of a word flipped to English: the click action.",
@@ -313,6 +317,10 @@
     "message": "Help",
     "description": "Toolbar popup: link to the online help."
   },
+  "popup_welcome_route": {
+    "message": "Review privacy choices",
+    "description": "Toolbar popup: link back to first-run privacy choices while consent is pending."
+  },
   "popup_state_off": {
     "message": "Off",
     "description": "Toolbar popup: status line when Lang Weave is switched off."
@@ -524,7 +532,7 @@
     "description": "Settings page: choice meaning only sites the learner turns on are active."
   },
   "options_new_sites_hint": {
-    "message": "Choose whether new permitted sites start on; sensitive sites still start off.",
+    "message": "Choose whether new permitted sites start on; sensitive sites still start off. Make the first choice on the welcome page.",
     "description": "Settings page: hint under the other-sites selector."
   },
   "options_grant_sites": {
@@ -699,6 +707,10 @@
     "message": "Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.",
     "description": "Settings page: note shown before the first-run site policy is chosen."
   },
+  "options_key_consent_required": {
+    "message": "Review the privacy choices on the welcome page before testing your key.",
+    "description": "Settings page: a key test refused because first-run consent is pending."
+  },
   "options_access_all": {
     "message": "On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off. Reload pages already open to start there.",
     "description": "Settings page: access note when all websites are allowed."
@@ -864,7 +876,7 @@
     "description": "First-run welcome page: notice about the Gemini API age requirement."
   },
   "welcome_privacy_conditions": {
-    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
+    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini; adding a language sends a vocabulary-generation request. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
     "description": "First-run welcome page: conditions before any page text is sent, and which sites start off."
   },
   "welcome_only_sites": {
@@ -1110,6 +1122,24 @@
   "progress_measure_verified_title": {
     "message": "Verified known",
     "description": "Title of a measurement in the \"Is this working?\" list on My words."
+  },
+  "progress_measure_skipped_title": {
+    "message": "Measurements skipped",
+    "description": "Title of the diagnostic count in the Is this working section on My words."
+  },
+  "progress_measure_skipped_value_one": {
+    "message": "$COUNT$ measurement skipped.",
+    "description": "Diagnostic count of refused local learning measurements, singular.",
+    "placeholders": { "COUNT": { "content": "$1", "example": "1" } }
+  },
+  "progress_measure_skipped_value_other": {
+    "message": "$COUNT$ measurements skipped.",
+    "description": "Diagnostic count of refused local learning measurements, plural.",
+    "placeholders": { "COUNT": { "content": "$1", "example": "2" } }
+  },
+  "progress_measure_skipped_why": {
+    "message": "Counts local retrieval or exposure writes that could not be recorded. Learning actions still continue.",
+    "description": "Explanation of the measurements-skipped diagnostic on My words."
   },
   "progress_measure_verified_value_one": {
     "message": "$COUNT$ word recalled after a gap of 3 weeks or more, with no miss since.",
@@ -2856,6 +2886,10 @@
   "guess_label": {
     "message": "Guess the meaning",
     "description": "Screen-reader name of the guess-first panel, which offers a few possible meanings of a woven word."
+  },
+  "guess_opened": {
+    "message": "Guess choices ready. Press Tab for the first choice, then use Tab to move through choices.",
+    "description": "Live screen-reader announcement when the guess panel opens."
   },
   "guess_prompt": {
     "message": "Guess the meaning:",
