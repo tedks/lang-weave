@@ -1,0 +1,18 @@
+id: guess-after-flip
+title: Do not offer a guess after the gloss was flipped open
+desc: 'Council nit on PR #45: after a learner flips a woven target word to English
+  and back, its pending-guess marker can still offer a guess despite the meaning already
+  being shown. Clear or consume eligibility on reveal without logging a guess.'
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:10:53-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:10:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
