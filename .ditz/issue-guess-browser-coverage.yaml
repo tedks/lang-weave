@@ -1,0 +1,19 @@
+id: guess-browser-coverage
+title: Strengthen guess and generated-form browser evidence
+desc: 'Council test nits on PR #45: keep forced-colour button contrast/border assertions
+  in e2e/guess.mjs, add an old-versus-new cleanPack admission corpus check, and make
+  the negative gloss-description assertion exact. These are evidence improvements,
+  not release blockers after current gates.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:10:53-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:10:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
