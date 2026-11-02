@@ -1,5 +1,9 @@
 # i18n scaffold and lang attribute mission
 
+## 0.12.22 copy follow-up
+
+PR #45 adds the guess-pending description and opening announcement, consent routes and explanatory copy, and the “Measurements skipped” diagnostic to `_locales/en/messages.json`; `scripts/messages.mjs` regenerates `src/messages-en.js`. No new user-facing string bypasses `t`, `tn` or `localize`.
+
 ## Current state
 
 State: council fixpoint CLEAN (Anthropic native Opus and OpenAI Sol; Google agy EMPTY on quota) on PR #38 at 0.12.18, rebased on `origin/main` `34a35a5`. Exact-head gates, the PR record and the normal merge follow; the PR comment carries the final head and gate output. Follow-ups: `i18n-worker-copy`, `i18n-language-names`, `a11y-screen-reader-check`, `progress-plural-cleanup`, `swap-description-nits`.

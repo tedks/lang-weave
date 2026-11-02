@@ -1,8 +1,12 @@
 # Changelog
 
-User-facing changes from 0.11.0 to 0.12.21, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
+User-facing changes from 0.11.0 to 0.12.22, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
 
 Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Amerged>
+
+## 0.12.22 (2026-11-02)
+
+- #45 Guess choices and inline recall controls are isolated from page styles; screen readers hear choices before the gloss and hear the result when answered. A closed welcome page can be reopened from the popup, Settings keeps the first site choice on welcome, and My words shows how many local measurements were skipped. Generated vocabulary forms that pass pack validation can now be recorded in the learning log.
 
 ## 0.12.21 (2026-11-02)
 
