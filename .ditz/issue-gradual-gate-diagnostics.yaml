@@ -1,0 +1,19 @@
+id: gradual-gate-diagnostics
+title: Preserve original gradual browser-gate failure during diagnostics
+desc: 'Second convergence council nit on PR #45: e2e/gradual.mjs failure diagnostics
+  evaluate worker/page state inside a catch. If that evaluation itself fails during
+  teardown, it can replace the original waitFor error. Guard diagnostic reads separately
+  so the first failure remains in the report.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:11:23-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:11:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
