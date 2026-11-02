@@ -2788,7 +2788,7 @@
     }
   },
   "backup_measurements_omitted": {
-    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached or the words are not in this backup's word lists or personal vocabulary: $OMITTED_REVIEWS$ reviews and exposure counts for $OMITTED_WORDS$ words.",
+    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached, the words are not in this backup's word lists or personal vocabulary, or they are guess-first answers, which backups do not carry yet: $OMITTED_REVIEWS$ reviews or guesses and exposure counts for $OMITTED_WORDS$ words.",
     "description": "Same as the measurements line, followed by a second sentence counting what the export had to leave out. Learning backup page (backup.html).",
     "placeholders": {
       "REVIEWS": {
@@ -2852,5 +2852,133 @@
   "backup_imported": {
     "message": "Learning progress imported. Open review to check it, then enter your key and choose sites separately.",
     "description": "Status after a successful import. Learning backup page (backup.html)."
+  },
+  "guess_label": {
+    "message": "Guess the meaning",
+    "description": "Screen-reader name of the guess-first panel, which offers a few possible meanings of a woven word."
+  },
+  "guess_prompt": {
+    "message": "Guess the meaning:",
+    "description": "Prompt at the top of the guess-first panel; the target-language word follows it."
+  },
+  "guess_dismiss": {
+    "message": "Dismiss",
+    "description": "Button that closes the guess-first panel without answering."
+  },
+  "guess_correct": {
+    "message": "Right:",
+    "description": "Shown before the word and its meaning after a correct guess in the guess-first panel."
+  },
+  "guess_incorrect": {
+    "message": "Not quite:",
+    "description": "Shown before the word and its meaning after a wrong guess in the guess-first panel."
+  },
+  "options_guess_label": {
+    "message": "Guess first",
+    "description": "Settings checkbox label for the opt-in guess-first step on new words."
+  },
+  "options_guess_hint": {
+    "message": "On a word's first few encounters, hovering asks you to pick its meaning from a few options before showing it.",
+    "description": "One-line explanation under the Guess first setting."
+  },
+  "progress_measure_guess_title": {
+    "message": "First-guess accuracy",
+    "description": "Title of a measurement in the \"Is this working?\" list on My words: how often the first guess at a word's meaning was right."
+  },
+  "progress_measure_guess_value_one": {
+    "message": "$PERCENT$ of first guesses were right ($COUNT$ word).",
+    "description": "Result of the first-guess accuracy measurement, singular. $1 is the number of words guessed, $2 a percentage.",
+    "placeholders": {
+      "PERCENT": {
+        "content": "$2",
+        "example": "60%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_guess_value_other": {
+    "message": "$PERCENT$ of first guesses were right ($COUNT$ words).",
+    "description": "Result of the first-guess accuracy measurement, plural. $1 is the number of words guessed, $2 a percentage.",
+    "placeholders": {
+      "PERCENT": {
+        "content": "$2",
+        "example": "60%"
+      },
+      "COUNT": {
+        "content": "$1",
+        "example": "14"
+      }
+    }
+  },
+  "progress_measure_guess_few_one": {
+    "message": "Not enough data yet: $COUNT$ word guessed; 10 are needed.",
+    "description": "First-guess accuracy with too little data, singular. $1 is the number of words guessed so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "progress_measure_guess_few_other": {
+    "message": "Not enough data yet: $COUNT$ words guessed; 10 are needed.",
+    "description": "First-guess accuracy with too little data, plural. $1 is the number of words guessed so far.",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "progress_measure_guess_why": {
+    "message": "Guessing before seeing the meaning turns a sighting into a retrieval. Very low accuracy means the options give too little to go on.",
+    "description": "Explanation under the first-guess accuracy measurement."
+  },
+  "progress_measure_guess_recall_title": {
+    "message": "Next-day recall after guessing",
+    "description": "Title of a measurement comparing next-day recall of words that were guessed first with words that were not."
+  },
+  "progress_measure_guess_recall_value": {
+    "message": "$GUESSED$ for guessed words ($GUESSEDCOUNT$ reviews), $OTHER$ for other words ($OTHERCOUNT$ reviews).",
+    "description": "Result of the guess recall comparison. $1 and $3 are percentages, $2 and $4 numbers of reviews.",
+    "placeholders": {
+      "GUESSED": {
+        "content": "$1",
+        "example": "75%"
+      },
+      "GUESSEDCOUNT": {
+        "content": "$2",
+        "example": "12"
+      },
+      "OTHER": {
+        "content": "$3",
+        "example": "60%"
+      },
+      "OTHERCOUNT": {
+        "content": "$4",
+        "example": "20"
+      }
+    }
+  },
+  "progress_measure_guess_recall_few": {
+    "message": "Not enough data yet: $GUESSEDCOUNT$ next-day reviews of guessed words and $OTHERCOUNT$ of other words; 10 of each are needed.",
+    "description": "Guess recall comparison with too little data. $1 and $2 are numbers of reviews so far.",
+    "placeholders": {
+      "GUESSEDCOUNT": {
+        "content": "$1",
+        "example": "3"
+      },
+      "OTHERCOUNT": {
+        "content": "$2",
+        "example": "8"
+      }
+    }
+  },
+  "progress_measure_guess_recall_why": {
+    "message": "If guessed words are recalled no better than other words, the guess step is not helping. Hovered words can differ from the rest, so this is a hint, not proof.",
+    "description": "Explanation under the guess recall comparison."
   }
 }

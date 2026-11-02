@@ -11,9 +11,12 @@ import { PERSONAL_KEY, cleanPersonal, personalWords, targetAliases } from './per
 
 export const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
 // Review scheduling only: never part of the reading revision or of what pages receive.
-const readingSettings = ({ desiredRetention, ...settings }) => settings;
+const pageSettings = ({ desiredRetention, ...settings }) => settings;
+// Guess first changes only how a hover answers, not which words are swapped: pages receive it, but
+// it stays out of the reading revision, so turning it on or off costs no cache or model call.
+const readingSettings = ({ guessFirst, ...settings }) => pageSettings(settings);
 export const publicContext = ({ words, allWords, legacyWords, legacyAllWords, personal, captureEpoch,
-  activePersonal, personalAuto, settings, ...safe }) => ({ ...safe, settings: readingSettings(settings) });
+  activePersonal, personalAuto, settings, ...safe }) => ({ ...safe, settings: pageSettings(settings) });
 export const personalScope = (language) => scopedStorage(chromeStorage, `personal:${language}`);
 export const laterDay = (a, b) => a > b ? a : b; // ISO local dates or empty string
 

@@ -44,6 +44,8 @@ async function refresh() {
   $('density').value = s.density;
   $('inlineRecall').checked = s.inlineRecall;
   $('inlineRecall').disabled = !s.gradual;
+  $('guessFirst').checked = s.guessFirst === true;
+  $('guessFirst').disabled = !s.gradual;
   $('language').replaceChildren();
   for (const item of status.languages) {
     const option = document.createElement('option');
@@ -106,6 +108,7 @@ $('gradual').addEventListener('change', (e) => run(() => save({ settings: { grad
 $('newWordsPerDay').addEventListener('change', (e) => run(() => save({ settings: { newWordsPerDay: Number(e.target.value) } })));
 $('density').addEventListener('change', (e) => run(() => save({ settings: { density: e.target.value } })));
 $('inlineRecall').addEventListener('change', (e) => run(() => save({ settings: { inlineRecall: e.target.checked } })));
+$('guessFirst').addEventListener('change', (e) => run(() => save({ settings: { guessFirst: e.target.checked } })));
 $('language').addEventListener('change', (e) => run(() => save({ settings: { language: e.target.value } })));
 $('addLanguage').addEventListener('click', () => run(async () => {
   const button = $('addLanguage');

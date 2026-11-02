@@ -30,6 +30,9 @@ export function cleanSettings(s = {}) {
   // build that predates the setting can still read these settings; absent means 0.9.
   if (typeof s.desiredRetention === 'number' && s.desiredRetention >= MIN_RETENTION &&
       s.desiredRetention <= MAX_RETENTION) d.desiredRetention = s.desiredRetention;
+  // Guess first (guess.js): stored only while on, so a profile that never opts in is unchanged
+  // and a build that predates the setting still reads its settings. Absent means off.
+  if (s.guessFirst === true) d.guessFirst = true;
   for (const [host, enabled] of Object.entries(s.siteOverrides || {})) {
     if (/^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(host) && typeof enabled === 'boolean') d.siteOverrides[host] = enabled;
   }

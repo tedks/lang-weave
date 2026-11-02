@@ -4,7 +4,8 @@
 // one names the scope the page listed, so a language or pack change in between is refused.
 import { REVIEW_KEY, reviewCounts, retiredReturnCount, introduce, claimKnown, dueAt } from './review.js';
 import { DEFAULT_RETENTION, withFsrs } from './fsrs.js';
-import { RETRIEVALS_KEY, EXPOSURES_KEY, cleanRetrievals, cleanExposures, retrievalEntries } from './learning-log.js';
+import { RETRIEVALS_KEY, EXPOSURES_KEY, cleanRetrievals, cleanExposures, retrievalEntries,
+  reviewEntries } from './learning-log.js';
 import { PENDING_KEY, SENT_KEY, localDay } from './events.js';
 import { chromeStorage } from './cache.js';
 import { scopedStorage } from './scope.js';
@@ -28,8 +29,10 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       personalScope(ctx.language).get(LOG_KEYS)]);
     // Scopes never share a word ID (personal IDs carry a colon, which catalog log IDs refuse),
     // so merging keeps each word's own retrieval order.
-    const entries = [...retrievalEntries(cleanRetrievals(a[RETRIEVALS_KEY])),
+    const logged = [...retrievalEntries(cleanRetrievals(a[RETRIEVALS_KEY])),
       ...retrievalEntries(cleanRetrievals(b[RETRIEVALS_KEY]))];
+    // Reviews (ratings and claims) drive every stage and count; guesses only their own measurement.
+    const entries = reviewEntries(logged);
     const exposures = { words: Object.assign(Object.create(null), cleanExposures(a[EXPOSURES_KEY]).words,
       cleanExposures(b[EXPOSURES_KEY]).words) };
     const cards = Object.assign(Object.create(null), legacy.state.cards, own.state.cards);
@@ -38,7 +41,7 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
     // A linked personal entry shares its bundled card, so it is not counted twice.
     const ids = [...ctx.legacyAllWords.map((word) => word.fr),
       ...personalEntries.filter((entry) => !entry.linkedLegacy && !entry.archived).map((entry) => entry.id)];
-    return { legacy, own, a, b, entries, exposures, cards, ids, personalEntries,
+    return { legacy, own, a, b, entries, logged, exposures, cards, ids, personalEntries,
       verified: verifiedWords(entries, cards) };
   }
 
@@ -61,8 +64,9 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
       stages: stageCounts(ids, cards, verified),
       verifiedKnown: ids.filter((id) => verified.has(id)).length,
       activity: strip, practisedThisWeek: practisedThisWeek(strip),
-      measurements: measurements(entries, { now, retention: ctx.settings.desiredRetention ?? DEFAULT_RETENTION,
-        exposures: snap.exposures, learningWords, label: (id) => labels.get(id) ?? id }),
+      measurements: measurements(snap.logged, { now, retention: ctx.settings.desiredRetention ?? DEFAULT_RETENTION,
+        exposures: snap.exposures, learningWords, label: (id) => labels.get(id) ?? id,
+        guessFirst: ctx.settings.guessFirst === true }),
     };
   }
 

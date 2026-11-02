@@ -84,7 +84,7 @@ const { context, broadcast } = createContext({ store, ready, worker });
 const { reviewState } = createReviewState({ context });
 const { introduction, recoverBudget, adaptiveReviewState, commitAdaptive } =
   createGradualBudgets({ store, locked, context, broadcast, reviewState });
-const { swaps, record } = createReading({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
+const { swaps, record, guess } = createReading({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
   context, adaptiveReviewState, commitAdaptive });
 const { reviewStatus, reviewIntroduce, reviewNext, reviewReveal, reviewRate, reviewKnown, learningStats } =
   createReviewHandlers({ store, locked, context, reviewState });
@@ -141,6 +141,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     inlineBegin: () => inlineAction(msg, sender),
     inlineReveal: () => inlineAction(msg, sender),
     inlineRate: () => inlineAction(msg, sender),
+    guessBegin: () => guess(msg, sender),
+    guessAnswer: () => guess(msg, sender),
     introAck: () => introduction(msg, sender),
     introRelease: () => introduction(msg, sender),
     introRenew: () => introduction(msg, sender),

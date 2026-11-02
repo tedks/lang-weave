@@ -1,8 +1,12 @@
 # Changelog
 
-User-facing changes from 0.11.0 to 0.12.20, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
+User-facing changes from 0.11.0 to 0.12.21, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
 
 Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Amerged>
+
+## 0.12.21 (2026-11-02)
+
+- #42 Adds an opt-in Guess first setting for gradual learning. Hovering or focusing a learning word on its first encounters offers its meaning among a few options before showing it: three guesses per word, at most one a day. A wrong guess counts like a peek, and My words shows first-guess accuracy and next-day recall of guessed words. Backups leave guesses out until a later release, because older versions refuse them. See [the mission record](INFERENCE-MISSION.md).
 
 ## 0.12.20 (2026-11-01)
 

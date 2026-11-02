@@ -71,5 +71,20 @@ export function measurementItems(m, verifiedKnown) {
       : load.medianSecondsPerReview === null ? t('progress_measure_workload_value', load.reviewsPerDay.toFixed(1))
         : t('progress_measure_workload_value_seconds', load.reviewsPerDay.toFixed(1), Math.round(load.medianSecondsPerReview)),
     why: t('progress_measure_workload_why') });
+  // Guess first: shown while the setting is on or once any guess is logged.
+  const guess = m.guess;
+  if (guess?.shown) {
+    const acc = guess.accuracy;
+    items.push({ title: t('progress_measure_guess_title'),
+      value: acc.enough ? tn('progress_measure_guess_value', acc.n, percent(acc.rate))
+        : tn('progress_measure_guess_few', acc.n),
+      why: t('progress_measure_guess_why') });
+    const { guessed, unguessed } = guess.recall;
+    items.push({ title: t('progress_measure_guess_recall_title'),
+      value: guess.recall.enough
+        ? t('progress_measure_guess_recall_value', percent(guessed.rate), guessed.n, percent(unguessed.rate), unguessed.n)
+        : t('progress_measure_guess_recall_few', guessed.n, unguessed.n),
+      why: t('progress_measure_guess_recall_why') });
+  }
   return items;
 }
