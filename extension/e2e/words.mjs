@@ -82,8 +82,9 @@ try {
   assert.match(today, /5 introduced/);
   assert.match(today, /1 reviewed/);
   assert.equal(await words.locator('#strip > *').count(), 30);
-  assert.equal(await words.locator('#measures > li').count(), 7);
+  assert.equal(await words.locator('#measures > li').count(), 8);
   assert.match(await words.locator('#measures').textContent(), /Not enough data yet/);
+  assert.match(await words.locator('#measures').textContent(), /Measurements skipped.*0 measurements skipped\./s);
 
   // 4. Search: seeded form, English gloss, accent-insensitive, arrow-key focus.
   const list = (await send(words, { type: 'wordsList' }));
