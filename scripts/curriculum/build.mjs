@@ -8,8 +8,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { L2_WORDS } from '../../extension/src/vocabulary.js';
 import { anchorCollisionKey, englishAnchors } from '../../extension/src/catalog.js';
-import { assertPackAnchors, exactFr, glossMatches, normalizeFr, MAX_PACK_ROWS } from '../../extension/src/levels.js';
-import { supportsAnchor } from './english-inflections.mjs';
+import { assertPackAnchors, exactFr, glossMatches, legacyInflects, normalizeFr, MAX_PACK_ROWS } from '../../extension/src/levels.js';
+import { isPluralSurface, supportsAnchor } from './english-inflections.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -101,17 +101,18 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
   for (const row of selected) {
     const submittedHash = sha(JSON.stringify(row));
     const reject = (gate, message) => { throw Error(`gate ${gate} row ${submittedHash} (${row.id || '?'}): ${message}`); };
+    const fieldGate = { hint: 'hint', sense: 'sense', article_rule: 'article' };
     // Twelve hard gates: exact duplicates, accent homographs, number, English collisions,
     // shared anchors, articles, hints, bands, sense, examples, function words, reserved chars.
     for (const field of ['fr', 'en', 'hint', 'sense', 'lemma', 'family_id', 'pos', 'form_tag', 'article_rule', 'id']) {
       if (typeof row[field] !== 'string' || !row[field] || badChars.test(row[field]) || row[field] !== row[field].normalize('NFC'))
-        reject(field === 'sense' ? 'sense' : field === 'hint' ? 'hint' : field === 'article_rule' ? 'article' : 'reserved',
+        reject(fieldGate[field] || 'reserved',
           `invalid or reserved characters in ${field}`);
     }
     if (ids.has(row.id)) reject('duplicate', `duplicate overlay id ${row.id}`);
     ids.add(row.id);
     if (row.status && !['candidate', 'machine-checked', 'native-reviewed'].includes(row.status))
-      throw Error(`${row.id}: unknown review status`);
+      reject('reserved', 'unknown review status');
     if (!Array.isArray(row.anchors) || !row.anchors.length || row.anchors.some((a) => typeof a !== 'string' ||
       !a || badChars.test(a) || a !== simple(a).replace(/\s+/g, ' '))) reject('anchor', 'invalid or noncanonical anchors');
     const form = exactFr(row.fr), fold = normalizeFr(row.fr);
@@ -126,7 +127,7 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
       if (!['m', 'f'].includes(row.gender) || !['singular', 'plural'].includes(row.number) ||
           row.article_rule !== 'def' || !row.fr.startsWith(`${article} `) || row.form_tag !== 'lemma')
         reject('article', 'noun article/gender/number rule failed');
-      if (row.number === 'plural' && row.anchors.some((a) => !/(?:s|men|people|children)$/i.test(a)))
+      if (row.number === 'plural' && row.anchors.some((a) => !isPluralSurface(a)))
         reject('number', 'plural row lacks explicit plural English anchor');
     } else if (row.article_rule !== 'none' || row.number !== 'none' || row.gender !== 'none' || /^(?:el|la|los|las) /.test(row.fr)) {
       reject('article', 'non-noun article rule failed');
@@ -136,12 +137,12 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
     if (frequency.targetEn >= 3.5 && !row.english_collision_approved)
       reject('english-collision', 'Spanish form collides with a common English word');
     const anchors = englishAnchors(row);
-    if (anchors.some((anchor) => forbidden.has(anchor))) reject('function-word', 'forbidden or existing English anchor');
-    if (anchors.some((anchor) => oldAnchors.has(anchorCollisionKey(anchor)))) reject('anchor', 'forbidden or existing English anchor');
+    if (anchors.some((anchor) => forbidden.has(anchor))) reject('function-word', 'forbidden English anchor');
+    if (anchors.some((anchor) => oldAnchors.has(anchorCollisionKey(anchor)))) reject('anchor', 'existing English anchor');
     if (anchors.some((anchor) => newAnchors.has(anchorCollisionKey(anchor)))) reject('anchor', 'shared English anchor');
     for (const anchor of anchors) for (const old of L2_WORDS) {
-      if (glossMatches(anchor, old.en, { inflections: !/^(?:el|la|los|las|un|una|unos|unas)\s+/i.test(old.fr) }))
-        reject('legacy-overlap', `anchor ${JSON.stringify(anchor)} is claimed by legacy row ${old.fr}`);
+      if (glossMatches(anchor, old.en, { inflections: legacyInflects(old) }))
+        reject('anchor', `legacy overlap: anchor ${JSON.stringify(anchor)} is claimed by row ${old.fr}`);
     }
     for (const anchor of anchors) newAnchors.add(anchorCollisionKey(anchor));
     const glossBases = englishBases(row.en);

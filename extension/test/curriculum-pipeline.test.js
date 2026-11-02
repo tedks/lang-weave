@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from '../../scripts/curriculum/build.mjs';
 import { L2_WORDS } from '../src/vocabulary.js';
-import { supportsAnchor } from '../../scripts/curriculum/english-inflections.mjs';
+import { isPluralSurface, supportsAnchor } from '../../scripts/curriculum/english-inflections.mjs';
 
 const root = resolve(import.meta.dir, '../..');
 const original = JSON.parse(readFileSync(join(root, 'scripts/curriculum/overlay.json')));
@@ -72,8 +72,9 @@ test('the twelve deterministic gate classes fail closed on bad candidates', asyn
     ['band', (_, table) => table.replace(/^el sombrero,.*\n/m, ''), /missing frequency band/],
     ['sense', (rows) => { rows[0].sense = ''; }, /invalid or reserved characters in sense/],
     ['example', (rows) => { rows[0].example_id = '1604986'; }, /example sentence alignment/],
-    ['function-word', (rows) => { rows[0].anchors = ['and']; }, /forbidden or existing English anchor/],
+    ['function-word', (rows) => { rows[0].anchors = ['and']; }, /forbidden English anchor/],
     ['reserved', (rows) => { rows[0].en = 'the | hat'; }, /reserved characters/],
+    ['reserved', (rows) => { rows[0].status = 'unknown'; }, /unknown review status/],
     ['number', (rows) => { rows[0].number = 'plural'; rows[0].fr = 'los sombreros'; rows[0].anchors = ['hat']; }, /plural English anchor/],
     ['article', (rows) => { rows[0].pos = 'verb'; }, /non-noun article rule/],
     ['duplicate', (rows) => { rows[1].id = rows[0].id; }, /duplicate overlay id/, 1],
@@ -124,6 +125,32 @@ test('source-shaped sense, article, example, and English-collision fixtures fail
   });
 });
 
+test('duplicate frequency rows fail closed before candidate admission', async () => {
+  await scratch(async (path) => {
+    const table = join(path, 'bands.csv');
+    writeFileSync(table, bands + bands.split('\n').find((line) => line.startsWith('el sombrero,')) + '\n');
+    await expect(build({ out: join(path, 'out'), bands: table })).rejects.toThrow(/duplicate wordfreq form: el sombrero/);
+  });
+});
+
+test('a source-shaped irregular plural candidate passes the number gate and builds', async () => {
+  await scratch(async (path) => {
+    const rows = structuredClone(original);
+    Object.assign(rows[0], { fr: 'los pies', en: 'the foot', anchors: ['feet', 'the feet'],
+      lemma: 'pie', family_id: 'pie:noun:foot', number: 'plural' });
+    const overlay = join(path, 'overlay.json'), table = join(path, 'bands.csv');
+    const wiki = join(path, 'wiki.jsonl'), examples = join(path, 'examples.tsv');
+    writeFileSync(overlay, JSON.stringify(rows));
+    writeFileSync(table, bands + 'los pies,5.00,5.00,0.00,2\n');
+    writeFileSync(wiki, `${JSON.stringify({ word: 'pie', lang_code: 'es', pos: 'noun',
+      senses: [{ glosses: ['foot'], tags: ['masculine'] }] })}\n${readFileSync(join(root, 'scripts/curriculum/fixtures/wiktextract.jsonl'), 'utf8')}`);
+    writeFileSync(examples, readFileSync(join(root, 'scripts/curriculum/fixtures/examples.tsv'), 'utf8')
+      .replace('Ella usaba un sombrero negro.\tShe was wearing a black hat.', 'Sus pies tocaron el suelo frío.\tHer feet touched the cold ground.'));
+    expect((await build({ out: join(path, 'out'), overlay, bands: table, wiki, examples })).rows
+      .find((row) => row.fr === 'los pies')?.anchors).toEqual(['feet', 'the feet']);
+  });
+});
+
 test('English anchor morphology accepts only regular or explicitly listed irregular surfaces', () => {
   const verb = { pos: 'verb', number: 'none' };
   const noun = { pos: 'noun', number: 'plural' };
@@ -136,16 +163,35 @@ test('English anchor morphology accepts only regular or explicitly listed irregu
     ['city', ['cities'], ['citys', 'cityes'], noun],
     ['box', ['boxes'], ['boxs'], noun],
     ['man', ['men'], ['mans'], noun],
+    ['foot', ['feet'], ['foots'], noun],
+    ['tomato', ['tomatoes'], ['tomatos'], noun],
+    ['knife', ['knives'], ['knifes'], noun],
+    ['panic', ['panics', 'panicking', 'panicked'], ['panicing', 'paniced'], verb],
+    ['die', ['dies', 'dying', 'died'], ['diing'], verb],
+    ['dye', ['dyes', 'dyeing', 'dyed'], ['dying'], verb],
+    ['quiz', ['quizzes', 'quizzing', 'quizzed'], ['quizes', 'quizing', 'quized'], verb],
+    ['put', ['puts', 'putting'], ['putted'], verb],
+    ['know', ['knows', 'knowing', 'known'], ['knowed'], verb],
+    ['buy', ['buys', 'buying', 'bought'], ['buyed'], verb],
+    ['think', ['thinks', 'thinking', 'thought'], ['thinked'], verb],
+    ['swim', ['swims', 'swimming', 'swum'], ['swimmed'], verb],
   ]) {
     expect(supportsAnchor(base, base, row)).toBe(true);
     for (const form of accepted) expect(supportsAnchor(base, form, row), `${base} -> ${form}`).toBe(true);
     for (const form of rejected) expect(supportsAnchor(base, form, row), `${base} -/-> ${form}`).toBe(false);
   }
+  expect(isPluralSurface('feet')).toBe(true);
+  expect(isPluralSurface('hat')).toBe(false);
+  expect(supportsAnchor('constructor', 'constructors', noun)).toBe(false);
+  expect(supportsAnchor('ox', 'oxes', noun)).toBe(false);
+  expect(supportsAnchor('stride', 'strided', verb)).toBe(false);
 });
 
 test('the build refuses malformed verb surfaces before source review', async () => {
   for (const [base, malformed] of [['carry', 'carrys'], ['carry', 'carryed'], ['box', 'boxs'],
-    ['run', 'runned'], ['make', 'makeing'], ['stop', 'stoped']]) await scratch(async (path) => {
+    ['run', 'runned'], ['make', 'makeing'], ['stop', 'stoped'], ['panic', 'panicing'],
+    ['die', 'diing'], ['quiz', 'quizes'], ['put', 'putted'], ['know', 'knowed'],
+    ['buy', 'buyed'], ['think', 'thinked'], ['swim', 'swimmed']]) await scratch(async (path) => {
     const rows = structuredClone(original);
     Object.assign(rows[0], { fr: 'sombrero', en: base, anchors: [malformed], pos: 'verb',
       article_rule: 'none', number: 'none', gender: 'none' });
@@ -167,7 +213,8 @@ test('candidate anchor colliding with a bundled legacy inflection is refused', a
     const overlay = join(path, 'overlay.json');
     writeFileSync(overlay, JSON.stringify(rows));
     const rejected = await build({ out: join(path, 'out'), overlay }).then(() => null, (error) => error);
-    expect(rejected?.message).toMatch(/gate legacy-overlap row [a-f0-9]{64}.*likes.*como/);
+    const rowHash = createHash('sha256').update(JSON.stringify(rows[0])).digest('hex');
+    expect(rejected?.message).toMatch(new RegExp(`gate anchor row ${rowHash}.*legacy overlap.*likes.*como`));
   });
 });
 

@@ -1,27 +1,357 @@
 {
   "noun": {
-    "child": ["children"],
-    "foot": ["feet"],
-    "goose": ["geese"],
-    "man": ["men"],
-    "mouse": ["mice"],
-    "person": ["people"],
-    "tooth": ["teeth"],
-    "woman": ["women"]
+    "calf": [
+      "calves"
+    ],
+    "child": [
+      "children"
+    ],
+    "echo": [
+      "echoes"
+    ],
+    "foot": [
+      "feet"
+    ],
+    "goose": [
+      "geese"
+    ],
+    "half": [
+      "halves"
+    ],
+    "hero": [
+      "heroes"
+    ],
+    "knife": [
+      "knives"
+    ],
+    "leaf": [
+      "leaves"
+    ],
+    "life": [
+      "lives"
+    ],
+    "loaf": [
+      "loaves"
+    ],
+    "man": [
+      "men"
+    ],
+    "mouse": [
+      "mice"
+    ],
+    "person": [
+      "people"
+    ],
+    "potato": [
+      "potatoes"
+    ],
+    "quiz": [
+      "quizzes"
+    ],
+    "shelf": [
+      "shelves"
+    ],
+    "thief": [
+      "thieves"
+    ],
+    "tomato": [
+      "tomatoes"
+    ],
+    "tooth": [
+      "teeth"
+    ],
+    "wife": [
+      "wives"
+    ],
+    "wolf": [
+      "wolves"
+    ],
+    "woman": [
+      "women"
+    ]
   },
   "verb": {
-    "be": ["is", "being", "been"],
-    "do": ["does", "doing", "done"],
-    "eat": ["eats", "eating", "eaten"],
-    "get": ["gets", "getting", "gotten"],
-    "go": ["goes", "going", "gone"],
-    "have": ["has", "having", "had"],
-    "make": ["makes", "making", "made"],
-    "run": ["runs", "running"],
-    "say": ["says", "saying", "said"],
-    "see": ["sees", "seeing", "seen"],
-    "speak": ["speaks", "speaking", "spoken"],
-    "take": ["takes", "taking", "taken"],
-    "write": ["writes", "writing", "written"]
+    "be": [
+      "is",
+      "being",
+      "been"
+    ],
+    "begin": [
+      "begins",
+      "beginning",
+      "begun"
+    ],
+    "break": [
+      "breaks",
+      "breaking",
+      "broken"
+    ],
+    "bring": [
+      "brings",
+      "bringing",
+      "brought"
+    ],
+    "build": [
+      "builds",
+      "building",
+      "built"
+    ],
+    "buy": [
+      "buys",
+      "buying",
+      "bought"
+    ],
+    "catch": [
+      "catches",
+      "catching",
+      "caught"
+    ],
+    "choose": [
+      "chooses",
+      "choosing",
+      "chosen"
+    ],
+    "come": [
+      "comes",
+      "coming"
+    ],
+    "cut": [
+      "cuts",
+      "cutting"
+    ],
+    "do": [
+      "does",
+      "doing",
+      "done"
+    ],
+    "drink": [
+      "drinks",
+      "drinking",
+      "drunk"
+    ],
+    "drive": [
+      "drives",
+      "driving",
+      "driven"
+    ],
+    "eat": [
+      "eats",
+      "eating",
+      "eaten"
+    ],
+    "fall": [
+      "falls",
+      "falling",
+      "fallen"
+    ],
+    "feel": [
+      "feels",
+      "feeling",
+      "felt"
+    ],
+    "find": [
+      "finds",
+      "finding",
+      "found"
+    ],
+    "fly": [
+      "flies",
+      "flying",
+      "flown"
+    ],
+    "forget": [
+      "forgets",
+      "forgetting",
+      "forgotten"
+    ],
+    "get": [
+      "gets",
+      "getting",
+      "gotten"
+    ],
+    "give": [
+      "gives",
+      "giving",
+      "given"
+    ],
+    "go": [
+      "goes",
+      "going",
+      "gone"
+    ],
+    "grow": [
+      "grows",
+      "growing",
+      "grown"
+    ],
+    "have": [
+      "has",
+      "having",
+      "had"
+    ],
+    "hit": [
+      "hits",
+      "hitting"
+    ],
+    "hold": [
+      "holds",
+      "holding",
+      "held"
+    ],
+    "keep": [
+      "keeps",
+      "keeping",
+      "kept"
+    ],
+    "know": [
+      "knows",
+      "knowing",
+      "known"
+    ],
+    "leave": [
+      "leaves",
+      "leaving",
+      "left"
+    ],
+    "let": [
+      "lets",
+      "letting"
+    ],
+    "make": [
+      "makes",
+      "making",
+      "made"
+    ],
+    "meet": [
+      "meets",
+      "meeting",
+      "met"
+    ],
+    "pay": [
+      "pays",
+      "paying",
+      "paid"
+    ],
+    "put": [
+      "puts",
+      "putting"
+    ],
+    "read": [
+      "reads",
+      "reading"
+    ],
+    "run": [
+      "runs",
+      "running"
+    ],
+    "say": [
+      "says",
+      "saying",
+      "said"
+    ],
+    "see": [
+      "sees",
+      "seeing",
+      "seen"
+    ],
+    "sell": [
+      "sells",
+      "selling",
+      "sold"
+    ],
+    "send": [
+      "sends",
+      "sending",
+      "sent"
+    ],
+    "set": [
+      "sets",
+      "setting"
+    ],
+    "shake": [
+      "shakes",
+      "shaking",
+      "shaken"
+    ],
+    "show": [
+      "shows",
+      "showing",
+      "shown"
+    ],
+    "sing": [
+      "sings",
+      "singing",
+      "sung"
+    ],
+    "sit": [
+      "sits",
+      "sitting",
+      "sat"
+    ],
+    "sleep": [
+      "sleeps",
+      "sleeping",
+      "slept"
+    ],
+    "speak": [
+      "speaks",
+      "speaking",
+      "spoken"
+    ],
+    "stand": [
+      "stands",
+      "standing",
+      "stood"
+    ],
+    "stomach": [
+      "stomachs",
+      "stomaching",
+      "stomached"
+    ],
+    "swim": [
+      "swims",
+      "swimming",
+      "swum"
+    ],
+    "take": [
+      "takes",
+      "taking",
+      "taken"
+    ],
+    "teach": [
+      "teaches",
+      "teaching",
+      "taught"
+    ],
+    "tell": [
+      "tells",
+      "telling",
+      "told"
+    ],
+    "think": [
+      "thinks",
+      "thinking",
+      "thought"
+    ],
+    "understand": [
+      "understands",
+      "understanding",
+      "understood"
+    ],
+    "wear": [
+      "wears",
+      "wearing",
+      "worn"
+    ],
+    "win": [
+      "wins",
+      "winning",
+      "won"
+    ],
+    "write": [
+      "writes",
+      "writing",
+      "written"
+    ]
   }
 }

@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import {
-  resolveLevel, L1_WORDS, L2_WORDS, MAX_PACK_ROWS, assertPackAnchors, validateSwaps, glossMatches, legacyGlossForms, wordCount, isZeroFrench, normalizeFr, matchCase,
+  resolveLevel, L1_WORDS, L2_WORDS, MAX_PACK_ROWS, assertPackAnchors, validateSwaps, glossMatches, legacyGlossForms, legacyInflects, wordCount, isZeroFrench, normalizeFr, matchCase,
 } from '../src/levels.js';
 
 describe('level', () => {
@@ -97,7 +97,8 @@ test('the shared legacy derivation reproduces the old matcher on every bundled r
   };
   expect(L2_WORDS).toHaveLength(226);
   for (const word of L2_WORDS) {
-    const inflections = !/^(?:el|la|los|las|un|una|unos|unas)\s+/i.test(word.fr);
+    const inflections = legacyInflects(word);
+    expect(inflections).toBe(!/^(?:el|la|los|las|un|una|unos|unas)\s+/i.test(word.fr));
     const bases = oldForms(word.en);
     const derived = legacyGlossForms(word.en, { inflections });
     const probes = new Set([...bases, ...derived]);
