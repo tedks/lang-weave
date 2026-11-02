@@ -1,8 +1,12 @@
 # Changelog
 
-User-facing changes from 0.11.0 to 0.12.22, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
+User-facing changes from 0.11.0 to 0.12.23, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
 
 Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Amerged>
+
+## 0.12.23 (2026-11-02)
+
+- #46 Candidate Spanish vocabulary builds now refuse malformed English forms and anchors that overlap the bundled matcher, with a row hash and named gate on refusal. Adds negative admission fixtures; the shipped 226 words are unchanged.
 
 ## 0.12.22 (2026-11-02)
 

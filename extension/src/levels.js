@@ -48,6 +48,7 @@ export function normalizeFr(s) {
 
 const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
 const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
+export const legacyInflects = (word) => !ARTICLE_RE.test(word.word ?? word.fr);
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
 export const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').toLocaleLowerCase(language).replace(/\s+/g, ' ').trim();
 // An omitted accent here spells a different Spanish word, not a harmless typo.
@@ -116,7 +117,7 @@ const SYNONYMS = {
   hello: ['hi'],
 };
 
-export function glossMatches(original, en, { inflections = true } = {}) {
+export function legacyGlossForms(en, { inflections = true } = {}) {
   const forms = new Set();
   for (const alt of String(en).split(/\s*[/;,]\s*/)) {
     const g = cleanEn(alt);
@@ -126,14 +127,25 @@ export function glossMatches(original, en, { inflections = true } = {}) {
       for (const syn of SYNONYMS[f] || []) forms.add(syn);
     }
   }
+  if (!inflections) return forms;
+  const matched = new Set(forms);
+  for (const base of forms) {
+    for (const suffix of ['es', 's', 'ed', 'ing']) matched.add(`${base}${suffix}`);
+    if (base.endsWith('y')) matched.add(`${base.slice(0, -1)}ies`);
+    if (base.endsWith('e')) {
+      matched.add(`${base.slice(0, -1)}ed`);
+      matched.add(`${base.slice(0, -1)}ing`);
+    }
+  }
+  return matched;
+}
+
+export function glossMatches(original, en, { inflections = true } = {}) {
+  const forms = legacyGlossForms(en, { inflections });
   const t = cleanEn(original);
   if (!t) return false;
   for (const c of new Set([t, t.replace(EN_LEAD_RE, '')])) {
     if (forms.has(c)) return true;
-    if (!inflections) continue;
-    for (const [suffix, stem] of [['ies', 'y'], ['es', ''], ['s', ''], ['ed', ''], ['ed', 'e'], ['ing', ''], ['ing', 'e']]) {
-      if (c.endsWith(suffix) && forms.has(c.slice(0, -suffix.length) + stem)) return true;
-    }
   }
   return false;
 }
@@ -155,7 +167,7 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
     if (!hit || !(hit.anchors ? hit.anchors.some((anchor) => cleanEn(anchor) === cleanEn(o)) :
-      glossMatches(o, hit.en, { inflections: language === 'es' && !ARTICLE_RE.test(hit.word) }))) continue;
+      glossMatches(o, hit.en, { inflections: language === 'es' && legacyInflects(hit) }))) continue;
     // A definite Spanish noun cannot replace the whole indefinite English phrase.
     // The bare-noun fallback below would otherwise drop "a/an" from the sentence.
     if (language === 'es' && DEFINITE_RE.test(hit.word) && /^(?:a|an)\s/i.test(o)) continue;
