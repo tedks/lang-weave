@@ -201,11 +201,26 @@ try {
   await page.mouse.move(5, 5);
   await pero.focus();
   await panel.waitFor();
+  await page.evaluate(() => {
+    window.pageGuessKeys = [];
+    document.addEventListener('keydown', (event) => {
+      if (['ArrowRight', '2', 'Escape'].includes(event.key)) window.pageGuessKeys.push(event.key);
+    }, true);
+  });
   assert.equal(await pero.evaluate((el) => document.activeElement === el), true);
   await page.keyboard.press('Tab');
   tree = await ax();
   const peroLabels = await Promise.all((await buttons()).map((n) => value(n, 'function() { return this.lastChild.textContent; }')));
   assert.ok(tree.some((n) => n.role?.value === 'button' && axFocused(n) && peroLabels.includes(n.name?.value)));
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await pero.evaluate((el) => document.activeElement === el), true);
+  await page.keyboard.press('Tab');
+  await value(named(await internal(), 'fw-guess-actions'),
+    'function() { this.querySelector("button").focus(); return true; }');
+  await page.keyboard.press('Tab');
+  assert.equal(await pero.evaluate((el) => document.activeElement === el), true);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('2');
   const selected = peroLabels[1];
   assert.ok((await ax()).some((n) => n.role?.value === 'button' && axFocused(n) && n.name?.value === selected));
@@ -219,6 +234,7 @@ try {
     ['pero', 'guess', 'receptive', selected === 'but' ? 'correct' : 'incorrect']);
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'detached' });
+  assert.deepEqual(await page.evaluate(() => window.pageGuessKeys), []);
 
   // Click-to-flip is unchanged and records no guess.
   await o.click();
@@ -235,6 +251,20 @@ try {
     /Not enough data yet: 2 words guessed; 10 are needed\./);
   assert.match(await words.locator('#measures li', { hasText: 'Next-day recall after guessing' }).textContent(),
     /Not enough data yet/);
+
+  // Granted HTTP pages are insecure contexts, where crypto.randomUUID is unavailable.
+  await browser.route('http://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
+  const httpPage = await browser.newPage();
+  await httpPage.goto('http://reading.example/guess');
+  const httpWord = httpPage.locator('#three .fw-word');
+  await httpWord.waitFor();
+  await httpWord.hover();
+  const httpPanel = httpPage.locator('.fw-guess-host');
+  await httpPanel.waitFor();
+  assert.equal(await httpWord.getAttribute('aria-controls'), await httpPanel.getAttribute('id'));
+  await httpPage.keyboard.press('Escape');
+  await httpPanel.waitFor({ state: 'detached' });
+  await httpPage.close();
 
   // Settings off: no new model call or repaint, and a hover is the plain gloss again.
   const callsBefore = (await worker.evaluate(() => globalThis.calls)).length;

@@ -54,6 +54,7 @@ let cueWord = null;
 let cueFrame = null;
 // Guess first (opt-in, gradual): docs/INFERENCE-MISSION.md. At most one panel per page.
 let guess = null; // { panel, span, ticket, buttons, status, answered, gen, revision }
+let guessHostCount = 0;
 let guessQuiet = null; // a word just dismissed: no tip or panel until the pointer or focus leaves it
 const plainToday = new Set(); // revision:day:word that the worker answered with the plain gloss
 const GUESS_EDITABLE = 'form, input, textarea, select, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]';
@@ -391,7 +392,7 @@ function openGuess(span, ticket, choices) {
     return button;
   });
   const status = document.createElement('div');
-  status.className = 'fw-guess-status';
+  status.className = 'fw-guess-status fw-guess-status-opening';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
   state.status = status;
@@ -409,13 +410,13 @@ function openGuess(span, ticket, choices) {
   shell.root.append(panel);
   shell.root.addEventListener('keydown', guessKey, true);
   shell.root.addEventListener('focusout', guessFocusOut, true);
-  document.documentElement.append(shell.host);
-  shell.host.id = `fw-guess-${crypto.randomUUID()}`;
+  shell.host.id = `fw-guess-${++guessHostCount}`;
   span.setAttribute('aria-controls', shell.host.id);
   span.setAttribute('aria-expanded', 'true');
+  document.documentElement.append(shell.host);
   guess = state;
   placeTip(span, shell.host);
-  status.textContent = t('guess_opened');
+  setTimeout(() => { if (guess === state && !state.answered) status.textContent = t('guess_opened'); }, 0);
 }
 async function answerGuess(state, index, keyboard) {
   if (guess !== state || state.answered || !guessAlive(state)) return;
@@ -436,6 +437,7 @@ async function answerGuess(state, index, keyboard) {
     if (right !== index) state.buttons[index].classList.add('fw-guess-wrong');
     state.status.textContent = `${right === index ? t('guess_correct') : t('guess_incorrect')} ${meaning}`;
   } else state.status.textContent = meaning; // not recorded; the meaning is still shown
+  state.status.classList.remove('fw-guess-status-opening');
   revealGuessMeaning(state.span);
   placeTip(state.span, state.host);
   if (hadFocus && state.span.isConnected) { guessQuiet = state.span; state.span.focus(); }
@@ -446,7 +448,9 @@ async function answerGuess(state, index, keyboard) {
 function guessKey(e) {
   if (!guess || !e.isTrusted) return;
   const state = guess;
-  const inPanel = state.root.contains(e.target);
+  // Closed-shadow events are retargeted to the host at document capture. Handle
+  // them here, before the page's own capture listeners see a guess shortcut.
+  const inPanel = state.root.contains(e.target) || e.target === state.host;
   const onWord = e.target === state.span;
   const consume = () => { e.preventDefault(); e.stopImmediatePropagation(); };
   if (e.key === 'Escape') {
@@ -458,7 +462,12 @@ function guessKey(e) {
   if (onWord && e.key === 'Tab' && !e.shiftKey && !state.answered) {
     consume(); state.buttons[0].focus(); return;
   }
-  if (inPanel && e.key === 'Tab' && e.shiftKey && e.target === state.buttons[0]) {
+  if (inPanel && e.key === 'Tab' && e.shiftKey &&
+      (e.target === state.buttons[0] || state.root.activeElement === state.buttons[0])) {
+    consume(); guessQuiet = state.span; state.span.focus(); return;
+  }
+  if (inPanel && e.key === 'Tab' && !e.shiftKey &&
+      state.root.activeElement === state.panel.querySelector('.fw-guess-actions button')) {
     consume(); guessQuiet = state.span; state.span.focus(); return;
   }
   if (state.answered || e.altKey || e.ctrlKey || e.metaKey) return;

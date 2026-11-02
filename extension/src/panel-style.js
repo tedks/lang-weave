@@ -61,7 +61,10 @@ export const panelStyle = String.raw`
 .fw-guess button.fw-guess-right { border: 2px solid var(--fw-text); font-weight: 600; }
 .fw-guess button.fw-guess-wrong { border: 2px dashed var(--fw-danger); }
 .fw-guess-status { margin: 6px 0 0; }
-.fw-guess-status:empty { display: none; }
+.fw-guess-status-opening {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
 .fw-guess-actions { margin: 4px 0 0; text-align: right; }
 .fw-guess .fw-guess-actions button {
   display: inline; width: auto; color: var(--fw-text); background: transparent; border-color: transparent;

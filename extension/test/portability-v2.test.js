@@ -47,6 +47,27 @@ test('a schema 1 export from writer storage is plain schema 1', () => {
   expect(parseBackup(json).schemaVersion).toBe(1);
 });
 
+test('new generated forms import now but export waits for a tolerant older reader', () => {
+  const { source } = baseline();
+  const all = structuredClone(source);
+  const forms = ['il/elle', 'z.B.', 'EU:n'];
+  const words = structuredClone(all.languagePacks.fr.words);
+  forms.forEach((fr, i) => { words[i].fr = fr; });
+  const version = hashKey(JSON.stringify(words));
+  all.languagePacks.de = { version, words };
+  const entry = (word, at) => [word, at, 'standalone', 'productive', 'medium', 1, 3000, 2, 3, 0.91];
+  const tuples = [...forms, 'mot3'].map((form, i) => entry(form, 10 + i));
+  all[`lang:de:${version}:learningRetrievals`] = { version: 1, retrievals: tuples };
+  const exported = JSON.parse(createBackup(all, '0.12.22', 2));
+  const scope = exported.state.scopes[`lang:de:${version}`];
+  expect(scope.retrievals.retrievals.map((tuple) => tuple[0])).toEqual(['mot3']);
+  expect(exported.state.logOmitted).toEqual({ retrievals: 3, exposureWords: 0 });
+  // The current reader still accepts new-form measurements from a schema 2 file.
+  scope.retrievals.retrievals = tuples;
+  expect(parseBackup(JSON.stringify(exported)).state.scopes[`lang:de:${version}`]
+    .retrievals.retrievals.map((tuple) => tuple[0])).toEqual([...forms, 'mot3']);
+});
+
 test('a schema 2 file round-trips: FSRS state, logs and retention survive import and re-export', () => {
   const { all, version, spanish } = writerStorage();
   const json = createBackup(all, '0.13.0', 2);

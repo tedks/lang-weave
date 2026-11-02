@@ -113,6 +113,7 @@ test('popup shows one action and grants this site before saving or injecting', a
     $('enabled').checked = false;
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('enabled').checked === false);
+    expect($('welcomeRoute').hidden).toBe(false); // still reachable while the switch is off
     failSave = true;
     $('enabled').checked = true;
     $('enabled').dispatchEvent(new window.Event('change'));

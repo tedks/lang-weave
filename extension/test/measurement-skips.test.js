@@ -19,3 +19,28 @@ test('refused measurements persist a bounded diagnostic and survive a failed wri
   await noteMeasurementSkipped(storage, MAX_MEASUREMENTS_SKIPPED);
   expect(await measurementsSkipped(storage)).toBe(MAX_MEASUREMENTS_SKIPPED);
 });
+
+test('overlapping refused measurements do not clear a later increment', async () => {
+  const { measurementsSkipped, noteMeasurementSkipped } =
+    await import('../src/measurement-skips.js?concurrent-test');
+  let saved = 0;
+  let releaseFirstWrite;
+  let firstWriteStarted;
+  const firstStarted = new Promise((resolve) => { firstWriteStarted = resolve; });
+  const firstWrite = new Promise((resolve) => { releaseFirstWrite = resolve; });
+  let writes = 0;
+  const storage = {
+    async get() { return { measurementsSkipped: saved }; },
+    async set(value) {
+      if (++writes === 1) { firstWriteStarted(); await firstWrite; }
+      saved = value.measurementsSkipped;
+    },
+  };
+  const first = noteMeasurementSkipped(storage);
+  await firstStarted;
+  const second = noteMeasurementSkipped(storage);
+  releaseFirstWrite();
+  await Promise.all([first, second]);
+  expect(saved).toBe(2);
+  expect(await measurementsSkipped(storage)).toBe(2);
+});

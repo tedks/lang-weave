@@ -28,10 +28,17 @@ export async function closedShadow(page, hostClass) {
     return result.value;
   };
   const selected = async (selector, hasText) => {
-    const ids = await nodes(selector);
-    if (!hasText) return ids;
-    const texts = await Promise.all(ids.map((id) => call(id, function () { return this.textContent; })));
-    return ids.filter((_, i) => hasText instanceof RegExp ? hasText.test(texts[i]) : texts[i].includes(hasText));
+    try {
+      const ids = await nodes(selector);
+      if (!hasText) return ids;
+      const texts = await Promise.all(ids.map((id) => call(id, function () { return this.textContent; })));
+      return ids.filter((_, i) => hasText instanceof RegExp ? hasText.test(texts[i]) : texts[i].includes(hasText));
+    } catch (error) {
+      // A reload can invalidate IDs between the snapshot and text lookup.
+      // The waiting caller takes another fresh snapshot on its next poll.
+      if (/No node with given id found/.test(String(error))) return [];
+      throw error;
+    }
   };
   const locator = (selector, { hasText } = {}) => ({
     async count() { return (await selected(selector, hasText)).length; },

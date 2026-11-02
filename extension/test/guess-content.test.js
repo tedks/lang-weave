@@ -199,6 +199,11 @@ test('keyboard: arrows and 1-4 pick, Tab and Escape return focus, untrusted keys
     expect(p.guessActive()).toBe(span);
     p.key(span, 'Tab');
     expect(p.guessActive()).toBe(buttons[0]);
+    const dismiss = panel.querySelector('.fw-guess-actions button');
+    dismiss.focus();
+    const forward = p.key(dismiss, 'Tab');
+    expect(forward.defaultPrevented).toBe(true);
+    expect(p.guessActive()).toBe(span);
     expect(p.guessPanel()).toBe(panel);
     p.key(span, '2');
     expect(p.guessActive()).toBe(buttons[1]);

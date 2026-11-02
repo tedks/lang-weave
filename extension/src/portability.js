@@ -432,6 +432,12 @@ function storageEntries(all) {
 // holding one. Turn this on once a release that reads them has shipped (the "Release order" rule
 // in docs/LEARNING-CORE-MISSION.md; docs/INFERENCE-MISSION.md).
 export const EXPORT_GUESSES = false;
+// 0.12.21 rejects these IDs when importing a schema 2 log. Keep the old form
+// predicate only at this export boundary until 0.12.22 readers have shipped.
+const legacyExportForm = (id) => id.length > 0 && id.length <= 50 && id.trim() === id &&
+  id.split(/\s+/).length <= 5 &&
+  !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
+  !/\.[\p{L}\p{N}]/u.test(id);
 function fitLog(st, m, budget) {
   const encoder = new TextEncoder();
   const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
@@ -457,7 +463,10 @@ function fitLog(st, m, budget) {
   const all = [];
   for (const [id, fields] of Object.entries(st.scopes))
     for (const tuple of fields.retrievals?.retrievals || []) {
-      if (tuple[2] === 'guess' && !EXPORT_GUESSES) { droppedRetrievals++; continue; }
+      if ((tuple[2] === 'guess' && !EXPORT_GUESSES) ||
+          (!id.startsWith('personal:') && !legacyExportForm(tuple[0]))) {
+        droppedRetrievals++; continue;
+      }
       all.push([id, tuple]);
     }
   all.sort(([, a], [, b]) => b[1] - a[1]);
