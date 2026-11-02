@@ -1,5 +1,9 @@
 # Guess first (M4 inference-step)
 
+## 0.12.22 accessibility and isolation follow-up
+
+PR #45 moves guess and inline recall controls into closed shadow roots with inline host protection from page CSS. A delivery-time worker flag withholds the gloss only for a learning swap that can receive a safe choice set; the plain fallback or answer restores the accessible meaning. The guess word links to a named group, Tab enters its choices, and a live status announces opening and result. `e2e/guess.mjs` checks Chrome's accessibility tree over CDP, as well as the synthetic Gemini flow. Real spoken screen-reader output remains untested.
+
 ## Current state
 
 State: PR #42 on branch `inference-step` at 0.12.21, rebased on `origin/main` `510650b` (after startup-gap PR #44 took 0.12.20). Source, Bun tests and the new Chromium gate `e2e/guess.mjs` are in. The council reached fixpoint in round 3. Exact-head gates and the normal merge follow. The PR comment carries the final head and gate output. The lead ruled option B on backup export of guesses and accepted the one-guess-a-day bend on 2026-11-01 (see "Storage and compatibility").

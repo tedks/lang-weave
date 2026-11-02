@@ -46,15 +46,29 @@ try {
   const before = await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown', 'apiKey']));
   assert.equal(before.consentShown, false);
   assert.equal(before.apiKey, undefined);
-  await page.getByRole('button', { name: /Only sites I turn on/ }).click();
-  await page.getByRole('status').getByText(/Only sites you turn on selected/).waitFor();
+  await page.close(); // a learner may close welcome before choosing
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${id}/src/popup.html`);
+  await popup.locator('#welcomeRoute').waitFor({ state: 'visible' });
+  assert.match(await popup.locator('#operation').textContent(), /Finish setup/);
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${id}/src/options.html`);
+  await options.locator('#newSitesEnabled').waitFor();
+  assert.equal(await options.locator('#newSitesEnabled').isDisabled(), true);
+  assert.equal(await options.locator('#welcomeLink').isVisible(), true);
+  assert.match(await options.locator('#newSitesEnabled').locator('..').textContent(), /first choice on the welcome page/);
+  const reopenedPromise = context.waitForEvent('page', { predicate: (p) => p.url() === welcomeUrl });
+  await popup.locator('#openWelcome').click();
+  const reopened = await reopenedPromise;
+  await reopened.getByRole('button', { name: /Only sites I turn on/ }).click();
+  await reopened.getByRole('status').getByText(/Only sites you turn on selected/).waitFor();
   const after = await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown']));
   assert.equal(after.consentShown, true);
   assert.equal(after.settings.newSitesEnabled, false);
   assert.deepEqual(await worker.evaluate(() => chrome.permissions.getAll().then(({ origins }) => origins
     .filter((origin) => origin === '<all_urls>' || origin === 'http://*/*' || origin === 'https://*/*'))), []);
   assert.deepEqual(geminiRequests, []);
-  console.log('PASS: fresh install opened welcome; bundled demo gloss and flip worked; only-sites consent saved without an all-site grant or Gemini request.');
+  console.log('PASS: fresh install welcome demo, closed-page popup route, pending Settings controls, only-sites consent and no Gemini request.');
 } finally {
   try { await context?.close(); } finally { await rm(scratch, { recursive: true, force: true }); }
 }

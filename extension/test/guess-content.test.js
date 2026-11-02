@@ -29,6 +29,11 @@ async function page(name, { reply = {}, body } = {}) {
   const win = new Window({ url: 'https://example.com/article' });
   const names = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval'];
   const previous = Object.fromEntries(names.map((key) => [key, globalThis[key]]));
+  const roots = new WeakMap();
+  const originalAttach = win.HTMLElement.prototype.attachShadow;
+  win.HTMLElement.prototype.attachShadow = function (options) {
+    const root = originalAttach.call(this, options); roots.set(this, root); return root;
+  };
   const sent = [];
   const listeners = [];
   const config = { settings: { enabled: true, newSitesEnabled: true, siteOverrides: {}, gradual: true, inlineRecall: false,
@@ -48,7 +53,7 @@ async function page(name, { reply = {}, body } = {}) {
       sent.push(structuredClone(msg));
       if (msg.type === 'config') return config;
       if (msg.type === 'swaps') return { results: Object.fromEntries(msg.items.map((item) => [item.key,
-        [{ o: 'and', f: 'y', g: 'and', h: 'ee', word: 'y', status: 'active' }]])) };
+        [{ o: 'and', f: 'y', g: 'and', h: 'ee', word: 'y', status: 'active', guessEligible: true }]])) };
       if (msg.type === 'guessBegin') return reply.begin ? reply.begin(msg) : { ticket: 'ticket-1', choices: CHOICES };
       if (msg.type === 'guessAnswer') return reply.answer ? reply.answer(msg)
         : { ok: true, correct: msg.choice === 1, answer: 1, logged: true };
@@ -61,8 +66,8 @@ async function page(name, { reply = {}, body } = {}) {
   const doc = win.document;
   const types = () => sent.map((m) => (m.type === 'event' ? `event:${m.event}` : m.type));
   const hover = async (span, ms = 750) => { span.dispatchEvent(trusted(new win.MouseEvent('mouseover', { bubbles: true }))); await wait(ms); };
-  const key = (target, k, isTrusted = true) => {
-    const event = new win.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+  const key = (target, k, isTrusted = true, shiftKey = false) => {
+    const event = new win.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, shiftKey });
     target.dispatchEvent(isTrusted ? trusted(event) : event);
     return event;
   };
@@ -79,7 +84,11 @@ async function page(name, { reply = {}, body } = {}) {
     span.dispatchEvent(trusted(new win.FocusEvent('focusout', { bubbles: true, relatedTarget })));
     span.blur();
   };
-  return { win, doc, sent, types, hover, key, click, listeners, config, focusIn, focusOut,
+  const guessPanels = () => [...doc.querySelectorAll('.fw-guess-host')].map((host) => roots.get(host)?.querySelector('.fw-guess')).filter(Boolean);
+  const guessPanel = () => guessPanels()[0] || null;
+  const guessActive = () => doc.activeElement?.matches?.('button') ? doc.activeElement
+    : guessPanel()?.getRootNode().activeElement || doc.activeElement;
+  return { win, doc, sent, types, hover, key, click, listeners, config, focusIn, focusOut, guessPanels, guessPanel, guessActive,
     restore: () => { Object.assign(globalThis, previous); win.happyDOM.cancelAsync(); } };
 }
 
@@ -89,15 +98,18 @@ test('a hover dwell opens the choice panel instead of the gloss, and a choice re
     const span = p.doc.querySelector('.fw-word');
     expect(span).toBeTruthy();
     await p.hover(span, 300);
-    expect(p.doc.querySelector('.fw-guess')).toBeNull(); // the same 700 ms beat as the gloss
+    expect(p.guessPanel()).toBeNull(); // the same 700 ms beat as the gloss
     await wait(450);
-    const panel = p.doc.querySelector('.fw-guess');
+    const panel = p.guessPanel();
     expect(panel).toBeTruthy();
     expect(p.doc.querySelector('.fw-gloss')).toBeNull();
     expect(p.types()).not.toContain('event:peek'); // the meaning is not shown yet
     expect(p.sent.find((m) => m.type === 'guessBegin')).toEqual({ type: 'guessBegin', word: 'y', revision: 'guess' });
-    expect(panel.getAttribute('role')).toBe('group');
-    expect(panel.getAttribute('aria-label')).toBe('Guess the meaning');
+    expect(panel.getRootNode().host.getAttribute('role')).toBe('group');
+    expect(panel.getRootNode().host.getAttribute('aria-label')).toBe('Guess the meaning');
+    expect(panel.getRootNode().host.shadowRoot).toBeNull();
+    expect(span.getAttribute('aria-controls')).toBe(panel.getRootNode().host.id);
+    expect(panel.querySelector('.fw-guess-status').textContent).toContain('Guess choices ready');
     expect(panel.querySelector('.fw-guess-word').textContent).toBe('y');
     expect(panel.querySelector('.fw-guess-word').getAttribute('lang')).toBe('es');
     expect(panel.querySelector('.fw-guess-status').getAttribute('aria-live')).toBe('polite');
@@ -105,11 +117,11 @@ test('a hover dwell opens the choice panel instead of the gloss, and a choice re
     expect(buttons.map((b) => b.lastChild.textContent)).toEqual(CHOICES);
     expect(buttons.map((b) => b.querySelector('.fw-guess-key').textContent)).toEqual(['1', '2', '3', '4']);
     expect(buttons.every((b) => b.querySelector('.fw-guess-key').getAttribute('aria-hidden') === 'true')).toBe(true);
-    expect(p.doc.activeElement).not.toBe(buttons[0]); // a hover never takes focus
+    expect(p.guessActive()).not.toBe(buttons[0]); // a hover never takes focus
     // Leaving the word does not close it: the reader moves to the panel.
     span.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     await wait(20);
-    expect(p.doc.querySelector('.fw-guess')).toBe(panel);
+    expect(p.guessPanel()).toBe(panel);
     p.click(buttons[0], false); // page scripts cannot answer
     await wait(20);
     expect(p.types()).not.toContain('guessAnswer');
@@ -125,7 +137,7 @@ test('a hover dwell opens the choice panel instead of the gloss, and a choice re
     expect(p.types().filter((t) => t === 'guessAnswer')).toHaveLength(1);
     // The answered panel closes on a click away; the next hover today is the plain gloss with its peek.
     p.doc.body.dispatchEvent(trusted(new p.win.MouseEvent('pointerdown', { bubbles: true })));
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
+    expect(p.guessPanel()).toBeNull();
     await p.hover(span);
     expect(p.doc.querySelector('.fw-gloss')?.textContent).toBe('y · and · "ee"');
     expect(p.types().filter((t) => t === 'guessBegin')).toHaveLength(1);
@@ -139,21 +151,21 @@ test('a right answer says so; a failed answer still shows the meaning without ju
   try {
     const span = p.doc.querySelector('.fw-word');
     await p.hover(span);
-    p.click(p.doc.querySelectorAll('.fw-guess-choices button')[1]);
+    p.click(p.guessPanel().querySelectorAll('.fw-guess-choices button')[1]);
     await wait(20);
-    expect(p.doc.querySelector('.fw-guess-status').textContent).toBe('Right: y · and · "ee"');
-    expect(p.doc.querySelector('.fw-guess-wrong')).toBeNull();
+    expect(p.guessPanel().querySelector('.fw-guess-status').textContent).toBe('Right: y · and · "ee"');
+    expect(p.guessPanel().querySelector('.fw-guess-wrong')).toBeNull();
     p.key(p.doc.body, 'Escape');
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
+    expect(p.guessPanel()).toBeNull();
   } finally { p.restore(); }
   fail = true;
   const q = await page('guess-fail', { reply: { answer: () => ({ error: 'This guess is stale.' }) } });
   try {
     await q.hover(q.doc.querySelector('.fw-word'));
-    q.click(q.doc.querySelectorAll('.fw-guess-choices button')[2]);
+    q.click(q.guessPanel().querySelectorAll('.fw-guess-choices button')[2]);
     await wait(20);
-    expect(q.doc.querySelector('.fw-guess-status').textContent).toBe('y · and · "ee"');
-    expect(q.doc.querySelector('.fw-guess-right, .fw-guess-wrong')).toBeNull();
+    expect(q.guessPanel().querySelector('.fw-guess-status').textContent).toBe('y · and · "ee"');
+    expect(q.guessPanel().querySelector('.fw-guess-right, .fw-guess-wrong')).toBeNull();
   } finally { q.restore(); }
 }, 30000);
 
@@ -163,45 +175,53 @@ test('keyboard: arrows and 1-4 pick, Tab and Escape return focus, untrusted keys
     const span = p.doc.querySelector('.fw-word');
     p.focusIn(span);
     await wait(750);
-    const panel = p.doc.querySelector('.fw-guess');
+    const panel = p.guessPanel();
     expect(panel).toBeTruthy();
-    expect(p.doc.activeElement).toBe(span); // opening never moves focus
+    expect(p.guessActive()).toBe(span); // opening never moves focus
     const buttons = [...panel.querySelectorAll('.fw-guess-choices button')];
     p.key(span, 'ArrowDown', false);
-    expect(p.doc.activeElement).toBe(span);
+    expect(p.guessActive()).toBe(span);
     const down = p.key(span, 'ArrowDown');
     expect(down.defaultPrevented).toBe(true);
-    expect(p.doc.activeElement).toBe(buttons[0]);
+    expect(p.guessActive()).toBe(buttons[0]);
     p.key(buttons[0], '3');
-    expect(p.doc.activeElement).toBe(buttons[2]);
+    expect(p.guessActive()).toBe(buttons[2]);
     p.key(buttons[2], 'ArrowUp');
-    expect(p.doc.activeElement).toBe(buttons[1]);
+    expect(p.guessActive()).toBe(buttons[1]);
     p.key(buttons[1], 'ArrowLeft');
-    expect(p.doc.activeElement).toBe(buttons[0]);
+    expect(p.guessActive()).toBe(buttons[0]);
     p.key(buttons[0], 'ArrowUp'); // wraps
-    expect(p.doc.activeElement).toBe(buttons[3]);
+    expect(p.guessActive()).toBe(buttons[3]);
     p.key(buttons[3], '9'); // no such choice
-    expect(p.doc.activeElement).toBe(buttons[3]);
-    p.key(buttons[3], 'Tab');
-    expect(p.doc.activeElement).toBe(span);
-    expect(p.doc.querySelector('.fw-guess')).toBe(panel);
+    expect(p.guessActive()).toBe(buttons[3]);
+    buttons[0].focus();
+    p.key(buttons[0], 'Tab', true, true); // Shift+Tab returns to the word
+    expect(p.guessActive()).toBe(span);
+    p.key(span, 'Tab');
+    expect(p.guessActive()).toBe(buttons[0]);
+    const dismiss = panel.querySelector('.fw-guess-actions button');
+    dismiss.focus();
+    const forward = p.key(dismiss, 'Tab');
+    expect(forward.defaultPrevented).toBe(true);
+    expect(p.guessActive()).toBe(span);
+    expect(p.guessPanel()).toBe(panel);
     p.key(span, '2');
-    expect(p.doc.activeElement).toBe(buttons[1]);
+    expect(p.guessActive()).toBe(buttons[1]);
     const escape = p.key(buttons[1], 'Escape');
     expect(escape.defaultPrevented).toBe(true);
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
-    expect(p.doc.activeElement).toBe(span); // focus return, as the inline cue does
+    expect(p.guessPanel()).toBeNull();
+    expect(p.guessActive()).toBe(span); // focus return, as the inline cue does
     await wait(750);
-    expect(p.doc.querySelector('.fw-guess, .fw-gloss')).toBeNull(); // dismissed: not reopened on its own
+    expect(p.guessPanel() || p.doc.querySelector('.fw-gloss')).toBeNull(); // dismissed: not reopened on its own
     expect(p.types()).not.toContain('guessAnswer');
     expect(p.types().filter((t) => t === 'guessBegin')).toHaveLength(1);
     // Enter on the word itself still flips it, closing any panel and recording nothing for the guess.
     p.focusOut(span);
     p.focusIn(span);
     await wait(750);
-    expect(p.doc.querySelector('.fw-guess')).toBeTruthy();
+    expect(p.guessPanel()).toBeTruthy();
     p.key(span, 'Enter');
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
+    expect(p.guessPanel()).toBeNull();
     expect(span.classList.contains('fw-en')).toBe(true);
     expect(p.types()).not.toContain('guessAnswer');
   } finally { p.restore(); }
@@ -213,29 +233,29 @@ test('a click away or a dismissal records nothing; at most one panel is open', a
     const [first, second] = p.doc.querySelectorAll('.fw-word');
     p.focusIn(first);
     await wait(750);
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(1);
+    expect(p.guessPanels()).toHaveLength(1);
     p.focusOut(first, second);
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(0); // focus left the panel and its word
+    expect(p.guessPanels()).toHaveLength(0); // focus left the panel and its word
     p.focusIn(second, first); // the keyboard moved on
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(0);
+    expect(p.guessPanels()).toHaveLength(0);
     await wait(750);
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(1);
+    expect(p.guessPanels()).toHaveLength(1);
     // A full hover dwell on the other word replaces the panel; a pass across it does not.
     p.focusOut(second, null); // a window blur keeps the panel
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(1);
-    p.doc.querySelector('.fw-guess .fw-guess-actions button').dispatchEvent(new p.win.MouseEvent('click', { bubbles: true }));
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(1); // untrusted dismissal ignored
+    expect(p.guessPanels()).toHaveLength(1);
+    p.guessPanel()?.querySelector('.fw-guess-actions button').dispatchEvent(new p.win.MouseEvent('click', { bubbles: true }));
+    expect(p.guessPanels()).toHaveLength(1); // untrusted dismissal ignored
     first.dispatchEvent(trusted(new p.win.MouseEvent('mouseover', { bubbles: true })));
     first.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     await wait(750);
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(1);
+    expect(p.guessPanels()).toHaveLength(1);
     await p.hover(first);
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(1);
+    expect(p.guessPanels()).toHaveLength(1);
     p.doc.body.dispatchEvent(trusted(new p.win.MouseEvent('pointerdown', { bubbles: true })));
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(0);
+    expect(p.guessPanels()).toHaveLength(0);
     await p.hover(second);
-    p.click(p.doc.querySelector('.fw-guess .fw-guess-actions button'));
-    expect(p.doc.querySelectorAll('.fw-guess')).toHaveLength(0);
+    p.click(p.guessPanel()?.querySelector('.fw-guess-actions button'));
+    expect(p.guessPanels()).toHaveLength(0);
     expect(p.types()).not.toContain('guessAnswer');
   } finally { p.restore(); }
 }, 30000);
@@ -247,14 +267,14 @@ test('a plain reply shows the gloss with its peek and is remembered for the day;
     const span = p.doc.querySelector('.fw-word');
     await p.hover(span);
     expect(p.doc.querySelector('.fw-gloss')?.textContent).toBe('y · and · "ee"');
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
+    expect(p.guessPanel()).toBeNull();
     expect(p.types()).toContain('event:peek');
     span.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     stale = false;
     await p.hover(span);
     span.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     await p.hover(span);
-    expect(p.types().filter((t) => t === 'guessBegin')).toHaveLength(2);
+    expect(p.types().filter((t) => t === 'guessBegin')).toHaveLength(1);
   } finally { p.restore(); }
 }, 30000);
 
@@ -265,7 +285,7 @@ test('no panel inside a form or an editable region, and the setting turning off 
     const main = p.doc.querySelector('main');
     main.setAttribute('contenteditable', 'true');
     await p.hover(span);
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
+    expect(p.guessPanel()).toBeNull();
     expect(p.doc.querySelector('.fw-gloss')).toBeTruthy();
     expect(p.types()).not.toContain('guessBegin');
     span.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
@@ -277,18 +297,25 @@ test('no panel inside a form or an editable region, and the setting turning off 
     const moved = p.doc.querySelector('form .fw-word');
     expect(moved).toBeTruthy(); // positive control: the swap survived the move
     await p.hover(moved);
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
+    expect(p.guessPanel()).toBeNull();
     expect(p.types()).not.toContain('guessBegin');
     moved.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     p.doc.body.append(main);
     await wait(20);
     await p.hover(p.doc.querySelector('.fw-word'));
-    expect(p.doc.querySelector('.fw-guess')).toBeTruthy(); // positive control outside the form
+    expect(p.doc.querySelector('.fw-gloss')).toBeTruthy(); // the withheld meaning was released in the form
+    const fresh = p.doc.createElement('p');
+    fresh.id = 'fresh';
+    fresh.textContent = 'We read and write every evening.';
+    main.append(fresh);
+    await wait(400);
+    await p.hover(fresh.querySelector('.fw-word'));
+    expect(p.guessPanel()).toBeTruthy(); // a fresh eligible swap still opens outside the form
     // The setting turns off in Settings: same revision, the panel closes and hovers are plain again.
     const { guessFirst, ...settings } = p.config.settings;
     for (const fn of p.listeners) fn({ type: 'config', config: { ...p.config, settings } });
-    expect(p.doc.querySelector('.fw-guess')).toBeNull();
-    const word = p.doc.querySelector('.fw-word');
+    expect(p.guessPanel()).toBeNull();
+    const word = fresh.querySelector('.fw-word');
     word.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     const before = p.types().filter((t) => t === 'guessBegin').length;
     await p.hover(word);

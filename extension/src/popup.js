@@ -40,6 +40,7 @@ async function refresh() {
   primary = primaryAction(progress || status.review);
   $('primary').textContent = primary.label;
   const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
+  $('welcomeRoute').hidden = status.consentShown !== false;
   $('operation').textContent = status.modelStatus?.category === 'key_isolation_unavailable'
     ? statusLabel(status.modelStatus)
     : state === 'paused' ? t('popup_state_off')
@@ -97,6 +98,10 @@ $('openSettings').addEventListener('click', (e) => {
 $('openWords').addEventListener('click', (e) => {
   e.preventDefault();
   void run(() => chrome.tabs.create({ url: chrome.runtime.getURL('src/words.html') }));
+});
+$('openWelcome').addEventListener('click', (e) => {
+  e.preventDefault();
+  void run(() => chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome.html') }));
 });
 
 void run(async () => {

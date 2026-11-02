@@ -17,6 +17,7 @@ const spanGroups = new WeakMap();
 const owned = new WeakMap();
 const sourceEnglish = new WeakMap();
 const displaySwap = new WeakMap();
+const pendingGuess = new WeakSet();
 const practice = new WeakSet();
 const cuedPractice = new WeakSet();
 const introductions = new WeakMap();
@@ -36,6 +37,7 @@ let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
 export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
+export const isGuessPending = (span) => pendingGuess.has(span);
 export const isPractice = (span) => practice.has(span);
 export const isPracticeCue = (span) => cuedPractice.has(span);
 // A due word can wait for a viewport cue slot without changing its review ticket.
@@ -151,7 +153,16 @@ function showTarget(span, text, display) {
   const lang = targetLang.get(span);
   if (lang) span.setAttribute('lang', lang);
   span.removeAttribute('aria-label');
-  describe(span, t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip')));
+  describe(span, pendingGuess.has(span) ? t('swap_guess_pending') :
+    t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip')));
+}
+export function revealGuessMeaning(span) {
+  if (!owned.has(span) || !pendingGuess.has(span)) return;
+  pendingGuess.delete(span);
+  if (!span.classList.contains('fw-en')) {
+    const display = displaySwap.get(span);
+    describe(span, t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip') ?? ''));
+  }
 }
 // Show English: the page's own language, so no lang of our own.
 function showEnglish(span, text) {
@@ -344,6 +355,7 @@ function wrap(place, swap, language) {
   }
   span.setAttribute('data-fw-split', '1');
   if (swap.status && !swap.practice && !swap.introTicket) span.dataset.fwStatus = swap.status;
+  if (swap.guessEligible === true) pendingGuess.add(span);
   if (!swap.introTicket && !swap.practice) { span.tabIndex = 0; span.setAttribute('role', 'button'); }
   const lang = bcp47(language);
   if (lang) targetLang.set(span, lang);

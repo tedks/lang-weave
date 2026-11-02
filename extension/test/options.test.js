@@ -47,6 +47,7 @@ test('options works without a tab; settings, exception reset and key removal rou
   let generateFails = false;
   let due = 2;
   let isolationUnavailable = false;
+  let testCategory = 'key_rejected';
   const status = () => ({ config: { settings: cleanSettings(data.settings), language: 'es',
     hasKey: !!data.apiKey, origins: [] }, update: '', languages: [{ code: 'es', name: 'Spanish' }],
     words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, consentShown: true,
@@ -59,7 +60,7 @@ test('options works without a tab; settings, exception reset and key removal rou
         if (msg.type === 'save') return handlers.save(msg);
         if (msg.type === 'removeKey') return handlers.removeKey();
         if (msg.type === 'clearCache') return handlers.clearCache();
-        if (msg.type === 'testKey') return { ok: false, category: 'key_rejected',
+        if (msg.type === 'testKey') return { ok: false, category: testCategory,
           providerText: 'secret provider text' };
         if (msg.type === 'addLanguage') {
           if (generateFails) throw new Error('Generation failed');
@@ -134,6 +135,9 @@ test('options works without a tab; settings, exception reset and key removal rou
     $('testKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Gemini rejected this key. Paste a new one.');
     expect(window.document.body.textContent).not.toContain('secret provider text');
+    testCategory = 'consent_required';
+    $('testKey').click();
+    await waitFor(() => $('keyFeedback').textContent === 'Review the privacy choices on the welcome page before testing your key.');
     const beforeRemoval = { epoch: data.epoch, keyEpoch: data.keyEpoch };
     $('removeKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Key removed.');
@@ -182,6 +186,8 @@ test('options renders its multi-part sentences and dynamic notes as the exact En
     expect($('welcomeLink').querySelector('a').getAttribute('href')).toBe('welcome.html');
     expect([...$('language').options].map((o) => o.textContent)).toEqual(['Spanish', 'French · experimental']);
     expect($('consentNote').textContent).toBe('Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.');
+    expect($('newSitesEnabled').disabled).toBe(true);
+    expect($('grantSites').hidden).toBe(true);
     expect($('accessNote').textContent).toBe('Chrome needs your OK before it can run on other sites.');
     expect($('siteList').textContent).toBe('a.example: onReset');
     expect($('apiKey').placeholder).toBe('AIza…');

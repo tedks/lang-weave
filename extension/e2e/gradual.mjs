@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { closedShadow } from './closed-shadow.js';
 import { cleanPack } from '../src/languages.js';
 import { initialState, intervalDays } from '../src/fsrs.js';
 
@@ -62,6 +63,7 @@ try {
     body: route.request().url().endsWith('/offscreen')
       ? '<main><div style="height:900px"></div><p id="offscreen">We discussed the question with friends every week.</p></main>' : html }));
   const page = await browser.newPage();
+  const recall = await closedShadow(page, 'fw-recall-host');
   await page.goto('https://reading.example/one');
   const word = page.locator('#reading .fw-word');
   await word.waitFor();
@@ -111,52 +113,50 @@ try {
     span.click();
     span.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   });
-  assert.equal(await page.locator('.fw-recall').count(), 0); // page script cannot open a ticket
+  assert.equal(await recall.locator('.fw-recall').count(), 0); // page script cannot open a ticket
   await due.evaluate((span) => span.setAttribute('data-en', 'forged cue'));
   await due.click();
-  await page.locator('.fw-recall').waitFor();
-  assert.match(await page.locator('.fw-recall').textContent(), /Recall the translation/);
+  await recall.locator('.fw-recall').waitFor();
+  assert.match(await recall.locator('.fw-recall').textContent(), /Recall the translation/);
   await due.evaluate((span) => span.setAttribute('data-en', 'the idea'));
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
-  assert.equal(await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).evaluate((el) => document.activeElement === el), true);
-  await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
-    .find((button) => button.textContent === 'Reveal answer').click());
-  assert.equal(await page.locator('.fw-recall button', { hasText: 'Easy' }).count(), 0);
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
-  await page.locator('.fw-recall button', { hasText: 'Already know' }).waitFor();
-  assert.deepEqual(await page.locator('.fw-recall-ratings button').allTextContents(), ['Again', 'Hard', 'Medium', 'Easy']);
-  assert.equal(await page.locator('.fw-recall-secondary button').textContent(), 'Already know');
-  const actualRow = await page.locator('.fw-recall-ratings').evaluate((row) => ({
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
+  assert.equal(await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).evaluate((el) => el.getRootNode().activeElement === el), true);
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).clickUntrusted();
+  assert.equal(await recall.locator('.fw-recall button', { hasText: 'Easy' }).count(), 0);
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await recall.locator('.fw-recall button', { hasText: 'Already know' }).waitFor();
+  assert.deepEqual(await recall.locator('.fw-recall-ratings button').allTextContents(), ['Again', 'Hard', 'Medium', 'Easy']);
+  assert.equal(await recall.locator('.fw-recall-secondary button').textContent(), 'Already know');
+  const actualRow = await recall.locator('.fw-recall-ratings').evaluate((row) => ({
     columns: getComputedStyle(row).gridTemplateColumns.split(' ').length,
     tops: [...row.children].map((button) => Math.round(button.getBoundingClientRect().top)),
   }));
   assert.equal(actualRow.columns, 4);
   assert.equal(new Set(actualRow.tops).size, 1);
-  await page.evaluate(() => [...document.querySelectorAll('.fw-recall button')]
-    .find((button) => button.textContent === 'Already know').click());
+  await recall.locator('.fw-recall button', { hasText: 'Already know' }).clickUntrusted();
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].familiar, undefined);
-  await page.locator('.fw-recall button', { hasText: 'Dismiss' }).click();
-  assert.equal(await page.locator('.fw-recall').count(), 0);
+  await recall.locator('.fw-recall button', { hasText: 'Dismiss' }).click();
+  assert.equal(await recall.locator('.fw-recall').count(), 0);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
   await due.click();
-  await page.locator('.fw-recall').waitFor();
+  await recall.locator('.fw-recall').waitFor();
   await due.evaluate((span) => span.remove());
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
-  await page.locator('.fw-recall').waitFor({ state: 'detached', timeout: 2000 });
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await recall.locator('.fw-recall').waitFor({ state: 'detached', timeout: 2000 });
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
   await page.reload();
   await due.waitFor();
   await due.click();
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
   await due.evaluate((span) => span.remove());
-  await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
-  await page.locator('.fw-recall').waitFor({ state: 'detached', timeout: 2000 });
+  await recall.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await recall.locator('.fw-recall').waitFor({ state: 'detached', timeout: 2000 });
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
   await page.reload();
   await due.waitFor();
   await due.click();
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
-  await page.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await recall.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
   const canFailWrite = await worker.evaluate(() => {
     const original = chrome.storage.local.set;
     const failOnce = (...args) => {
@@ -170,29 +170,30 @@ try {
     return chrome.storage.local.set === failOnce;
   });
   assert.equal(canFailWrite, true);
-  await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
-  await page.locator('.fw-recall-status').getByText(/Rating was not saved/).waitFor();
-  assert.equal(await page.locator('.fw-recall button:disabled').count(), 0);
+  await recall.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await recall.locator('.fw-recall-status').waitForText(/Rating was not saved/);
+  assert.equal(await recall.locator('.fw-recall button:disabled').count(), 0);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 0);
   const secondTab = await browser.newPage();
+  const secondRecall = await closedShadow(secondTab, 'fw-recall-host');
   await secondTab.goto('https://reading.example/second-tab');
   const secondCue = secondTab.locator('#reading .fw-word');
   await secondCue.waitFor();
   await secondTab.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('title') === 'Open inline recall');
   await secondCue.click();
-  await secondTab.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
-  await secondTab.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
+  await secondRecall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await secondRecall.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
   const concurrent = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview.inline));
   assert.equal(concurrent.length, 2, 'two tabs hold independent inline tickets');
   assert.equal(new Set(concurrent.map(({ tabId }) => tabId)).size, 2);
   const callsBeforeRating = (await worker.evaluate(() => globalThis.calls)).length;
   await due.evaluate((span) => span.setAttribute('data-en', 'forged after reveal'));
-  await page.locator('.fw-recall button', { hasText: 'Easy' }).click();
-  await page.locator('.fw-recall').waitFor({ state: 'detached' });
+  await recall.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await recall.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(rated.cards['la idea'].reviews, 1);
-  await secondTab.locator('.fw-recall button', { hasText: 'Easy' }).click();
-  await secondTab.locator('.fw-recall-status').getByText(/Rating was not saved/).waitFor();
+  await secondRecall.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await secondRecall.locator('.fw-recall-status').waitForText(/Rating was not saved/);
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview))).cards['la idea'].reviews, 1);
   await secondTab.close();
   assert.equal(rated.cards['la idea'].interval, intervalDays(initialState('easy').stability));
@@ -237,6 +238,20 @@ try {
 
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
+  const waitReweave = async (stage) => {
+    try { await page.locator('#reading .fw-word').waitFor(); }
+    catch (error) {
+      const settings = await worker.evaluate(async () => {
+        const { settings } = await chrome.storage.local.get('settings');
+        return { enabled: settings?.enabled, siteOverrides: settings?.siteOverrides };
+      });
+      const reading = await page.locator('#reading').evaluate((el) => ({ html: el.innerHTML,
+        allWords: document.querySelectorAll('.fw-word').length }));
+      console.error('REWEAVE_DEBUG', stage, JSON.stringify({ settings, reading,
+        popupEnabled: await popup.locator('#enabled').isChecked() }));
+      throw error;
+    }
+  };
   const options = await browser.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
   await options.locator('#gradual').uncheck();
@@ -245,11 +260,12 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   await popup.locator('#enabled').check();
-  await page.locator('#reading .fw-word').waitFor();
+  await popup.waitForFunction(() => chrome.storage.local.get('settings').then(({ settings }) => settings?.enabled === true));
+  await waitReweave('popup enable');
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: true } }));
-  await page.locator('#reading .fw-word').waitFor();
+  await waitReweave('site enable');
 
   const pack = cleanPack({ words: Array.from({ length: 20 }, (_, i) => ({
       fr: `mot${i}`, en: `word${i}`, hint: `hint${i}`, level: i < 10 ? 1 : 2,

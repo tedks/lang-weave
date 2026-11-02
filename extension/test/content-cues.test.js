@@ -9,6 +9,12 @@ test('only two visible practice invitations render; a waiting word gains a slot 
   const win = new Window({ url: 'https://example.com/article' });
   const names = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval'];
   const previous = Object.fromEntries(names.map((name) => [name, globalThis[name]]));
+  const roots = new WeakMap();
+  const originalAttach = win.HTMLElement.prototype.attachShadow;
+  win.HTMLElement.prototype.attachShadow = function (options) {
+    const root = originalAttach.call(this, options); roots.set(this, root); return root;
+  };
+  const cue = () => roots.get(win.document.querySelector('.fw-recall-host'))?.querySelector('.fw-recall') || null;
   class IO {
     constructor(callback, options) { this.callback = callback; this.options = options; }
     observe(el) {
@@ -55,10 +61,11 @@ test('only two visible practice invitations render; a waiting word gains a slot 
 
     words[2].dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true })));
     await wait(10);
-    const panel = win.document.querySelector('.fw-recall');
-    expect(panel?.getAttribute('role')).toBe('group');
+    const panel = cue();
+    expect(panel?.getRootNode().host.getAttribute('role')).toBe('group');
+    expect(panel?.getRootNode().host.shadowRoot).toBeNull();
     expect(panel?.querySelector('.fw-recall-status')?.getAttribute('aria-live')).toBe('polite');
-    expect(win.document.activeElement?.textContent).toBe('Reveal answer');
+    expect(panel.getRootNode().activeElement?.textContent).toBe('Reveal answer');
     expect(panel?.querySelector('.fw-recall-ratings')).toBeNull();
     panel.querySelector('button').dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true })));
     await wait(10);
@@ -70,7 +77,7 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     await nextFrame(win);
     expect(words[2].tabIndex).toBe(0); // the open cue's Escape target stays focusable offscreen
     panel.dispatchEvent(trusted(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
-    expect(win.document.querySelector('.fw-recall')).toBeNull();
+    expect(cue()).toBeNull();
     expect(win.document.activeElement).toBe(words[2]);
     words[2].getBoundingClientRect = () => ({ left: 20, right: 80, top: 80, bottom: 102, width: 60, height: 22 });
     words[0].getBoundingClientRect = () => ({ left: 20, right: 80, top: 20, bottom: 42, width: 60, height: 22 });
@@ -85,7 +92,7 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     const uncuedClick = trusted(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
     words[1].dispatchEvent(uncuedClick);
     expect(uncuedClick.defaultPrevented).toBe(false);
-    expect(win.document.querySelector('.fw-recall')).toBeNull();
+    expect(cue()).toBeNull();
   } finally {
     Object.assign(globalThis, previous);
     win.happyDOM.cancelAsync();

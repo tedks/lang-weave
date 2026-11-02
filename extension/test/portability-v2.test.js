@@ -47,6 +47,33 @@ test('a schema 1 export from writer storage is plain schema 1', () => {
   expect(parseBackup(json).schemaVersion).toBe(1);
 });
 
+test('new generated forms import now but export waits for a tolerant older reader', () => {
+  const { source } = baseline();
+  const all = structuredClone(source);
+  const forms = ['il/elle', 'z.B.', 'EU:n'];
+  const words = structuredClone(all.languagePacks.fr.words);
+  forms.forEach((fr, i) => { words[i].fr = fr; });
+  const version = hashKey(JSON.stringify(words));
+  all.languagePacks.de = { version, words };
+  const entry = (word, at) => [word, at, 'standalone', 'productive', 'medium', 1, 3000, 2, 3, 0.91];
+  const tuples = [...forms, 'mot3'].map((form, i) => entry(form, 10 + i));
+  all[`lang:de:${version}:learningRetrievals`] = { version: 1, retrievals: tuples };
+  const exposure = [1, 0, 1, '2026-10-01', '2026-10-01'];
+  all[`lang:de:${version}:learningExposures`] = { version: 1,
+    words: { 'il/elle': exposure, mot3: exposure } };
+  const exported = JSON.parse(createBackup(all, '0.12.22', 2));
+  const scope = exported.state.scopes[`lang:de:${version}`];
+  expect(scope.retrievals.retrievals.map((tuple) => tuple[0])).toEqual(['mot3']);
+  expect(Object.keys(scope.exposures.words)).toEqual(['mot3']);
+  expect(exported.state.logOmitted).toEqual({ retrievals: 3, exposureWords: 1 });
+  // The current reader still accepts new-form measurements from a schema 2 file.
+  scope.retrievals.retrievals = tuples;
+  scope.exposures.words['il/elle'] = exposure;
+  const imported = parseBackup(JSON.stringify(exported)).state.scopes[`lang:de:${version}`];
+  expect(imported.retrievals.retrievals.map((tuple) => tuple[0])).toEqual([...forms, 'mot3']);
+  expect(Object.keys(imported.exposures.words).sort()).toEqual(['il/elle', 'mot3']);
+});
+
 test('a schema 2 file round-trips: FSRS state, logs and retention survive import and re-export', () => {
   const { all, version, spanish } = writerStorage();
   const json = createBackup(all, '0.13.0', 2);
@@ -156,7 +183,7 @@ test('malformed or out-of-schema schema 2 content fails closed', () => {
     [v2, (b) => { b.state.scopes.es.retrievals.version = 2; }, /unsupported retrieval log version/],
     [v2, (b) => { b.state.scopes.es.retrievals.extra = 1; }, /unsupported retrieval log field/],
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][2] = 'webpage'; }, /invalid retrieval log entry/],
-    [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][0] = 'https://private.example/page'; }, /invalid retrieval log entry/],
+    [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][0] = '<private>'; }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals.push([spanish, 1, 'inline', 'productive', 'easy', 1, null, null, null, null, 'extra passage']); }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.exposures.words[spanish] = [1, 0, 9, '2026-10-01', '2026-10-01']; }, /invalid exposure log entry/],
     [v2, (b) => { Object.defineProperty(b.state.scopes.es.exposures.words, '__proto__', { value: [1, 0, 1, '2026-10-01', '2026-10-01'], enumerable: true }); }, /unsafe exposure log key/],

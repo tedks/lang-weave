@@ -17,7 +17,7 @@ test('popup shows one action and grants this site before saving or injecting', a
   globalThis.document = window.document;
   const events = [];
   let failSave = false;
-  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null, progressFails: false,
+  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null, progressFails: false, consentShown: true,
     isolationUnavailable: false };
   const today = { day: '2026-10-30', introduced: 2, seen: 14, peeked: 3, flipped: 0, reviewed: 5 };
   const pageUrl = 'https://example.com/article';
@@ -29,7 +29,7 @@ test('popup shows one action and grants this site before saving or injecting', a
           settings: { enabled: state.enabled, newSitesEnabled: true,
             siteOverrides: state.siteOverride === null ? {} : { 'example.com': state.siteOverride } },
           language: 'es', hasKey: true, origins: state.access ? ['https://example.com/*'] : [],
-        }, review: { due: state.due, new: state.available }, budgetWarning: '',
+        }, review: { due: state.due, new: state.available }, budgetWarning: '', consentShown: state.consentShown,
           modelStatus: state.isolationUnavailable ? { category: 'key_isolation_unavailable' } : null };
         if (msg.type === 'progress') {
           if (state.progressFails) throw new Error('Progress unavailable');
@@ -103,6 +103,17 @@ test('popup shows one action and grants this site before saving or injecting', a
     expect($('notice').textContent).toBe('');
     state.progressFails = false;
     state.due = 0;
+    state.consentShown = false;
+    $('enabled').checked = true;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => $('operation').textContent === 'Finish setup in the welcome page');
+    expect($('welcomeRoute').hidden).toBe(false);
+    $('openWelcome').click();
+    await waitFor(() => events.includes('chrome-extension://fw-popup/src/welcome.html'));
+    $('enabled').checked = false;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => $('enabled').checked === false);
+    expect($('welcomeRoute').hidden).toBe(false); // still reachable while the switch is off
     failSave = true;
     $('enabled').checked = true;
     $('enabled').dispatchEvent(new window.Event('change'));

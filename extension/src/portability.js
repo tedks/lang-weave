@@ -1,5 +1,6 @@
 // Explicit, bounded learning backup. This module never reads permissions or writes storage.
 import { cleanPack, MAX_PACKS } from './languages.js';
+import { MEASUREMENTS_SKIPPED_KEY } from './measurement-skips.js';
 import { cleanPersonal, validForm, validLanguage, MAX_PERSONAL } from './personal.js';
 import { validDay } from './learning.js';
 import { wordsForLevel } from './levels.js';
@@ -37,7 +38,7 @@ const LOG_FIELDS = ['retrievals', 'exposures'];
 const mode = (source, schema) => ({ source, schema, omitted: { retrievals: 0, exposures: 0 } });
 const DIRECT_KEYS = new Set(['settings', 'languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
 const NON_LEARNING_KEYS = new Set(['apiKey', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus', 'consentShown',
-  'quotaState', 'reloadedFor', IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
+  'quotaState', 'reloadedFor', MEASUREMENTS_SKIPPED_KEY, IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
 const VERSION = /^[0-9a-f]{16}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERSONAL_ID = /^personal:([^:]+):([0-9a-f-]{36})$/i;
@@ -431,6 +432,12 @@ function storageEntries(all) {
 // holding one. Turn this on once a release that reads them has shipped (the "Release order" rule
 // in docs/LEARNING-CORE-MISSION.md; docs/INFERENCE-MISSION.md).
 export const EXPORT_GUESSES = false;
+// 0.12.21 rejects these IDs when importing a schema 2 log. Keep the old form
+// predicate only at this export boundary until 0.12.22 readers have shipped.
+const legacyExportForm = (id) => id.length > 0 && id.length <= 50 && id.trim() === id &&
+  id.split(/\s+/).length <= 5 &&
+  !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
+  !/\.[\p{L}\p{N}]/u.test(id);
 function fitLog(st, m, budget) {
   const encoder = new TextEncoder();
   const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
@@ -447,7 +454,14 @@ function fitLog(st, m, budget) {
     if (fields.retrievals) used += bytes('retrievals') + 2 + bytes({ version: 1, retrievals: [] });
     if (fields.exposures) used += bytes('exposures') + 2;
   }
-  for (const fields of Object.values(st.scopes)) {
+  for (const [id, fields] of Object.entries(st.scopes)) {
+    if (fields.exposures && !id.startsWith('personal:')) {
+      for (const word of Object.keys(fields.exposures.words)) {
+        if (legacyExportForm(word)) continue;
+        delete fields.exposures.words[word];
+        droppedWords++;
+      }
+    }
     if (fields.exposures && !fit(bytes(fields.exposures))) {
       droppedWords += Object.keys(fields.exposures.words).length;
       delete fields.exposures;
@@ -456,7 +470,10 @@ function fitLog(st, m, budget) {
   const all = [];
   for (const [id, fields] of Object.entries(st.scopes))
     for (const tuple of fields.retrievals?.retrievals || []) {
-      if (tuple[2] === 'guess' && !EXPORT_GUESSES) { droppedRetrievals++; continue; }
+      if ((tuple[2] === 'guess' && !EXPORT_GUESSES) ||
+          (!id.startsWith('personal:') && !legacyExportForm(tuple[0]))) {
+        droppedRetrievals++; continue;
+      }
       all.push([id, tuple]);
     }
   all.sort(([, a], [, b]) => b[1] - a[1]);
