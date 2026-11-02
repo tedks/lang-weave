@@ -112,7 +112,7 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
     if (ids.has(row.id)) reject('duplicate', `duplicate overlay id ${row.id}`);
     ids.add(row.id);
     if (row.status && !['candidate', 'machine-checked', 'native-reviewed'].includes(row.status))
-      reject('reserved', 'unknown review status');
+      reject('reserved', 'unknown review status in reserved field');
     if (!Array.isArray(row.anchors) || !row.anchors.length || row.anchors.some((a) => typeof a !== 'string' ||
       !a || badChars.test(a) || a !== simple(a).replace(/\s+/g, ' '))) reject('anchor', 'invalid or noncanonical anchors');
     const form = exactFr(row.fr), fold = normalizeFr(row.fr);

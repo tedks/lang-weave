@@ -48,7 +48,7 @@ export function normalizeFr(s) {
 
 const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
 const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
-export const legacyInflects = (word) => !ARTICLE_RE.test(word.fr || word.word);
+export const legacyInflects = (word) => !ARTICLE_RE.test(word.word ?? word.fr);
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
 export const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').toLocaleLowerCase(language).replace(/\s+/g, ' ').trim();
 // An omitted accent here spells a different Spanish word, not a harmless typo.

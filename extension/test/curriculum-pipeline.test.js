@@ -76,6 +76,7 @@ test('the twelve deterministic gate classes fail closed on bad candidates', asyn
     ['reserved', (rows) => { rows[0].en = 'the | hat'; }, /reserved characters/],
     ['reserved', (rows) => { rows[0].status = 'unknown'; }, /unknown review status/],
     ['number', (rows) => { rows[0].number = 'plural'; rows[0].fr = 'los sombreros'; rows[0].anchors = ['hat']; }, /plural English anchor/],
+    ['number', (rows) => { rows[0].number = 'plural'; rows[0].fr = 'los vasos'; rows[0].en = 'glass'; rows[0].anchors = ['glass']; }, /plural English anchor/],
     ['article', (rows) => { rows[0].pos = 'verb'; }, /non-noun article rule/],
     ['duplicate', (rows) => { rows[1].id = rows[0].id; }, /duplicate overlay id/, 1],
     ['sense', (rows) => { rows[0].wiktextract_entry_sha256 = '0'.repeat(64); }, /Wiktextract lemma/],
@@ -182,6 +183,8 @@ test('English anchor morphology accepts only regular or explicitly listed irregu
   }
   expect(isPluralSurface('feet')).toBe(true);
   expect(isPluralSurface('hat')).toBe(false);
+  expect(isPluralSurface('glass')).toBe(false);
+  expect(isPluralSurface('boxes')).toBe(true);
   expect(supportsAnchor('constructor', 'constructors', noun)).toBe(false);
   expect(supportsAnchor('ox', 'oxes', noun)).toBe(false);
   expect(supportsAnchor('stride', 'strided', verb)).toBe(false);

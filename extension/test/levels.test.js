@@ -58,6 +58,8 @@ describe('candidate pack admission', () => {
 });
 
 test('the shared legacy derivation reproduces the old matcher on every bundled row and enumerated form', () => {
+  expect(legacyInflects({ fr: 'hablar', word: 'el hablar' })).toBe(false);
+  expect(legacyInflects({ fr: 'el hablar', word: 'hablar' })).toBe(true);
   // Frozen inverse-stemming oracle from 0.12.22. The production matcher now derives these forms forward.
   const synonyms = {
     big: ['large', 'huge'], only: ['single'], other: ['another', 'else'],

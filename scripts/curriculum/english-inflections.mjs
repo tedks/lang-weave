@@ -38,9 +38,12 @@ export function englishInflections(base, row) {
   return [third, ing, ed];
 }
 
+const regularPluralSurfaces = new Set([...regularNouns].flatMap((base) =>
+  englishInflections(base, { pos: 'noun', number: 'plural' })));
+
 export function isPluralSurface(anchor) {
   const bare = anchor.replace(/^the /, '');
-  return bare.endsWith('s') || irregularPluralSurfaces.has(bare);
+  return irregularPluralSurfaces.has(bare) || regularPluralSurfaces.has(bare);
 }
 
 export function supportsAnchor(base, anchor, row) {
