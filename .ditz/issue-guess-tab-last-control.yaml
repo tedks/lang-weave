@@ -1,0 +1,19 @@
+id: guess-tab-last-control
+title: Keep guess forward-Tab handling aligned with future action layout
+desc: "Second convergence council nit on PR #45: the forward-Tab handler queries .fw-guess-actions
+  button:last-child. It works for today\u2019s one-button layout, but a future non-button
+  element after Dismiss would make the selector return null. If actions change, select
+  the last focusable control explicitly and keep the keyboard focus-order gate."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:11:23-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:11:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
