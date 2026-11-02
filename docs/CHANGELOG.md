@@ -6,7 +6,7 @@ Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Ame
 
 ## 0.12.22 (2026-11-02)
 
-- #45 Guess choices and inline recall controls are isolated from page styles; screen readers hear choices before the gloss and hear the result when answered. A closed welcome page can be reopened from the popup, Settings keeps the first site choice on welcome, and My words shows how many local measurements were skipped. Generated vocabulary forms that pass pack validation can now be recorded in the learning log. Backups count and leave out those new-form retrievals until a later release, so older readers can import the file.
+- #45 Guess choices and inline recall controls are isolated from page styles; screen readers hear choices before the gloss and hear the result when answered. A closed welcome page can be reopened from the popup, Settings keeps the first site choice on welcome, and My words shows how many local measurements were skipped. Generated vocabulary forms that pass pack validation can now be recorded in the learning log. Backups count and leave out those new-form measurements until a later release, so older readers can import the file.
 
 ## 0.12.21 (2026-11-02)
 
