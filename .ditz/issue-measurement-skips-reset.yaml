@@ -1,0 +1,19 @@
+id: measurement-skips-reset
+title: Define reset behavior for skipped-measurement diagnostic
+desc: 'Council nit on PR #45: the worker-memory high-water mark for measurementsSkipped
+  can repopulate a counter after storage/progress reset. Define the diagnostic reset
+  contract and clear memory consistently if the key is reset, without adding it to
+  backups or changing log formats.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:10:53-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:10:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
