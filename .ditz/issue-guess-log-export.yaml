@@ -1,13 +1,14 @@
 id: guess-log-export
-title: Export guess-first retrievals in backups once the tolerant reader has shipped
-desc: 'Ruling (team lead, 2026-11-01): option B for PR #42. 0.12.19 reads, stores
-  and imports guess-first retrievals (source ''guess''), but schema 2 export leaves
-  them out and counts them in logOmitted.retrievals (portability.js EXPORT_GUESSES=false),
-  because builds <= 0.12.18 refuse a backup holding one. Once 0.12.19, the tolerant
-  reader, has shipped, set EXPORT_GUESSES=true in a later release, update the guess.test.js
-  export test and the backup preview ''left out'' copy, and say in that release''s
-  notes to install 0.12.19 or later first. Until then guess history and the 3-guess
-  cap do not survive backup and restore.'
+title: Enable export of guess and generated-form retrievals once 0.12.22 readers are
+  deployed
+desc: 'Release-order follow-up for PRs #42 and #45. The current reader validates and
+  imports guess-first retrievals and generated-pack forms such as il/elle, z.B., and
+  EU:n. The 0.12.22 schema-2 exporter omits guess entries and generated-form retrievals
+  that 0.12.21 rejects, counting each omission in logOmitted.retrievals. This follows
+  the Lang Weave CTO ruling of 2026-11-02 for polish-2. Once 0.12.22 readers have
+  shipped, enable both export paths in a later release, update tests and backup-preview
+  copy, and state the minimum reader version in release notes. Until then those retrieval
+  measurements do not survive backup and restore.'
 type: task
 component: default
 release:
@@ -28,3 +29,11 @@ log_events:
     so guess first ships as 0.12.20. Builds up to 0.12.19 refuse guess tuples; 0.12.20
     is the tolerant reader, and the later release that enables export should tell
     users to install 0.12.20 or later first.'
+- time: 2026-11-02T17:01:48-00:00
+  who: Ted Smith
+  what: changed title
+  comment: ""
+- time: 2026-11-02T17:01:48-00:00
+  who: Ted Smith
+  what: updated description
+  comment: ""
