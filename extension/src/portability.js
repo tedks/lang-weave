@@ -427,7 +427,7 @@ function storageEntries(all) {
 // so ruling B already left its log out. Everything left out, here or by ruling B during
 // validation, is counted in state.logOmitted.
 // Guess-first retrievals (source 'guess') are read, validated and imported, but schema 2 export
-// leaves them out and counts them in logOmitted: every build up to 0.12.19 refuses a whole backup
+// leaves them out and counts them in logOmitted: every build up to 0.12.20 refuses a whole backup
 // holding one. Turn this on once a release that reads them has shipped (the "Release order" rule
 // in docs/LEARNING-CORE-MISSION.md; docs/INFERENCE-MISSION.md).
 export const EXPORT_GUESSES = false;

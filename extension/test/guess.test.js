@@ -139,7 +139,7 @@ test('schema 2 export leaves guesses out and counts them; import accepts them', 
   const review = [spanish, 10, 'standalone', 'productive', 'medium', 1, 3000, 2, 3, 0.91];
   const guess = [spanish, 11, 'guess', 'receptive', 'incorrect', 0, 1500, null, null, null];
   all.learningRetrievals = { version: 1, retrievals: [review, guess] };
-  const file = JSON.parse(createBackup(all, '0.12.20', 2));
+  const file = JSON.parse(createBackup(all, '0.12.21', 2));
   expect(file.state.scopes.es.retrievals.retrievals).toEqual([review]);
   expect(file.state.logOmitted.retrievals).toBe(1);
   // A file that carries a guess (a later writer) is read by this build.

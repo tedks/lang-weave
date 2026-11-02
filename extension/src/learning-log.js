@@ -14,8 +14,8 @@
 //   learningExposures: { version: 1, words: { [word]: [count, peeks, distinctDays,
 //     firstDay, lastDay] } }
 // A guess-first answer (guess.js) is a retrieval with source 'guess', direction 'receptive' and
-// outcome 'correct' or 'incorrect'; those values occur only together. They were added in 0.12.20
-// without a version change: builds up to 0.12.19 drop such entries from storage and refuse a
+// outcome 'correct' or 'incorrect'; those values occur only together. They were added in 0.12.21
+// without a version change: builds up to 0.12.20 drop such entries from storage and refuse a
 // backup holding one, so schema 2 export leaves them out (portability.js, INFERENCE-MISSION.md).
 // Guesses are not reviews: every recall measure below excludes them (reviewEntries).
 import { localDay } from './events.js';

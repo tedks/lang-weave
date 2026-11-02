@@ -16,7 +16,7 @@ const PINNED = {
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
     'personalExport', 'personalIntroduce', 'personalList'],
   backup: ['learningExport', 'learningImport', 'learningPreview'],
-  // guessBegin/guessAnswer (0.12.20): opt-in guess first, the same content-script sender.
+  // guessBegin/guessAnswer (0.12.21): opt-in guess first, the same content-script sender.
   page: ['captureReady', 'config', 'event', 'guessAnswer', 'guessBegin', 'inlineBegin', 'inlineRate', 'inlineReveal',
     'introAck', 'introRelease', 'introRenew', 'swaps'],
 };
