@@ -58,14 +58,20 @@ test('new generated forms import now but export waits for a tolerant older reade
   const entry = (word, at) => [word, at, 'standalone', 'productive', 'medium', 1, 3000, 2, 3, 0.91];
   const tuples = [...forms, 'mot3'].map((form, i) => entry(form, 10 + i));
   all[`lang:de:${version}:learningRetrievals`] = { version: 1, retrievals: tuples };
+  const exposure = [1, 0, 1, '2026-10-01', '2026-10-01'];
+  all[`lang:de:${version}:learningExposures`] = { version: 1,
+    words: { 'il/elle': exposure, mot3: exposure } };
   const exported = JSON.parse(createBackup(all, '0.12.22', 2));
   const scope = exported.state.scopes[`lang:de:${version}`];
   expect(scope.retrievals.retrievals.map((tuple) => tuple[0])).toEqual(['mot3']);
-  expect(exported.state.logOmitted).toEqual({ retrievals: 3, exposureWords: 0 });
+  expect(Object.keys(scope.exposures.words)).toEqual(['mot3']);
+  expect(exported.state.logOmitted).toEqual({ retrievals: 3, exposureWords: 1 });
   // The current reader still accepts new-form measurements from a schema 2 file.
   scope.retrievals.retrievals = tuples;
-  expect(parseBackup(JSON.stringify(exported)).state.scopes[`lang:de:${version}`]
-    .retrievals.retrievals.map((tuple) => tuple[0])).toEqual([...forms, 'mot3']);
+  scope.exposures.words['il/elle'] = exposure;
+  const imported = parseBackup(JSON.stringify(exported)).state.scopes[`lang:de:${version}`];
+  expect(imported.retrievals.retrievals.map((tuple) => tuple[0])).toEqual([...forms, 'mot3']);
+  expect(Object.keys(imported.exposures.words).sort()).toEqual(['il/elle', 'mot3']);
 });
 
 test('a schema 2 file round-trips: FSRS state, logs and retention survive import and re-export', () => {

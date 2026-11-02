@@ -129,6 +129,7 @@ try {
   await panel.waitFor();
   assert.equal(await panel.evaluate((el) => el.shadowRoot), null); // closed to the page
   assert.equal(await page.locator('.fw-gloss').count(), 0);
+  for (let i = 0; i < 30 && !/Guess choices ready/.test(await statusText()); i++) await page.waitForTimeout(20);
   tree = await ax();
   assert.ok(axBy(tree, 'group', 'Guess the meaning'));
   assert.ok(tree.some((n) => n.role?.value === 'status'));
@@ -221,6 +222,7 @@ try {
   assert.equal(await pero.evaluate((el) => document.activeElement === el), true);
   await page.keyboard.press('Tab');
   await page.keyboard.press('ArrowRight');
+  assert.ok((await ax()).some((n) => n.role?.value === 'button' && axFocused(n) && n.name?.value === peroLabels[1]));
   await page.keyboard.press('2');
   const selected = peroLabels[1];
   assert.ok((await ax()).some((n) => n.role?.value === 'button' && axFocused(n) && n.name?.value === selected));

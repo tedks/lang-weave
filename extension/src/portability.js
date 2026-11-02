@@ -454,7 +454,14 @@ function fitLog(st, m, budget) {
     if (fields.retrievals) used += bytes('retrievals') + 2 + bytes({ version: 1, retrievals: [] });
     if (fields.exposures) used += bytes('exposures') + 2;
   }
-  for (const fields of Object.values(st.scopes)) {
+  for (const [id, fields] of Object.entries(st.scopes)) {
+    if (fields.exposures && !id.startsWith('personal:')) {
+      for (const word of Object.keys(fields.exposures.words)) {
+        if (legacyExportForm(word)) continue;
+        delete fields.exposures.words[word];
+        droppedWords++;
+      }
+    }
     if (fields.exposures && !fit(bytes(fields.exposures))) {
       droppedWords += Object.keys(fields.exposures.words).length;
       delete fields.exposures;

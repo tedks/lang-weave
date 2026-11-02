@@ -161,7 +161,7 @@ export function revealGuessMeaning(span) {
   pendingGuess.delete(span);
   if (!span.classList.contains('fw-en')) {
     const display = displaySwap.get(span);
-    describe(span, t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip')));
+    describe(span, t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip') ?? ''));
   }
 }
 // Show English: the page's own language, so no lang of our own.

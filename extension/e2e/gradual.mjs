@@ -238,6 +238,20 @@ try {
 
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
+  const waitReweave = async (stage) => {
+    try { await page.locator('#reading .fw-word').waitFor(); }
+    catch (error) {
+      const settings = await worker.evaluate(async () => {
+        const { settings } = await chrome.storage.local.get('settings');
+        return { enabled: settings?.enabled, siteOverrides: settings?.siteOverrides };
+      });
+      const reading = await page.locator('#reading').evaluate((el) => ({ html: el.innerHTML,
+        allWords: document.querySelectorAll('.fw-word').length }));
+      console.error('REWEAVE_DEBUG', stage, JSON.stringify({ settings, reading,
+        popupEnabled: await popup.locator('#enabled').isChecked() }));
+      throw error;
+    }
+  };
   const options = await browser.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
   await options.locator('#gradual').uncheck();
@@ -246,11 +260,12 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
   assert.equal(await page.locator('#reading').textContent(), 'We discussed the idea with friends every week.');
   await popup.locator('#enabled').check();
-  await page.locator('#reading .fw-word').waitFor();
+  await popup.waitForFunction(() => chrome.storage.local.get('settings').then(({ settings }) => settings?.enabled === true));
+  await waitReweave('popup enable');
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: false } }));
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'save', siteOverride: { host: 'reading.example', enabled: true } }));
-  await page.locator('#reading .fw-word').waitFor();
+  await waitReweave('site enable');
 
   const pack = cleanPack({ words: Array.from({ length: 20 }, (_, i) => ({
       fr: `mot${i}`, en: `word${i}`, hint: `hint${i}`, level: i < 10 ? 1 : 2,

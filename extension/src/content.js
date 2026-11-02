@@ -410,13 +410,15 @@ function openGuess(span, ticket, choices) {
   shell.root.append(panel);
   shell.root.addEventListener('keydown', guessKey, true);
   shell.root.addEventListener('focusout', guessFocusOut, true);
-  shell.host.id = `fw-guess-${++guessHostCount}`;
+  shell.host.id = `fw-guess-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}-${++guessHostCount}`;
   span.setAttribute('aria-controls', shell.host.id);
   span.setAttribute('aria-expanded', 'true');
   document.documentElement.append(shell.host);
   guess = state;
   placeTip(span, shell.host);
-  setTimeout(() => { if (guess === state && !state.answered) status.textContent = t('guess_opened'); }, 0);
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    if (guess === state && !state.answered) status.textContent = t('guess_opened');
+  }));
 }
 async function answerGuess(state, index, keyboard) {
   if (guess !== state || state.answered || !guessAlive(state)) return;
@@ -467,7 +469,7 @@ function guessKey(e) {
     consume(); guessQuiet = state.span; state.span.focus(); return;
   }
   if (inPanel && e.key === 'Tab' && !e.shiftKey &&
-      state.root.activeElement === state.panel.querySelector('.fw-guess-actions button')) {
+      state.root.activeElement === state.panel.querySelector('.fw-guess-actions button:last-child')) {
     consume(); guessQuiet = state.span; state.span.focus(); return;
   }
   if (state.answered || e.altKey || e.ctrlKey || e.metaKey) return;
