@@ -1,0 +1,18 @@
+id: guess-panel-style-hardening
+title: Verify guess panel styling under CSP and hostile positioning
+desc: 'Council nits on PR #45: verify that strict page CSP does not block the closed-root
+  style element, and that hostile !important left/top rules cannot move the host after
+  placeTip updates. Add Chromium fixtures for both and harden if reproduced.'
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T17:10:53-00:00
+references: []
+log_events:
+- time: 2026-11-02T17:10:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
