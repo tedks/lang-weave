@@ -1,0 +1,28 @@
+id: curriculum-candidate-containment-policy
+title: Decide candidate-to-candidate English anchor containment policy
+desc: 'PR #46 closes collisions between a candidate anchor and the 226 legacy matcher.
+  It does not infer broad containment between two new candidate anchors, such as `ice
+  cream` and `cream`, because a blanket ban could overblock valid distinct senses.
+  This was noted on curriculum-legacy-anchor-overlap and in docs/CURRICULUM-PIPELINE.md.
+
+
+  Options: (A) reject every candidate anchor containing another candidate anchor as
+  whole words; (B) permit containment when both rows have distinct reviewed senses
+  and independent example evidence; (C) keep exact-anchor uniqueness only and accept
+  the ambiguity risk. Recommendation: B, with a deterministic containment warning
+  and native review before any such pair ships. Decider: Ted (product scope). Blocks:
+  admission or release of a future batch containing a containment pair; does not block
+  PR #46 or the unchanged 226 rows.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-02T18:04:50-00:00
+references: []
+log_events:
+- time: 2026-11-02T18:04:50-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
