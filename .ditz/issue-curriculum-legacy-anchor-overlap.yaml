@@ -10,7 +10,7 @@ type: task
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-11-01T04:01:54-00:00
 references: []
@@ -27,3 +27,7 @@ log_events:
     vs cream. The current article key deliberately closes the newly introduced the
     X overlap; broader containment requires a separate policy to avoid overblocking
     valid senses.'
+- time: 2026-11-02T17:25:14-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
