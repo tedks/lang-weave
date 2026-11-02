@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import {
-  resolveLevel, L1_WORDS, L2_WORDS, MAX_PACK_ROWS, assertPackAnchors, validateSwaps, glossMatches, wordCount, isZeroFrench, normalizeFr, matchCase,
+  resolveLevel, L1_WORDS, L2_WORDS, MAX_PACK_ROWS, assertPackAnchors, validateSwaps, glossMatches, legacyGlossForms, wordCount, isZeroFrench, normalizeFr, matchCase,
 } from '../src/levels.js';
 
 describe('level', () => {
@@ -55,6 +55,59 @@ describe('candidate pack admission', () => {
     expect(validateSwaps(2, [{ o: 'hat', f: 'sombrero' }], [word])[0]?.f).toBe('sombrero');
     expect(validateSwaps(2, [{ o: 'a hat', f: 'el sombrero' }], [word])).toHaveLength(0);
   });
+});
+
+test('the shared legacy derivation reproduces the old matcher on every bundled row and enumerated form', () => {
+  // Frozen inverse-stemming oracle from 0.12.22. The production matcher now derives these forms forward.
+  const synonyms = {
+    big: ['large', 'huge'], only: ['single'], other: ['another', 'else'],
+    'i think that': ['i think'], okay: ['ok'], 'thank you': ['thanks'],
+    'a little': ['a bit', 'a little bit'], 'a lot': ['lots', 'a lot of', 'lots of', 'much', 'so much'],
+    maybe: ['perhaps', 'possibly'], also: ['too', 'as well'], 'too much': ['too', 'too many'],
+    difficult: ['hard'], actually: ['in fact'], but: ['however'],
+    'there is': ["there's", 'there are'], 'there are': ["there's", 'there is'],
+    "it's": ['it is', 'this is', "that's", 'that is'],
+    'this is': ["it's", 'it is', "that's", 'that is'], hello: ['hi'],
+  };
+  const lead = /^(?:the|a|an|to)\s+/;
+  const clean = (value) => String(value).toLowerCase().replace(/[’‘`]/g, "'")
+    .replace(/\(.*?\)/g, ' ').replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  const oldForms = (en) => {
+    const forms = new Set();
+    for (const alt of String(en).split(/\s*[/;,]\s*/)) {
+      const g = clean(alt);
+      if (!g) continue;
+      for (const f of [g, g.replace(lead, '')]) {
+        forms.add(f);
+        for (const syn of synonyms[f] || []) forms.add(syn);
+      }
+    }
+    return forms;
+  };
+  const oldMatches = (original, forms, inflections) => {
+    const t = clean(original);
+    if (!t) return false;
+    for (const c of new Set([t, t.replace(lead, '')])) {
+      if (forms.has(c)) return true;
+      if (!inflections) continue;
+      for (const [suffix, stem] of [['ies', 'y'], ['es', ''], ['s', ''], ['ed', ''], ['ed', 'e'], ['ing', ''], ['ing', 'e']])
+        if (c.endsWith(suffix) && forms.has(c.slice(0, -suffix.length) + stem)) return true;
+    }
+    return false;
+  };
+  expect(L2_WORDS).toHaveLength(226);
+  for (const word of L2_WORDS) {
+    const inflections = !/^(?:el|la|los|las|un|una|unos|unas)\s+/i.test(word.fr);
+    const bases = oldForms(word.en);
+    const derived = legacyGlossForms(word.en, { inflections });
+    const probes = new Set([...bases, ...derived]);
+    for (const base of bases) for (const suffix of ['s', 'es', 'ies', 'ed', 'ing']) probes.add(base + suffix);
+    for (const form of probes) for (const candidate of [form, `the ${form}`, `a ${form}`, `an ${form}`, `to ${form}`]) {
+      expect(glossMatches(candidate, word.en, { inflections }), `${word.fr}: ${candidate}`)
+        .toBe(oldMatches(candidate, bases, inflections));
+    }
+    for (const form of derived) expect(oldMatches(form, bases, inflections), `${word.fr}: ${form}`).toBe(true);
+  }
 });
 
 describe('validateSwaps', () => {

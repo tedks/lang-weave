@@ -1,0 +1,27 @@
+{
+  "noun": {
+    "child": ["children"],
+    "foot": ["feet"],
+    "goose": ["geese"],
+    "man": ["men"],
+    "mouse": ["mice"],
+    "person": ["people"],
+    "tooth": ["teeth"],
+    "woman": ["women"]
+  },
+  "verb": {
+    "be": ["is", "being", "been"],
+    "do": ["does", "doing", "done"],
+    "eat": ["eats", "eating", "eaten"],
+    "get": ["gets", "getting", "gotten"],
+    "go": ["goes", "going", "gone"],
+    "have": ["has", "having", "had"],
+    "make": ["makes", "making", "made"],
+    "run": ["runs", "running"],
+    "say": ["says", "saying", "said"],
+    "see": ["sees", "seeing", "seen"],
+    "speak": ["speaks", "speaking", "spoken"],
+    "take": ["takes", "taking", "taken"],
+    "write": ["writes", "writing", "written"]
+  }
+}

@@ -116,7 +116,7 @@ const SYNONYMS = {
   hello: ['hi'],
 };
 
-export function glossMatches(original, en, { inflections = true } = {}) {
+export function legacyGlossForms(en, { inflections = true } = {}) {
   const forms = new Set();
   for (const alt of String(en).split(/\s*[/;,]\s*/)) {
     const g = cleanEn(alt);
@@ -126,14 +126,25 @@ export function glossMatches(original, en, { inflections = true } = {}) {
       for (const syn of SYNONYMS[f] || []) forms.add(syn);
     }
   }
+  if (!inflections) return forms;
+  const matched = new Set(forms);
+  for (const base of forms) {
+    for (const suffix of ['es', 's', 'ed', 'ing']) matched.add(`${base}${suffix}`);
+    if (base.endsWith('y')) matched.add(`${base.slice(0, -1)}ies`);
+    if (base.endsWith('e')) {
+      matched.add(`${base.slice(0, -1)}ed`);
+      matched.add(`${base.slice(0, -1)}ing`);
+    }
+  }
+  return matched;
+}
+
+export function glossMatches(original, en, { inflections = true } = {}) {
+  const forms = legacyGlossForms(en, { inflections });
   const t = cleanEn(original);
   if (!t) return false;
   for (const c of new Set([t, t.replace(EN_LEAD_RE, '')])) {
     if (forms.has(c)) return true;
-    if (!inflections) continue;
-    for (const [suffix, stem] of [['ies', 'y'], ['es', ''], ['s', ''], ['ed', ''], ['ed', 'e'], ['ing', ''], ['ing', 'e']]) {
-      if (c.endsWith(suffix) && forms.has(c.slice(0, -suffix.length) + stem)) return true;
-    }
   }
   return false;
 }

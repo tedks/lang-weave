@@ -8,7 +8,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { L2_WORDS } from '../../extension/src/vocabulary.js';
 import { anchorCollisionKey, englishAnchors } from '../../extension/src/catalog.js';
-import { assertPackAnchors, exactFr, normalizeFr, MAX_PACK_ROWS } from '../../extension/src/levels.js';
+import { assertPackAnchors, exactFr, glossMatches, normalizeFr, MAX_PACK_ROWS } from '../../extension/src/levels.js';
+import { supportsAnchor } from './english-inflections.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -24,23 +25,6 @@ const bare = (fr) => fr.replace(/^(?:el|la|los|las) /, '');
 const englishBases = (value) => String(value).split(/\s*[/;,]\s*/).map((part) => simple(part)
   .replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
   .flatMap((part) => [part, part.replace(/^(?:the|a|an|to) /, '')]);
-function supportsAnchor(base, anchor, row) {
-  if (base === anchor) return true;
-  if (row.pos === 'noun' && anchor.startsWith('the ')) return supportsAnchor(base, anchor.slice(4), row);
-  if (!/^[a-z]+$/.test(base) || !/^[a-z]+$/.test(anchor)) return false;
-  if (row.pos === 'verb') {
-    const forms = [base + 's', base + 'es', base + 'ing', base + 'ed'];
-    if (base.endsWith('e')) forms.push(base.slice(0, -1) + 'ing', base + 'd');
-    if (base.endsWith('y')) forms.push(base.slice(0, -1) + 'ies');
-    return forms.includes(anchor);
-  }
-  if (row.pos === 'noun' && row.number === 'plural') {
-    const forms = [base + 's', base + 'es'];
-    if (base.endsWith('y')) forms.push(base.slice(0, -1) + 'ies');
-    return forms.includes(anchor);
-  }
-  return false;
-}
 const forbidden = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'if', 'in', 'is', 'like',
   'no', 'of', 'on', 'or', 'so', 'the', 'to', 'with', 'yes']);
 const badChars = /[<>|\r\n\t\u0000-\u001f]/u;
@@ -115,47 +99,54 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
   const newForms = new Set(), newFolds = new Set(), newAnchors = new Set(), ids = new Set();
   const rows = [];
   for (const row of selected) {
+    const submittedHash = sha(JSON.stringify(row));
+    const reject = (gate, message) => { throw Error(`gate ${gate} row ${submittedHash} (${row.id || '?'}): ${message}`); };
     // Twelve hard gates: exact duplicates, accent homographs, number, English collisions,
     // shared anchors, articles, hints, bands, sense, examples, function words, reserved chars.
     for (const field of ['fr', 'en', 'hint', 'sense', 'lemma', 'family_id', 'pos', 'form_tag', 'article_rule', 'id']) {
       if (typeof row[field] !== 'string' || !row[field] || badChars.test(row[field]) || row[field] !== row[field].normalize('NFC'))
-        throw Error(`${row.id || '?'}: invalid or reserved characters in ${field}`);
+        reject(field === 'sense' ? 'sense' : field === 'hint' ? 'hint' : field === 'article_rule' ? 'article' : 'reserved',
+          `invalid or reserved characters in ${field}`);
     }
-    if (ids.has(row.id)) throw Error(`duplicate overlay id ${row.id}`);
+    if (ids.has(row.id)) reject('duplicate', `duplicate overlay id ${row.id}`);
     ids.add(row.id);
     if (row.status && !['candidate', 'machine-checked', 'native-reviewed'].includes(row.status))
       throw Error(`${row.id}: unknown review status`);
     if (!Array.isArray(row.anchors) || !row.anchors.length || row.anchors.some((a) => typeof a !== 'string' ||
-      !a || badChars.test(a) || a !== simple(a).replace(/\s+/g, ' '))) throw Error(`${row.id}: invalid or noncanonical anchors`);
+      !a || badChars.test(a) || a !== simple(a).replace(/\s+/g, ' '))) reject('anchor', 'invalid or noncanonical anchors');
     const form = exactFr(row.fr), fold = normalizeFr(row.fr);
-    if (oldForms.has(form) || newForms.has(form)) throw Error(`${row.id}: duplicate target form ${row.fr}`);
-    if (oldFolds.has(fold) || newFolds.has(fold)) throw Error(`${row.id}: accent-fold collision ${row.fr}`);
+    if (oldForms.has(form) || newForms.has(form)) reject('duplicate', `duplicate target form ${row.fr}`);
+    if (oldFolds.has(fold) || newFolds.has(fold)) reject('accent-fold', `accent-fold collision ${row.fr}`);
     newForms.add(form); newFolds.add(fold);
     if (row.fr.length > 50 || row.en.length > 60 || row.hint.length > 60 || !/^[A-Za-z -]+$/.test(row.hint))
-      throw Error(`${row.id}: invalid hint or runtime field length`);
-    if (!row.sense.trim() || row.sense.length > 120) throw Error(`${row.id}: missing or oversized sense note`);
+      reject('hint', 'invalid hint or runtime field length');
+    if (!row.sense.trim() || row.sense.length > 120) reject('sense', 'missing or oversized sense note');
     if (row.pos === 'noun') {
       const article = row.number === 'plural' ? row.gender === 'm' ? 'los' : 'las' : row.gender === 'm' ? 'el' : 'la';
       if (!['m', 'f'].includes(row.gender) || !['singular', 'plural'].includes(row.number) ||
           row.article_rule !== 'def' || !row.fr.startsWith(`${article} `) || row.form_tag !== 'lemma')
-        throw Error(`${row.id}: noun article/gender/number rule failed`);
+        reject('article', 'noun article/gender/number rule failed');
       if (row.number === 'plural' && row.anchors.some((a) => !/(?:s|men|people|children)$/i.test(a)))
-        throw Error(`${row.id}: plural row lacks explicit plural English anchor`);
+        reject('number', 'plural row lacks explicit plural English anchor');
     } else if (row.article_rule !== 'none' || row.number !== 'none' || row.gender !== 'none' || /^(?:el|la|los|las) /.test(row.fr)) {
-      throw Error(`${row.id}: non-noun article rule failed`);
+      reject('article', 'non-noun article rule failed');
     }
     const frequency = frequencies.get(row.fr);
-    if (!frequency || frequency.band < 1 || frequency.band > 20) throw Error(`${row.id}: missing frequency band`);
+    if (!frequency || frequency.band < 1 || frequency.band > 20) reject('band', 'missing frequency band');
     if (frequency.targetEn >= 3.5 && !row.english_collision_approved)
-      throw Error(`${row.id}: Spanish form collides with a common English word`);
+      reject('english-collision', 'Spanish form collides with a common English word');
     const anchors = englishAnchors(row);
-    if (anchors.some((anchor) => forbidden.has(anchor) || oldAnchors.has(anchorCollisionKey(anchor))))
-      throw Error(`${row.id}: forbidden or existing English anchor`);
-    if (anchors.some((anchor) => newAnchors.has(anchorCollisionKey(anchor)))) throw Error(`${row.id}: shared English anchor`);
+    if (anchors.some((anchor) => forbidden.has(anchor))) reject('function-word', 'forbidden or existing English anchor');
+    if (anchors.some((anchor) => oldAnchors.has(anchorCollisionKey(anchor)))) reject('anchor', 'forbidden or existing English anchor');
+    if (anchors.some((anchor) => newAnchors.has(anchorCollisionKey(anchor)))) reject('anchor', 'shared English anchor');
+    for (const anchor of anchors) for (const old of L2_WORDS) {
+      if (glossMatches(anchor, old.en, { inflections: !/^(?:el|la|los|las|un|una|unos|unas)\s+/i.test(old.fr) }))
+        reject('legacy-overlap', `anchor ${JSON.stringify(anchor)} is claimed by legacy row ${old.fr}`);
+    }
     for (const anchor of anchors) newAnchors.add(anchorCollisionKey(anchor));
     const glossBases = englishBases(row.en);
     if (!anchors.every((anchor) => glossBases.some((base) => supportsAnchor(base, anchor, row))))
-      throw Error(`${row.id}: anchor is unsupported by the English gloss`);
+      reject('sense', 'anchor is unsupported by the English gloss');
     const sourceEntries = (source.get(row.lemma) || []).filter((entry) => entry.data.pos === row.pos &&
       entry.data.senses?.some((sense) => {
         const bases = (sense.glosses || []).flatMap(englishBases);
@@ -163,16 +154,16 @@ export async function build({ wiki = join(HERE, 'fixtures/wiktextract.jsonl'),
           (row.pos !== 'noun' || (sense.tags || []).includes(row.gender === 'm' ? 'masculine' : 'feminine'));
       }));
     if (sourceEntries.length > 1 && !row.wiktextract_entry_sha256)
-      throw Error(`${row.id}: multiple Wiktextract entries match; pin one entry hash in the overlay`);
+      reject('sense', 'multiple Wiktextract entries match; pin one entry hash in the overlay');
     const sourceEntry = row.wiktextract_entry_sha256 ? sourceEntries.find((entry) => entry.hash === row.wiktextract_entry_sha256) : sourceEntries[0];
     if (!sourceEntry)
-      throw Error(`${row.id}: Wiktextract lemma, gender, POS or gloss missing`);
+      reject('sense', 'Wiktextract lemma, gender, POS or gloss missing');
     const example = sentences.get(`${row.example_id}:${row.translation_id}`);
     if (!example || example.en_id !== row.translation_id || !example.es_author || !example.en_author ||
         !['CC0', 'CC BY 2.0 FR'].includes(example.licence) ||
         count(example.es, bare(row.fr)) !== 1 || !anchors.some((anchor) => count(example.en, anchor) === 1) ||
         example.es.split(/\s+/).length < 4 || example.es.split(/\s+/).length > 14)
-      throw Error(`${row.id}: example sentence alignment failed`);
+      reject('example', 'example sentence alignment failed');
     const blank = example.es.replace(wordToken(bare(row.fr)), '____');
     const core = { fr: row.fr, en: row.en, hint: row.hint, anchors, sense: row.sense, lemma: row.lemma,
       family_id: row.family_id, pos: row.pos, gender: row.gender, number: row.number, form_tag: row.form_tag,
