@@ -59,3 +59,12 @@ log_events:
     rows, gradual-only bands vs the 240-entry test cap, perf budget for matchingEntries
     at 3k anchors. Measured with wordfreq: top 3,000 Spanish forms cover 79% of tokens;
     current 208 single-token forms cover 18%.'
+- time: 2026-11-02T17:53:07-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #46 convergence nit: plural and verb inflection derivation is now closed-world
+    through english-regulars.json plus english-irregulars.json. Before the first real
+    batch, add reviewed regular bases needed by that batch; a missing list entry intentionally
+    refuses the candidate. The admission error names gate, row hash and form, while
+    docs give the list-edit procedure. This is data preparation, not a blocker for
+    the zero-new-row gate PR.'
