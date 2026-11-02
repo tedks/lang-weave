@@ -19,3 +19,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-02T17:48:01-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #46 council nit: `glossMatches` now derives a finite Set of legacy
+    surfaces on each call, adding allocation on the 226-row path. The exact-behavior
+    oracle and current Bun/Chromium gates pass. Include this allocation in the planned
+    realistic browser latency measurement; only cache if measured cost warrants it,
+    with bounded memory and no mutable cached Set exposure.'
