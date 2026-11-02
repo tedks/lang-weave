@@ -29,9 +29,10 @@ async function refresh() {
   $('update').hidden = !status.update;
   $('updateVersion').textContent = status.update || '';
   $('newSitesEnabled').value = String(s.newSitesEnabled);
+  $('newSitesEnabled').disabled = !status.consentShown;
   $('consentNote').textContent = status.consentShown ? t('options_consent_chosen') : t('options_consent_pending');
   $('welcomeLink').hidden = status.consentShown;
-  $('grantSites').hidden = all || !s.newSitesEnabled;
+  $('grantSites').hidden = !status.consentShown || all || !s.newSitesEnabled;
   $('accessNote').textContent = s.newSitesEnabled
     ? (all ? t('options_access_all') : t('options_access_needs_ok'))
     : t('options_access_off');
@@ -143,6 +144,7 @@ $('testKey').addEventListener('click', () => run(async () => {
     await refresh();
     $('keyFeedback').textContent = result.ok ? t('options_key_works') : result.category === 'no_key'
       ? t('options_key_add_first') : result.category === 'changed' ? t('options_key_changed')
+      : result.category === 'consent_required' ? t('options_key_consent_required')
       : statusLabel({ category: result.category }) || t('options_key_model_failed');
   } finally { button.disabled = !status?.pastedKey || !status?.consentShown; }
 }));
