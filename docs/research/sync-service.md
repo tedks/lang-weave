@@ -1,9 +1,20 @@
 # Cross-machine progress sync and the paid-service direction
 
 Research date: 2026-11-02. Author: sync-service-exploration lane (Anthropic Opus 5.5, Lead).
-Base: `main` at 72a36e8 (extension 0.12.23). This is a design proposal. Nothing in it is
-built, deployed, purchased or published. Where it says "recommend", that is a proposal for
-review, not a ruling; Ted's approved direction is quoted as such in [Direction](#direction).
+Source inventory base: `main` at 72a36e8 (extension 0.12.23); every code claim was checked
+there. Integration: the branch was later merged with `main` at f06684d (0.12.24, gradual on
+install) without re-auditing the inventory. This is a design proposal. Nothing in it is built,
+deployed, purchased or published. Where it says "recommend", that is a proposal for review, not a
+ruling; Ted's approved direction is quoted as such in [Direction](#direction).
+
+> **Root disposition (CTO, 2026-11-03).** Reviewed by root as useful research. Research
+> acceptance, and merging this memo, is **not** approval of
+> the architecture or the cryptography, and **not** authorization to implement. Before committing
+> to custom pairing, encryption or recovery, an implementation lane must compare existing
+> libraries and protocols; deployment recipes or dependency count alone do not reject Etebase.
+> The staged tracer (ditz `sync-op-reducer-tracer`) needs its own bounded dispatch even after this
+> memo merges. Root files the decisions and follow-ups. The council rounds recorded below went
+> beyond the factual review the brief asked for; see [Review record](#review-record).
 
 ## Bottom line
 
@@ -48,8 +59,8 @@ Recorded from the CTO's brief of 2026-11-02, as Ted's direction (approved, not p
 - A paid sync service, itself AGPL.
 - Bring-your-own-key (BYOK) is preserved.
 - A Firefox port.
-- Paid AI-synthesized pronunciation (not only OS voices); pronunciation is an explicit user
-  action.
+- Paid AI-synthesized pronunciation (not only OS voices). That pronunciation is an explicit
+  user action comes from the CTO's brief, not from Ted verbatim.
 - Eventually resell provider tokens (a hosted, no-key tier).
 - No donations.
 - Public launch deferred.
@@ -694,7 +705,9 @@ is AGPL-3.0 and built for end-to-end encryption, but needs Django, uvicorn and n
 Automerge's sync server is MIT and describes itself as "an unsecured Express app" [S23]. None
 speaks Lang Weave's records, and adopting Etebase's client library would add a dependency to an
 extension that has none. The proposal borrows Anki's footprint and Etebase's trust model rather
-than either codebase.
+than either codebase. That is an observation, not a rejection: per the root disposition above,
+deployment recipes or dependency count alone do not rule Etebase out, and a library comparison
+comes before any custom pairing, encryption or recovery code.
 
 The extension must also stay fully usable with sync off: no account appears in onboarding, and
 the "no account" positioning in ROADMAP.md stays true for anyone who never turns sync on.
@@ -916,9 +929,9 @@ Items 1–4 block a stage; item 5 does not. Root files the rulings; recommendati
    one device only (3.6). Options: count only active entries, add a delete op, or keep the limit.
    Recommendation: count only active entries once sync ships. Decides: Ted.
 
-Already open elsewhere and affected: `firefox-identity-ruling` (data categories once sync
-exists), `audio-local-voices-ruling` (free local-voice baseline beside paid synthesis), and
-`hosted-tier-and-donations-ruling` (Ted has now directed no donations).
+Related issues: `firefox-identity-ruling` is still open (data categories once sync exists).
+`hosted-tier-and-donations-ruling` is closed (fixed). `audio-local-voices-ruling` is closed,
+superseded by Ted's paid AI pronunciation direction.
 
 ## Review record
 
