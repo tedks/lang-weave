@@ -352,14 +352,17 @@ Invariants:
    export and the keep-this-device / keep-the-account choice, defaulting to the account's, and
    pushes nothing automatically. The lost baseline also lost the device token and account secret,
    so either choice first needs re-pairing (or, on the account's only device, the recovery code),
-   under a new device ID so no `deviceSeq` is reused.
+   under a new device ID so no `deviceSeq` is reused; the pairing flow revokes the old device ID
+   (the server writes its `device-retired` envelope), so it cannot hold back compaction or the
+   `formatVersion` gate.
 4. If IndexedDB is unavailable while sync is on, sync pauses visibly and learning and backups keep
    working on `storage.local`; invariant 3 reconciles on recovery, whether at start or mid-life.
 
 Acceptance tests, stage 2: a worker killed after each kind of IndexedDB commit (outbox, pull,
 snapshot load, adopt, kept-copy restore) and before its projection; downgrade, review on the old
 build, re-upgrade; IndexedDB failing then recovering mid-session; eviction on device A after
-device B changed cards (A re-pairs; B's state survives unless the user picks A's); an out-of-band card change;
+device B changed cards (A re-pairs, its old device ID is revoked and the format gate can advance;
+B's state survives unless the user picks A's); no pack-scope or personal-card op is pushed; an out-of-band card change;
 a re-projection keeping an open ticket and `siteOverrides`, and a concurrent local-only write
 (`learning` budget, encounter buckets) during re-projection; export and fresh import with sync
 state present; import refused while sync is on; first enable on a non-empty install, both
@@ -369,7 +372,9 @@ pre-adopt backup. Stage 3 adds: out-of-band changes to a personal entry, a prefe
 eviction after another device changed a preference and archived an entry (its values survive
 unless the user picks this device's); first enable, and a stage 2 to stage 3 upgrade, of two
 installs with different personal entries, preferences and packs (entries union under 3.6 with no
-personal card lost within the cap; preferences follow the 3.7 rule).
+entry lost within the cap; personal and pack card scopes go to the adopt choice; non-default
+preferences and installed packs absent from the account survive and reach the other device;
+conflicting ones follow the 3.7 rule).
 
 - **Loss detection.** One new install-local key, a sync marker holding a sync-state epoch, is added
   to `NON_LEARNING_KEYS` so the backup ignores it (an older build after a downgrade would refuse to
@@ -446,8 +451,14 @@ adds can bypass all three. The fold therefore, in server order:
   `settings.js` only), so 0b also adds its validation.
 - When non-card fields become synced (first enable from stage 3, or an account's upgrade from
   stage 2 to stage 3), personal entries from each device are added as `personal.add` ops and
-  merge under 3.6; for preferences and packs the account's values win and the device's differing
-  values are shown once with an option to apply them. Stage 3 ops are written only after the 3.7
+  merge under 3.6. Each device's personal and pack card histories enter through the per-scope
+  adopt choice, like any card scope. For a preference field or pack code the account has no value
+  for (the normal case for the first device), the device's value is pushed (`pref.set`,
+  `pack.install`) before projection. Only for an actual conflict does the account's value win,
+  "the account's" meaning the fold after the first synced writes; the device's differing value,
+  including one whose upgrade-time `pref.set` lost, is shown once with an option to apply it. A
+  device's cards in a pack scope whose pack version the account does not adopt stay in that
+  version's scope, offered through the same adopt choice if the user installs that version. Stage 3 ops are written only after the 3.7
   `formatVersion` gate (every active device reads the new version).
 - First enable on an existing install needs the server reachable at the start. The device
   keeps a copy of its pre-enable learning state locally until, per scope, its `scope.adopt`
