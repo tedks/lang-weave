@@ -14,7 +14,7 @@ Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA 
   1. **We write the English gloss ourselves.** Wiktionary's copyright page says "Individual words are not copyrightable". The same page warns that copying a selection similar to another dictionary's may draw suspicion ([Wiktionary:Copyrights](https://en.wiktionary.org/wiki/Wiktionary:Copyrights); paraphrased in curriculum-sources.md §3.2).
    - The mitigation is to author our own rows and use other sources only as uncopied checks.
    - Whether a 3k-row compilation authored this way is free of third-party claims is still a question for the legal read curriculum-sources.md already recommends.
-  2. **Take Spanish morphology from Wikidata Lexemes, which is CC0.** That covers forms, part of speech and gender. 2,831 of the top 3,000 forms resolve to a lexeme or one of its forms, and the verb paradigms are complete.
+  2. **Take Spanish morphology from Wikidata Lexemes, which is CC0.** That covers forms, part of speech and gender. 2,831 of the top 3,000 forms resolve to a lexeme or one of its forms. Verb forms are broadly covered: 8,562 of 8,578 verbs have at least 50 forms. That is a breadth count, not an audit of whether each paradigm is complete or correct.
   3. **Check every row against independent evidence that we use but do not copy.** The evidence is Tatoeba translation pairs, Wikidata meanings and the Gutenberg school vocabularies. Rows where the evidence disagrees go to one fluent human.
 - **The remaining gap is frequency ordering.** No CC0 ranking we tested comes close to wordfreq's quality (section 3.3). There are three options, and Ted decides:
   - keep the coarse wordfreq bands that already ship with attribution;
@@ -43,7 +43,7 @@ Each candidate gets checked on five separate points:
 - **Licence (primary):** "All structured data (i.e. the main, Property, Lexeme, and EntitySchema namespaces) is released into the public domain under Creative Commons Zero." ([Wikidata:Licensing](https://www.wikidata.org/wiki/Wikidata:Licensing), fetched 2026-11-03.)
 - **Probe:**
   - **Input:** the dump `https://dumps.wikimedia.org/wikidatawiki/entities/latest-lexemes.json.bz2` (Last-Modified 2026-10-28, 485,025,719 bytes, sha256 `49bc13d3…eef8f`), plus SPARQL counts from query.wikidata.org.
-  - **Size:** 67,954 Spanish lexemes. 35,249 are nouns, and 35,136 of those nouns carry grammatical gender (P5185). 8,562 of the 8,578 verbs have at least 50 forms, so the full paradigms are present. For example, `hablar` has 68 forms: hablo, hablas, habla, hablamos, habláis, hablan, hablé, …
+  - **Size:** 67,954 Spanish lexemes. 35,249 are nouns, and 35,136 of those nouns carry grammatical gender (P5185). 8,562 of the 8,578 verbs have at least 50 forms. That measures breadth only. I did not audit whether paradigms are complete or correct. For example, `hablar` has 68 forms: hablo, hablas, habla, hablamos, habláis, hablan, hablé, …
   - **Spanish sense data:** only 16,651 lexemes have any sense at all (SPARQL; the dump extract gives 16,646).
   - **English meanings are sparse.** Senses reach English in three ways, and each is thin:
     - 1,458 lexemes have an English-language sense gloss;
@@ -72,7 +72,7 @@ Each candidate gets checked on five separate points:
     - `hierro` → "element with atomic number 26"
     - `agua` S1 also links to "ice" and "vapor"
   - Sense order is not frequency order. For example, `casa` lists a lineage sense and an astrology sense next to "house".
-- **Verdict:** the best CC0 source we tested for **forms, part of speech, gender and lemma links**. Inflection data is what our English-anchor and Spanish-form gates need, and it is complete here. Wikidata is a **cross-check** for English meanings, not a primary source. Item-label meanings need filtering: drop taxon, chemistry and grammar-term items, and prefer real glosses and P5972 translations.
+- **Verdict:** the best CC0 source we tested for **forms, part of speech, gender and lemma links**. Inflection data is what our English-anchor and Spanish-form gates need, and coverage here is broad. Paradigm completeness and correctness were not audited, so a spot audit belongs in any pilot. Wikidata is a **cross-check** for English meanings, not a primary source. Item-label meanings need filtering: drop taxon, chemistry and grammar-term items, and prefer real glosses and P5972 translations.
 
 ### 3.2 Tatoeba CC0 subset: too small
 
@@ -245,7 +245,7 @@ So the check is cheap: about one minute on a laptop, with no network beyond the 
     - The earlier plan had two independent reviewers per band. It used 100% double review for the first 526 rows and a 60-row sample plus flagged rows for later bands.
     - This plan uses one reader throughout.
     - It keeps the 60-row sample size.
-  - **Zero sample defects:** ship the band. By the rule of three, the residual defect rate is bounded near 5% at 95% confidence.
+  - **Zero sample defects:** ship the band. This is a proposal, not a guarantee. By the rule of three, the defect rate among the *unflagged* rows is bounded near 5% at 95% confidence. That bound holds only approximately, and only if the sample is drawn at random from the unflagged rows and the reader reliably detects defects. It says nothing about defects in flagged rows the reader passed, so it is not a guarantee about the whole band.
   - **Escalation (kept from the earlier plan):**
     - 1–3 sample defects: fix them, find the cause (add it as a flag where possible) and sample 60 more.
     - More than 3: review the whole band.
