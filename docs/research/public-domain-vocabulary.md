@@ -1,20 +1,25 @@
 # A public-domain Spanish–English vocabulary source?
 
-Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA data posture and the double native review proposed in [curriculum-sources.md](curriculum-sources.md) and `curriculum-data-licence-ruling`. This note answers that question. Sources were fetched and probed on 2026-11-02/03 (UTC) from branch `vocabulary-public-domain` at `72a36e8`. The probes were read-only. They ran in session scratch space, and no data, dependency or vocabulary row was added to the repository. This is engineering diligence, not legal advice. Anything I could not fetch is marked **[unverified]**.
+Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA data posture and the double native review proposed in [curriculum-sources.md](curriculum-sources.md) and `curriculum-data-licence-ruling`. This note answers that question for the sources tested here (sections 3 and 4). It does not survey every possible source. Sources were fetched and probed on 2026-11-02/03 (UTC) from branch `vocabulary-public-domain` at `72a36e8`. The probes were read-only. They ran in session scratch space, and no data, dependency or vocabulary row was added to the repository. This is engineering diligence, not legal advice. Anything I could not fetch is marked **[unverified]**.
 
 ## 1. Answer in brief
 
-- **No public-domain or CC0 source on its own gives modern English glosses for 2–3k high-frequency Spanish words.** The best CC0 source is Wikidata Lexemes. It has English meanings for **979 of the top 3,000** Spanish word forms (33%) and **91 of our 226 shipped rows**. The nearest public-domain glosses are the typed vocabularies of four 1900–1919 American school readers on Project Gutenberg. They are US public domain. Their headwords match roughly **2,477 of the top 3,000** forms (a headword match, not a usable sense). But the senses are dated and book-specific, the spelling is pre-1952 (`fué`, `á`), and modern words such as `internet`, `foto` and `televisión` are missing (section 4.1). Full historical dictionaries exist only as noisy OCR scans.
+- **Among the sources tested, none is a modern drop-in public-domain or CC0 dictionary for 2–3k high-frequency Spanish words.** A source we did not test could still exist.
+- **Two of the sources tested are useful.**
+  - Historical public-domain school vocabularies cover much of the core vocabulary.
+  - CC0 morphology from Wikidata covers nearly all of it.
+  - So copying Wiktionary glosses under CC BY-SA, as the original recommendation proposed, is not the only path.
+- **Wikidata Lexemes is the best CC0 source we tested.** It has English meanings for **979 of the top 3,000** Spanish word forms (33%) and **91 of our 226 shipped rows**. The nearest public-domain glosses we found are the typed vocabularies of four 1900–1919 American school readers on Project Gutenberg. They are US public domain. Their headwords match roughly **2,477 of the top 3,000** forms (a headword match, not a usable sense). But the senses are dated and book-specific, the spelling is pre-1952 (`fué`, `á`), and modern words such as `internet`, `foto` and `televisión` are missing (section 4.1). The full historical dictionaries we found exist only as noisy OCR scans.
 - **Ted's challenge still largely holds.** The BY-SA posture comes from one decision: copying Wiktionary glosses and wordfreq data into the shipped file. The 226 shipped rows are our own drafts and were never copied from Wiktionary. The same approach can scale:
   1. **We write the English gloss ourselves.** Wiktionary's copyright page says "Individual words are not copyrightable". The same page warns that copying a selection similar to another dictionary's may draw suspicion ([Wiktionary:Copyrights](https://en.wiktionary.org/wiki/Wiktionary:Copyrights); paraphrased in curriculum-sources.md §3.2).
    - The mitigation is to author our own rows and use other sources only as uncopied checks.
    - Whether a 3k-row compilation authored this way is free of third-party claims is still a question for the legal read curriculum-sources.md already recommends.
   2. **Take Spanish morphology from Wikidata Lexemes, which is CC0.** That covers forms, part of speech and gender. 2,831 of the top 3,000 forms resolve to a lexeme or one of its forms, and the verb paradigms are complete.
   3. **Check every row against independent evidence that we use but do not copy.** The evidence is Tatoeba translation pairs, Wikidata meanings and the Gutenberg school vocabularies. Rows where the evidence disagrees go to one fluent human.
-- **The remaining gap is frequency ordering.** No CC0 frequency list matches wordfreq's quality (section 3.3). There are three options, and Ted decides:
+- **The remaining gap is frequency ordering.** No CC0 ranking we tested comes close to wordfreq's quality (section 3.3). There are three options, and Ted decides:
   - keep the coarse wordfreq bands that already ship with attribution;
   - rank from Tatoeba, which is CC BY 2.0 FR (attribution only, no share-alike);
-  - accept a weaker CC0 ranking.
+  - accept a weaker CC0 ranking. The only one we tested, Common Voice, was unusable.
 - **The review machinery can shrink.** The earlier plan asked for 100% double native review of band 1 and the existing 226 rows, which is 526 rows, plus a 60-row sample and every flagged row in each later band, with two independent reviewers throughout. Nothing has yet shown that a second reader catches defects that one reader with automatic flags would miss. Section 5 proposes one fluent reader per band, reviewing flagged rows plus the same 60-row sample under the same escalation rule.
   - On our own 226 rows, the Tatoeba alignment flag picked out 16 rows. None was a clear mistranslation.
   - Half were fixed phrases or function words, which English renders differently.
@@ -67,7 +72,7 @@ Each candidate gets checked on five separate points:
     - `hierro` → "element with atomic number 26"
     - `agua` S1 also links to "ice" and "vapor"
   - Sense order is not frequency order. For example, `casa` lists a lineage sense and an astrology sense next to "house".
-- **Verdict:** the best CC0 source for **forms, part of speech, gender and lemma links**. Inflection data is what our English-anchor and Spanish-form gates need, and it is complete here. Wikidata is a **cross-check** for English meanings, not a primary source. Item-label meanings need filtering: drop taxon, chemistry and grammar-term items, and prefer real glosses and P5972 translations.
+- **Verdict:** the best CC0 source we tested for **forms, part of speech, gender and lemma links**. Inflection data is what our English-anchor and Spanish-form gates need, and it is complete here. Wikidata is a **cross-check** for English meanings, not a primary source. Item-label meanings need filtering: drop taxon, chemistry and grammar-term items, and prefer real glosses and P5972 translations.
 
 ### 3.2 Tatoeba CC0 subset: too small
 
@@ -159,7 +164,7 @@ Four American school editions on Project Gutenberg have complete Spanish–Engli
 - **Neuman & Baretti (1827, 1851).** Scans exist; the worker did not sample them.
 - **Verdict:** cross-check only. Cleaning the OCR would cost more than writing the glosses.
 
-### 4.3 Historical frequency lists: not obtainable
+### 4.3 Historical frequency lists: no usable copy found
 
 - **Buchanan, *A Graded Spanish Word Book* (1927).**
   - Open Library work [OL253510W](https://openlibrary.org/works/OL253510W) reports `no_ebook`.
@@ -187,8 +192,10 @@ Four American school editions on Project Gutenberg have complete Spanish–Engli
 1. **Candidate list:** top forms by the chosen ranking (section 3.3), grouped by lemma through Wikidata forms (CC0).
 2. **Row:** we write `fr`, `en`, `hint` and `sense` ourselves, as for the 226.
    - Part of speech, gender, number and verb form come from Wikidata, so the article gate checks against CC0 data.
-   - Modern-language annotations stay under the project's own licence. Nothing third-party is copied into the shipped file.
-   - The wordfreq or Tatoeba band, if chosen, is the only derived field.
+   - What is reused, and from where:
+     - No Wiktionary gloss text is copied. The glosses we write and our other annotations stay under the project's own licence.
+     - CC0 morphology from Wikidata is reused: forms, part of speech and gender. CC0 needs no attribution, but recording the provenance is still good practice.
+   - The wordfreq or Tatoeba band, if chosen, is the only shipped field that comes from a source that is not CC0.
 3. **Evidence (stored as build metadata, not shipped):**
    - Wikidata English meanings, where present (at most 33% of the top 3,000; that count includes noisy item labels);
    - Gutenberg school-vocabulary senses, which are US public domain. They match roughly 80% of the top 3,000 forms by headword, but that figure is approximate in both directions. A match shows only that a headword exists, not that a usable sense does. They are a second witness and can supply a starting gloss that we then modernise;
@@ -253,15 +260,17 @@ So the check is cheap: about one minute on a laptop, with no network beyond the 
 
 ## 6. The exact gap
 
-- **No modern public-domain or CC0 English glosses at scale.**
+- **We found no modern public-domain or CC0 English glosses at scale among the sources tested.**
   - CC0 Wikidata covers 33% of the top 3,000 forms, with noise.
   - The US-public-domain Gutenberg school vocabularies cover about 80%, but in 1900–1919 senses and spelling, with no modern words.
   - Their status outside the US depends on the editors' death dates, which are unchecked.
-  - Full dictionaries exist only as OCR scans.
+  - The full dictionaries we found exist only as OCR scans.
 
   We therefore write the glosses ourselves and use these sources as witnesses, rather than importing either one wholesale.
-- **No CC0 frequency ranking of wordfreq's quality.** The candidates are wordfreq (BY-SA, already shipping as coarse bands with credit), Tatoeba (BY) and Buchanan 1927 (US public domain, literary, about 100 years old).
-- **No public-domain IPA.**
+- **We found no CC0 frequency ranking of wordfreq's quality.**
+  - The usable candidates are wordfreq (BY-SA, already shipping as coarse bands with credit) and Tatoeba (BY).
+  - Buchanan 1927 would be US public domain, but we found no copy we could use.
+- **We found no public-domain IPA source.** We did not search specifically for one.
 
 ## 7. For Ted to decide
 
@@ -272,7 +281,7 @@ Filed as ditz `open-questions` issue `vocabulary-pd-path-ruling`.
    - keep the wordfreq coarse bands (BY-SA credit, already shipped);
    - switch to Tatoeba-derived bands (BY credit; needs a name denylist).
 
-   Buchanan 1927 is not obtainable. *Recommendation:* keep wordfreq bands now. Switch to Tatoeba only if removing every BY-SA credit from the shipped data matters to Ted.
+   We found no usable copy of Buchanan 1927. *Recommendation:* keep wordfreq bands now. Switch to Tatoeba only if removing every BY-SA credit from the shipped data matters to Ted.
 3. **Review.** Move from two independent reviewers per band to one fluent reader per band (5.3)? The earlier plan used 100% double review for the first 526 rows. This plan has the reader check flagged rows plus the same 60-row sample and the same escalation rule. *Recommendation: yes,* on cost grounds. No accuracy comparison exists. Add a second reader if the first sample finds defects the flags missed.
 
 ## Sources (fetched 2026-11-02/03 UTC unless noted)
