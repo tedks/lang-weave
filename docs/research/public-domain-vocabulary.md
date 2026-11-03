@@ -4,21 +4,22 @@ Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA 
 
 ## 1. Answer in brief
 
-- **No public-domain or CC0 source on its own gives modern English glosses for 2–3k high-frequency Spanish words.** The best CC0 source is Wikidata Lexemes. It has English meanings for **979 of the top 3,000** Spanish word forms (33%) and **91 of our 226 shipped rows**. The nearest public-domain glosses are the typed vocabularies of four 1900–1919 American school readers on Project Gutenberg. They are US public domain. Their headwords match about **2,477 of the top 3,000** forms. But the senses are dated and book-specific, the spelling is pre-1952 (`fué`, `á`), and modern words such as `internet`, `foto` and `televisión` are missing (section 4.1). Full historical dictionaries exist only as noisy OCR scans.
+- **No public-domain or CC0 source on its own gives modern English glosses for 2–3k high-frequency Spanish words.** The best CC0 source is Wikidata Lexemes. It has English meanings for **979 of the top 3,000** Spanish word forms (33%) and **91 of our 226 shipped rows**. The nearest public-domain glosses are the typed vocabularies of four 1900–1919 American school readers on Project Gutenberg. They are US public domain. Their headwords match roughly **2,477 of the top 3,000** forms (a headword match, not a usable sense). But the senses are dated and book-specific, the spelling is pre-1952 (`fué`, `á`), and modern words such as `internet`, `foto` and `televisión` are missing (section 4.1). Full historical dictionaries exist only as noisy OCR scans.
 - **Ted's challenge still largely holds.** The BY-SA posture comes from one decision: copying Wiktionary glosses and wordfreq data into the shipped file. The 226 shipped rows are our own drafts and were never copied from Wiktionary. The same approach can scale:
-  1. **We write the English gloss ourselves.** A single word pairing such as "casa → house" is not copyrightable; even Wiktionary's own copyright page says so.
+  1. **We write the English gloss ourselves.** Wiktionary's copyright page says "Individual words are not copyrightable". The same page warns that copying a selection similar to another dictionary's may draw suspicion (curriculum-sources.md §3.2).
+   - The mitigation is to author our own rows and use other sources only as uncopied checks.
+   - Whether a 3k-row compilation authored this way is free of third-party claims is still a question for the legal read curriculum-sources.md already recommends.
   2. **Take Spanish morphology from Wikidata Lexemes, which is CC0.** That covers forms, part of speech and gender. 2,831 of the top 3,000 forms resolve to a lexeme or one of its forms, and the verb paradigms are complete.
   3. **Check every row against independent evidence that we use but do not copy.** The evidence is Tatoeba translation pairs, Wikidata meanings and the Gutenberg school vocabularies. Rows where the evidence disagrees go to one fluent human.
 - **The remaining gap is frequency ordering.** No CC0 frequency list matches wordfreq's quality (section 3.3). There are three options, and Ted decides:
   - keep the coarse wordfreq bands that already ship with attribution;
   - rank from Tatoeba, which is CC BY 2.0 FR (attribution only, no share-alike);
   - accept a weaker CC0 ranking.
-- **Double native review of every row was never backed by evidence.** Section 5 proposes a smaller check:
-  - deterministic gates;
-  - an automatic Tatoeba alignment flag;
-  - one fluent reader for the flagged rows plus a 50-row random sample per band.
-
-  On our own 226 rows, the alignment flag already finds real sense problems. For example, it flags `divertido → funny`, where Tatoeba translators overwhelmingly write "fun".
+- **The review machinery can shrink.** The earlier plan asked for 100% double native review of band 1 and the existing 226 rows, which is 526 rows, plus a 60-row sample and every flagged row in each later band. Nothing has yet shown that the double pass catches defects a single reader with automatic flags would miss. Section 5 proposes one fluent reader for flagged rows plus the same 60-row sample, from band 1 onwards.
+  - On our own 226 rows, the Tatoeba alignment flag picked out 16 rows. None was a clear mistranslation.
+  - Half were fixed phrases or function words, which English renders differently.
+  - The other half were valid glosses whose English anchor misses the most common English word. For example, translators write "plane" for `avión` (the anchor is "airplane"), "ship" for `barco` (the anchor is "boat") and "fun" for `divertido` (the anchor is "funny").
+  - Because the extension only swaps exact English anchors, those rows are the ones losing the most swaps.
 
 ## 2. What counts as "public domain" here
 
@@ -38,7 +39,7 @@ Each candidate gets checked on five separate points:
 - **Probe:**
   - **Input:** the dump `https://dumps.wikimedia.org/wikidatawiki/entities/latest-lexemes.json.bz2` (Last-Modified 2026-10-28, 485,025,719 bytes, sha256 `49bc13d3…eef8f`), plus SPARQL counts from query.wikidata.org.
   - **Size:** 67,954 Spanish lexemes. 35,249 are nouns, and 35,136 of those nouns carry grammatical gender (P5185). 8,562 of the 8,578 verbs have at least 50 forms, so the full paradigms are present. For example, `hablar` has 68 forms: hablo, hablas, habla, hablamos, habláis, hablan, hablé, …
-  - **Spanish sense data:** only 16,651 lexemes have any sense at all.
+  - **Spanish sense data:** only 16,651 lexemes have any sense at all (SPARQL; the dump extract gives 16,646).
   - **English meanings are sparse.** Senses reach English in three ways, and each is thin:
     - 1,458 lexemes have an English-language sense gloss;
     - 5,608 link a sense to a Wikidata item (P5137), whose English label works as a gloss;
@@ -122,7 +123,10 @@ Four American school editions on Project Gutenberg have complete Spanish–Engli
 - **Coverage.** I merged the four vocabularies into 8,480 distinct headwords. I then matched the top wordfreq forms to them, either directly or through their Wikidata lemma:
   - **917 of the top 1,000** match;
   - **2,477 of the top 3,000** match.
-  - Some misses are parser misses rather than real gaps (`primero`, `quién`, `dónde`), so these figures are approximate.
+  - The figures are approximate in both directions:
+    - my parser skips `=x, --a=` entries, so some real entries are missed (`primero`, `quién`, `dónde`);
+    - matching through any Wikidata lemma over-counts homographs.
+  - This measurement uses the alphabetic tokens of wordfreq's top list. §3.1 uses the raw top 3,000, which includes tokens such as "the", so the two percentages are not strictly comparable.
   - Genuinely modern words are missing: `internet, video, foto, película, televisión, teléfono, avión, información, programa`.
 - **Sample entries** (exact):
   - `=divertido, --a=, entertaining, amusing, funny.`
@@ -186,8 +190,8 @@ Four American school editions on Project Gutenberg have complete Spanish–Engli
    - Modern-language annotations stay under the project's own licence. Nothing third-party is copied into the shipped file.
    - The wordfreq or Tatoeba band, if chosen, is the only derived field.
 3. **Evidence (stored as build metadata, not shipped):**
-   - Wikidata English meanings, where present (33% of the top 3,000);
-   - Gutenberg school-vocabulary senses, which are US public domain and cover about 80% of the top 3,000 headwords. They are a second witness and can supply a starting gloss that we then modernise;
+   - Wikidata English meanings, where present (at most 33% of the top 3,000; that count includes noisy item labels);
+   - Gutenberg school-vocabulary senses, which are US public domain. They match roughly 80% of the top 3,000 forms by headword, but that figure is approximate in both directions. A match shows only that a headword exists, not that a usable sense does. They are a second witness and can supply a starting gloss that we then modernise;
    - Tatoeba alignment support;
    - optionally, the historical-dictionary sense for spot checks.
 4. **Admission:** the existing deterministic gates in [CURRICULUM-PIPELINE.md](../CURRICULUM-PIPELINE.md) apply unchanged.
@@ -202,21 +206,25 @@ Four American school editions on Project Gutenberg have complete Spanish–Engli
 For each shipped row, I collected the Tatoeba Spanish–English pairs whose Spanish side contains the exact target form. I then measured what share of those pairs had the row's English anchor (lightly inflected) on the English side. The input was 283,847 linked pairs from the pinned 2026-10-31 exports, whose digests matched SOURCES.json on re-download. Every row had at least one pair.
 
 - **Distribution:** 5 rows fall below 10% support, 16 below 25% and 45 below 50%.
-- **The lowest-support rows were real findings, not noise.** Each line below gives the row, its support, and the most strongly associated English words with their counts:
+- **The 16 rows below 25% support fall into two groups.**
+  - **Fixed phrases and function words (8 rows):** `hace falta` 0.01, `está bien` 0.03, `no` 0.07, `creo que` 0.08, `para nada` 0.12, `de acuerdo` 0.13, `entonces` 0.18, `demasiado` 0.20. English renders these many ways (not/don't, "I think" without "that", okay), so low support is expected. These rows need an allowlist, not review.
+  - **Content words whose anchor misses the dominant English rendering (8 rows):** `después` 0.09, `la hora` 0.12, `divertido` 0.14, `el barco` 0.16, `la frase` 0.19, `el avión` 0.19, `todos` 0.20, `el pueblo` 0.24. I computed the most associated English words from the pairs whose Spanish side contains the head word, without the article, so these counts are not the support denominators:
+    - `divertido`: fun 168, funny 31, amusing 10;
+    - `el barco`: ship 194, boat 50;
+    - `el avión`: plane 255, airplane 63;
+    - `el pueblo`: village 132, town 88;
+    - `después`: after 978, later 71;
+    - `todos`: everyone 687, everybody 297.
+  - **None of these is clearly a mistranslation.** "Funny", "boat" and "town" are valid; the Gutenberg vocabularies also give `divertido` → "amusing, funny" and `pueblo` → "town, village".
+- **What the flag finds is anchor coverage.** The runtime swaps only exact English anchors, so a row anchored on "airplane" never fires on the far more common "plane".
+- **Method notes:**
+  - Support counts pairs whose Spanish side contains the full `fr` string, including the article, as a substring.
+  - Anchors had parenthetical sense notes and leading to/a/the stripped.
+  - The script is a throwaway probe, not a gate.
 
-  - `divertido → funny`, 0.14: **fun** 168, funny 31, amusing 10. A sense error: "funny" is closer to `gracioso`.
-  - `el pueblo → the town`, 0.24: **village** 132, town 88.
-  - `el barco → the boat`, 0.16: **ship** 194, boat 50.
-  - `el avión → the airplane`, 0.19: **plane** 255, airplane 63. The anchor misses the common word.
-  - `todos → everyone`, 0.20: everyone 687, everybody 297. Also "all".
-  - `hace falta → we need`, 0.01: the anchor is person-bound.
-  - `después → afterward / later`, 0.09: **after** 978.
-  - `creo que → I think that`, 0.08: an English that-omission artefact. Correct, but the flag fires.
-  - `no → no`, 0.07: Spanish negation maps to English not/don't. Correct, but the flag fires.
+So the check is cheap: about one minute on a laptop, with no network beyond the pinned exports. It is independent of the gloss author, because the translations come from Tatoeba contributors. In this sample it surfaced anchor gaps rather than sense errors. It **ranks rows for human attention; it never approves a row.** It is not evidence that a single reader is as good as two. It shows only that the flag is cheap and points at things worth fixing.
 
-So the check is cheap: about one minute on a laptop, with no network beyond the pinned exports. It is independent of the gloss author, because the translations are by Tatoeba contributors. And 7 of the 9 lowest-support rows listed above were real anchor or sense problems. It **ranks rows for human attention; it never approves a row.** Function words and fixed phrases need an allowlist, because English realises them differently.
-
-### 5.3 Proposed review, replacing 100% double native review
+### 5.3 Proposed review
 
 - **Deterministic gates:** the existing twelve admission classes, unchanged.
 - **Automatic flags:**
@@ -225,12 +233,18 @@ So the check is cheap: about one minute on a laptop, with no network beyond the 
   - no public-domain witness at all, which is typical of modern words;
   - Spanish/English frequency-gap rows;
   - regional or false-friend list hits.
-- **Human pass:** one fluent reader, not necessarily native, reviews every flagged row plus a seeded random sample of 50 unflagged rows per 300-row band.
-  - **Zero sample defects:** ship the band. The rule of three bounds the residual defect rate near 6% at 95% confidence, which suits a reading aid with an "again"/override path.
+- **Human pass:** one fluent reader, not necessarily native, reviews every flagged row plus a seeded random sample of 60 unflagged rows per band. Band 1 plus the existing 226 counts as one band.
+  - The earlier plan used the same 60-row sample for later bands. The only change is dropping the 100% double review of the first 526 rows.
+  - **Zero sample defects:** ship the band. By the rule of three, the residual defect rate is bounded near 5% at 95% confidence.
   - **Any sample defect:** fix it, add the defect class as a flag, and resample.
 - **Second reviewer:** only for disagreements, or for any row the first reader marks unsure.
-- **Cost estimate (an assumption):** about 75 flagged rows plus 50 sampled per band, at under a minute each, so roughly 2 hours per band, compared with 4–6 hours per reviewer twice.
-- **What this drops, and why:** inter-rater kappa and mandatory double review. Neither has evidence that it catches defects the alignment flag plus a single reader misses. If the first band's sample shows defects that the flags missed, add review then, on evidence.
+- **Cost estimate (an assumption, using the old 30–45 seconds a row):**
+  - For the first 526 rows, the earlier plan costs 4–6 hours per reviewer, times two reviewers.
+  - This plan reviews the flagged rows plus 60 sampled rows: about 1–2 hours if roughly 10–20% of rows are flagged, based on the 7% alignment-flag rate on the 226 plus the other flags.
+  - Later bands cost about the same under either plan.
+- **What this drops:** inter-rater kappa and the mandatory double review of the first 526 rows.
+  - The case for dropping them is cost and proportionality, not measured evidence that a single reader is as accurate. No such comparison exists in this repo.
+  - If the first band's sample shows defects the flags missed, add a second reader then.
 
 ## 6. The exact gap
 
@@ -254,7 +268,7 @@ Filed as ditz `open-questions` issue `vocabulary-pd-path-ruling`.
    - switch to Tatoeba-derived bands (BY credit; needs a name denylist).
 
    Buchanan 1927 is not obtainable. *Recommendation:* keep wordfreq bands now. Switch to Tatoeba only if removing every BY-SA credit from the shipped data matters to Ted.
-3. **Review.** Replace 100% double native review with the flagged-plus-sample single-reader pass (5.3)? *Recommendation: yes.*
+3. **Review.** Drop the 100% double native review of the first 526 rows in favour of one reader on flagged rows plus a 60-row sample (5.3)? *Recommendation: yes,* on cost grounds. No accuracy comparison exists. Add a second reader if the first sample finds defects the flags missed.
 
 ## Sources (fetched 2026-11-02/03 UTC unless noted)
 
