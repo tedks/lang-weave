@@ -1,0 +1,21 @@
+id: sync-backend-reuse-comparison
+title: Compare existing E2EE sync libraries before a custom protocol
+desc: Before production protocol selection, compare Etebase and other suitable maintained
+  components against an explicit threat model, browser lifecycle, account/pairing/recovery,
+  migration, licensing and test requirements. Deployment examples and dependency count
+  alone are insufficient rejection criteria. Include an exact-version proof of fit
+  or concrete blockers. No new credentials, accounts, spend or deployment. Root engineering
+  decision; no implementation dispatch from filing.
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:45-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
