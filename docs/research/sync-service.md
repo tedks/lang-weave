@@ -364,7 +364,9 @@ snapshot load, adopt, kept-copy restore) and before its projection; downgrade, r
 build, re-upgrade; IndexedDB failing then recovering mid-session; eviction on device A after
 device B changed cards (A re-pairs, its old device ID is revoked and the format gate can advance;
 B's state survives unless the user picks A's); the same on an account's only device through the
-recovery code; no pack-scope or personal-card op is pushed; an out-of-band card change;
+recovery code, and after the old ID was already removed from another device; a device removed
+from another device while it has an unpushed outbox and a pending adopt (stops visibly, offers
+export, re-pairs through the choice); no pack-scope or personal-card op is pushed; an out-of-band card change;
 a re-projection keeping an open ticket and `siteOverrides`, and a concurrent local-only write
 (`learning` budget, encounter buckets) during re-projection; export and fresh import with sync
 state present; import refused while sync is on; first enable on a non-empty install, both
@@ -374,10 +376,11 @@ pre-adopt backup. Stage 3 adds: out-of-band changes to a personal entry, a prefe
 eviction after another device changed a preference and archived an entry (its values survive
 unless the user picks this device's); first enable, and a stage 2 to stage 3 upgrade, of two
 installs with different personal entries, preferences and packs (entries union under 3.6 with no
-entry lost within the cap; alias-keyed progress survives an adopt; the non-chosen device's
+entry lost within the cap; alias-keyed progress survives an adopt, with its log rows and `verifiedWords` under the survivor; the non-chosen device's
 personal cards appear in the export; both devices' non-default preferences survive and reach the
 other device, and a colliding pair follows the 3.7 rule; packs absent from the account survive;
-a non-adopted pack version's cards are held and offered later).
+a non-adopted pack version's cards are held, appear in the offered export, and an eviction while
+held is surfaced).
 
 - **Loss detection.** One new install-local key, a sync marker holding a sync-state epoch and the device ID, is added
   to `NON_LEARNING_KEYS` so the backup ignores it (an older build after a downgrade would refuse to
@@ -456,16 +459,20 @@ adds can bypass all three. The fold therefore, in server order:
   stage 2 to stage 3), personal entries from each device are added as `personal.add` ops and
   merge under 3.6; they are pushed before any adopt of that language's personal scope. Each
   device's personal and pack card histories enter through the per-scope adopt choice, like any
-  card scope: `adopt.part` card IDs naming an alias apply to its survivor, cards for an entry
+  card scope: `adopt.part` card IDs and log-row word IDs naming an alias apply to its survivor, cards for an entry
   superseded by the cap go to the local overflow store, and the non-chosen device's cards for
   that scope are replaced (they remain in the offered pre-adopt export; the user is told).
-- Preferences and packs at that point: a device pushes `pref.set` only for fields whose value
-  differs from the default, and `pack.install` for packs the account lacks. An account value
+- Preferences and packs at that point: a device pushes `pref.set` only where its value is
+  non-default and the account's is absent or default (the fold decides races between devices
+  pushing at once), and `pack.install` for packs the account lacks. An account value
   equal to the default counts as absent. A conflict is both sides non-default and different;
   then the account's value (the fold after the first synced writes) wins and the device's is
   shown once with an option to apply it. A device's cards in a pack scope whose version the
   account does not adopt are held in the kept copy, which invariant 3 ignores, and offered through
-  the adopt choice if the user installs that version. Stage 3 ops are written only after the 3.7
+  the adopt choice if the user installs that version. Before they move there, the device offers a
+  learning backup export taken before projection and tells the user; they are held until that
+  version is adopted or the user discards them, and an eviction while they are held loses them
+  (surfaced, not silent). Stage 3 ops are written only after the 3.7
   `formatVersion` gate (every active device reads the new version).
 - First enable on an existing install needs the server reachable at the start. The device
   keeps a copy of its pre-enable learning state locally until, per scope, its `scope.adopt`
@@ -646,8 +653,14 @@ Endpoints (JSON over HTTPS, device token in `Authorization`):
 - `POST /v1/enroll` and `POST /v1/recover` accept an optional `replaces: <deviceId>` of the same
   account, revoking it (with its `device-retired` envelope) in the same transaction.
   `DELETE /v1/device/<id>` is accepted from any non-revoked token of the same account (the
-  "remove device" control), and from the device's own token as below; a malicious device can
-  only cost liveness this way, as 3.8 allows.
+  "remove device" control), and from the device's own token as below. An enrolled device is
+  already fully trusted (4.1), so this adds only liveness authority; a stolen token without the
+  account secret can now revoke every device and force use of the recovery code. `replaces` acts
+  like `DELETE`: idempotent on an already-revoked device, and an unknown or foreign ID is ignored
+  without failing enrolment.
+- A device refused as revoked (removed from another device) stops syncing visibly, keeps
+  learning on `storage.local`, tells the user how many changes were never synced and offers a
+  learning backup export; on re-pairing it goes through invariant 3's kept-copy choice.
 - Push and revoke are serialised: a push's token check and insert run in one write transaction,
   and `DELETE /v1/device/<id>` (accepted from that device's own token even once revoked) revokes
   and returns `max_device_seq` in one transaction, writing the `device-retired` envelope. Once the
