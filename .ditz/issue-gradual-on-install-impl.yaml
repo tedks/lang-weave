@@ -11,8 +11,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-03T03:54:24-00:00
 references: []
 log_events:
@@ -24,3 +24,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-03T04:28:22-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged in PR #48 as f06684d (0.12.24): empty storage at first startup
+    gets gradual:true, newWordsPerDay:5; DEFAULT_SETTINGS unchanged. Formal council
+    CLEAN (Opus, gpt-6-sol; agy EMPTY on quota) and all local gates incl. 17 Chromium
+    scripts on d0ceef3 (tree == merge).'
