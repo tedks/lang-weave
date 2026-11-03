@@ -36,7 +36,10 @@ try {
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
       await new Promise((done) => setTimeout(done, 10));
-    await chrome.storage.local.set({ apiKey: 'rejected-synthetic-key', consentShown: true });
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    if (!settings) throw new Error('worker never wrote its startup settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'rejected-synthetic-key', consentShown: true });
     globalThis.syntheticCalls = 0;
     const original = fetch;
     globalThis.fetch = async (url, init) => {

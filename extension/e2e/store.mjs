@@ -47,7 +47,10 @@ async function launch(label, manifest, source = root, consent = true) {
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-store-key', ...(consent ? { consentShown: true } : {}) });
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    if (!settings) throw new Error('worker never wrote its startup settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-store-key', ...(consent ? { consentShown: true } : {}) });
   }, consent);
   return { context, worker, id: new URL(worker.url()).host };
 }

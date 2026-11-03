@@ -11,7 +11,6 @@ export const RELOADED_KEY = 'reloadedFor';
 // The first-run page is an install event, never an update or an unpacked reload.
 export function openWelcome(details) {
   if (details?.reason === 'install') {
-    // Pending gradual-default-on-install-ruling: this is the sole install-time hook for gradual:true.
     void Promise.resolve(chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome.html') })).catch(() => {});
   }
 }

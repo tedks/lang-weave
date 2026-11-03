@@ -7,7 +7,7 @@ Learn a language through the English you already read. This Chrome extension rep
 
 A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-weave) by Jackie Oliver. Lang Weave is free software under the [GNU AGPL v3 or later](LICENSE). The upstream history and its [MIT license](LICENSE-MIT) are preserved (see [NOTICE](NOTICE)). No terminal plugin, Python setup or native messaging host is required.
 
-This describes version 0.12.23. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
+This describes version 0.12.24. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
 
 ## Install in Chrome
 
@@ -80,7 +80,7 @@ Apart from the key, which authenticates your requests to Google, none of this st
 
 The gloss appears after a 700 ms pause, so you have a beat to recall the word first. Seeing it counts as a peek, which is weak evidence that you needed the meaning.
 
-**Gradual learning** is off by default, and the welcome page recommends turning it on at 5 new words a day. With it on:
+**Gradual learning** starts on, at 5 new words a day, for a new install; the welcome page says so and Settings changes it. Only storage that is still completely empty gets this default. An update or a reload keeps the current choice, a profile from before 0.12.24 that never turned it on stays off, and restoring a backup restores the backup's choice. With it on:
 - Only a bounded number of new words are introduced per local day, 1 to 10 in Settings. A word counts only once it is actually visible on the page.
 - Due words come first, then weak ones, then learning words met on fewer than eight days in their first three weeks, then other learning words, then new words. Among new words, a lower frequency band comes first, with the Beginner 30 at band 0, and Spanish cognates break ties.
 - A learning word seen three times in one local day is left out of requests for the rest of that day. Two same-day peeks on a learning word you have already rated bring its review forward to within 24 hours.

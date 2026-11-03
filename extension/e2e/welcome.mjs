@@ -46,6 +46,11 @@ try {
   const before = await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown', 'apiKey']));
   assert.equal(before.consentShown, false);
   assert.equal(before.apiKey, undefined);
+  // A real install's first startup writes the new-profile learning default (gradual-default-on-install-ruling).
+  assert.equal(before.settings.gradual, true);
+  assert.equal(before.settings.newWordsPerDay, 5);
+  assert.match((await page.locator('[aria-labelledby="learnHeading"]').textContent()).replace(/\s+/g, ' '),
+    /Gradual learning is on for new installs, at 5 new words a day\. .*Settings shows whether it is on for you/);
   await page.close(); // a learner may close welcome before choosing
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
@@ -65,6 +70,7 @@ try {
   const after = await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown']));
   assert.equal(after.consentShown, true);
   assert.equal(after.settings.newSitesEnabled, false);
+  assert.equal(after.settings.gradual, true); // the site choice merges; it never resets the learning default
   assert.deepEqual(await worker.evaluate(() => chrome.permissions.getAll().then(({ origins }) => origins
     .filter((origin) => origin === '<all_urls>' || origin === 'http://*/*' || origin === 'https://*/*'))), []);
   assert.deepEqual(geminiRequests, []);
