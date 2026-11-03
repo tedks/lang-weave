@@ -1,0 +1,26 @@
+id: pronunciation-ui-entitlement-ruling
+title: Choose pronunciation controls and BYOK entitlement
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: explicit speaker action in review and inline cues with both BYOK and paid-hosted
+  modes; or narrower initial placement/entitlement. Recommendation: explicit user-triggered
+  audio, retain BYOK, and show which provider/service receives the word. Ted approved
+  paid AI pronunciation and preserving BYOK; these UI details are proposed by the
+  CTO/lead, not a prior Ted ruling. Blocks P1 UI scope and P2 entitlement; no autoplay
+  or spend authorization.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
