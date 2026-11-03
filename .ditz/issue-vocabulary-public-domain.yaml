@@ -1,0 +1,21 @@
+id: vocabulary-public-domain
+title: Evaluate public-domain Spanish-English vocabulary sources and simpler admission
+  checks
+desc: Ted challenged the earlier CC BY-SA/native-review complexity. Opus lead in vocabulary-public-domain
+  investigates actual public-domain/CC0 datasets with primary provenance and sampled
+  entries, modern-language usability, practical gaps, and proportionate checks. Research
+  only; no new rows shipped, no licence conclusion from merely free access, no paid
+  review procurement.
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T03:57:16-00:00
+references: []
+log_events:
+- time: 2026-11-03T03:57:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
