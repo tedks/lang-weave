@@ -90,7 +90,9 @@ try {
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-smoke-key', consentShown: true });
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-smoke-key', consentShown: true });
   });
   const html = `<!doctype html><html lang="en"><head><title>Spanish smoke fixture</title></head><body><main>
     <p id="reading">We read books and enjoy quiet evenings every week.</p>
