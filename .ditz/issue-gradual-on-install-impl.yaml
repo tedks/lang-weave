@@ -1,12 +1,21 @@
 id: gradual-on-install-impl
 title: Turn gradual learning on at 5 new words/day for truly fresh installs
-desc: 'Implements ruling gradual-default-on-install-ruling option A. Write gradual:true
-  and newWordsPerDay:5 only when onInstalled reason === ''install'' AND the worker''s
-  startup found no settings object. DEFAULT_SETTINGS stays gradual:false so updates,
-  reloads, existing and field-missing profiles are untouched; backup import keeps
-  restoring the backup''s preferences; consent/no-network-before-choice preserved.
-  Welcome page explains the default and where to change it. Owner: Opus Lead session
-  c55e46b5 (lang-weave:gradual-install %1009), branch gradual-on-install.'
+desc: 'Implements ruling gradual-default-on-install-ruling option A. Implemented gradual:true
+  and newWordsPerDay:5 in the first startup write only when settings are absent AND
+  the full storage read is empty. The original onInstalled design raced later choices
+  and was replaced; see PR #48 and docs/MISSION.md decision log. DEFAULT_SETTINGS
+  stays gradual:false so updates, reloads, existing and field-missing profiles are
+  untouched; backup import keeps restoring the backup''s preferences; consent/no-network-before-choice
+  preserved. Welcome page explains the default and where to change it. Owner: Opus
+  Lead session c55e46b5 (lang-weave:gradual-install %1009), branch gradual-on-install.
+
+
+  Root accepted merged f06684d041f0bbfba350293198761270294f16f9; tree identical to
+  gated d0ceef3fe1cddcfd60df136a186378749f06698f. Independently audited diff, primary
+  gate logs and formal council record; did not rerun the suites. Fresh means completely
+  empty storage, including manually wiped storage, not every install event. Existing
+  profiles and imported preferences retain their choices. Source only; splinter1 remains
+  staged0.12.22 and no deployment is implied.'
 type: feature
 component: learning
 release:
@@ -31,3 +40,7 @@ log_events:
     gets gradual:true, newWordsPerDay:5; DEFAULT_SETTINGS unchanged. Formal council
     CLEAN (Opus, gpt-6-sol; agy EMPTY on quota) and all local gates incl. 17 Chromium
     scripts on d0ceef3 (tree == merge).'
+- time: 2026-11-03T04:30:19-00:00
+  who: Ted Smith
+  what: updated description
+  comment: ""
