@@ -161,12 +161,13 @@ card format and every backup schema stay unchanged.
 
 **Normalisation in the fold.** Every card op also carries the `gradual` setting its device had
 when the op was made. The fold first checks the op's scope and card generations; only an op
-that passes is applied further. For that op it then replaces the card with exactly
+that passes is applied further. For an op that writes the card (`introduce`, `rate`, `claim`,
+`encounter`, `reset`; never `guess`) it then builds a candidate copy of the card from exactly
 `cleanReview`'s per-card output for the op's `gradual` value (for example, with gradual on a
 familiar or claimed card gains `maintenance`, and a familiar card without it gains
 `retiredReturn`; with gradual off, `maintenance` and `peekDue` are dropped), as the device did
-when it showed the card, and only then checks the precondition. A superseded op never changes
-a card. A rating the device could make is therefore never superseded for a
+when it showed the card, checks the precondition against that candidate, and commits the
+candidate with the op's effect only if the op applies. A superseded op never changes a card. A rating the device could make is therefore never superseded for a
 difference only the device's normalisation created.
 
 **Synced card fields** are exactly `due, interval, reviews, familiar, maintenance, easyStreak,
@@ -189,7 +190,8 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. The scope's log becomes the parts' rows, plus the observed rows of those overwritten ops (the retrievals happened). A device writes an adopt's parts and commit as consecutive `deviceSeq`s; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, and when the commit applies or is superseded |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. The scope's log becomes the parts' rows; the rows of the overwritten ops (selected by their recorded fold position above `basis` and a device other than the adopter) move to the scope's separate **overwritten log**, which keeps them for history and calibration but is not read by card-derived views such as `verifiedWords`. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, on that device's `adopt.abort`, or on a server-written `device-retired` marker (3.4) |
+| `adopt.abort` | adoptId | Drops that device's buffered parts for the adopt; a device that cancels mid-adopt pushes it before revoking itself |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -245,7 +247,8 @@ is roughly 18 KB before compression). A **sync snapshot** is its own schema, not
                        cards: { [id]: { cardGen, card | null } } } },
   personal: { entries, aliases, archived: { [uuid]: {value, at, device, opId} } },
   prefs: { [field]: {value, at, device, opId} }, packs: { [code]: {version, blobId} },
-  log: { [scope]: retrieval rows }, pendingAdopts: { [adoptId]: parts } }
+  log: { [scope]: rows with { serverSeq, opIndex, device } }, overwritten: { [scope]: rows },
+  pendingAdopts: { [device]: { [adoptId]: parts } } }
 ```
 
 - The generation map is **complete**: every card ID whose generation is not `"0"` is present,
@@ -261,8 +264,8 @@ is roughly 18 KB before compression). A **sync snapshot** is its own schema, not
   are stored with matching `baseSeq` and `partCount`. The **latest** snapshot is the complete one
   with the highest `baseSeq`, not the most recently finished. The server keeps a compaction floor
   (the highest `baseSeq` it has compacted against) and never serves or compacts against a
-  snapshot below it. It refuses a part whose `baseSeq` is not below its current highest
-  `serverSeq`. An abandoned upload is ignored and its parts are deleted only by compaction, once
+  snapshot below it. It refuses a part whose `baseSeq` exceeds the highest `serverSeq` it had
+  assigned before that part. An abandoned upload is ignored and its parts are deleted only by compaction, once
   they are at or below a later complete snapshot's `baseSeq`, so deleting them never opens a
   `deviceSeq` gap.
 
@@ -277,6 +280,11 @@ De-duplication survives compaction:
 - `deviceMarks` counts every envelope at or below `baseSeq`, snapshot parts included. Clients check
   that each device's `deviceSeq` values arrive contiguously above its mark; a gap means the server
   is withholding an envelope (3.8).
+
+When a device is revoked or stops being active, the server appends a plaintext
+`device-retired` marker naming it; the fold drops that device's buffered adopt parts there. The
+marker is server-written and unauthenticated, but forging one costs only liveness, which the
+server can already deny by withholding envelopes.
 
 The server may delete envelopes at or below the latest complete snapshot's `baseSeq` once every
 **active** device has pulled past it. A device is active while its token is not revoked and it
@@ -330,11 +338,12 @@ adds can bypass all three. The fold therefore, in server order:
 - keeps both entries when the spelling is shared but the meaning differs, with the same "shared
   spelling needs explicit review" status the capture page shows today;
 - supersedes adds beyond 300 entries. Card ops for a superseded entry are superseded too. The
-  adding device shows "not synced: the personal list is full" and moves that entry and its card
+  adding device shows "not synced and not included in backups: the personal list is full" and
+  moves that entry and its card
   to a local-only overflow store that is never pushed; later reviews of it apply there only. The
   current backup format cannot carry it (`personal()` validates at most 300 entries), so it stays
-  visible on that device only; importing a backup elsewhere treats entries as ordinary adds
-  under the cap. Today's cap counts
+  visible on that device only and is lost if that device is. This only arises from concurrent
+  offline adds near the cap, and it is a known limitation until the cap question below is ruled. Today's cap counts
   archived entries and nothing deletes personal entries, so archiving does not free a slot;
   whether it should is a product question for root to file, not decided here.
 
@@ -365,7 +374,9 @@ adds can bypass all three. The fold therefore, in server order:
   mid-adopt, the outbox simply waits, and learning continues on the local view. If the adopt is
   superseded by a competing adopt, the device offers the same choice again from the kept copy,
   which includes those writes. The user can also cancel enabling sync: the device stops pushing,
-  revokes its own device token, and returns the scope to the kept copy. Anything already
+  pushes `adopt.abort` for any unfinished adopt, revokes its own device token, and returns the
+  scope to the kept copy. If it was the account's only device, re-enabling later needs the
+  recovery code. Anything already
   accepted stays in the account. A later re-enable uses a new device ID, so no `deviceSeq` is
   ever reused. Either way a scope has one history, never a card-by-card mix.
 
@@ -506,7 +517,8 @@ blobs(account_id, blob_id, ciphertext, PRIMARY KEY(account_id, blob_id))   -- bl
 Endpoints (JSON over HTTPS, device token in `Authorization`):
 
 - `POST /v1/push {deviceSeq, kind, formatVersion, snapshot?: {snapshotId, baseSeq, partIndex,
-  partCount}, nonce, ciphertext}` → `{serverSeq}`. A
+  partCount}, nonce, ciphertext}` → `{serverSeq}`. A snapshot part whose `baseSeq` exceeds the
+  highest `serverSeq` already assigned is refused. A
   `deviceSeq` at or below the device's `max_device_seq` returns "already committed" without an
   insert; one that skips ahead is refused.
 - `GET /v1/pull?after=<serverSeq>` → the latest *complete* snapshot's parts if `after` is below its
@@ -704,7 +716,7 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 | 0b. Op reducer | Pure `sync-ops.js`: op validation (exporting the `portability.js` validators, adding `guessFirst`), fold for every card op in 3.2, generations, supersession records | Equivalence test: folding the ops of a recorded single-device session equals the state the current `rateReview`/`finishInline`/`claimKnown`/`wordKnown`/`wordReset` paths wrote. Convergence test: any server order of two devices' batches, with duplicates, converges, including both devices rating the same due card Easy inline. Mutation-checked | Nothing |
 | 1. Tracer bullet | Section 8 | Section 8 | Nothing |
 | 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, and a key-substituting pairing relay | E2EE/recovery ruling |
-| 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card; Firefox profile converges with Chrome profile | Stage 2 |
+| 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card within the 300-entry personal cap (3.6); Firefox profile converges with Chrome profile | Stage 2 |
 | 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
 | P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
 | P2. Hosted pronunciation | `/v1/speak` with the catalog cache | Native-speaker listen of the chosen engine; cache-hit test | Engine ruling, stage 2 server |
