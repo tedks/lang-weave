@@ -1,0 +1,21 @@
+id: install-defaults-comment-precision
+title: Tighten the empty-storage comment in background.js startup
+desc: 'Codex council nit on PR #48 at b8ef54f: extension/src/background.js startup
+  comment says "Any early write (a permission event''s epoch) can only make this false".
+  Precisely, only a write visible to the store.get(null) read can affect `fresh`;
+  a later write cannot. The claim is correct in the direction that matters (no unwanted
+  opt-in); wording only. Fix with the next edit to that block. Filed instead of moving
+  the PR head for a comment-only change.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T04:21:44-00:00
+references: []
+log_events:
+- time: 2026-11-03T04:21:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
