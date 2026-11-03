@@ -12,8 +12,8 @@ review, not a ruling; Ted's approved direction is quoted as such in [Direction](
   (`targetFresh`, `extension/src/portability.js`); it replaces, it never merges. Any sync
   needs a new merge contract first. That contract, not the server, is the bulk of the work.
 - **The scheduler makes a clean merge possible.** FSRS in `fsrs.js` is pure and deterministic
-  (no fuzz, no clock reads), and `scheduleCard` in `review.js` is a pure function of the prior
-  card, the rating, the time and two settings. So a card's state can be rebuilt by replaying
+  (no fuzz, no clock reads), and `scheduleCard` in `review.js` is a deterministic mutator: its
+  result depends only on the prior card, the rating, the time and three arguments. So a card's state can be rebuilt by replaying
   its rating operations in one agreed order. Recommend an **operation log**: each device
   appends small, idempotent operations; the server assigns a total order; every device folds
   the same ops in the same order and reaches the same cards.
@@ -102,11 +102,11 @@ Principle: sync only what makes the *learning* continue on another machine. Ever
 
 | Syncs (opt-in, encrypted) | Stays local, always |
 |---|---|
-| Card operations for every scope: introduce, rate, already-know claim, practice-now grant, reset | `apiKey` and any other credential, including the sync token and the account key at rest |
+| Card operations for every scope: introduce, rate, already-know claim, guess, encounter, reset, scope adoption | `apiKey` and any other credential, including the sync token and the account secret at rest |
 | Personal vocabulary entries (add, archive/unarchive) | Page text, URLs, hosts, titles: never present in sync records by construction |
 | Installed language packs, as content-addressed blobs (`code`, `version`, words) | `siteOverrides` (hostnames are browsing history), `newSitesEnabled`, `enabled`, pause state |
 | Learning preferences: `language, levelOverride, gradual, newWordsPerDay, density, inlineRecall, desiredRetention, guessFirst` | Decision cache `c:*` (passage hashes), `readingEvents`, `seenSent`, `vocabularyEncounters` |
-| Per-card encounter counters that change scheduling (`peekDue`, seen/peek day counters), as ops | `model`, quota, model status, consent, epochs, import journal/receipts, measurement-skip counter |
+| The retrieval log: observed rows carried in ops, plus the snapshot's rows | `model`, quota, model status, consent, epochs, import journal/receipts, measurement-skip counter |
 | | Open review/inline tickets (`current`, `inline`): document- and tab-bound |
 | | Lifetime `learningExposures` aggregates (stage 3 decision, see below) |
 
@@ -115,9 +115,10 @@ Notes:
 - `model` stays local because it is tied to the device's key and quota tier.
 - `siteOverrides` could be a later opt-in ("sync my site choices"); by default it is browsing
   history and stays local. Not proposed for v1.
-- The retrieval log is **rebuilt locally from synced rating ops** (each rating op carries the
-  fields the log row needs), so the "is this working?" view and calibration see every
-  device's reviews without syncing the log itself.
+- The retrieval log syncs as the observed rows inside `rate`, `claim` and `guess` ops and as the
+  snapshot's rows (3.4), so the "is this working?" view and calibration see every device's
+  reviews as each learner actually experienced them. Per-card encounter counters that change
+  scheduling (`peekDue`, seen/peek day counters) sync through `encounter` ops.
 - Lifetime exposure aggregates cannot be merged exactly (`distinctDays` double-counts days
   seen on two devices). Options: keep them per device (default), or sync per-device rows and
   show the sum as an upper bound. Recommend per device until the progress views actually need
@@ -130,50 +131,68 @@ Notes:
 Every record the server stores is an opaque envelope:
 
 ```
-{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot", formatVersion, nonce, ciphertext }
+{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot-part", formatVersion, nonce, ciphertext }
 ```
 
 The server sees only those plaintext fields. `device` is a random UUID made when sync is
 enabled on that install (not the extension ID, not a hardware ID). `deviceSeq` increases by one
-per batch the device writes. `serverSeq` is assigned by the server on accept. `formatVersion`
-is plaintext so the server can refuse a client too old to read the account (see 3.6).
+per batch the device writes, and a device pushes its batches strictly in `deviceSeq` order, one
+accepted before the next is sent. `serverSeq` is assigned by the server on accept.
+`formatVersion` is plaintext so the server can refuse a client too old to read the account
+(3.7).
 
 ### 3.2 Operations (inside the ciphertext)
 
-A batch is a list of operations. Each operation has a stable ID `(device, deviceSeq, index)`,
-so redelivery is harmless: the server stores a batch once per `(device, deviceSeq)` (unique
-key), and clients skip an operation ID they already applied.
+A batch is a list of operations, applied atomically and in order. Each operation has a stable
+ID `(device, deviceSeq, index)`.
+
+Every card operation names the card's **generation** it was made against. A card starts in
+generation `"0"`; a reset or a scope adoption starts a new generation whose ID is the ID of the
+op that created it, so two independent resets can never produce the same generation. The
+generation map lives in the sync layer's own state, not in the card, so the stored card format
+and every backup schema stay unchanged.
 
 | Op | Fields | Applied as |
 |---|---|---|
-| `introduce` | scope, cardId, day, at | Create the card if absent at the current epoch; no-op if present |
-| `rate` | scope, cardId, epoch, at, rating, source, direction, latencyMs, autoFamiliar, retention | `scheduleCard(card, rating, at, autoFamiliar, retention, early)` on the replayed card, with `early = source === 'standalone' && card.due > at` (inline ratings pass `autoFamiliar = true` and never `early`, as `finishInline` does today; standalone passes the `gradual` setting); appends the derived log row |
-| `claim` | scope, cardId, epoch, at, gradual | `claimKnown` (gradual) or set `familiar` |
-| `encounter` | scope, cardId, epoch, kind (`seen`/`peek`), day, at | `countCardEncounter`; the per-day caps in `review.js` bound volume |
-| `reset` | scope, cardId, epoch | Delete the card and increment its epoch (tombstone) |
-| `seed` | scope, cardId, card | First-enable merge only (3.6): insert a validated existing card verbatim when the account has none for that ID at epoch 0 |
-| `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID; no-op if present |
-| `personal.archive` | uuid, archived, at | Last-writer-wins register on `archived` |
-| `pref.set` | field, value, at | Last-writer-wins register per field |
-| `pack.install` | code, version, contentHash | Reference to a pack blob (3.4) |
+| `introduce` | scope, cardId, gen, day, at | Create the card if absent in `gen`; otherwise no-op |
+| `rate` | scope, cardId, gen, at, rating, source, direction, latencyMs, autoFamiliar, retention, observed `{prior, elapsedDays, intervalDays, predicted}` | Requires the card in `gen` and not retired (`familiar` without `maintenance`). Schedules with `scheduleCard(card, rating, at, autoFamiliar, retention, dueAt(card) > at)` for every source, so a second same-day inline Easy replayed onto a card that is no longer due counts as early and cannot extend the Easy streak. The log row is the **observed** measurement the learner actually saw, copied from the op; the schedule is the replayed one. `autoFamiliar` is `true` for inline ratings (as `finishInline` passes today) and the `gradual` setting for standalone |
+| `claim` | scope, cardId, gen, at, source (`inline`, `standalone`, `words`), latencyMs, gradual | Inline and review "Already know" call `claimKnown` and log a `known` row, as today. My Words (`wordKnown`) is not logged: with `gradual` it creates the card if absent and calls `claimKnown`; without `gradual` it creates or marks the card `familiar` |
+| `guess` | scope, cardId, at, outcome, latencyMs | Appends a guess row to the log; never changes a card (guesses are not reviews, `learning-log.js`) |
+| `encounter` | scope, cardId, gen, kind (`seen`/`peek`), day, at | `countCardEncounter`; the per-day caps in `review.js` bound volume |
+| `reset` | scope, cardId, gen, seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the card is in `gen` **and** its replayed version equals `seen`, the same check `wordReset` makes today; then deletes the card and starts generation = this op's ID. Otherwise superseded |
+| `scope.adopt` | scope, basis (the `serverSeq` the device had folded), cards `{id: card}`, log rows | First enable and the per-language choice (3.7). Applies only if no op has touched the scope after `basis`; then replaces every card in the scope atomically, each in a new generation = this op's ID. Otherwise superseded and the device asks again |
+| `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
+| `personal.archive` | uuid, archived, at | Last-writer-wins register on `archived`, ordered by `(at, device)` |
+| `pref.set` | field, value, at | Last-writer-wins register per field, ordered by `(at, device)` |
+| `pack.install` | code, version, blobId | Reference to a pack blob (3.4) |
 
-Every op is validated with the same functions the backup uses (`card()`, `personal()`,
-`packs()`, `preferences()`, the scope catalog) before it is applied; an invalid op fails closed
-for its scope exactly as a bad backup does, and is reported, never silently dropped.
+"Superseded" is a deterministic no-op recorded in the device's sync state, so the UI can say,
+for example, "a review on another device was discarded because you reset this word".
 
-The `epoch` per card ID lives in the sync layer's own state, not in the card, so the stored card
-format (and every backup schema) is unchanged; a missing epoch is 0.
+Validity is a function of the op and the folded state only. Card IDs are checked by syntax
+(`validWordId`) at fold time, not against the device's bundled catalog, because the bundled
+list can differ between extension versions; catalog membership is applied when a device builds
+its local view, exactly as the backup's omit-and-count rule (ruling B) does today. An op that
+is malformed is a recorded no-op on every device, never a reason to stop. Folding stops only on
+an op *type* or `formatVersion` the client does not know (3.7). A device pushes `pack.install`
+before or in the same batch as any op for that pack's scope.
 
 What is *not* in an op: no page text, no URL, no host, no passage hash, no title, no key, no
-model output except pack words the user explicitly generated and installed.
+model output except pack words the user explicitly generated and installed. No practice-now op:
+`wordPractice` only writes the local review ticket.
+
+Writers that stay local: `introGateDay` clock-recovery writes in `gradual-budgets.js` and the
+`gradual`-dependent normalisation in `cleanReview` (which drops `maintenance` and `peekDue`
+when gradual is off) run on each device's view after the fold, as they run on stored cards
+today. `introReceipt` is install-local and is not synced, as the backup already omits it.
 
 ### 3.3 Order and replay
 
 The server's `serverSeq` is the single total order. Each device keeps:
 
-- a **base**: the decoded state at some `serverSeq` N (a snapshot, or empty);
+- a **base**: a sync snapshot at some `serverSeq` N (3.4), or empty;
 - the ops with `serverSeq > N`, in order;
-- an **outbox** of local ops not yet acknowledged.
+- an **outbox** of local batches not yet acknowledged.
 
 Local state = fold(base, server ops in `serverSeq` order, then outbox ops in local order).
 After a pull, the device re-folds. Because the fold is deterministic and every device folds
@@ -184,53 +203,109 @@ Why server order rather than wall-clock order: device clocks disagree and can go
 is still well defined. Wall-clock ordering would force re-folding history whenever an old op
 arrives, and history below a snapshot no longer exists.
 
-### 3.4 Snapshots and compaction
+### 3.4 Snapshots, de-duplication and compaction
 
 Ops grow without bound (about 176 bytes of JSON per rating op measured here; a 100-review day
-is roughly 18 KB before compression). Any device may write a **snapshot**: its decoded state at
-`serverSeq` N, encrypted, in the same validated shape as a schema 2 backup minus install-local
-fields. A new device downloads the latest snapshot plus ops after it. The server may delete ops
-at or below the latest snapshot's N once every *active* device has acknowledged a pull past N,
-or after a retention window (proposal: 90 days) for devices that went silent; a silent device
-that returns simply reloads from the snapshot and replays its own outbox on top. Nothing it
-did offline is lost, because its outbox ops get new, later `serverSeq` values.
+is roughly 18 KB before compression). A **sync snapshot** is its own schema, not a backup file:
 
-Packs are content-addressed blobs (`sha256(code, version, words)`), uploaded once, referenced by
-`pack.install`. The 16-hex `version` already identifies a pack locally.
+```
+{ formatVersion, baseSeq: N, deviceMarks: { [device]: highest deviceSeq folded },
+  scopes: { [scope]: { cards: { [id]: { gen, card } }, lastTouchedSeq } },
+  personal: { entries, aliases, archived: { [uuid]: {value, at, device} } },
+  prefs: { [field]: {value, at, device} }, packs: { [code]: {version, blobId} },
+  log: { [scope]: retrieval rows } }
+```
+
+It holds only synced state: no reading events, `seenSent`, encounter buckets, exposure
+aggregates, ticket state or install-local keys. `baseSeq` and `deviceMarks` are inside the
+ciphertext, and a client checks `baseSeq` against the pull that delivered it. A snapshot is
+split into `snapshot-part` envelopes under the 256 KiB envelope cap, with its own total cap
+(proposal: 4 MiB, above the 0.9 MB a full 5,000-card deck needs).
+
+Any device may write a snapshot of the server prefix it has folded (never including its own
+outbox). A new device downloads the latest complete snapshot plus ops after it.
+
+De-duplication survives compaction:
+
+- The server keeps each device's highest accepted `deviceSeq` on the `devices` row. A push at or
+  below it is answered "already committed" with no insert, even after the envelope itself was
+  compacted away.
+- After loading a snapshot, a device drops outbox batches at or below its own `deviceMarks`
+  entry; they are already folded into the snapshot.
+- Clients check that each device's `deviceSeq` values arrive contiguously; a gap means the
+  server is withholding a batch (3.8).
+
+The server may delete envelopes at or below the latest snapshot's N once every active device has
+pulled past N, or after a retention window (proposal: 90 days) for devices that went silent. A
+silent device that returns reloads from the snapshot, drops what the marks say is committed, and
+pushes the rest of its outbox, which gets new, later `serverSeq` values. Nothing is lost or
+applied twice.
+
+The local retrieval log becomes the projection of the snapshot's log rows plus the observed rows
+in later `rate`, `claim` and `guess` ops, bounded at 5,000 rows as today. Rows a device recorded
+before it enabled sync enter through `scope.adopt`, which carries them.
+
+Packs are blobs addressed by `blobId = HMAC(blobKey, sha256(code, version, words))` (4.2), so
+the server cannot match an address against published packs. It still sees how many blobs an
+account has and their sizes.
 
 ### 3.5 Concurrency cases
 
 | Case | Result | Why it is acceptable |
 |---|---|---|
 | Two devices rate *different* cards offline | Both apply | Ops commute across cards |
-| Two devices rate the *same* card offline | Both ratings apply, in server order; the second sees elapsed time from the first (clamped to ≥0) | Both reviews happened and both are evidence; FSRS treats a same-day second review with its short-term formula. Deterministic on every device |
-| Same op delivered twice | Applied once | `(device, deviceSeq)` unique on the server; op IDs de-duplicated on the client |
-| Reset on A, rating on B made before B saw the reset | The rating carries the old epoch and is dropped (logged as superseded) | Reset is an explicit, twice-confirmed action; today's local stale guard (`wordReset` checks the card version) already makes reset win over a stale view |
-| Rating on A, reset on B made before B saw the rating | Reset wins if it is later in server order; earlier rating is erased with the card | Same rule, applied in order; the user asked to forget the word |
-| Introduce on both devices | First `introduce` creates the card; the second is a no-op | Idempotent by card |
-| Daily new-word budget | Each device counts its own introductions plus synced ones for its local day | Two offline devices can overshoot by at most devices × budget for that day; recorded, not prevented. Preventing it would need the server to hand out budget, which means the server reads state |
-| Preference changed on both | Last writer by `(at, device)` wins per field | Preferences are single-valued choices |
+| Two devices rate the *same* card offline | Both apply in server order; the second is scheduled from the first's result, as early if the card is no longer due, with elapsed time clamped to ≥0 | Both reviews happened. Replay cannot create a streak or familiarity that a single device could not reach. Each log row keeps what that learner saw |
+| Same batch pushed twice, including after compaction | Applied once | The server's per-device high-water mark, plus `deviceMarks` in the snapshot |
+| Reset on A after B rated, B's rating earlier in server order | Reset is superseded: the card it saw changed | Same rule as today's local guard: a stale reset loses |
+| Reset on A, rating on B made before B saw the reset, reset earlier in server order | Reset applies; B's rating names the old generation and is superseded | Deterministic either way. Both outcomes are states one device could reach. The losing action is shown to the user, not silently dropped |
+| Two resets of the same card | The first in server order applies; the second sees a new generation and is superseded | Generation IDs are op IDs, so they never collide |
+| Introduce on two devices | First creates the card; the second is a no-op | Idempotent per generation |
+| Introduction delivered after a reset | Names the old generation; superseded | No resurrection |
+| Daily new-word budget | Each device counts introductions for its local day, its own and synced ones | Two offline devices can overshoot by at most devices × budget for that day; recorded, not prevented. Preventing it would need the server to allocate budget, which means reading state |
+| Preference changed on both | Last writer by `(at, device)` wins per field | Single-valued choices |
 | Personal entry archived on A, unarchived on B | Last writer wins | Same |
-| Old-format client | Refused at the server by `formatVersion` (3.6) | Never silently ignores ops it cannot read |
+| Two devices enable sync on non-empty installs at once | The first `scope.adopt` in server order applies; the second sees the scope touched after its `basis`, is superseded, and that device asks the user again with the account's state | Never card-by-card mixing of two histories |
+| A malformed op from a buggy device | Recorded no-op on every device | No device stops; no device disagrees |
+| Old-format client | Refused by `formatVersion` (3.7) | Never silently ignores ops it cannot read |
 
-### 3.6 Versions and migration
+### 3.6 Personal vocabulary
+
+`addPersonal` rejects an exact duplicate today (`exactPersonal`), and the store is capped at
+300 entries. Two offline adds can break both. The fold therefore:
+
+- folds `personal.add` ops in server order and, when a new entry matches an existing one under
+  `exactPersonal`, keeps the earlier one and records the later UUID as an **alias**. Card ops
+  that name the alias apply to the survivor's card, so reviews on either device count;
+- supersedes adds beyond 300 entries in server order, and the adding device shows "not added: the
+  personal list is full".
+
+### 3.7 Versions and migration
 
 - `formatVersion` (plaintext) names the op and snapshot schema. A client reads every version up
   to its own and refuses an account whose `formatVersion` is newer, with "update Lang Weave to
-  sync". The release order is the backup's: ship a reader before any client writes the new
-  version.
-- The server stores the highest `formatVersion` any device has written and refuses pushes from
-  clients that declare they cannot read it. It never transforms ciphertext.
-- A client that meets an op it cannot apply (for example a future op type inside an allowed
-  version) **stops folding at that `serverSeq`** and holds, rather than skipping: skipping would
-  fork its state from the other devices.
-- First enable on an existing install: the device's current state becomes a snapshot (if the
-  account is empty) or is *merged* into the account (if not). Merging an existing install into a
-  non-empty account is the one genuinely new operation: recommend converting local cards to
-  `introduce` plus a synthetic `seed` op that carries the local card verbatim, applied only when
-  the account has no card for that ID, and otherwise surfaced to the user as a per-language
-  choice ("keep this device's progress for Spanish" / "keep the account's"). No silent
-  card-by-card mixing of two independent histories.
+  sync". The release order is the backup's: a reader ships before any client writes.
+- Each device records on the server the highest version it reads. A client writes a new version
+  only when every active device reads it, and otherwise keeps writing the old one. Chrome and
+  Firefox listings update on different schedules, so one updated device must not lock out the
+  others.
+- The server stores the account's highest written `formatVersion` and refuses pushes from clients
+  that say they cannot read it. It never transforms ciphertext.
+- Op validators reuse the backup's checks, which are private to `portability.js` today: stage 0b
+  exports them. The backup's `preferences()` has no `guessFirst` field yet (it is in
+  `settings.js` only), so 0b also adds its validation.
+- First enable on an existing install. If the account has nothing for a scope, the device pushes
+  `scope.adopt` with its cards and log rows. If the account already has that scope, the user
+  chooses per language: "keep this device's progress" (push `scope.adopt`) or "keep the
+  account's" (the local scope is replaced by the account's after the user is offered a learning
+  backup export first). Either way a scope has one history, never a card-by-card mix.
+
+### 3.8 What the server is trusted with
+
+The server is trusted for order and availability, not for contents. It cannot read, forge or
+alter a record (4.2). It could withhold a batch, show two devices different orders, or serve an
+old snapshot. Contiguous `deviceSeq` checks detect withholding of a known device's batches.
+Detecting a forked order needs each batch to carry a hash of the `serverSeq` prefix its author
+had folded, compared across devices; that is possible later and not proposed for v1.
 
 ## 4. Identity, account, recovery and encryption
 
@@ -238,60 +313,76 @@ Packs are content-addressed blobs (`sha256(code, version, words)`), uploaded onc
 
 | Party | Can see | Cannot see |
 |---|---|---|
-| Lang Weave server (self-hosted or hosted) | Account ID, device IDs, sizes and times of pushes/pulls, `formatVersion`, payment status (hosted) | Any card, rating, word, personal entry, pack or preference |
+| Lang Weave server (self-hosted or hosted) | Account ID, device IDs, sizes and times of pushes/pulls, number and sizes of blobs, `formatVersion`, payment status (hosted); for hosted pronunciation only, the requested word (see [Pronunciation](#pronunciation)) | Any card, rating, synced word, personal entry, pack or preference |
 | Payment processor (hosted only) | The paying person's billing identity | Anything about learning |
-| Content scripts on web pages | Nothing sync-related (requirement: 4.4) | Sync token, account key, ciphertext |
+| Content scripts on web pages | Nothing sync-related (requirement: 4.4) | Sync token, account secret, ciphertext |
 | Each enrolled device | Everything for that account | Other accounts |
 
 ### 4.2 Keys
 
-- **Account key**: a random 256-bit AES-GCM key generated on the first device (WebCrypto
-  `generateKey`). It encrypts every op batch and snapshot, with a fresh random 96-bit nonce per
-  envelope and the envelope's plaintext header as additional authenticated data, so the server
-  cannot move a batch to another account, device or sequence number undetected.
-- **Device token**: a random bearer secret the server issues at enrolment, stored hashed on the
-  server. It authorises push/pull for one device and is revocable per device.
+- **Account secret**: 32 random bytes made on the first device. HKDF derives separate keys
+  from it: an AES-GCM **encryption key** and an HMAC **blob key**. Every op batch and snapshot
+  part is sealed with a fresh random 96-bit nonce. The additional authenticated data is the
+  client-written header: `account, device, deviceSeq, kind, formatVersion`. The server
+  therefore cannot move a batch to another account, device or `deviceSeq` undetected.
+  `serverSeq` is assigned after sealing and is not authenticated (3.8).
+- The account secret itself must be kept as bytes, because pairing hands it to a new device. It
+  lives only in the secret store (4.4). The derived keys are imported as non-extractable
+  `CryptoKey`s for use.
+- **Recovery secret**: a second 32 random bytes, shown once in the recovery code and **never
+  stored on any device**. The server stores a verifier hash derived from it. It also stores the
+  account secret wrapped (AES-KW or AES-GCM) under a key derived from the recovery secret.
+- **Device token**: a random bearer secret the server issues at enrolment and stores hashed. It
+  authorises push and pull for one device and can be revoked per device.
 - No password is needed for sync itself.
 
 ### 4.3 Enrolment and recovery
 
 - **First device**: "Turn on sync" creates the account on the chosen server (hosted, or a
-  self-hosted URL), generates the account key and shows a **recovery code** (the account ID plus
-  the account key, encoded for writing down or printing). The user must confirm they saved it.
-- **Another device**: the enrolled device shows a short-lived **pairing code** (or QR) that
-  carries a one-time enrolment ticket from the server plus the account key. The new device
-  redeems the ticket for its own device token. Same pattern as Firefox's and Signal's device
-  linking; the server never sees the key.
-- **Recovery** (all devices lost): enter the recovery code on a new install. The server holds
-  only a hash of a recovery verifier derived from the account key (HKDF, a separate label from
-  the encryption use); presenting it proves possession and gets a fresh device token. No email
-  or password is needed for sync; a hosted account's billing sign-in stays with the payment
-  processor.
+  self-hosted URL). It generates both secrets and shows the **recovery code**: the account ID and
+  the recovery secret, about 60 characters with a checksum, for writing down or printing. The user
+  must confirm they saved it.
+- **Another device**: the new device makes an ephemeral ECDH P-256 key pair (WebCrypto) and
+  registers its public key with the server under a random pairing ticket. It shows the ticket as
+  a QR code and a short typed code. The enrolled device fetches that public key, and both derive a
+  shared key. Both screens then show a six-digit comparison code computed from the exchange
+  transcript, and the user confirms they match. Only then does the enrolled device send the
+  account secret and a one-time enrolment authorisation, sealed under the shared key. The new
+  device redeems the authorisation for its own device token. The server relays the exchange but
+  never sees the secret, and the comparison code defeats a server that substitutes keys. The short
+  code only names the ticket; it never carries key material.
+- **Recovery** (all devices lost): enter the recovery code on a new install. Presenting the
+  recovery verifier gets a device token and the wrapped account secret, which the recovery secret
+  unwraps. No email or password is needed for sync. A hosted account's billing sign-in stays with
+  the payment processor.
+- **Revocation is real**: revoking a device's token stops its pulls and pushes. That device cannot
+  re-enrol through recovery, because no device holds the recovery secret. It still holds the
+  account secret, so it can decrypt ciphertext it already has or could obtain. Shutting that off
+  needs key rotation: a new account secret, a fresh snapshot, and re-pairing the remaining
+  devices. Rotation is specified for stage 3, not v1.
 - **Lost recovery code and all devices**: the encrypted data is unrecoverable by design. Local
   learning backups still work as today. This is the main product trade-off of end-to-end
   encryption and is listed as an [open decision](#open-decisions).
-- **Device removal**: revoke its token on the server. Rotating the account key after a lost
-  device is possible (new key, new snapshot, re-pair remaining devices) but not needed for v1.
 
 ### 4.4 Firefox key-isolation prerequisite
 
 The Firefox probe (ditz `firefox-probe`, 2026-10-30, Firefox 158) found
 `storage.local.setAccessLevel` absent and showed a content script reading a value written to
 `storage.local`. DESIGN.md already fails closed for the Gemini key on such a browser. The sync
-token and account key get the same rule, with no silent weakening:
+token and account secret get the same rule, with no silent weakening:
 
-- Secrets (Gemini key, device token, account key) live only in a store content scripts cannot
+- Secrets (Gemini key, device token, account secret) live only in a store content scripts cannot
   read. On Chrome ≥140 that is `storage.local` after `setAccessLevel(TRUSTED_CONTEXTS)`.
 - On Firefox, until it has `setAccessLevel`, the candidate store is the extension origin's own
-  IndexedDB, opened only from the background page and extension pages, with the account key kept
-  as a **non-extractable** `CryptoKey` (structured-cloneable into IndexedDB, never exported as
-  bytes). Chrome documents that web storage called from a content script "accesses data from
+  IndexedDB, opened only from the background page and extension pages. It holds the secrets as
+  bytes (the account secret must stay exportable for pairing, 4.2); the derived working keys are
+  re-imported as non-extractable `CryptoKey`s, which are structured-cloneable into IndexedDB. Chrome documents that web storage called from a content script "accesses data from
   the host page the content script is injected on and not the extension" [S6], and MDN that a
   `CryptoKey` "is a serializable object" storable with standard web storage APIs [S9]. No
   primary page states the extension-origin IndexedDB case for Firefox outright, so the store
   ships only behind a real-Firefox test that a content script cannot read it (the same harness
   the probe used).
-- `storage.session` is not a substitute for the account key: it is not exposed to content
+- `storage.session` is not a substitute for the account secret: it is not exposed to content
   scripts by default in either browser [S1, S4], but it is cleared when the browser closes, so
   the user would re-pair every session.
 - Firefox private browsing: extension pages' `indexedDB.open` fails in permanent private
@@ -312,24 +403,27 @@ token and account key get the same rule, with no silent weakening:
 One process, one SQLite file:
 
 ```
-accounts(id, created_at, format_version, plan)              -- plan: null when self-hosted
-devices(id, account_id, token_hash, created_at, last_pull_seq, revoked_at)
+accounts(id, created_at, format_version, plan,              -- plan: null when self-hosted
+         recovery_verifier, wrapped_secret)
+devices(id, account_id, token_hash, created_at, last_pull_seq, max_device_seq, max_read_version,
+        revoked_at)
 envelopes(server_seq PK, account_id, device_id, device_seq, kind, format_version,
           nonce, ciphertext, created_at, UNIQUE(account_id, device_id, device_seq))
-blobs(account_id, content_hash, ciphertext, PRIMARY KEY(account_id, content_hash))
+blobs(account_id, blob_id, ciphertext, PRIMARY KEY(account_id, blob_id))   -- blob_id is an HMAC
 ```
 
 Endpoints (JSON over HTTPS, device token in `Authorization`):
 
-- `POST /v1/push {deviceSeq, kind, formatVersion, nonce, ciphertext}` → `{serverSeq}`; replay of
-  the same `deviceSeq` returns the original `serverSeq`.
+- `POST /v1/push {deviceSeq, kind, formatVersion, nonce, ciphertext}` → `{serverSeq}`. A
+  `deviceSeq` at or below the device's `max_device_seq` returns "already committed" without an
+  insert; one that skips ahead is refused.
 - `GET /v1/pull?after=<serverSeq>` → the latest snapshot if `after` is below it, then envelopes in
   order, paginated; records the device's `last_pull_seq`.
-- `PUT/GET /v1/blob/<hash>` for pack blobs.
-- Enrolment: `POST /v1/account`, `POST /v1/pairing`, `POST /v1/enroll`, `DELETE /v1/device/<id>`.
+- `PUT/GET /v1/blob/<blobId>` for pack blobs.
+- Enrolment: `POST /v1/account`, `POST /v1/pairing` (ticket and public-key relay), `POST /v1/enroll`, `POST /v1/recover`, `DELETE /v1/device/<id>`.
 
 Per-account caps (proposal; Ted's call where they become product limits): envelope ≤256 KiB,
-blob ≤1 MiB, a storage ceiling, and a push rate limit. Retention: ops below the latest snapshot
+snapshot ≤4 MiB across its parts, blob ≤1 MiB, a storage ceiling, and a push rate limit. Retention: ops below the latest snapshot
 are compacted per 3.4.
 
 Language: whatever the extension's test toolchain already uses keeps one toolchain (Bun can run
@@ -492,8 +586,11 @@ by turning on sync, and the passage must not be stored or logged beyond the requ
 | OpenAI | Explicit right "to make Customer Applications available to End Users" (OSA 2.2) [S17] | "Customer may not resell or lease access to its Account or any End User Account" (3.1); no buying, selling or transferring API keys (3.3(g)) [S17] |
 | Anthropic | May "power products and services Customer makes available to its own customers and end users" (A.1) [S18] | May not "resell the Services except as expressly approved by Anthropic" (D.4(a)) [S18] |
 
-Reading, not legal advice: every provider checked allows a product that uses the model to deliver
-its own feature, and none allows selling raw access. A `/v1/weave` endpoint that only performs Lang
+Reading, not legal advice: OpenAI and Anthropic explicitly allow a product that uses the model to
+deliver its own feature to end users, and neither allows selling raw access. Gemini is
+unresolved: its terms describe a developer service "not for consumer use", and whether Google's
+general sublicensing ban applies was not verified; that needs a ruling, with counsel if Ted wants
+it, before a Gemini-backed hosted tier. A `/v1/weave` endpoint that only performs Lang
 Weave's own prompt and returns validated swaps is the product shape; a general model proxy is the
 resale shape, and is not proposed. "Resell provider tokens" should be understood, and marketed, as
 selling the feature with model costs included.
@@ -511,11 +608,11 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 
 | Stage | What | Evidence that it is done | Needs |
 |---|---|---|---|
-| 0a. Secret store | One worker-only interface for secrets (Gemini key, device token, account key). Chrome: today's `storage.local` after `setAccessLevel`. Firefox: extension-origin IndexedDB with a non-extractable `CryptoKey`. Fails closed elsewhere | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
-| 0b. Op reducer | Pure `sync-ops.js`: op validation (reusing `portability.js` validators), fold for `introduce`, `rate`, `claim`, `encounter`, `reset` | Equivalence test: folding the ops of a recorded session equals the state the current `rateReview`/`claimKnown`/`wordReset` path wrote. Convergence test: any delivery order with duplicates converges. Mutation-checked | Nothing |
+| 0a. Secret store | One worker-only interface for secrets (Gemini key, device token, account secret). Chrome: today's `storage.local` after `setAccessLevel`. Firefox: extension-origin IndexedDB, with derived working keys as non-extractable `CryptoKey`s. Fails closed elsewhere, including Firefox permanent private browsing | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
+| 0b. Op reducer | Pure `sync-ops.js`: op validation (exporting the `portability.js` validators, adding `guessFirst`), fold for every card op in 3.2, generations, supersession records | Equivalence test: folding the ops of a recorded single-device session equals the state the current `rateReview`/`finishInline`/`claimKnown`/`wordKnown`/`wordReset` paths wrote. Convergence test: any server order of two devices' batches, with duplicates, converges, including both devices rating the same due card Easy inline. Mutation-checked | Nothing |
 | 1. Tracer bullet | Section 8 | Section 8 | Nothing |
 | 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server; offline review on both then reconnect; reset-vs-review case; old-format refusal | E2EE/recovery ruling |
-| 3. Full scope | Personal entries, packs, preferences; first-enable merge of an existing install (3.6); Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card; Firefox profile converges with Chrome profile | Stage 2 |
+| 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card; Firefox profile converges with Chrome profile | Stage 2 |
 | 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
 | P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
 | P2. Hosted pronunciation | `/v1/speak` with the catalog cache | Native-speaker listen of the chosen engine; cache-hit test | Engine ruling, stage 2 server |
@@ -525,19 +622,21 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 
 The thinnest slice through every new boundary:
 
-- `extension/src/sync-ops.js`: op envelope, `rate`/`introduce`/`reset` for the bundled Spanish
-  scope only, and `fold(base, ops)` that calls the existing `scheduleCard` path, not a copy of it.
-- `extension/src/sync-crypto.js`: AES-GCM seal/open of a batch with the envelope header as
+- `extension/src/sync-ops.js`: op envelope, `introduce`/`rate`/`reset` with generations for the
+  bundled Spanish scope only, and `fold(base, ops)` that calls the existing `scheduleCard` (which
+  needs exporting from `review.js`), not a copy of it.
+- `extension/src/sync-crypto.js`: AES-GCM seal/open of a batch with the client-written header as
   additional data (WebCrypto only).
-- `server/`: an AGPL push/pull server, in-memory store behind the SQLite schema of 5.1, with the
-  unique `(account, device, deviceSeq)` rule. Not deployed anywhere.
-- `extension/test/sync-tracer.test.js`: two simulated devices, each rating offline, pushing
-  through the server (in-process), pulling, and ending with identical cards; a duplicated push; a
-  reset racing a stale rating; a tampered envelope header rejected by decryption.
+- `server/`: an AGPL push/pull server with an in-memory store behind the SQLite schema of 5.1, and
+  the per-device `max_device_seq` rule. Not deployed anywhere.
+- `extension/test/sync-tracer.test.js`: two simulated devices, each rating offline, pushing through
+  the in-process server, pulling, and ending with identical cards. It also covers a duplicated push
+  after a lost acknowledgement, a reset racing a stale rating in both server orders, and a tampered
+  envelope header that decryption rejects.
 
-Acceptance for the tracer: the convergence test goes red when the fold orders by wall clock
-instead of `serverSeq`, when `deviceSeq` de-duplication is removed, and when the epoch check on
-`reset` is removed (three mutation checks). Nothing ships in the extension zip; no UI.
+Acceptance for the tracer: the convergence test goes red in three mutation checks: when the fold
+orders by wall clock instead of `serverSeq`, when the `max_device_seq` de-duplication is removed,
+and when the generation check is removed. Nothing ships in the extension zip, and there is no UI.
 
 Necessity check: what fails if we skip the tracer and build stage 2 directly? The merge semantics
 would be discovered inside UI and network code, where a convergence bug looks like flaky sync.

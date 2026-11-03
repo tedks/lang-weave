@@ -24,12 +24,12 @@ Recorded from the CTO's brief; these are approved direction, not designs:
 - A paid sync service for cross-machine progress, itself AGPL.
 - Bring-your-own-key stays.
 - Port to Firefox.
-- Paid AI-synthesized pronunciation, not only OS voices; pronunciation is always an explicit user action.
+- Paid AI-synthesized pronunciation, not only OS voices.
 - Eventually resell provider tokens (a hosted no-key tier).
 - No donations.
 - Public launch is deferred.
 
-The engineering proposal for sync, pronunciation and the hosted tier is [research/sync-service.md](research/sync-service.md); its designs, caps and prices are proposals awaiting review.
+The CTO's brief adds that pronunciation is an explicit user action. The engineering proposal for sync, pronunciation and the hosted tier is [research/sync-service.md](research/sync-service.md); its designs, caps and prices are proposals awaiting review.
 
 ## Milestones
 
