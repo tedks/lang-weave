@@ -57,3 +57,20 @@ log_events:
     the cause, sample 60 more; more than 3: review the whole band). That halves the
     review cost for later bands too. The grounds are cost; no accuracy comparison
     exists.'
+- time: 2026-11-03T04:16:51-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Scope correction (root review MSG-CTO-VOCAB-REPAIR-20261103). The findings
+    apply to the sources tested in docs/research/public-domain-vocabulary.md, not
+    to every source that may exist:
+
+    - Among those tested, none was a modern drop-in public-domain or CC0 dictionary,
+    and none gave a CC0 ranking adequate to replace wordfreq.
+
+    - On the positive side, the Gutenberg 1900-1919 school vocabularies (US public
+    domain) cover much core vocabulary, and Wikidata CC0 morphology is useful. So
+    copying Wiktionary glosses under CC BY-SA, as the original recommendation proposed,
+    is not the only path.
+
+    - On reuse, option 1 means no Wiktionary gloss text is copied, while CC0 morphology
+    from Wikidata (forms, POS, gender) is reused.'
