@@ -20,3 +20,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-03T03:54:42-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'TED-DIRECTION-20261102-ASTRA
+
+    Ted requests a Firefox port as product direction. Public launch explicitly deferred;
+    permanent ID/publisher details are still unchosen. Probe evidence and storage/key-isolation
+    gap must inform design, not be weakened. Sync-service exploration covers cross-browser
+    prerequisites.'
