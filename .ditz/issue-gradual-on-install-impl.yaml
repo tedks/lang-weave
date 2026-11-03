@@ -1,0 +1,22 @@
+id: gradual-on-install-impl
+title: Turn gradual learning on at 5 new words/day for truly fresh installs
+desc: 'Implements ruling gradual-default-on-install-ruling option A. Write gradual:true
+  and newWordsPerDay:5 only when onInstalled reason === ''install'' AND the worker''s
+  startup found no settings object. DEFAULT_SETTINGS stays gradual:false so updates,
+  reloads, existing and field-missing profiles are untouched; backup import keeps
+  restoring the backup''s preferences; consent/no-network-before-choice preserved.
+  Welcome page explains the default and where to change it. Owner: Opus Lead session
+  c55e46b5 (lang-weave:gradual-install %1009), branch gradual-on-install.'
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T03:54:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T03:54:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
