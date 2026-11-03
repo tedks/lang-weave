@@ -16,8 +16,9 @@ desc: 'Source: docs/research/public-domain-vocabulary.md (PR #49). Ted''s challe
 
   2. Frequency source: (a) keep the wordfreq coarse bands (BY-SA credit, already shipping),
   (b) Tatoeba-derived bands (CC BY 2.0 FR credit, conversational, needs a name denylist).
-  No usable CC0 ranking exists: Common Voice text was measured and is unusable. Rec:
-  (a) now; (b) only if removing all BY-SA credit matters.
+  Among the sources tested, no CC0 ranking was adequate to replace wordfreq; the tested
+  Common Voice text was unsuitable. Rec: (a) now; (b) only if removing all BY-SA credit
+  matters.
 
   3. Review: drop the 100% double native review of band 1 + the 226 (526 rows) in
   favour of one fluent reader on flagged rows plus the same 60-row sample later bands
@@ -29,7 +30,14 @@ desc: 'Source: docs/research/public-domain-vocabulary.md (PR #49). Ted''s challe
 
   Decides: Ted. Blocks: the first band of curriculum-growth. If adopted, it supersedes
   parts of curriculum-data-licence-ruling. Not legal advice; the non-US status of
-  the Gutenberg editions is unchecked.'
+  the Gutenberg editions is unchecked.
+
+
+  Root acceptance clarification: measured Wikidata form counts show broad coverage,
+  not audited paradigm completeness or correctness. The proposed 60-row rule-of-three
+  estimate concerns randomly sampled unflagged rows, assumes reliable defect detection,
+  and is not a whole-band guarantee. All three product choices remain proposals for
+  Ted.'
 type: task
 component: open-questions
 release:
@@ -74,3 +82,7 @@ log_events:
 
     - On reuse, option 1 means no Wiktionary gloss text is copied, while CC0 morphology
     from Wikidata (forms, POS, gender) is reused.'
+- time: 2026-11-03T04:20:23-00:00
+  who: Ted Smith
+  what: updated description
+  comment: ""
