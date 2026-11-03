@@ -1,0 +1,27 @@
+id: sync-personal-cap-ruling
+title: Choose personal vocabulary limits and overflow preservation under sync
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: count active entries with a separate bounded archive policy; add an explicit
+  delete flow; or retain the total300 cap with lossless overflow/export handling.
+  Recommendation: active-entry cap only if archived/overflow data also has a defined
+  bound and export/recovery path. The memo explicitly admits overflow cannot fit the
+  current backup and may remain on one device: that is a proposal, not an accepted
+  loss policy. Blocks committing stage3 admission behaviour; no block on bundled-card
+  tracer.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
