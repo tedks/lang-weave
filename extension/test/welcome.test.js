@@ -71,7 +71,8 @@ test('fresh profile blocks reading Gemini dispatch until welcome save, while an 
   const listeners = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   const id = 'welcome-test';
-  const page = { id, url: 'https://reading.example/article', frameId: 0, tab: { id: 7, title: 'Reading' } };
+  // A live top-frame document: a fresh profile starts with gradual on, whose reading path requires one.
+  const page = { id, url: 'https://reading.example/article', frameId: 0, documentId: 'doc-1', tab: { id: 7, title: 'Reading' } };
   const welcome = { id, url: `chrome-extension://${id}/src/welcome.html` };
   let fetches = 0;
   globalThis.chrome = {

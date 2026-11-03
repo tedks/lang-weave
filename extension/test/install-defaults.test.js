@@ -1,8 +1,8 @@
-// Gradual learning starts on, at five new words a day, only for a truly fresh install
-// (gradual-default-on-install-ruling): Chrome's install event AND no settings object at worker startup.
-// Every opt-in case is paired with the nearest case that must stay unchanged.
+// Gradual learning starts on, at five new words a day, only for a truly new profile
+// (gradual-default-on-install-ruling): no settings object at worker startup, written in that same first
+// settings write. Every opt-in case is paired with the nearest case that must stay unchanged.
 import { expect, test } from 'bun:test';
-import { DEFAULT_SETTINGS } from '../src/settings.js';
+import { DEFAULT_SETTINGS, FRESH_INSTALL_SETTINGS } from '../src/settings.js';
 import { hashKey } from '../src/hash.js';
 
 const id = 'fw-install';
@@ -51,7 +51,7 @@ function worker(data, { origins = [] } = {}) {
   const send = (msg, sender) => new Promise((resolve) => {
     if (!message.listeners.some((fn) => fn(msg, sender, resolve))) resolve(undefined);
   });
-  // Fire one onInstalled event to every listener, then let the async install write settle.
+  // Fire one onInstalled event to every listener, then let any async work it starts settle.
   const install = async (details) => {
     for (const fn of installed.listeners) fn(details);
     for (let i = 0; i < 50; i++) await tick();
@@ -78,66 +78,54 @@ async function isolated(fn) {
 test('the shared default stays off, so cleanSettings never opts a stored profile in', () => {
   expect(DEFAULT_SETTINGS.gradual).toBe(false);
   expect(DEFAULT_SETTINGS.newWordsPerDay).toBe(5);
+  expect(FRESH_INSTALL_SETTINGS).toEqual({ gradual: true, newWordsPerDay: 5 });
 });
 
-test('a fresh install turns gradual on at five words; the same empty profile without an install event stays off', () => isolated(async () => {
+test('a new profile starts with gradual on at five words in its first settings write', () => isolated(async () => {
+  for (const data of [{}, { apiKey: 'synthetic-key' }]) { // other keys but no settings object is still new
+    const fresh = worker(structuredClone(data));
+    await fresh.load();
+    expect(fresh.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5 });
+    expect(fresh.data.consentShown).toBe(false); // gradual is not a privacy choice
+    expect(fresh.state.settingsWrites).toBe(1); // one atomic startup write, nothing left to race
+    await fresh.install({ reason: 'install' });
+    expect(fresh.opened).toEqual([`chrome-extension://${id}/src/welcome.html`]);
+    expect(fresh.state.settingsWrites).toBe(1);
+  }
+}));
+
+test('a stored settings object of any shape is never opted in, on install, update or plain startup', () => isolated(async () => {
+  // Missing fields (an older profile), an explicit off with its own pace, an empty object, and an explicit on.
+  const cases = [[{ enabled: true, language: 'es' }, false, 5], [{ gradual: false, newWordsPerDay: 3 }, false, 3],
+    [{}, false, 5], [{ gradual: true, newWordsPerDay: 8 }, true, 8]];
+  for (const reason of ['install', 'update', 'chrome_update', undefined]) {
+    for (const [settings, gradual, pace] of cases) {
+      const existing = worker({ settings: structuredClone(settings) });
+      await existing.load();
+      if (reason) await existing.install({ reason }); else for (let i = 0; i < 50; i++) await tick();
+      expect(existing.data.settings).toMatchObject({ gradual, newWordsPerDay: pace });
+      expect(existing.data.consentShown).toBeUndefined();
+    }
+  }
+}));
+
+test('a choice written after startup is never reset by the install event', () => isolated(async () => {
+  // A page or harness can write settings before Chrome delivers onInstalled; nothing may restore defaults.
   const fresh = worker({});
   await fresh.load();
-  expect(fresh.data.settings.gradual).toBe(false); // startup alone writes the shared defaults
-  expect(fresh.data.consentShown).toBe(false);
+  expect(await fresh.send({ type: 'save', settings: { gradual: false, newWordsPerDay: 1 } }, options)).toEqual({ ok: true });
   await fresh.install({ reason: 'install' });
-  expect(fresh.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5 });
-  expect(fresh.data.consentShown).toBe(false); // gradual is not a privacy choice
-  expect(fresh.opened).toEqual([`chrome-extension://${id}/src/welcome.html`]);
-
-  for (const reason of ['update', 'chrome_update', 'shared_module_update', undefined]) {
-    const empty = worker({});
-    await empty.load();
-    await empty.install({ reason });
-    expect(empty.data.settings.gradual).toBe(false);
-    expect(empty.opened).toEqual([]);
-  }
-  const noEvent = worker({});
-  await noEvent.load();
-  for (let i = 0; i < 50; i++) await tick();
-  expect(noEvent.data.settings.gradual).toBe(false);
+  expect(fresh.data.settings).toMatchObject({ gradual: false, newWordsPerDay: 1 });
+  // The welcome page's site choice merges with the new profile's defaults.
+  const other = worker({});
+  await other.load();
+  expect(await other.send({ type: 'save', consentShown: true, settings: { newSitesEnabled: false } }, welcome)).toEqual({ ok: true });
+  expect(other.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5, newSitesEnabled: false });
+  expect(other.data.consentShown).toBe(true);
 }));
 
-test('an install event over any stored settings object changes nothing', () => isolated(async () => {
-  // Missing fields (an older profile), an explicit off with its own pace, and an empty object.
-  for (const settings of [{ enabled: true, language: 'es' }, { gradual: false, newWordsPerDay: 3 }, {}]) {
-    const existing = worker({ settings: structuredClone(settings) });
-    await existing.load();
-    const before = structuredClone(existing.data.settings);
-    const writes = existing.state.settingsWrites;
-    await existing.install({ reason: 'install' });
-    expect(existing.data.settings).toEqual(before);
-    expect(existing.data.settings.gradual).toBe(false);
-    expect(existing.state.settingsWrites).toBe(writes);
-  }
-  // An update keeps an explicit on and its pace, and never resets them to the install values.
-  const on = worker({ settings: { gradual: true, newWordsPerDay: 8 } });
-  await on.load();
-  await on.install({ reason: 'update' });
-  expect(on.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 8 });
-}));
-
-test('the install write is one-shot and merges with a welcome choice instead of replacing it', () => isolated(async () => {
-  const fresh = worker({});
-  await fresh.load();
-  // The welcome page's site choice lands before the install handler runs.
-  expect(await fresh.send({ type: 'save', consentShown: true, settings: { newSitesEnabled: false } }, welcome)).toEqual({ ok: true });
-  await fresh.install({ reason: 'install' });
-  expect(fresh.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5, newSitesEnabled: false });
-  expect(fresh.data.consentShown).toBe(true);
-  // The user turns it off; a repeated install event in the same worker must not turn it back on.
-  expect(await fresh.send({ type: 'save', settings: { gradual: false } }, options)).toEqual({ ok: true });
-  await fresh.install({ reason: 'install' });
-  expect(fresh.data.settings.gradual).toBe(false);
-}));
-
-test('gradual on does not let a fresh install reach Gemini before the welcome choice', () => isolated(async () => {
-  const fresh = worker({ apiKey: 'synthetic-key' }, { origins: ['https://reading.example/*'] }); // no settings: fresh
+test('gradual on does not let a new profile reach Gemini before the welcome choice', () => isolated(async () => {
+  const fresh = worker({ apiKey: 'synthetic-key' }, { origins: ['https://reading.example/*'] }); // no settings: new
   await fresh.load();
   await fresh.install({ reason: 'install' });
   expect(fresh.data.settings.gradual).toBe(true);
@@ -160,7 +148,7 @@ async function exportedBackup(settings) {
   return json;
 }
 
-test('a fresh install with gradual on is still an import target, and the backup restores its own choice', () => isolated(async () => {
+test('a new profile with gradual on is still an import target, and the backup restores its own choice', () => isolated(async () => {
   const json = await exportedBackup({ language: 'es', gradual: false, newWordsPerDay: 3 });
   const target = worker({});
   await target.load();
@@ -174,20 +162,18 @@ test('a fresh install with gradual on is still an import target, and the backup 
   expect(target.data.settings).toMatchObject({ gradual: false, newWordsPerDay: 3 });
 }));
 
-test('an import previewed before the install write lands is refused as stale', () => isolated(async () => {
-  const json = await exportedBackup({ language: 'es', gradual: false, newWordsPerDay: 3 });
+test('a gradual change between preview and import makes the preview stale', () => isolated(async () => {
+  const json = await exportedBackup({ language: 'es', gradual: true, newWordsPerDay: 2 });
   const target = worker({});
   await target.load();
   target.openBackup();
   const preview = await target.send({ type: 'learningPreview', json, pageId }, backupPage);
   expect(preview.error).toBeUndefined();
-  await target.install({ reason: 'install' });
-  expect(target.data.settings.gradual).toBe(true);
+  expect(await target.send({ type: 'save', settings: { gradual: false } }, options)).toEqual({ ok: true });
   const result = await target.send({ type: 'learningImport', token: preview.token, pageId }, backupPage);
   expect(result.error).toMatch(/Preview again|Preview expired/);
-  expect(target.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5 });
-  // A new preview of the same file then imports it.
+  expect(target.data.settings).toMatchObject({ gradual: false, newWordsPerDay: 5 });
   const again = await target.send({ type: 'learningPreview', json, pageId }, backupPage);
   expect(await target.send({ type: 'learningImport', token: again.token, pageId }, backupPage)).toEqual({ ok: true });
-  expect(target.data.settings).toMatchObject({ gradual: false, newWordsPerDay: 3 });
+  expect(target.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 2 });
 }));
