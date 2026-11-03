@@ -20,3 +20,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-03T03:54:34-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'TED-DIRECTION-20261102-ASTRA
+
+    Ted approved reading first, typed production later, and explicitly requires that
+    this also be inline. Typed production remains optional per the approved recommendation.
+    Decision resolved; scope does not imply immediate production-mode deployment.'
