@@ -15,8 +15,8 @@ type: task
 component: open-questions
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T17:28:23-00:00
 references: []
 log_events:
@@ -37,3 +37,7 @@ log_events:
     by Ted (passwordless sudo unavailable). Decision resolved; outstanding additional
     copy tracked in private root record, no private key or detailed backup paths in
     public tracker.'
+- time: 2026-11-03T03:54:51-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Ted decision recorded; implementation tracked separately
