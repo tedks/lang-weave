@@ -102,7 +102,7 @@ Principle: sync only what makes the *learning* continue on another machine. Ever
 
 | Syncs (opt-in, encrypted) | Stays local, always |
 |---|---|
-| Card operations for every scope: introduce, rate, already-know claim, guess, encounter, reset, scope adoption | `apiKey` and any other credential, including the sync token and the account secret at rest |
+| Card operations for every scope (stage 2: the bundled catalog's scopes; pack and personal scopes from stage 3): introduce, rate, already-know claim, guess, encounter, reset, scope adoption | `apiKey` and any other credential, including the sync token and the account secret at rest |
 | Personal vocabulary entries (add, archive/unarchive) | Page text, URLs, hosts, titles: never present in sync records by construction |
 | Installed language packs, as content-addressed blobs (`code`, `version`, words) | `siteOverrides` (hostnames are browsing history), `newSitesEnabled`, `enabled`, pause state |
 | Learning preferences: `language, levelOverride, gradual, newWordsPerDay, density, inlineRecall, desiredRetention, guessFirst` | Decision cache `c:*` (passage hashes), `readingEvents`, `seenSent`, `vocabularyEncounters` |
@@ -202,7 +202,7 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device; rows of the replaced history, including those of the overwritten ops, are not kept, so the log always agrees with the adopted cards. Before pushing an adopt, the device offers a full learning backup export with that scope taken from its pre-adopt fold (the account's state) and every other field from its current projection, validated with the `portability.js` validators. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device; rows of the replaced history, including those of the overwritten ops, are not kept, so the log always agrees with the adopted cards. Before pushing an adopt, the device offers a full learning backup export with that scope taken from its pre-adopt fold (the account's state) and every other field from its current `storage.local`, validated with the `portability.js` validators. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -333,8 +333,10 @@ that tests catch more cheaply.
 Invariants:
 
 1. While sync is on and not paused, every synced field (3.2) has one source of truth, the fold
-   in IndexedDB. In stage 2 the synced fields are the card scopes only; personal entries, packs
-   and preferences become synced fields in stage 3, and stay local-only until then.
+   in IndexedDB. In stage 2 the synced fields are the bundled catalog's card scopes only (as
+   the tracer, section 8); pack scopes with `pack.install`, personal entries and their cards with
+   `personal.add`, and preferences become synced fields in stage 3, and stay local-only until
+   then. A stage 2 test asserts that no pack-scope or personal-card op is ever pushed.
    `storage.local` carries a projection of exactly those fields; local-only keys and fields
    (review tickets, the `learning` budget, `siteOverrides`, `enabled`, `newSitesEnabled`,
    `model`, exposures, reading events, `seenSent`, encounter buckets) are never touched by sync.
@@ -348,14 +350,16 @@ Invariants:
    differing card scopes go to the user's adopt choice. When the baseline itself is lost
    (eviction, cleared IndexedDB), all local learning state is a kept copy: the device offers the
    export and the keep-this-device / keep-the-account choice, defaulting to the account's, and
-   pushes nothing automatically.
+   pushes nothing automatically. The lost baseline also lost the device token and account secret,
+   so either choice first needs re-pairing (or, on the account's only device, the recovery code),
+   under a new device ID so no `deviceSeq` is reused.
 4. If IndexedDB is unavailable while sync is on, sync pauses visibly and learning and backups keep
    working on `storage.local`; invariant 3 reconciles on recovery, whether at start or mid-life.
 
 Acceptance tests, stage 2: a worker killed after each kind of IndexedDB commit (outbox, pull,
 snapshot load, adopt, kept-copy restore) and before its projection; downgrade, review on the old
 build, re-upgrade; IndexedDB failing then recovering mid-session; eviction on device A after
-device B changed cards (B's state survives unless the user picks A's); an out-of-band card change;
+device B changed cards (A re-pairs; B's state survives unless the user picks A's); an out-of-band card change;
 a re-projection keeping an open ticket and `siteOverrides`, and a concurrent local-only write
 (`learning` budget, encounter buckets) during re-projection; export and fresh import with sync
 state present; import refused while sync is on; first enable on a non-empty install, both
@@ -363,7 +367,9 @@ branches, two devices enabling at once, and cancel-enable; an adopt with another
 concurrently, asserting the exact log rows and `verifiedWords`; fresh import of the offered
 pre-adopt backup. Stage 3 adds: out-of-band changes to a personal entry, a preference and a pack;
 eviction after another device changed a preference and archived an entry (its values survive
-unless the user picks this device's).
+unless the user picks this device's); first enable, and a stage 2 to stage 3 upgrade, of two
+installs with different personal entries, preferences and packs (entries union under 3.6 with no
+personal card lost within the cap; preferences follow the 3.7 rule).
 
 - **Loss detection.** One new install-local key, a sync marker holding a sync-state epoch, is added
   to `NON_LEARNING_KEYS` so the backup ignores it (an older build after a downgrade would refuse to
@@ -438,6 +444,11 @@ adds can bypass all three. The fold therefore, in server order:
 - Op validators reuse the backup's checks, which are private to `portability.js` today: stage 0b
   exports them. The backup's `preferences()` has no `guessFirst` field yet (it is in
   `settings.js` only), so 0b also adds its validation.
+- When non-card fields become synced (first enable from stage 3, or an account's upgrade from
+  stage 2 to stage 3), personal entries from each device are added as `personal.add` ops and
+  merge under 3.6; for preferences and packs the account's values win and the device's differing
+  values are shown once with an option to apply them. Stage 3 ops are written only after the 3.7
+  `formatVersion` gate (every active device reads the new version).
 - First enable on an existing install needs the server reachable at the start. The device
   keeps a copy of its pre-enable learning state locally until, per scope, its `scope.adopt`
   applies or the user picks the account's history. If the account has nothing for a scope, the
