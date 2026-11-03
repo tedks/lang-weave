@@ -939,10 +939,16 @@ superseded by Ted's paid AI pronunciation direction.
 
 ## Review record
 
-Council review to fixpoint on PR #47, 21 rounds, seats pinned at the Lead tier: native Anthropic
-Opus and OpenAI `gpt-6-sol` via ask-agent; the Google `agy` seat was empty throughout (quota
-exhausted, resets after this lane). Every Critical and Important finding was fixed; round 21
-(`faf8051..5fb6c38`) was CLEAN from both seats. Two logged reorientations: round 13 dropped an
+**Advisory only.** These were advisory, partial-diff reviews by fresh seats, not a formal
+exact-head gate and not a validated fixpoint. Round 1 reviewed 72a36e8..d3562a8; rounds 2–21
+each reviewed only the previous fix delta, briefed by the author. No fresh seat reviewed the full
+original-base..final-head diff. Seats were pinned at the Lead tier: native Anthropic Opus and
+OpenAI `gpt-6-sol` via ask-agent; the Google `agy` seat was empty throughout (quota exhausted).
+Root accepts this memo as research with a light review only.
+
+Historical record: every Critical and Important finding raised was addressed, and round 21 was
+findings-CLEAN from both seats **for its delta only** (`faf8051..5fb6c38`). Later commits had a
+light codex check (1315571) or no review. Two logged reorientations: round 13 dropped an
 "overwritten log" and its row-identity machinery after three failed approaches; round 15 replaced
 local-persistence mechanism prose with invariants and acceptance tests. Remaining nits are filed
 as ditz `sync-proposal-round21-nits`.
