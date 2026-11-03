@@ -66,6 +66,7 @@ const ready = (async () => {
   const { settings } = await store.get('settings');
   // Install defaults need storage that nothing has written yet: an absent settings object beside a key or
   // progress is not a new install. Read everything only in that rare case, never on an ordinary wake.
+  // Any early write (a permission event's epoch) can only make this false: a missed default, never an opt-in.
   const fresh = settings === undefined && !Object.keys(await store.get(null)).length;
   try { validateStorageSettings(settings || {}); }
   catch { worker.startupUnsupportedSettings = true; }
