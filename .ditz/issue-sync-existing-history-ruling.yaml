@@ -1,0 +1,23 @@
+id: sync-existing-history-ruling
+title: Choose first-sync reconciliation for independently used devices
+desc: 'PR47 proposes choosing one device or the account history per scope on first
+  enable, replacing the other history after offering export; this is not merging already-existing
+  histories. Options: explicit keep-one-history with export and clear preview; or
+  develop a constrained existing-history merge with defined uncertainty. Recommendation:
+  explicit preview/export choice initially rather than silently inventing a merged
+  schedule; retain discarded histories recoverably. Ted decides. Blocks first-enable
+  product flow and destructive adoption semantics, not the local op experiment. No
+  data replacement authorized by this research.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:17:58-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:17:58-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
