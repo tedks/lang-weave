@@ -81,6 +81,7 @@ if (process.argv.includes('--check')) {
       for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
         await new Promise((done) => setTimeout(done, 10));
       const { settings } = await chrome.storage.local.get('settings');
+      if (!settings) throw new Error('worker never wrote its startup settings');
       // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
       await chrome.storage.local.set({ settings: { ...settings, gradual: false, siteOverrides: { ...settings.siteOverrides,
         'reading.example': true } }, apiKey: 'synthetic-store-shots-key' });

@@ -64,16 +64,19 @@ const ready = (async () => {
     } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
   }
   const { settings } = await store.get('settings');
+  // Install defaults need storage that nothing has written yet: an absent settings object beside a key or
+  // progress is not a new install. Read everything only in that rare case, never on an ordinary wake.
+  const fresh = settings === undefined && !Object.keys(await store.get(null)).length;
   try { validateStorageSettings(settings || {}); }
   catch { worker.startupUnsupportedSettings = true; }
   if (!worker.keyIsolationUnavailable && settings?.apiKey)
     await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
   // A stored settings object identifies an existing profile. Only a truly empty new profile
   // needs onboarding; older profiles keep their existing access until they choose otherwise.
-  // The same first write gives a new profile its install defaults (gradual learning on), so
-  // no later write can race a choice; an existing profile is only cleaned, never opted in.
+  // The same first write gives empty storage its install defaults (gradual learning on), so
+  // no later write can race a choice; any other profile is only cleaned, never opted in.
   if (!worker.startupUnsupportedSettings && !(worker.keyIsolationUnavailable && settings?.apiKey)) await store.set({
-    settings: cleanSettings(settings ?? FRESH_INSTALL_SETTINGS), ...(settings === undefined ? { consentShown: false } : {}),
+    settings: cleanSettings(fresh ? FRESH_INSTALL_SETTINGS : settings), ...(settings === undefined ? { consentShown: false } : {}),
   });
   const { keyEpoch } = await store.get('keyEpoch');
   if (typeof keyEpoch !== 'string' || !keyEpoch) await store.set({ keyEpoch: crypto.randomUUID() });

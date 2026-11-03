@@ -15,11 +15,10 @@ export const DEFAULT_SETTINGS = {
   siteOverrides: {}, // hostname -> true/false, set from the popup
 };
 
-// A truly new profile (no settings object at worker startup) starts with gradual learning on at five new
-// words a day (gradual-default-on-install-ruling). DEFAULT_SETTINGS keeps gradual off, because
-// cleanSettings back-fills it into every stored profile, including ones that predate the field.
-// Every build since 0.2 writes settings at its first startup, and the 0.12 manifest key gives every
-// install path one ID, so an absent settings object at startup means a new install's empty storage.
+// A truly new profile (completely empty storage at worker startup) starts with gradual learning on at five
+// new words a day (gradual-default-on-install-ruling). DEFAULT_SETTINGS keeps gradual off, because
+// cleanSettings back-fills it into every stored profile, including ones that predate the field. Every
+// build since 0.2 writes settings at its first startup, so only a new install's storage is still empty.
 export const FRESH_INSTALL_SETTINGS = Object.freeze({ gradual: true, newWordsPerDay: 5 });
 
 export function cleanSettings(s = {}) {

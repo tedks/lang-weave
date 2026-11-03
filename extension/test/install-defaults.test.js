@@ -1,6 +1,6 @@
 // Gradual learning starts on, at five new words a day, only for a truly new profile
-// (gradual-default-on-install-ruling): no settings object at worker startup, written in that same first
-// settings write. Every opt-in case is paired with the nearest case that must stay unchanged.
+// (gradual-default-on-install-ruling): completely empty storage at worker startup, written in that same
+// first settings write. Every opt-in case is paired with the nearest case that must stay unchanged.
 import { expect, test } from 'bun:test';
 import { DEFAULT_SETTINGS, FRESH_INSTALL_SETTINGS } from '../src/settings.js';
 import { hashKey } from '../src/hash.js';
@@ -19,7 +19,7 @@ let loads = 0;
 function worker(data, { origins = [] } = {}) {
   const message = event(), installed = event(), connect = event();
   const opened = [];
-  const state = { fetches: 0, settingsWrites: 0 };
+  const state = { fetches: 0, settingsWrites: 0, sets: [] };
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
@@ -27,7 +27,11 @@ function worker(data, { origins = [] } = {}) {
         const names = keys == null ? Object.keys(data) : typeof keys === 'string' ? [keys] : keys;
         return structuredClone(Object.fromEntries(names.filter((key) => Object.hasOwn(data, key)).map((key) => [key, data[key]])));
       },
-      async set(values) { if (Object.hasOwn(values, 'settings')) state.settingsWrites++; Object.assign(data, structuredClone(values)); },
+      async set(values) {
+        state.sets.push(Object.keys(values).sort());
+        if (Object.hasOwn(values, 'settings')) state.settingsWrites++;
+        Object.assign(data, structuredClone(values));
+      },
       async remove(keys) { for (const key of [keys].flat()) delete data[key]; },
     } },
     runtime: { id, getURL: (path) => `chrome-extension://${id}/${path}`, getManifest: () => ({ version: '0.12.24' }),
@@ -81,16 +85,26 @@ test('the shared default stays off, so cleanSettings never opts a stored profile
   expect(FRESH_INSTALL_SETTINGS).toEqual({ gradual: true, newWordsPerDay: 5 });
 });
 
-test('a new profile starts with gradual on at five words in its first settings write', () => isolated(async () => {
-  for (const data of [{}, { apiKey: 'synthetic-key' }]) { // other keys but no settings object is still new
-    const fresh = worker(structuredClone(data));
-    await fresh.load();
-    expect(fresh.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5 });
-    expect(fresh.data.consentShown).toBe(false); // gradual is not a privacy choice
-    expect(fresh.state.settingsWrites).toBe(1); // one atomic startup write, nothing left to race
-    await fresh.install({ reason: 'install' });
-    expect(fresh.opened).toEqual([`chrome-extension://${id}/src/welcome.html`]);
-    expect(fresh.state.settingsWrites).toBe(1);
+test('empty storage starts with gradual on at five words in one startup write with consent pending', () => isolated(async () => {
+  const fresh = worker({});
+  await fresh.load();
+  expect(fresh.data.settings).toMatchObject({ gradual: true, newWordsPerDay: 5 });
+  expect(fresh.data.consentShown).toBe(false); // gradual is not a privacy choice
+  expect(fresh.state.settingsWrites).toBe(1); // one startup write, nothing left to race
+  expect(fresh.state.sets[0]).toEqual(['consentShown', 'settings']); // the same call carries both
+  await fresh.install({ reason: 'install' });
+  expect(fresh.opened).toEqual([`chrome-extension://${id}/src/welcome.html`]);
+  expect(fresh.state.settingsWrites).toBe(1);
+}));
+
+test('a missing settings object beside a key or progress is not a new install', () => isolated(async () => {
+  // Consent still treats it as unconfirmed, exactly as before; only the learning default stays off.
+  for (const data of [{ apiKey: 'synthetic-key' }, { consentShown: true },
+    { recallReview: { version: 1, cards: {}, learning: { day: '', count: 0, pending: [] } } }]) {
+    const existing = worker(structuredClone(data));
+    await existing.load();
+    await existing.install({ reason: 'install' });
+    expect(existing.data.settings).toMatchObject({ gradual: false, newWordsPerDay: 5 });
   }
 }));
 
@@ -125,10 +139,11 @@ test('a choice written after startup is never reset by the install event', () =>
 }));
 
 test('gradual on does not let a new profile reach Gemini before the welcome choice', () => isolated(async () => {
-  const fresh = worker({ apiKey: 'synthetic-key' }, { origins: ['https://reading.example/*'] }); // no settings: new
+  const fresh = worker({}, { origins: ['https://reading.example/*'] });
   await fresh.load();
   await fresh.install({ reason: 'install' });
   expect(fresh.data.settings.gradual).toBe(true);
+  fresh.data.apiKey = 'synthetic-key'; // the key is saved before the welcome site choice
   const passage = 'We read books and enjoy quiet evenings every week.';
   const request = async () => { const { revision } = await fresh.send({ type: 'config' }, page);
     return fresh.send({ type: 'swaps', revision, items: [{ text: passage, key: `${revision}:${hashKey(passage)}` }] }, page); };

@@ -71,8 +71,7 @@ test('fresh profile blocks reading Gemini dispatch until welcome save, while an 
   const listeners = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   const id = 'welcome-test';
-  // A live top-frame document: a fresh profile starts with gradual on, whose reading path requires one.
-  const page = { id, url: 'https://reading.example/article', frameId: 0, documentId: 'doc-1', tab: { id: 7, title: 'Reading' } };
+  const page = { id, url: 'https://reading.example/article', frameId: 0, tab: { id: 7, title: 'Reading' } };
   const welcome = { id, url: `chrome-extension://${id}/src/welcome.html` };
   let fetches = 0;
   globalThis.chrome = {
@@ -142,7 +141,7 @@ test('welcome page renders its notes and choice results as the exact English', a
     const $ = (id) => window.document.getElementById(id);
     const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
     expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(2)'))).toBe('Reading level controls which bundled words can appear; Beginner is a good start.');
-    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(3)'))).toBe('Gradual learning starts on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. You can change the pace or turn it off in Settings.');
+    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(3)'))).toBe('Gradual learning is on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. Settings shows whether it is on for you and changes the pace.');
     expect($('suggestX').hidden).toBe(false);
     $('onlySites').click();
     await wait(() => $('choiceStatus').textContent !== '');

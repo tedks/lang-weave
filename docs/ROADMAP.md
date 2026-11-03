@@ -49,7 +49,7 @@ Rulings needed: whether productive recall (English to Spanish, typed) is a goal 
 | calmer-cues | Practice words as English with a dashed underline and a small "?", at most one or two cues per viewport, cue placed by available space, one row of four ratings with Already know quieter, first focus on Reveal. | S–M |
 | keyboard-commands | `commands` for pause-on-page and open-review. | S |
 
-Rulings needed: gradual learning on for new installs (written at install time, never by changing the default); the default new-site policy for Store installs; a zero-key starter mode (deterministic unambiguous swaps) or Chrome's on-device model.
+Ruled and shipped in 0.12.24: gradual learning on for new installs, at 5 words a day (written into empty storage at first startup, never by changing the default). Rulings needed: the default new-site policy for Store installs; a zero-key starter mode (deterministic unambiguous swaps) or Chrome's on-device model.
 
 ### M3. Store readiness and reach
 

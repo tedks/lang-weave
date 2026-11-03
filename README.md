@@ -80,7 +80,7 @@ Apart from the key, which authenticates your requests to Google, none of this st
 
 The gloss appears after a 700 ms pause, so you have a beat to recall the word first. Seeing it counts as a peek, which is weak evidence that you needed the meaning.
 
-**Gradual learning** starts on, at 5 new words a day, for a new install; the welcome page says so and Settings changes it. An update or a reload keeps the current choice, a profile from before 0.12.24 that never turned it on stays off, and restoring a backup restores the backup's choice. With it on:
+**Gradual learning** starts on, at 5 new words a day, for a new install; the welcome page says so and Settings changes it. Only storage that is still completely empty gets this default. An update or a reload keeps the current choice, a profile from before 0.12.24 that never turned it on stays off, and restoring a backup restores the backup's choice. With it on:
 - Only a bounded number of new words are introduced per local day, 1 to 10 in Settings. A word counts only once it is actually visible on the page.
 - Due words come first, then weak ones, then learning words met on fewer than eight days in their first three weeks, then other learning words, then new words. Among new words, a lower frequency band comes first, with the Beginner 30 at band 0, and Spanish cognates break ties.
 - A learning word seen three times in one local day is left out of requests for the rest of that day. Two same-day peeks on a learning word you have already rated bring its review forward to within 24 hours.
