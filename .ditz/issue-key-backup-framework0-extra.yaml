@@ -1,0 +1,21 @@
+id: key-backup-framework0-extra
+title: Complete additional framework0 signing-key backup on a separate filesystem
+desc: Operator authorized redundant copies across named hosts/filesystems. Five copies
+  on two other hosts are verified, satisfying the rollout backup prerequisite. One
+  extra framework0 persistent-filesystem copy awaits the operator creating an owner-only
+  directory because noninteractive sudo is unavailable. Root CTO owns the copy/byte/permission/filesystem
+  verification. Exact paths and receipts are private; no secret content belongs in
+  this issue.
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T03:57:16-00:00
+references: []
+log_events:
+- time: 2026-11-03T03:57:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
