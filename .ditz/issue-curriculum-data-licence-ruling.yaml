@@ -22,3 +22,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-03T03:54:40-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'TED-DIRECTION-20261102-ASTRA
+
+    Ted challenged the earlier licensing/review complexity and asked whether public-domain
+    data could be used instead. No approval of CC BY-SA or paid/native-review procurement.
+    Public-domain-vocabulary lane is investigating concrete usable sources and a proportionate
+    quality path before a new ruling proposal.'
