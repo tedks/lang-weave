@@ -22,3 +22,11 @@ log_events:
     mainly its own kind of knowledge (learning-science rec 9). Tracking them separately
     avoids early failures and gives an honest picture of reading against producing.
     Waits on productive-recall-goal-ruling.'
+- time: 2026-11-03T03:54:44-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'TED-DIRECTION-20261102-ASTRA
+
+    Ted approved reading first and typed production later, explicitly including inline
+    interaction. The productive-recall-goal-ruling is resolved; this implementation
+    work remains unstarted pending a bounded design/package.'
