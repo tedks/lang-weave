@@ -131,7 +131,7 @@ Notes:
 Every record the server stores is an opaque envelope:
 
 ```
-{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot-part", formatVersion,
+{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot-part" | "device-retired", formatVersion,
   snapshot?: { snapshotId, baseSeq, partIndex, partCount },  // snapshot parts only
   nonce, ciphertext }
 ```
@@ -146,6 +146,10 @@ device seals and persists each envelope in its outbox **before** pushing it, nev
 refuse a client too old to read the account (3.7). `baseSeq` and the part fields are plaintext
 for snapshot parts because the server needs them to tell when a snapshot is complete and to
 compact (3.4). The fold skips `snapshot-part` envelopes; they are read only when loading a base.
+A `device-retired` envelope is the one record the server writes itself: `device` names the
+retired device, `deviceSeq`, `nonce` and `ciphertext` are absent, and it is not authenticated.
+The fold reads it at its `serverSeq` (3.4); it is excluded from `deviceMarks` and from the
+contiguity check, and it states the retired device's last accepted `deviceSeq`.
 
 ### 3.2 Operations (inside the ciphertext)
 
@@ -167,7 +171,9 @@ that passes is applied further. For an op that writes the card (`introduce`, `ra
 familiar or claimed card gains `maintenance`, and a familiar card without it gains
 `retiredReturn`; with gradual off, `maintenance` and `peekDue` are dropped), as the device did
 when it showed the card, checks the precondition against that candidate, and commits the
-candidate with the op's effect only if the op applies. A superseded op never changes a card. A rating the device could make is therefore never superseded for a
+candidate with the op's effect only if the op applies and has an effect. A no-op (an
+`introduce` of a present card, a My Words claim that hits an early return) discards the
+candidate, as today's handlers return before saving. A superseded op never changes a card. A rating the device could make is therefore never superseded for a
 difference only the device's normalisation created.
 
 **Synced card fields** are exactly `due, interval, reviews, familiar, maintenance, easyStreak,
@@ -190,8 +196,7 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. The scope's log becomes the parts' rows; the rows of the overwritten ops (selected by their recorded fold position above `basis` and a device other than the adopter) move to the scope's separate **overwritten log**, which keeps them for history and calibration but is not read by card-derived views such as `verifiedWords`. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, on that device's `adopt.abort`, or on a server-written `device-retired` marker (3.4) |
-| `adopt.abort` | adoptId | Drops that device's buffered parts for the adopt; a device that cancels mid-adopt pushes it before revoking itself |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. The scope's whole current log moves to its separate **overwritten log** (bounded at 5,000 rows, oldest evicted, appended to by each later adopt), which keeps it for history and calibration but is not read by card-derived views such as `verifiedWords`; the main log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -281,10 +286,10 @@ De-duplication survives compaction:
   that each device's `deviceSeq` values arrive contiguously above its mark; a gap means the server
   is withholding an envelope (3.8).
 
-When a device is revoked or stops being active, the server appends a plaintext
-`device-retired` marker naming it; the fold drops that device's buffered adopt parts there. The
-marker is server-written and unauthenticated, but forging one costs only liveness, which the
-server can already deny by withholding envelopes.
+When a device is revoked or stops being active, the server appends a `device-retired` envelope
+(3.1) naming it and refuses its later pushes; the fold drops that device's buffered adopt parts
+there, and snapshots list retired devices. The envelope is unauthenticated, but forging one
+costs only liveness, which the server can already deny by withholding envelopes.
 
 The server may delete envelopes at or below the latest complete snapshot's `baseSeq` once every
 **active** device has pulled past it. A device is active while its token is not revoked and it
@@ -374,8 +379,10 @@ adds can bypass all three. The fold therefore, in server order:
   mid-adopt, the outbox simply waits, and learning continues on the local view. If the adopt is
   superseded by a competing adopt, the device offers the same choice again from the kept copy,
   which includes those writes. The user can also cancel enabling sync: the device stops pushing,
-  pushes `adopt.abort` for any unfinished adopt, revokes its own device token, and returns the
-  scope to the kept copy. If it was the account's only device, re-enabling later needs the
+  pulls once if a push may have been in flight (its `max_device_seq` shows whether it landed),
+  discards every sealed envelope it never transmitted, revokes its own device token, and returns
+  the scope to the kept copy. The server's `device-retired` envelope then drops any adopt parts
+  that did land. A commit that already landed stays applied. If it was the account's only device, re-enabling later needs the
   recovery code. Anything already
   accepted stays in the account. A later re-enable uses a new device ID, so no `deviceSeq` is
   ever reused. Either way a scope has one history, never a card-by-card mix.
@@ -383,7 +390,9 @@ adds can bypass all three. The fold therefore, in server order:
 ### 3.8 What the server is trusted with
 
 The server is trusted for order and availability, not for contents. It cannot read, forge or
-alter a record (4.2). It could withhold a batch, show two devices different orders, or serve an
+alter a device's record (4.2). Its own `device-retired` envelopes are the one unauthenticated
+record, and a forged one can only stop a device's adopt or retire a device: liveness, not
+contents. It could withhold a batch, show two devices different orders, or serve an
 old snapshot. Contiguous `deviceSeq` checks detect withholding of a known device's batches.
 Detecting a forked order needs each batch to carry a hash of the `serverSeq` prefix its author
 had folded, compared across devices; that is possible later and not proposed for v1.
@@ -511,6 +520,7 @@ devices(id, account_id, token_hash, created_at, last_pull_seq, max_device_seq, m
 envelopes(server_seq PK, account_id, device_id, device_seq, kind, format_version,
           snapshot_id, base_seq, part_index, part_count,        -- snapshot parts only
           nonce, ciphertext, created_at, UNIQUE(account_id, device_id, device_seq))
+          -- device-retired rows: device_seq, nonce, ciphertext NULL (outside the UNIQUE rule)
 blobs(account_id, blob_id, ciphertext, PRIMARY KEY(account_id, blob_id))   -- blob_id is an HMAC
 ```
 
