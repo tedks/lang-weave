@@ -160,10 +160,13 @@ state. The generation maps live in the sync layer's own state, not in the card, 
 card format and every backup schema stay unchanged.
 
 **Normalisation in the fold.** Every card op also carries the `gradual` setting its device had
-when the op was made. Before checking an op's precondition, the fold applies `cleanReview`'s
-per-card gradual normalisation with that value (with gradual on, a familiar card gains
-`maintenance`; with it off, `maintenance` and `peekDue` are dropped), exactly as the device
-did when it showed the card. A rating the device could make is therefore never superseded for a
+when the op was made. The fold first checks the op's scope and card generations; only an op
+that passes is applied further. For that op it then replaces the card with exactly
+`cleanReview`'s per-card output for the op's `gradual` value (for example, with gradual on a
+familiar or claimed card gains `maintenance`, and a familiar card without it gains
+`retiredReturn`; with gradual off, `maintenance` and `peekDue` are dropped), as the device did
+when it showed the card, and only then checks the precondition. A superseded op never changes
+a card. A rating the device could make is therefore never superseded for a
 difference only the device's normalisation created.
 
 **Synced card fields** are exactly `due, interval, reviews, familiar, maintenance, easyStreak,
@@ -186,7 +189,7 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and no *other* `scope.adopt` for the scope applied after `basis`; then replaces the scope's cards and log rows with the parts' contents, sets the scope generation to this op's ID and every card generation in the scope to `"0"`. Otherwise superseded. Ops from other devices that still name the old scope generation are superseded and shown to their users. Applied or superseded, the adopt's buffered parts are dropped; parts with no commit within the retention window are dropped too |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. The scope's log becomes the parts' rows, plus the observed rows of those overwritten ops (the retrievals happened). A device writes an adopt's parts and commit as consecutive `deviceSeq`s; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, and when the commit applies or is superseded |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -237,8 +240,8 @@ Ops grow without bound (about 176 bytes of JSON per rating op measured here; a 1
 is roughly 18 KB before compression). A **sync snapshot** is its own schema, not a backup file:
 
 ```
-{ formatVersion, baseSeq: N, deviceMarks: { [device]: highest deviceSeq folded },
-  scopes: { [scope]: { scopeGen,
+{ formatVersion, baseSeq: N, deviceMarks: { [device]: highest deviceSeq at or below N },
+  scopes: { [scope]: { scopeGen, adoptSeq,
                        cards: { [id]: { cardGen, card | null } } } },
   personal: { entries, aliases, archived: { [uuid]: {value, at, device, opId} } },
   prefs: { [field]: {value, at, device, opId} }, packs: { [code]: {version, blobId} },
@@ -258,7 +261,10 @@ is roughly 18 KB before compression). A **sync snapshot** is its own schema, not
   are stored with matching `baseSeq` and `partCount`. The **latest** snapshot is the complete one
   with the highest `baseSeq`, not the most recently finished. The server keeps a compaction floor
   (the highest `baseSeq` it has compacted against) and never serves or compacts against a
-  snapshot below it. An abandoned upload is ignored and later deleted.
+  snapshot below it. It refuses a part whose `baseSeq` is not below its current highest
+  `serverSeq`. An abandoned upload is ignored and its parts are deleted only by compaction, once
+  they are at or below a later complete snapshot's `baseSeq`, so deleting them never opens a
+  `deviceSeq` gap.
 
 Any device may write a snapshot of the server prefix it has folded, never including its own
 outbox. A new device downloads the latest complete snapshot plus envelopes after its `baseSeq`.
@@ -308,7 +314,7 @@ cannot swap contents between IDs. It still sees how many blobs an account has an
 | Preference changed on both | Last writer by `(at, device, op ID)` wins per field | Single-valued choices |
 | Personal entry archived on A, unarchived on B | Last writer wins | Same |
 | Two devices enable sync on non-empty installs at once | The first complete `scope.adopt` applies; the second sees another adopt after its `basis` and is superseded; that device still has its kept copy (3.7) and asks the user again | One history per scope, never card-by-card mixing |
-| Another device keeps reviewing while this device adopts | The adopt applies; the other device's later ops name the old scope generation and are superseded and shown | The user explicitly chose this device's history; no livelock |
+| Another device keeps reviewing while this device adopts | The adopt applies. The other device's ops between `basis` and the adopt are recorded as overwritten, and its later ops are superseded; both are shown, and their observed log rows are kept | The user explicitly chose this device's history; no livelock, no silent loss |
 | A malformed op from a buggy device | Recorded no-op on every device | No device stops; no device disagrees |
 | Old-format client | Refused by `formatVersion` (3.7) | Never silently ignores ops it cannot read |
 
@@ -324,8 +330,11 @@ adds can bypass all three. The fold therefore, in server order:
 - keeps both entries when the spelling is shared but the meaning differs, with the same "shared
   spelling needs explicit review" status the capture page shows today;
 - supersedes adds beyond 300 entries. Card ops for a superseded entry are superseded too. The
-  adding device shows "not synced: the personal list is full" and keeps that entry and its
-  progress in a local, unsynced list the learning backup still exports. Today's cap counts
+  adding device shows "not synced: the personal list is full" and moves that entry and its card
+  to a local-only overflow store that is never pushed; later reviews of it apply there only. The
+  current backup format cannot carry it (`personal()` validates at most 300 entries), so it stays
+  visible on that device only; importing a backup elsewhere treats entries as ordinary adds
+  under the cap. Today's cap counts
   archived entries and nothing deletes personal entries, so archiving does not free a slot;
   whether it should is a product question for root to file, not decided here.
 
@@ -349,12 +358,16 @@ adds can bypass all three. The fold therefore, in server order:
   device pushes its parts and `scope.adopt`. If the account already has that scope, the user
   chooses per language: "keep this device's progress" (push an adopt) or "keep the account's"
   (after offering a learning backup export).
-- Nothing is held. Card writes made after the choice go to the outbox naming the pending adopt's
-  scope generation and are also applied to the kept copy. If the server becomes unreachable
+- Nothing is held. The adopt's parts and commit are sealed and queued (their `deviceSeq`s
+  assigned) before any later write, so they always reach the fold first. Card writes made after
+  the choice go to the outbox naming the pending adopt's scope generation and are also applied
+  to the kept copy. If the server becomes unreachable
   mid-adopt, the outbox simply waits, and learning continues on the local view. If the adopt is
   superseded by a competing adopt, the device offers the same choice again from the kept copy,
-  which includes those writes. The user can also cancel enabling sync, which returns the scope to
-  the kept copy. Either way a scope has one history, never a card-by-card mix.
+  which includes those writes. The user can also cancel enabling sync: the device stops pushing,
+  revokes its own device token, and returns the scope to the kept copy. Anything already
+  accepted stays in the account. A later re-enable uses a new device ID, so no `deviceSeq` is
+  ever reused. Either way a scope has one history, never a card-by-card mix.
 
 ### 3.8 What the server is trusted with
 
