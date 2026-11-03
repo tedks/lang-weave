@@ -1,8 +1,9 @@
 id: sync-op-reducer-tracer
 title: Sync op reducer and tracer bullet (stages 0b and 1 of docs/research/sync-service.md)
 desc: 'Source: docs/research/sync-service.md sections 3, 7 (0b, 1) and 8, PR #47.
-  Not authorized to start until root accepts the proposal; no server deployment, account,
-  UI or zip change.
+  Memo acceptance alone does not authorize implementation. Requires a separate bounded
+  root dispatch with an explicit test contract; no server deployment, account, UI
+  or zip change.
 
 
   Scope: pure extension/src/sync-ops.js (op validation reusing exported portability.js
@@ -16,7 +17,14 @@ desc: 'Source: docs/research/sync-service.md sections 3, 7 (0b, 1) and 8, PR #47
   with duplicates, including both devices rating the same due card Easy inline, duplicate
   push after a lost ack, reset vs stale rating in both orders, tampered header rejected.
   Mutation checks: wall-clock order, removed max_device_seq dedup, removed generation
-  check each turn the test red. bun test green; nothing in the Store zip.'
+  check each turn the test red. bun test green; nothing in the Store zip.
+
+
+  Root scope guard: initial reducer/convergence work must not commit the project to
+  the custom account, pairing, recovery or encryption protocol. Existing-library/backend
+  comparison is required before production protocol selection. The memo is exploratory
+  research, not an approved implementation spec. No new code phase dispatched at research
+  acceptance.'
 type: task
 component: default
 release:
@@ -29,4 +37,8 @@ log_events:
 - time: 2026-11-03T04:09:39-00:00
   who: Ted Smith
   what: created
+  comment: ""
+- time: 2026-11-03T05:16:45-00:00
+  who: Ted Smith
+  what: updated description
   comment: ""
