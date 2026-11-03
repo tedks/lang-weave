@@ -23,11 +23,11 @@ review, not a ruling; Ted's approved direction is quoted as such in [Direction](
   and the timestamps are an activity diary. It also keeps the server trivially small, because
   the server never needs to read or merge anything.
 - **The simplest server is small enough to self-host and to sell.** One AGPL process, SQLite,
-  four tables, and a handful of endpoints (push, pull, blobs, enrolment, recovery, device
-  removal). The hosted paid tier is the same binary plus billing at the edge.
-- **The on-device persistence mechanism is stage 2 design, bound by stated invariants.** How the
-  IndexedDB fold and today's `storage.local` keys stay in step is specified as four invariants
-  and a list of acceptance tests (3.4), not as prose; see [Review record](#review-record).
+  four tables, and a handful of endpoints (including push, pull, blobs, pairing and enrolment,
+  recovery, device removal and the source link). The hosted paid tier is the same binary plus billing at the edge.
+- **The on-device persistence mechanism is stage 2 design, bound by stated invariants.** The contract
+  for keeping the IndexedDB fold and today's `storage.local` keys in step is four invariants and
+  a list of acceptance tests (3.4); the mechanism itself is stage 2 design work; see [Review record](#review-record).
 - **Browser sync storage (`storage.sync`) should not carry this, even as an interim.** It
   does not cross browser vendors, which breaks the Firefox direction; its quota fits the
   226-card bundled deck but not the 5,000-card limits the backup already supports; and an
@@ -896,7 +896,7 @@ The tracer is the cheapest place for those three bugs to show up.
 
 ## Open decisions
 
-Only the ones that block a stage. Root files the rulings; recommendations are this lane's.
+Items 1–4 block a stage; item 5 does not. Root files the rulings; recommendations are this lane's.
 
 1. **Encryption and recovery (blocks stage 2).** End-to-end encryption, where losing every device
    and the recovery code loses the synced copy, versus server-readable storage with
