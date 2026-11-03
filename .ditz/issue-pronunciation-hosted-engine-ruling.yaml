@@ -1,0 +1,25 @@
+id: pronunciation-hosted-engine-ruling
+title: Choose the hosted pronunciation engine after a listening comparison
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: self-hosted open weights with individually checked voice/model licences;
+  or a provider TTS API with checked output, retention and caching terms. Recommendation:
+  compare Spanish quality first; prefer suitable open weights if quality and operating
+  cost hold. No engine approved yet. Blocks P2 engine selection and spend; no need
+  to decide during sync exploration.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
