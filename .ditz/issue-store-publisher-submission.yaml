@@ -22,3 +22,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-03T03:54:45-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'TED-DIRECTION-20261102-ASTRA
+
+    Ted explicitly deferred public launch on 2026-11-02. No Store upload/submission,
+    publication, account spending or provider commitment is authorized by the sync/service
+    exploration.'
