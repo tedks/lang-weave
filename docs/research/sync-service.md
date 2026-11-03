@@ -701,7 +701,8 @@ remotely through a computer network ... an opportunity to receive the Correspond
 
 Prior art checked: Anki's own sync server is AGPL-3.0-or-later, one process, no external
 database, multi-user by environment variables, not end-to-end encrypted [S21]; Etebase's server
-is AGPL-3.0 and built for end-to-end encryption, but needs Django, uvicorn and nginx [S22];
+is AGPL-3.0 and built for end-to-end encryption; its documented deployment uses Django under
+uvicorn, with an nginx reverse-proxy example [S22];
 Automerge's sync server is MIT and describes itself as "an unsecured Express app" [S23]. None
 speaks Lang Weave's records, and adopting Etebase's client library would add a dependency to an
 extension that has none. The proposal borrows Anki's footprint and Etebase's trust model rather
@@ -723,8 +724,9 @@ Same binary, plus:
   charge that is roughly 45¢ against 70¢.
 - Hosting: one small VM with the SQLite file on local disk, backed up encrypted off-site. The
   data is ciphertext, so a backup leak exposes only metadata.
-- Cost shape: storage per user is tiny (a heavy user's compacted snapshot is under 1 MB; a year
-  of ops before compaction is a few MB), so the cost floor is the VM, the processor fee and the
+- Cost shape: storage per user is small. The estimate here covers card state only (a full
+  5,000-card deck is about 0.9 MB of JSON), excluding logs, packs and other snapshot fields, so
+  it is not a guaranteed complete snapshot size; a year of ops before compaction is a few MB. so the cost floor is the VM, the processor fee and the
   operator's time, not bandwidth. Fly.io lists a 256 MB shared-CPU machine at $2.19 a month
   and volumes at $0.15/GB-month [S27]; Hetzner lists cloud servers from €5.99 a month [S28].
   The floor is single-digit dollars a month before the first user.
@@ -751,7 +753,7 @@ What `storage.sync` offers, from current docs:
 | When sync is off | "behaves like storage.local" [S1] | Desktop needs "Add-ons" ticked in Sync preferences [S3] |
 | Reach | "every Chrome browser that the user is logged into" [S1]; other Chromium browsers unverified | Firefox desktop instances only; "Firefox for Android does not synchronize data with the user's account" [S3] |
 | Conflicts | Not documented | Server wins per key; MDN suggests merging in `onChanged` [S3] |
-| Who can read it | Google, unless the user set a sync passphrase [S2]; content scripts unless `setAccessLevel` is applied [S1] | Mozilla says Firefox Sync is end-to-end encrypted by default [S10]; whether that covers add-on data is not stated; content scripts can read it (no `setAccessLevel`) [S5] |
+| Who can read it | Google says a sync passphrase keeps Chrome data from Google [S2]; whether that, or its absence, applies to extension `storage.sync` data is unresolved here (see Not verified); content scripts unless `setAccessLevel` is applied [S1] | Mozilla says Firefox Sync is end-to-end encrypted by default [S10]; whether that covers add-on data is not stated; content scripts can read it (no `setAccessLevel`) [S5] |
 
 Assessment:
 
@@ -764,8 +766,9 @@ Assessment:
 - **It still needs the merge contract.** Per-key "server wins" means two machines that both
   reviewed would overwrite each other unless the records are the same op-based design as above.
   An interim would therefore build most of stage 1 anyway, and then a second transport.
-- **It weakens the trust story** relative to the proposal: Google can read it without a sync
-  passphrase.
+- **Its confidentiality is unresolved here.** Whether Google can read extension `storage.sync`
+  data, with or without a sync passphrase, was not verified, so no comparative confidentiality
+  claim is made; the proposal's own records are end-to-end encrypted by design.
 
 Recommendation: no `storage.sync` interim. If a free, account-free, Chrome-only path is later
 wanted, the op log could gain a second transport adapter for small decks; that is a later option,
@@ -774,9 +777,10 @@ progress, as today.
 
 ## Pronunciation
 
-Ted's direction: paid AI-synthesized pronunciation, an explicit user action, not only OS voices.
-The open ditz `audio-local-voices-ruling` (local Web Speech voices) and `speech-voicefor` remain
-useful as the free baseline; this section is about synthesis.
+Ted's direction: paid AI-synthesized pronunciation, not only OS voices. That pronunciation is an
+explicit user action comes from the CTO's brief, not from Ted verbatim. `audio-local-voices-ruling`
+is closed, superseded by that direction; `speech-voicefor` (local voices) remains a possible free
+baseline. This section is about synthesis.
 
 ### What a request contains
 
