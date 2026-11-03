@@ -15,7 +15,7 @@ Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA 
   - keep the coarse wordfreq bands that already ship with attribution;
   - rank from Tatoeba, which is CC BY 2.0 FR (attribution only, no share-alike);
   - accept a weaker CC0 ranking.
-- **The review machinery can shrink.** The earlier plan asked for 100% double native review of band 1 and the existing 226 rows, which is 526 rows, plus a 60-row sample and every flagged row in each later band. Nothing has yet shown that the double pass catches defects a single reader with automatic flags would miss. Section 5 proposes one fluent reader for flagged rows plus the same 60-row sample, from band 1 onwards.
+- **The review machinery can shrink.** The earlier plan asked for 100% double native review of band 1 and the existing 226 rows, which is 526 rows, plus a 60-row sample and every flagged row in each later band, with two independent reviewers throughout. Nothing has yet shown that a second reader catches defects that one reader with automatic flags would miss. Section 5 proposes one fluent reader per band, reviewing flagged rows plus the same 60-row sample under the same escalation rule.
   - On our own 226 rows, the Tatoeba alignment flag picked out 16 rows. None was a clear mistranslation.
   - Half were fixed phrases or function words, which English renders differently.
   - The other half were valid glosses whose English anchor misses the most common English word. For example, translators write "plane" for `avión` (the anchor is "airplane"), "ship" for `barco` (the anchor is "boat") and "fun" for `divertido` (the anchor is "funny").
