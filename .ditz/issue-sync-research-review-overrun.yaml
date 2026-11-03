@@ -1,0 +1,33 @@
+id: sync-research-review-overrun
+title: Repair research review scope and fresh-seat convergence discipline
+desc: 'PR #47 sync-service exploration exceeded its docs-only factual-review brief:21
+  advisory review rounds, protocol scope growth, fresh seats reviewing partial deltas,
+  no valid formal exact-final-head gate. Lead retrospective in private cto-01a19f6c/sync-service-report.md
+  reports225 lead turns, roughly68.1M cached-read tokens;24 native subagent sessions
+  (21 review seats) and22 Codex seats. Counts are lead-reported, not dollar cost.
+  No runtime shipped.
+
+
+  Corrective work: root/lead brief templates must distinguish exploratory factual
+  review from formal implementation/spec approval; at the first repeated implementation-depth
+  finding, return the memo with unresolved design questions rather than expanding
+  protocol prose. Enforce existing three-failure escalation and review-budget checkpoints;
+  no fresh seat may review only a fix delta and certify the whole change. Root must
+  observe review progress at task chokepoints. Keep the provider-aware seats and exact-revision
+  rules. Propose shared-doctrine/skill changes separately after checking existing
+  guards; do not add redundant bureaucracy or silently change shared skills. Root
+  accountable. Acceptance: targeted diagnosis of which guard failed and a minimal
+  reviewed corrective change or documented existing-control adoption.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:18:54-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:18:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
