@@ -202,7 +202,7 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's log becomes the parts' rows (stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device) followed by the observed rows of *other* devices' ops in (`basis`, adopt] (the adopter's own are already in the parts); the replaced history's older rows are not kept. Before pushing an adopt, the device offers a learning backup export built from its pre-adopt fold of that scope (the account's state), validated with the `portability.js` validators. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device; rows of the replaced history, including those of the overwritten ops, are not kept, so the log always agrees with the adopted cards. Before pushing an adopt, the device offers a full learning backup export with that scope taken from its pre-adopt fold (the account's state), validated with the `portability.js` validators. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -324,39 +324,43 @@ strict key checks (`storageEntries` in `portability.js` rejects unknown keys) wo
 and import fail, on this build and on older ones after a downgrade, if sync state lived in
 `storage.local`.
 
-- **Field-level projection.** The existing `storage.local` keys stay the store today's code reads.
-  Only synced fields are projected into them: card maps, personal entries and history, packs, the
-  synced preference fields and `learningRetrievals`. Local-only keys and fields (review tickets
-  `current`/`inline`, the `learning` budget counter, `siteOverrides`, `enabled`,
-  `newSitesEnabled`, `model`, `learningExposures`, `readingEvents`, `seenSent`,
-  `vocabularyEncounters`) are written directly as today and are never touched by a projection
-  write. Every synced write and every projection write runs under the worker's existing `locked`
-  serialisation.
-- **Write order.** A synced write commits one IndexedDB transaction first (op sealed into the
-  outbox, plus a hash of the value each affected projected field will have), then writes the
-  projected fields. At start, only if the outbox's last committed sequence is above the last
-  projected one, the device re-projects from the fold. A crash between the two writes therefore
-  loses nothing.
-- **Out-of-band writes.** Before any re-projection, the device compares each projected field with
-  the recorded hash (current or previous). A mismatch means something wrote learning outside the
-  sync layer: an older build after a downgrade, or this build while IndexedDB was unavailable. The
-  device then stops, keeps the `storage.local` state as a kept copy, offers a learning backup
-  export of it, and asks "keep this device's progress" (an adopt) or "keep the account's". It never
-  overwrites silently.
-- **IndexedDB unavailable while sync is on** (quota error, blocked upgrade): the device switches
-  explicitly to local-only mode with a visible "sync paused" state. Learning and backups keep
-  working on `storage.local`; on recovery the out-of-band rule above reconciles. In Firefox
-  permanent private browsing sync is simply unavailable.
+The local persistence mechanism (how the fold, the outbox and today's `storage.local` keys are
+kept in step) is **stage 2 design work**, reviewed against the invariants below and accepted only
+on the tests listed. This proposal deliberately states the contract rather than a mechanism:
+fifteen council rounds showed that mechanism prose without code keeps surfacing crash windows
+that tests catch more cheaply.
+
+Invariants:
+
+1. While sync is on, every synced field (3.2) has one source of truth, the fold in IndexedDB.
+   `storage.local` carries a projection of exactly those fields; local-only keys and fields
+   (review tickets, the `learning` budget, `siteOverrides`, `enabled`, `newSitesEnabled`,
+   `model`, exposures, reading events, `seenSent`, encounter buckets) are never touched by sync.
+2. No synced change, local or pulled, is lost or applied twice across a crash at any point,
+   including mid-pull, mid-snapshot load, mid-adopt and mid-restore of a kept copy.
+3. Any difference between the projection and the fold that the sync layer did not write (an
+   older build after a downgrade, writes while IndexedDB was unavailable, eviction) is detected
+   before the next projection write, never overwritten silently, and surfaced with a learning
+   backup export. Non-card differences become ordinary ops (`personal.add`, `personal.archive`,
+   `pref.set`, `pack.install`); differing card scopes go to the user's adopt choice.
+4. If IndexedDB is unavailable while sync is on, sync pauses visibly and learning and backups keep
+   working on `storage.local`; invariant 3 reconciles on recovery, whether at start or mid-life.
+
+Acceptance tests (stage 2): a worker killed after each kind of IndexedDB commit (outbox, pull,
+snapshot load, adopt, kept-copy restore) and before its projection; downgrade, review on the old
+build, re-upgrade; IndexedDB failing then recovering mid-session; eviction while sync is on;
+out-of-band changes to a card, a personal entry, a preference and a pack; a re-projection keeping
+an open ticket and `siteOverrides`; export and fresh import with sync state present; import
+refused while sync is on.
+
 - **Loss detection.** One new install-local key, a sync marker holding a sync-state epoch, is added
   to `NON_LEARNING_KEYS` so the backup ignores it (an older build after a downgrade would refuse to
-  export while it is present; accepted, and named in the downgrade note). If the marker says sync
-  is on but IndexedDB lacks the matching epoch (evicted or cleared), the device treats its
-  `storage.local` state as a kept copy, offers its export and an adopt, re-pairs, and never
-  adopts automatically.
+  export while it is present; accepted, and named in the downgrade note). It lets the device notice
+  that IndexedDB was evicted or cleared while sync was on.
 - **Eviction.** The extension requests `unlimitedStorage` as an optional permission when sync is
   enabled, and calls `navigator.storage.persist()` from the sync settings page (it is not exposed
-  to service workers). Whether that fully protects extension-origin IndexedDB, and whether it
-  prompts in Firefox, is not verified; a real-browser probe is part of stage 2.
+  to service workers). Whether that fully protects extension-origin IndexedDB, and whether Firefox
+  supports `unlimitedStorage` as an optional permission or prompts for it, is not verified; a real-browser probe is part of stage 2.
 - Pages close their IndexedDB connection on `versionchange`, so the worker's upgrade is never
   blocked. Import of a learning backup is refused while sync is enabled or an enable is pending,
   with "turn off sync first".
@@ -796,8 +800,8 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 | 0a. Secret store | One worker-only interface for secrets. Gemini key on Chrome: today's `storage.local` after `setAccessLevel`. Sync secrets on both browsers, and the Gemini key on Firefox: extension-origin IndexedDB, with derived working keys as non-extractable `CryptoKey`s. Fails closed elsewhere, including Firefox permanent private browsing | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
 | 0b. Op reducer | Pure `sync-ops.js`: op validation (exporting the `portability.js` validators, adding `guessFirst`), fold for every card op in 3.2, generations, supersession records | Equivalence test: folding the ops of a recorded single-device session equals the state the current `rateReview`/`finishInline`/`claimKnown`/`wordKnown`/`wordReset` paths wrote. Convergence test: any server order of two devices' batches, with duplicates, converges, including both devices rating the same due card Easy inline. Mutation-checked | Nothing |
 | 1. Tracer bullet | Section 8 | Section 8 | Nothing |
-| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, an inactive device retired mid-adopt that then returns, a re-adopt after compaction (`adoptSeq`/`basis` survive), a worker killed between the IndexedDB commit and the projection write (no lost op), a re-projection that keeps an open ticket and `siteOverrides`, an out-of-band write after a downgrade and after a transient IndexedDB failure (detected, never overwritten), IndexedDB evicted while sync is on (fails closed with export), export and fresh import with sync state present, import refused while sync is on, and a key-substituting pairing relay | E2EE/recovery ruling |
-| 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card within the 300-entry personal cap (3.6); Firefox profile converges with Chrome profile | Stage 2 |
+| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots; first-enable `scope.adopt` (3.7); the local persistence mechanism against the invariants in 3.4 | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, an inactive device retired mid-adopt that then returns, a re-adopt after compaction (`adoptSeq`/`basis` survive), the persistence acceptance tests in 3.4, and a key-substituting pairing relay | E2EE/recovery ruling |
+| 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card within the 300-entry personal cap (3.6); Firefox profile converges with Chrome profile | Stage 2 |
 | 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
 | P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
 | P2. Hosted pronunciation | `/v1/speak` with the catalog cache | Native-speaker listen of the chosen engine; cache-hit test | Engine ruling, stage 2 server |
