@@ -202,7 +202,7 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's log moves to its **overwritten log** under the log-identity rules in 3.4; the main log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's log becomes the parts' rows (the rows of a history the user chose to replace are not kept; a learning backup export is offered before every adopt), stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -258,8 +258,7 @@ is roughly 18 KB before compression). A **sync snapshot** is its own schema, not
                        cards: { [id]: { cardGen, card | null } } } },
   personal: { entries, aliases, archived: { [uuid]: {value, at, device, opId} } },
   prefs: { [field]: {value, at, device, opId} }, packs: { [code]: {version, blobId} },
-  log: { [scope]: rows with { rowId, serverSeq, opIndex, device } },
-  overwritten: { [scope]: rows with { rowId, serverSeq, opIndex, device } },
+  log: { [scope]: rows with { serverSeq, opIndex, device } },
   pendingAdopts: { [device]: { [adoptId]: parts } }, retired: { [device]: serverSeq } }
 ```
 
@@ -317,9 +316,36 @@ two offline reviews of the same word is unknowable; fold order is the determinis
 evicting oldest by that order. Rows a device recorded before it enabled sync enter through its
 `scope.adopt`.
 
-**Where sync state lives.** All sync-layer state (base snapshot, pulled envelopes, outbox, generation maps, supersession records, row IDs, namespace and counter, the kept copy) lives in the extension origin's IndexedDB, written in IndexedDB transactions, not in `chrome.storage.local`. Two reasons. `chrome.storage` documents no multi-key transaction. And the learning backup's strict key checks (`storageEntries` in `portability.js` rejects unknown keys) would otherwise make export and fresh-target import fail as soon as a sync-capable build wrote anything; older builds after a downgrade would fail the same way. The backup neither exports nor imports sync state; the importing build re-mints row IDs. The stage 0b tests include: export, and import into a fresh target, both succeed with sync state present.
+**Where sync state lives.** While sync is on, the extension origin's IndexedDB is the source of
+truth: base snapshot, pulled envelopes, outbox, generation maps, supersession records, the kept
+copy, and the device token and account secret (4.4), on both browsers. Every learning write goes
+through the sync layer: one IndexedDB transaction seals the op into the outbox and commits first;
+the existing `chrome.storage.local` learning keys are then rewritten from the fold as a
+projection that today's code keeps reading. At every worker start, before any read or export,
+the projection is rebuilt from the fold (idempotently), so a crash between the two writes loses
+nothing; restoring the kept copy on cancel is likewise re-run on start until an IndexedDB marker
+clears. Reasons: `chrome.storage` documents no multi-key transaction, and the learning backup's
+strict key checks (`storageEntries` in `portability.js` rejects unknown keys) would make export
+and import fail, on this build and on older ones after a downgrade, if sync state lived in
+`storage.local`.
 
-**Log identity.** Every log row carries a persistent `rowId`: the op ID that produced it, or, for a row written while sync is off, a per-install row namespace ID plus a counter that only increases and is never derived from log position. The sync layer's log is its own store of records `{rowId, fingerprint, row}`, where the fingerprint is a hash of the row's `(word, at, source, outcome)`; the namespace and counter sit beside it, and each write is one IndexedDB transaction (see **Where sync state lives** below), so a crash cannot reuse a counter value or misattach an ID. `learningRetrievals` stays the projection today's code reads and writes, unchanged. At each sync-layer start and after every import, rows in `learningRetrievals` with no matching fingerprint (written by builds before sync, by a downgraded build, or restored by a backup import) are minted IDs in one transaction, before any kept copy is taken; they keep them through cancel and re-enable. Matching is per row by fingerprint, never by position or length. Rows that carry op IDs from the fold are never re-minted. A backup restored onto a fresh install gets a new namespace, so after a "keep this device's progress" adopt its rows can appear in both logs; that over-count in calibration history is an accepted limit. `rowId` travels in adopt parts, both logs and snapshots, and survives re-stamping. `rowId`s are unique across the main and overwritten logs: when an adopt applies, the scope's current log, except rows whose `rowId` is present in the parts, moves to its separate **overwritten log** (bounded at 5,000 rows, appended to by each later adopt, kept for history and calibration, never read by card-derived views such as `verifiedWords`), which is keyed by `rowId` and keeps each row's fold stamps; the update order is: remove overwritten rows whose `rowId` is in the parts, append the moved rows (skipping IDs already present), then evict oldest by `(serverSeq, opIndex)` down to 5,000.
+Consequences, all stage 2 work:
+
+- One new install-local key, a sync marker holding a sync-state epoch, is added to
+  `NON_LEARNING_KEYS` so the backup ignores it (an older build after a downgrade would refuse to
+  export while it is present; accepted, and named in the downgrade note). If the marker says sync
+  is on but IndexedDB lacks the matching epoch (evicted or cleared), the device fails closed:
+  it reports that unpushed reviews may be lost, re-pairs, reloads from the server snapshot and
+  never adopts automatically.
+- The extension requests `unlimitedStorage` and calls `navigator.storage.persist()` to make
+  eviction unlikely; whether that fully protects extension-origin IndexedDB is not verified, so a
+  real-browser probe is part of stage 2.
+- Learning and backups never depend on IndexedDB: if it cannot open (Firefox permanent private
+  browsing, quota error, blocked upgrade), sync is unavailable and everything else works. Pages
+  close their connection on `versionchange` so the worker's upgrade is never blocked.
+- Import of a learning backup is refused while sync is enabled or an enable is pending, with
+  "turn off sync first"; tests cover export and fresh import with sync state present, and refusal
+  with sync on.
 
 Packs are blobs addressed by `blobId = HMAC(blobKey, sha256(code, version, words))` (4.2), so
 the server cannot match an address against published packs. Each blob is sealed with its
@@ -343,7 +369,7 @@ cannot swap contents between IDs. It still sees how many blobs an account has an
 | Preference changed on both | Last writer by `(at, device, op ID)` wins per field | Single-valued choices |
 | Personal entry archived on A, unarchived on B | Last writer wins | Same |
 | Two devices enable sync on non-empty installs at once | The first complete `scope.adopt` applies; the second sees another adopt after its `basis` and is superseded; that device still has its kept copy (3.7) and asks the user again | One history per scope, never card-by-card mixing |
-| Another device keeps reviewing while this device adopts | The adopt applies. The other device's ops between `basis` and the adopt are recorded as overwritten, and its later ops are superseded; both are shown, and their observed log rows are kept | The user explicitly chose this device's history; no livelock, no silent loss |
+| Another device keeps reviewing while this device adopts | The adopt applies. The other device's ops between `basis` and the adopt are recorded as overwritten, and its later ops are superseded; both are shown to that device's user | The user explicitly chose this device's history; no livelock, and nothing is lost silently |
 | A malformed op from a buggy device | Recorded no-op on every device | No device stops; no device disagrees |
 | Old-format client | Refused by `formatVersion` (3.7) | Never silently ignores ops it cannot read |
 
@@ -502,10 +528,12 @@ The Firefox probe (ditz `firefox-probe`, 2026-10-30, Firefox 158) found
 `storage.local`. DESIGN.md already fails closed for the Gemini key on such a browser. The sync
 token and account secret get the same rule, with no silent weakening:
 
-- Secrets (Gemini key, device token, account secret) live only in a store content scripts cannot
-  read. On Chrome ≥140 that is `storage.local` after `setAccessLevel(TRUSTED_CONTEXTS)`.
-- On Firefox, until it has `setAccessLevel`, the candidate store is the extension origin's own
-  IndexedDB, opened only from the background page and extension pages. It holds the secrets as
+- Secrets live only in a store content scripts cannot read. The Gemini key stays where it is
+  today: on Chrome ≥140, `storage.local` after `setAccessLevel(TRUSTED_CONTEXTS)`. The sync
+  secrets (device token, account secret) live with the rest of the sync state in the extension
+  origin's own IndexedDB (3.4) on both browsers, opened only from the background page and
+  extension pages; on Firefox, until it has `setAccessLevel`, that is also the candidate store
+  for the Gemini key. It holds the secrets as
   bytes (the account secret must stay exportable for pairing, 4.2); the derived working keys are
   re-imported as non-extractable `CryptoKey`s, which are structured-cloneable into IndexedDB. Chrome documents that web storage called from a content script "accesses data from
   the host page the content script is injected on and not the extension" [S6], and MDN that a
@@ -524,8 +552,8 @@ token and account secret get the same rule, with no silent weakening:
   `storage.local`.
 - The probe also showed content scripts can read *learning* data on Firefox. Learning data is not
   a secret (no keys, no page text), but plaintext learning data being readable by any content
-  script of this extension is a reason to keep the decrypted sync state in the same trusted store
-  and to write only the existing learning keys to `storage.local`.
+  script of this extension is a reason to keep the decrypted sync state in the extension-origin
+  IndexedDB (3.4) and to write only the existing learning keys to `storage.local`.
 
 ## 5. Server
 
@@ -751,10 +779,10 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 
 | Stage | What | Evidence that it is done | Needs |
 |---|---|---|---|
-| 0a. Secret store | One worker-only interface for secrets (Gemini key, device token, account secret). Chrome: today's `storage.local` after `setAccessLevel`. Firefox: extension-origin IndexedDB, with derived working keys as non-extractable `CryptoKey`s. Fails closed elsewhere, including Firefox permanent private browsing | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
+| 0a. Secret store | One worker-only interface for secrets. Gemini key on Chrome: today's `storage.local` after `setAccessLevel`. Sync secrets on both browsers, and the Gemini key on Firefox: extension-origin IndexedDB, with derived working keys as non-extractable `CryptoKey`s. Fails closed elsewhere, including Firefox permanent private browsing | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
 | 0b. Op reducer | Pure `sync-ops.js`: op validation (exporting the `portability.js` validators, adding `guessFirst`), fold for every card op in 3.2, generations, supersession records | Equivalence test: folding the ops of a recorded single-device session equals the state the current `rateReview`/`finishInline`/`claimKnown`/`wordKnown`/`wordReset` paths wrote. Convergence test: any server order of two devices' batches, with duplicates, converges, including both devices rating the same due card Easy inline. Mutation-checked | Nothing |
 | 1. Tracer bullet | Section 8 | Section 8 | Nothing |
-| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, an inactive device retired mid-adopt that then returns, a re-adopt after compaction and log eviction, and a re-adopt while overwritten copies of its rows are still retained (no row counted twice), and a key-substituting pairing relay | E2EE/recovery ruling |
+| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, an inactive device retired mid-adopt that then returns, a worker killed between the IndexedDB commit and the projection write (no lost op), IndexedDB evicted while sync is on (fails closed), export and fresh import with sync state present, import refused while sync is on, and a key-substituting pairing relay | E2EE/recovery ruling |
 | 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card within the 300-entry personal cap (3.6); Firefox profile converges with Chrome profile | Stage 2 |
 | 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
 | P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
@@ -863,4 +891,6 @@ IndexedDB versus content scripts in Firefox; a non-extractable `CryptoKey` in In
 Chrome extension service worker, end to end; whether the Google APIs terms govern the Gemini API;
 OpenAI usage policies (fetch refused) and API retention defaults; Spanish locale lists for Polly,
 Azure, Google Cloud TTS and ElevenLabs; Azure prices; Google Cloud TTS caching terms (only part
-of the terms read); output-rights terms for shipping provider-generated audio in the extension.
+of the terms read); output-rights terms for shipping provider-generated audio in the extension;
+whether `unlimitedStorage` and `navigator.storage.persist()` fully protect extension-origin
+IndexedDB from eviction in Chrome and Firefox.
