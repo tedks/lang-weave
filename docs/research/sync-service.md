@@ -131,40 +131,63 @@ Notes:
 Every record the server stores is an opaque envelope:
 
 ```
-{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot-part", formatVersion, nonce, ciphertext }
+{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot-part", formatVersion,
+  snapshot?: { snapshotId, baseSeq, partIndex, partCount },  // snapshot parts only
+  nonce, ciphertext }
 ```
 
-The server sees only those plaintext fields. `device` is a random UUID made when sync is
-enabled on that install (not the extension ID, not a hardware ID). `deviceSeq` increases by one
-per batch the device writes, and a device pushes its batches strictly in `deviceSeq` order, one
-accepted before the next is sent. `serverSeq` is assigned by the server on accept.
-`formatVersion` is plaintext so the server can refuse a client too old to read the account
-(3.7).
+The server sees only those plaintext fields. Every plaintext field except `serverSeq` is also
+the AES-GCM additional data (4.2), so the server cannot alter it undetected. `device` is a
+random UUID made when sync is enabled on that install (not the extension ID, not a hardware
+ID). `deviceSeq` increases by one per envelope the device writes, snapshot parts included. A
+device seals and persists each envelope in its outbox **before** pushing it, never reuses a
+`deviceSeq`, and pushes strictly in `deviceSeq` order, one accepted before the next is sent.
+`serverSeq` is assigned by the server on accept. `formatVersion` is plaintext so the server can
+refuse a client too old to read the account (3.7). `baseSeq` is plaintext for snapshot parts
+because the server needs it to compact (3.4).
 
 ### 3.2 Operations (inside the ciphertext)
 
-A batch is a list of operations, applied atomically and in order. Each operation has a stable
-ID `(device, deviceSeq, index)`.
+A batch is a list of operations, applied in order. Each operation has a stable ID
+`(device, deviceSeq, index)`.
 
-Every card operation names the card's **generation** it was made against. A card starts in
-generation `"0"`; a reset or a scope adoption starts a new generation whose ID is the ID of the
-op that created it, so two independent resets can never produce the same generation. The
-generation map lives in the sync layer's own state, not in the card, so the stored card format
-and every backup schema stay unchanged.
+**Generations.** Every scope has a **scope generation** and every card a **card generation**.
+Both start at `"0"`. A `scope.adopt` sets the scope generation to its own ID; a `reset` sets
+the card generation to its own ID; so no two generations collide. Every card op names the
+`(scopeGen, cardGen)` it was made against and is superseded if either differs from the folded
+state. The generation maps live in the sync layer's own state, not in the card, so the stored
+card format and every backup schema stay unchanged.
 
-| Op | Fields | Applied as |
+**Synced card fields** are exactly `due, interval, reviews, familiar, maintenance, easyStreak,
+introducedDay, fsrs, retiredReturn, claimAt, claimDue, peekDue, seenDay, seenCount, peekDay,
+peekCount`. `introReceipt` (install-local, already omitted from backups) and `introGateDay`
+(device clock recovery, `gradual-budgets.js`) are not synced. The fold produces this canonical
+card; each device then applies its local `cleanReview` normalisation (which drops `maintenance`
+and `peekDue` when gradual is off) when it builds its view, as it does on stored cards today.
+
+**Observed rows.** Every logged op carries the complete row the learner's device would have
+written, `{source, direction, outcome, prior, latencyMs, elapsedDays, intervalDays,
+predicted}`. The log takes that row verbatim; the schedule comes from replay. A superseded op
+still contributes its observed row, because the retrieval happened.
+
+| Op | Fields (plus `scope, cardId, scopeGen, cardGen, at` for card ops) | Applied as |
 |---|---|---|
-| `introduce` | scope, cardId, gen, day, at | Create the card if absent in `gen`; otherwise no-op |
-| `rate` | scope, cardId, gen, at, rating, source, direction, latencyMs, autoFamiliar, retention, observed `{prior, elapsedDays, intervalDays, predicted}` | Requires the card in `gen` and not retired (`familiar` without `maintenance`). Schedules with `scheduleCard(card, rating, at, autoFamiliar, retention, dueAt(card) > at)` for every source, so a second same-day inline Easy replayed onto a card that is no longer due counts as early and cannot extend the Easy streak. The log row is the **observed** measurement the learner actually saw, copied from the op; the schedule is the replayed one. `autoFamiliar` is `true` for inline ratings (as `finishInline` passes today) and the `gradual` setting for standalone |
-| `claim` | scope, cardId, gen, at, source (`inline`, `standalone`, `words`), latencyMs, gradual | Inline and review "Already know" call `claimKnown` and log a `known` row, as today. My Words (`wordKnown`) is not logged: with `gradual` it creates the card if absent and calls `claimKnown`; without `gradual` it creates or marks the card `familiar` |
-| `guess` | scope, cardId, at, outcome, latencyMs | Appends a guess row to the log; never changes a card (guesses are not reviews, `learning-log.js`) |
-| `encounter` | scope, cardId, gen, kind (`seen`/`peek`), day, at | `countCardEncounter`; the per-day caps in `review.js` bound volume |
-| `reset` | scope, cardId, gen, seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the card is in `gen` **and** its replayed version equals `seen`, the same check `wordReset` makes today; then deletes the card and starts generation = this op's ID. Otherwise superseded |
-| `scope.adopt` | scope, basis (the `serverSeq` the device had folded), cards `{id: card}`, log rows | First enable and the per-language choice (3.7). Applies only if no op has touched the scope after `basis`; then replaces every card in the scope atomically, each in a new generation = this op's ID. Otherwise superseded and the device asks again |
+| `introduce` | day | Create the card if absent; otherwise no-op |
+| `rate` | rating, autoFamiliar, retention, observed row | Requires the card present and not retired (`familiar` without `maintenance`). `scheduleCard(card, rating, at, autoFamiliar, retention, early)`, where standalone keeps today's `early = card.due > at` (`rateReview`), and inline uses `early = dueAt(card) > at`. On one device the inline value is always false, because `finishInline` requires a due card, so equivalence holds; on replay a second same-day inline Easy onto a card that is no longer due counts as early and cannot extend the Easy streak. `autoFamiliar` is `true` for inline (as `finishInline` passes) and the `gradual` setting for standalone |
+| `claim` | source, gradual, observed row (inline and standalone only) | Exactly today's branches. Inline "Already know": `claimKnown`. Review page (`markFamiliar`): `claimKnown` with gradual, else `familiar = true`. My Words (`wordKnown`, not logged): with gradual, no-op if `claimDue` is already set, else create the card if absent and `claimKnown`; without gradual, no-op if already `familiar`, else create if absent and set `familiar` |
+| `guess` | observed row | Appends the guess row; never changes a card (guesses are not reviews, `learning-log.js`) |
+| `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
+| `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
+| `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | Applies only if every part is folded and the scope's `lastTouchedSeq` ≤ `basis`; then replaces the scope's cards and log rows with the parts' contents and sets the scope generation to this op's ID. Otherwise superseded |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
-| `personal.archive` | uuid, archived, at | Last-writer-wins register on `archived`, ordered by `(at, device)` |
-| `pref.set` | field, value, at | Last-writer-wins register per field, ordered by `(at, device)` |
+| `personal.archive` | uuid, archived | Last-writer-wins register on the survivor (3.6) |
+| `pref.set` | field, value | Last-writer-wins register per field |
 | `pack.install` | code, version, blobId | Reference to a pack blob (3.4) |
+
+Last-writer-wins orders by `(at, device, op ID)`, so even two changes from one device in the
+same millisecond resolve. A scope's `lastTouchedSeq` is the `serverSeq` of the last op that
+*applied* to it; superseded and malformed ops do not touch a scope.
 
 "Superseded" is a deterministic no-op recorded in the device's sync state, so the UI can say,
 for example, "a review on another device was discarded because you reset this word".
@@ -181,22 +204,21 @@ What is *not* in an op: no page text, no URL, no host, no passage hash, no title
 model output except pack words the user explicitly generated and installed. No practice-now op:
 `wordPractice` only writes the local review ticket.
 
-Writers that stay local: `introGateDay` clock-recovery writes in `gradual-budgets.js` and the
-`gradual`-dependent normalisation in `cleanReview` (which drops `maintenance` and `peekDue`
-when gradual is off) run on each device's view after the fold, as they run on stored cards
-today. `introReceipt` is install-local and is not synced, as the backup already omits it.
-
 ### 3.3 Order and replay
 
 The server's `serverSeq` is the single total order. Each device keeps:
 
-- a **base**: a sync snapshot at some `serverSeq` N (3.4), or empty;
-- the ops with `serverSeq > N`, in order;
-- an **outbox** of local batches not yet acknowledged.
+- a **base**: a complete sync snapshot at some `serverSeq` N (3.4), or empty;
+- the envelopes with `serverSeq > N`, in order;
+- an **outbox** of its own sealed envelopes. On every pull, and after loading a snapshot, the
+  device drops outbox envelopes whose `deviceSeq` is at or below the highest of its own
+  `deviceSeq`s seen in the base's `deviceMarks` or in the pulled stream. A push whose
+  acknowledgement was lost is therefore never folded twice.
 
-Local state = fold(base, server ops in `serverSeq` order, then outbox ops in local order).
-After a pull, the device re-folds. Because the fold is deterministic and every device folds
-the same sequence, all devices converge once they have pulled the same `serverSeq`.
+Local state = fold(base, pulled ops in `serverSeq` order, then the remaining outbox in
+`deviceSeq` order). After a pull, the device re-folds. Because the fold is deterministic and
+every device folds the same sequence, all devices converge once they have pulled the same
+`serverSeq`.
 
 Why server order rather than wall-clock order: device clocks disagree and can go backwards;
 `elapsedDays` already clamps a backward step to zero (`fsrs.js`), so an op that arrives "late"
@@ -210,74 +232,88 @@ is roughly 18 KB before compression). A **sync snapshot** is its own schema, not
 
 ```
 { formatVersion, baseSeq: N, deviceMarks: { [device]: highest deviceSeq folded },
-  scopes: { [scope]: { cards: { [id]: { gen, card } }, lastTouchedSeq } },
-  personal: { entries, aliases, archived: { [uuid]: {value, at, device} } },
-  prefs: { [field]: {value, at, device} }, packs: { [code]: {version, blobId} },
-  log: { [scope]: retrieval rows } }
+  scopes: { [scope]: { scopeGen, lastTouchedSeq,
+                       cards: { [id]: { cardGen, card | null } } } },
+  personal: { entries, aliases, archived: { [uuid]: {value, at, device, opId} } },
+  prefs: { [field]: {value, at, device, opId} }, packs: { [code]: {version, blobId} },
+  log: { [scope]: retrieval rows }, pendingAdopts: { [adoptId]: parts } }
 ```
 
-It holds only synced state: no reading events, `seenSent`, encounter buckets, exposure
-aggregates, ticket state or install-local keys. `baseSeq` and `deviceMarks` are inside the
-ciphertext, and a client checks `baseSeq` against the pull that delivered it. A snapshot is
-split into `snapshot-part` envelopes under the 256 KiB envelope cap, with its own total cap
-(proposal: 4 MiB, above the 0.9 MB a full 5,000-card deck needs).
+- The generation map is **complete**: every card ID whose generation is not `"0"` is present,
+  with `card: null` when the card was reset and not reintroduced. Compaction can therefore never
+  revert a reset card to generation `"0"`, and a late pre-reset `introduce` stays superseded.
+- It holds only synced state: no reading events, `seenSent`, encounter buckets, exposure
+  aggregates, ticket state or install-local keys.
+- A snapshot is split into `snapshot-part` envelopes under the 256 KiB envelope cap, with its own
+  total cap (proposal: 4 MiB, above the 0.9 MB a full 5,000-card deck needs). The last part also
+  carries a hash of the whole decoded snapshot. A client accepts it only if every part is present,
+  the hash matches, and the sealed `baseSeq` equals the plaintext one.
+- The server treats a snapshot as **complete** only when all `partCount` parts of a `snapshotId`
+  are stored. Pull and compaction use only the latest complete snapshot. An abandoned upload is
+  ignored and later deleted.
 
-Any device may write a snapshot of the server prefix it has folded (never including its own
-outbox). A new device downloads the latest complete snapshot plus ops after it.
+Any device may write a snapshot of the server prefix it has folded, never including its own
+outbox. A new device downloads the latest complete snapshot plus envelopes after its `baseSeq`.
 
 De-duplication survives compaction:
 
 - The server keeps each device's highest accepted `deviceSeq` on the `devices` row. A push at or
-  below it is answered "already committed" with no insert, even after the envelope itself was
-  compacted away.
-- After loading a snapshot, a device drops outbox batches at or below its own `deviceMarks`
-  entry; they are already folded into the snapshot.
-- Clients check that each device's `deviceSeq` values arrive contiguously; a gap means the
-  server is withholding a batch (3.8).
+  below it is answered "already committed" with no insert, even after the envelope was compacted.
+- The outbox rule in 3.3 drops anything the snapshot's `deviceMarks` or the stream already shows.
+- Clients check that each device's `deviceSeq` values arrive contiguously above its mark; a gap
+  means the server is withholding an envelope (3.8).
 
-The server may delete envelopes at or below the latest snapshot's N once every active device has
-pulled past N, or after a retention window (proposal: 90 days) for devices that went silent. A
-silent device that returns reloads from the snapshot, drops what the marks say is committed, and
-pushes the rest of its outbox, which gets new, later `serverSeq` values. Nothing is lost or
-applied twice.
+The server may delete envelopes at or below the latest complete snapshot's `baseSeq` once every
+**active** device has pulled past it. A device is active while its token is not revoked and it
+has pulled within the retention window (proposal: 90 days). A silent device that returns
+reloads from the snapshot, drops what the marks show is committed, and pushes the rest of its
+outbox, which gets new, later `serverSeq` values. Nothing is lost or applied twice.
 
-The local retrieval log becomes the projection of the snapshot's log rows plus the observed rows
-in later `rate`, `claim` and `guess` ops, bounded at 5,000 rows as today. Rows a device recorded
-before it enabled sync enter through `scope.adopt`, which carries them.
+The local retrieval log is the snapshot's rows plus the observed rows of later ops, sorted by
+`(at, serverSeq)`. That keeps "log order is retrieval order", which `verifiedWords` relies on,
+even when an offline device's rows arrive late. The log is bounded at 5,000 rows as today,
+evicting oldest by that order. Rows a device recorded before it enabled sync enter through its
+`scope.adopt`.
 
 Packs are blobs addressed by `blobId = HMAC(blobKey, sha256(code, version, words))` (4.2), so
-the server cannot match an address against published packs. It still sees how many blobs an
-account has and their sizes.
+the server cannot match an address against published packs. Each blob is sealed with its
+`blobId` as additional data, and the client recomputes the HMAC after decrypting, so the server
+cannot swap contents between IDs. It still sees how many blobs an account has and their sizes.
 
 ### 3.5 Concurrency cases
 
 | Case | Result | Why it is acceptable |
 |---|---|---|
 | Two devices rate *different* cards offline | Both apply | Ops commute across cards |
-| Two devices rate the *same* card offline | Both apply in server order; the second is scheduled from the first's result, as early if the card is no longer due, with elapsed time clamped to ≥0 | Both reviews happened. Replay cannot create a streak or familiarity that a single device could not reach. Each log row keeps what that learner saw |
-| Same batch pushed twice, including after compaction | Applied once | The server's per-device high-water mark, plus `deviceMarks` in the snapshot |
+| Two devices rate the *same* card offline | Both apply in server order; the second is scheduled from the first's result, with the early rule of 3.2 and elapsed time clamped to ≥0 | Both reviews happened. Replay cannot create a streak or familiarity that a single device could not reach. Each log row keeps what that learner saw |
+| Push acknowledged late, lost, or repeated, including after compaction | Applied once | Server high-water mark, `deviceMarks`, and outbox pruning on every pull |
 | Reset on A after B rated, B's rating earlier in server order | Reset is superseded: the card it saw changed | Same rule as today's local guard: a stale reset loses |
-| Reset on A, rating on B made before B saw the reset, reset earlier in server order | Reset applies; B's rating names the old generation and is superseded | Deterministic either way. Both outcomes are states one device could reach. The losing action is shown to the user, not silently dropped |
-| Two resets of the same card | The first in server order applies; the second sees a new generation and is superseded | Generation IDs are op IDs, so they never collide |
+| Reset on A, rating on B made before B saw the reset, reset earlier in server order | Reset applies; B's rating names the old card generation and is superseded | Deterministic either way. Both outcomes are states one device could reach. The losing action is shown to the user |
+| Two resets of the same card | The first in server order applies; the second no longer matches its `seen` card or generation and is superseded | Generation IDs are op IDs |
 | Introduce on two devices | First creates the card; the second is a no-op | Idempotent per generation |
-| Introduction delivered after a reset | Names the old generation; superseded | No resurrection |
+| Op from before a reset or adopt, delivered after it, before or after compaction | Superseded by the card or scope generation | No resurrection; the generation map is complete in snapshots |
+| My Words "known" on two devices with gradual on | The first claims; the second sees `claimDue` set and is a no-op | Same early return as `wordKnown`; the verification date is not pushed later |
 | Daily new-word budget | Each device counts introductions for its local day, its own and synced ones | Two offline devices can overshoot by at most devices × budget for that day; recorded, not prevented. Preventing it would need the server to allocate budget, which means reading state |
-| Preference changed on both | Last writer by `(at, device)` wins per field | Single-valued choices |
+| Preference changed on both | Last writer by `(at, device, op ID)` wins per field | Single-valued choices |
 | Personal entry archived on A, unarchived on B | Last writer wins | Same |
-| Two devices enable sync on non-empty installs at once | The first `scope.adopt` in server order applies; the second sees the scope touched after its `basis`, is superseded, and that device asks the user again with the account's state | Never card-by-card mixing of two histories |
+| Two devices enable sync on non-empty installs at once | The first complete `scope.adopt` applies; the second sees `lastTouchedSeq` above its `basis` and is superseded; that device still holds its pre-enable state (3.7) and asks the user again | One history per scope, never card-by-card mixing |
 | A malformed op from a buggy device | Recorded no-op on every device | No device stops; no device disagrees |
 | Old-format client | Refused by `formatVersion` (3.7) | Never silently ignores ops it cannot read |
 
 ### 3.6 Personal vocabulary
 
-`addPersonal` rejects an exact duplicate today (`exactPersonal`), and the store is capped at
-300 entries. Two offline adds can break both. The fold therefore:
+`addPersonal` rejects an exact duplicate today (`exactPersonal`) and flags a shared spelling
+with a different meaning for explicit review; the store is capped at 300 entries. Two offline
+adds can bypass all three. The fold therefore, in server order:
 
-- folds `personal.add` ops in server order and, when a new entry matches an existing one under
-  `exactPersonal`, keeps the earlier one and records the later UUID as an **alias**. Card ops
-  that name the alias apply to the survivor's card, so reviews on either device count;
-- supersedes adds beyond 300 entries in server order, and the adding device shows "not added: the
-  personal list is full".
+- keeps the earlier of two entries that match under `exactPersonal` and records the later UUID as
+  an **alias**. Card ops and `personal.archive` naming the alias apply to the survivor, so reviews
+  on either device count;
+- keeps both entries when the spelling is shared but the meaning differs, with the same "shared
+  spelling needs explicit review" status the capture page shows today;
+- supersedes adds beyond 300 entries. Card ops for a superseded entry are superseded too, and the
+  adding device shows "not added: the personal list is full" with that entry's progress, so the
+  user can archive something and add it again.
 
 ### 3.7 Versions and migration
 
@@ -285,19 +321,22 @@ account has and their sizes.
   to its own and refuses an account whose `formatVersion` is newer, with "update Lang Weave to
   sync". The release order is the backup's: a reader ships before any client writes.
 - Each device records on the server the highest version it reads. A client writes a new version
-  only when every active device reads it, and otherwise keeps writing the old one. Chrome and
-  Firefox listings update on different schedules, so one updated device must not lock out the
+  only when every active device (3.4) reads it, and otherwise keeps writing the old one. Chrome
+  and Firefox listings update on different schedules, so one updated device must not lock out the
   others.
 - The server stores the account's highest written `formatVersion` and refuses pushes from clients
   that say they cannot read it. It never transforms ciphertext.
 - Op validators reuse the backup's checks, which are private to `portability.js` today: stage 0b
   exports them. The backup's `preferences()` has no `guessFirst` field yet (it is in
   `settings.js` only), so 0b also adds its validation.
-- First enable on an existing install. If the account has nothing for a scope, the device pushes
-  `scope.adopt` with its cards and log rows. If the account already has that scope, the user
-  chooses per language: "keep this device's progress" (push `scope.adopt`) or "keep the
-  account's" (the local scope is replaced by the account's after the user is offered a learning
-  backup export first). Either way a scope has one history, never a card-by-card mix.
+- First enable on an existing install needs the server reachable. The device keeps a copy of its
+  pre-enable learning state locally until, per scope, its `scope.adopt` applies or the user picks
+  the account's history, and holds card writes in that scope until the adopt has been pulled back
+  (one round trip). If the account has nothing for a scope, the device pushes its parts and
+  `scope.adopt`. If the account already has that scope, the user chooses per language: "keep this
+  device's progress" (push an adopt) or "keep the account's" (after offering a learning backup
+  export). If an adopt is superseded, the device offers the same choice again from the copy it
+  kept. Either way a scope has one history, never a card-by-card mix.
 
 ### 3.8 What the server is trusted with
 
@@ -342,15 +381,28 @@ had folded, compared across devices; that is possible later and not proposed for
   self-hosted URL). It generates both secrets and shows the **recovery code**: the account ID and
   the recovery secret, about 60 characters with a checksum, for writing down or printing. The user
   must confirm they saved it.
-- **Another device**: the new device makes an ephemeral ECDH P-256 key pair (WebCrypto) and
-  registers its public key with the server under a random pairing ticket. It shows the ticket as
-  a QR code and a short typed code. The enrolled device fetches that public key, and both derive a
-  shared key. Both screens then show a six-digit comparison code computed from the exchange
-  transcript, and the user confirms they match. Only then does the enrolled device send the
-  account secret and a one-time enrolment authorisation, sealed under the shared key. The new
-  device redeems the authorisation for its own device token. The server relays the exchange but
-  never sees the secret, and the comparison code defeats a server that substitutes keys. The short
-  code only names the ticket; it never carries key material.
+- **Another device**: pairing is a commit-then-reveal exchange, relayed by the server, using
+  ephemeral ECDH P-256 key pairs (WebCrypto) on both devices.
+  1. The new device makes key pair N and registers a pairing ticket with the server, holding only
+     the commitment `H(pkN)`. It shows the ticket ID and `H(pkN)` as a QR code, and the ticket ID
+     alone as a short typed code.
+  2. The enrolled device makes key pair E and posts `pkE` to the ticket.
+  3. The new device then reveals `pkN`. The enrolled device checks it against `H(pkN)`: from the
+     QR code when it scanned one, and from the server-held commitment otherwise.
+  4. Both derive the shared key with HKDF over the ECDH output. The salt is the hash of the
+     transcript (server origin, ticket ID, `pkN`, `pkE`).
+  5. Both screens show a six-digit comparison code from the same derivation, and the user
+     confirms the codes match.
+  6. Only then does the enrolled device send the account secret and a one-time enrolment
+     authorisation, sealed under the shared key. The new device redeems the authorisation for
+     its own device token.
+
+  The commitment stops a relay from searching for keys that produce a matching code: it must
+  commit to its substitute before it sees `pkE`, so one substitution passes with probability
+  10⁻⁶. With a scanned QR code, a substitution fails outright. A ticket is single-use and expires
+  after five minutes; a mismatch burns it, and the client stops after three failed tickets in an
+  hour. The server never sees the secret. The short code only names the ticket and never carries
+  key material.
 - **Recovery** (all devices lost): enter the recovery code on a new install. Presenting the
   recovery verifier gets a device token and the wrapped account secret, which the recovery secret
   unwraps. No email or password is needed for sync. A hosted account's billing sign-in stays with
@@ -358,8 +410,9 @@ had folded, compared across devices; that is possible later and not proposed for
 - **Revocation is real**: revoking a device's token stops its pulls and pushes. That device cannot
   re-enrol through recovery, because no device holds the recovery secret. It still holds the
   account secret, so it can decrypt ciphertext it already has or could obtain. Shutting that off
-  needs key rotation: a new account secret, a fresh snapshot, and re-pairing the remaining
-  devices. Rotation is specified for stage 3, not v1.
+  needs key rotation: a new account secret, a fresh snapshot, re-pairing the remaining devices,
+  and re-wrapping the new secret under the recovery secret, which means asking for the recovery
+  code (or issuing a new one). Rotation is specified for stage 3, not v1.
 - **Lost recovery code and all devices**: the encrypted data is unrecoverable by design. Local
   learning backups still work as today. This is the main product trade-off of end-to-end
   encryption and is listed as an [open decision](#open-decisions).
@@ -408,6 +461,7 @@ accounts(id, created_at, format_version, plan,              -- plan: null when s
 devices(id, account_id, token_hash, created_at, last_pull_seq, max_device_seq, max_read_version,
         revoked_at)
 envelopes(server_seq PK, account_id, device_id, device_seq, kind, format_version,
+          snapshot_id, base_seq, part_index, part_count,        -- snapshot parts only
           nonce, ciphertext, created_at, UNIQUE(account_id, device_id, device_seq))
 blobs(account_id, blob_id, ciphertext, PRIMARY KEY(account_id, blob_id))   -- blob_id is an HMAC
 ```
@@ -417,8 +471,8 @@ Endpoints (JSON over HTTPS, device token in `Authorization`):
 - `POST /v1/push {deviceSeq, kind, formatVersion, nonce, ciphertext}` → `{serverSeq}`. A
   `deviceSeq` at or below the device's `max_device_seq` returns "already committed" without an
   insert; one that skips ahead is refused.
-- `GET /v1/pull?after=<serverSeq>` → the latest snapshot if `after` is below it, then envelopes in
-  order, paginated; records the device's `last_pull_seq`.
+- `GET /v1/pull?after=<serverSeq>` → the latest *complete* snapshot's parts if `after` is below its
+  `base_seq`, then envelopes in order, paginated; records the device's `last_pull_seq`.
 - `PUT/GET /v1/blob/<blobId>` for pack blobs.
 - Enrolment: `POST /v1/account`, `POST /v1/pairing` (ticket and public-key relay), `POST /v1/enroll`, `POST /v1/recover`, `DELETE /v1/device/<id>`.
 
@@ -611,7 +665,7 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 | 0a. Secret store | One worker-only interface for secrets (Gemini key, device token, account secret). Chrome: today's `storage.local` after `setAccessLevel`. Firefox: extension-origin IndexedDB, with derived working keys as non-extractable `CryptoKey`s. Fails closed elsewhere, including Firefox permanent private browsing | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
 | 0b. Op reducer | Pure `sync-ops.js`: op validation (exporting the `portability.js` validators, adding `guessFirst`), fold for every card op in 3.2, generations, supersession records | Equivalence test: folding the ops of a recorded single-device session equals the state the current `rateReview`/`finishInline`/`claimKnown`/`wordKnown`/`wordReset` paths wrote. Convergence test: any server order of two devices' batches, with duplicates, converges, including both devices rating the same due card Easy inline. Mutation-checked | Nothing |
 | 1. Tracer bullet | Section 8 | Section 8 | Nothing |
-| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server; offline review on both then reconnect; reset-vs-review case; old-format refusal | E2EE/recovery ruling |
+| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, and a key-substituting pairing relay | E2EE/recovery ruling |
 | 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card; Firefox profile converges with Chrome profile | Stage 2 |
 | 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
 | P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
@@ -632,7 +686,7 @@ The thinnest slice through every new boundary:
 - `extension/test/sync-tracer.test.js`: two simulated devices, each rating offline, pushing through
   the in-process server, pulling, and ending with identical cards. It also covers a duplicated push
   after a lost acknowledgement, a reset racing a stale rating in both server orders, and a tampered
-  envelope header that decryption rejects.
+  envelope header that decryption rejects, and a lost acknowledgement followed by a pull.
 
 Acceptance for the tracer: the convergence test goes red in three mutation checks: when the fold
 orders by wall clock instead of `serverSeq`, when the `max_device_seq` de-duplication is removed,
