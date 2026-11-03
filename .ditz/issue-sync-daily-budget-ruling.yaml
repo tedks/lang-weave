@@ -1,0 +1,22 @@
+id: sync-daily-budget-ruling
+title: Choose whether the daily new-word budget is per device or account
+desc: 'PR47 section3.5 proposes per-device introduction accounting; disconnected devices
+  may collectively exceed the chosen daily budget. Options: retain independent per-device
+  budgets with clear copy; or enforce/account for a shared budget with an explicit
+  offline allocation policy. Recommendation: account-level learning intent with conservative
+  offline allocations, validated in the reducer prototype; do not imply a strict5/day
+  guarantee if several offline devices can each introduce5. Ted decides. Blocks final
+  cross-device budgeting behaviour, not a no-UI merge experiment.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:17:58-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:17:58-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
