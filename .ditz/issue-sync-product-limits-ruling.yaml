@@ -1,0 +1,26 @@
+id: sync-product-limits-ruling
+title: Choose sync retention and user-visible storage/device limits
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: proposal256KiB envelopes/4MiB snapshots/1MiB blobs/90-day active-device
+  window with explicit handling; or measured alternative limits. Recommendation: use
+  conservative configurable engineering bounds in local prototypes, then decide user-visible
+  caps and offline retention from measurements and recovery tests. Never silently
+  discard unacknowledged work to meet a cap. Blocks production limit policy; not the
+  local reducer experiment.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
