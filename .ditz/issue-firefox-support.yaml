@@ -24,3 +24,14 @@ log_events:
   comment: 'Triage 2026-11-01 (main at 1a7611a): Why it matters: this reaches Firefox
     desktop and Firefox for Android, and upstream already proved the port. Waits on
     the real-Firefox probe and firefox-identity-ruling.'
+- time: 2026-11-03T04:09:41-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Sync proposal (PR #47, docs/research/sync-service.md 4.4 and stage 0a):
+    the sync device token and account secret are secrets under the same fail-closed
+    rule as the Gemini key. The worker-only secret store this issue needs for the
+    key should serve all three: Chrome storage.local after setAccessLevel; Firefox
+    extension-origin IndexedDB (derived keys as non-extractable CryptoKeys), pinned
+    by a real-Firefox test that a content script cannot read it; unavailable (not
+    degraded) in Firefox permanent private browsing, where extension IndexedDB fails
+    (Bugzilla 1427986/1893821). Bugzilla 1724754 (setAccessLevel) still NEW on 2026-11-02.'
