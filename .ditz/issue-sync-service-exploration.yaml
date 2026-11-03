@@ -1,0 +1,21 @@
+id: sync-service-exploration
+title: Explore AGPL paid cross-machine progress sync and service architecture
+desc: 'Ted direction 2026-11-02: paid sync also AGPL, BYOK preserved, Firefox port
+  and paid AI pronunciation, eventual provider-token resale, no donations; public
+  launch deferred. Opus lead in sync-service-exploration owns a docs-only proposal
+  grounded in actual storage/backup/FSRS contracts and current primary sources, including
+  offline conflicts, privacy, recovery, provider feasibility and staged plan. No spending,
+  deployment, account creation or production implementation authorized by this issue.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T03:57:16-00:00
+references: []
+log_events:
+- time: 2026-11-03T03:57:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
