@@ -10,8 +10,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-03T03:57:16-00:00
 references: []
 log_events:
@@ -34,3 +34,10 @@ log_events:
     for root to file are listed in the doc (E2EE/recovery, hosted pronunciation engine,
     payment processor/price, hosted no-key tier, personal-list cap). Left in_progress
     for root.'
+- time: 2026-11-03T05:20:10-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Research accepted and PR47 normal-merged fcb658247fbf8cd2772850798244e058c6756465
+    from c405949. Docs-only root factual review; advisory review history corrected,
+    no formal architecture approval claimed. Ten product rulings plus reuse/overflow/process
+    followups filed; code requires separate bounded dispatch.
