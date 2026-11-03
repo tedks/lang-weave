@@ -6,7 +6,7 @@ Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA 
 
 - **No public-domain or CC0 source on its own gives modern English glosses for 2–3k high-frequency Spanish words.** The best CC0 source is Wikidata Lexemes. It has English meanings for **979 of the top 3,000** Spanish word forms (33%) and **91 of our 226 shipped rows**. The nearest public-domain glosses are the typed vocabularies of four 1900–1919 American school readers on Project Gutenberg. They are US public domain. Their headwords match roughly **2,477 of the top 3,000** forms (a headword match, not a usable sense). But the senses are dated and book-specific, the spelling is pre-1952 (`fué`, `á`), and modern words such as `internet`, `foto` and `televisión` are missing (section 4.1). Full historical dictionaries exist only as noisy OCR scans.
 - **Ted's challenge still largely holds.** The BY-SA posture comes from one decision: copying Wiktionary glosses and wordfreq data into the shipped file. The 226 shipped rows are our own drafts and were never copied from Wiktionary. The same approach can scale:
-  1. **We write the English gloss ourselves.** Wiktionary's copyright page says "Individual words are not copyrightable". The same page warns that copying a selection similar to another dictionary's may draw suspicion (curriculum-sources.md §3.2).
+  1. **We write the English gloss ourselves.** Wiktionary's copyright page says "Individual words are not copyrightable". The same page warns that copying a selection similar to another dictionary's may draw suspicion ([Wiktionary:Copyrights](https://en.wiktionary.org/wiki/Wiktionary:Copyrights); paraphrased in curriculum-sources.md §3.2).
    - The mitigation is to author our own rows and use other sources only as uncopied checks.
    - Whether a 3k-row compilation authored this way is free of third-party claims is still a question for the legal read curriculum-sources.md already recommends.
   2. **Take Spanish morphology from Wikidata Lexemes, which is CC0.** That covers forms, part of speech and gender. 2,831 of the top 3,000 forms resolve to a lexeme or one of its forms, and the verb paradigms are complete.
@@ -19,7 +19,7 @@ Ted asked whether a public-domain source would let Lang Weave skip the CC BY-SA 
   - On our own 226 rows, the Tatoeba alignment flag picked out 16 rows. None was a clear mistranslation.
   - Half were fixed phrases or function words, which English renders differently.
   - The other half were valid glosses whose English anchor misses the most common English word. For example, translators write "plane" for `avión` (the anchor is "airplane"), "ship" for `barco` (the anchor is "boat") and "fun" for `divertido` (the anchor is "funny").
-  - Because the extension only swaps exact English anchors, those rows are the ones losing the most swaps.
+  - Because the extension only swaps exact English anchors, those rows probably lose swaps. That is inferred from Tatoeba usage and was not measured on real reading.
 
 ## 2. What counts as "public domain" here
 
@@ -234,15 +234,20 @@ So the check is cheap: about one minute on a laptop, with no network beyond the 
   - Spanish/English frequency-gap rows;
   - regional or false-friend list hits.
 - **Human pass:** one fluent reader, not necessarily native, reviews every flagged row plus a seeded random sample of 60 unflagged rows per band. Band 1 plus the existing 226 counts as one band.
-  - The earlier plan used the same 60-row sample for later bands. The only change is dropping the 100% double review of the first 526 rows.
+  - **How this differs from the earlier plan:**
+    - The earlier plan had two independent reviewers per band. It used 100% double review for the first 526 rows and a 60-row sample plus flagged rows for later bands.
+    - This plan uses one reader throughout.
+    - It keeps the 60-row sample size.
   - **Zero sample defects:** ship the band. By the rule of three, the residual defect rate is bounded near 5% at 95% confidence.
-  - **Any sample defect:** fix it, add the defect class as a flag, and resample.
+  - **Escalation (kept from the earlier plan):**
+    - 1–3 sample defects: fix them, find the cause (add it as a flag where possible) and sample 60 more.
+    - More than 3: review the whole band.
 - **Second reviewer:** only for disagreements, or for any row the first reader marks unsure.
 - **Cost estimate (an assumption, using the old 30–45 seconds a row):**
   - For the first 526 rows, the earlier plan costs 4–6 hours per reviewer, times two reviewers.
   - This plan reviews the flagged rows plus 60 sampled rows: about 1–2 hours if roughly 10–20% of rows are flagged, based on the 7% alignment-flag rate on the 226 plus the other flags.
-  - Later bands cost about the same under either plan.
-- **What this drops:** inter-rater kappa and the mandatory double review of the first 526 rows.
+  - For later bands, this plan costs about half the earlier one, because it uses one reviewer instead of two.
+- **What this drops:** inter-rater kappa and the second independent reviewer in every band.
   - The case for dropping them is cost and proportionality, not measured evidence that a single reader is as accurate. No such comparison exists in this repo.
   - If the first band's sample shows defects the flags missed, add a second reader then.
 
@@ -268,7 +273,7 @@ Filed as ditz `open-questions` issue `vocabulary-pd-path-ruling`.
    - switch to Tatoeba-derived bands (BY credit; needs a name denylist).
 
    Buchanan 1927 is not obtainable. *Recommendation:* keep wordfreq bands now. Switch to Tatoeba only if removing every BY-SA credit from the shipped data matters to Ted.
-3. **Review.** Drop the 100% double native review of the first 526 rows in favour of one reader on flagged rows plus a 60-row sample (5.3)? *Recommendation: yes,* on cost grounds. No accuracy comparison exists. Add a second reader if the first sample finds defects the flags missed.
+3. **Review.** Move from two independent reviewers per band to one fluent reader per band (5.3)? The earlier plan used 100% double review for the first 526 rows. This plan has the reader check flagged rows plus the same 60-row sample and the same escalation rule. *Recommendation: yes,* on cost grounds. No accuracy comparison exists. Add a second reader if the first sample finds defects the flags missed.
 
 ## Sources (fetched 2026-11-02/03 UTC unless noted)
 
