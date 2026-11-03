@@ -1,0 +1,25 @@
+id: paid-service-price-allowance-ruling
+title: Set paid sync and AI prices and usage allowances
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: separate sync subscription plus metered AI; bundled subscription with explicit
+  AI allowance; or other pricing. Recommendation: measure storage/operations and model
+  usage first; avoid unlimited AI commitments. No price authorized. Blocks paid billing/launch,
+  not local development. Covers limits visible as part of the paid offer; engineering
+  safety caps remain a separate sync decision.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
