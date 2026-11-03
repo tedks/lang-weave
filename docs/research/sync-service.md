@@ -23,8 +23,11 @@ review, not a ruling; Ted's approved direction is quoted as such in [Direction](
   and the timestamps are an activity diary. It also keeps the server trivially small, because
   the server never needs to read or merge anything.
 - **The simplest server is small enough to self-host and to sell.** One AGPL process, SQLite,
-  four tables, three endpoints (push, pull, snapshot). The hosted paid tier is the same
-  binary plus billing at the edge.
+  four tables, and a handful of endpoints (push, pull, blobs, enrolment, recovery, device
+  removal). The hosted paid tier is the same binary plus billing at the edge.
+- **The on-device persistence mechanism is stage 2 design, bound by stated invariants.** How the
+  IndexedDB fold and today's `storage.local` keys stay in step is specified as four invariants
+  and a list of acceptance tests (3.4), not as prose; see [Review record](#review-record).
 - **Browser sync storage (`storage.sync`) should not carry this, even as an interim.** It
   does not cross browser vendors, which breaks the Firefox direction; its quota fits the
   226-card bundled deck but not the 5,000-card limits the backup already supports; and an
@@ -908,9 +911,24 @@ Only the ones that block a stage. Root files the rulings; recommendations are th
    [Provider resale](#provider-resale). Recommendation: only the product-shaped endpoint, separate
    opt-in, after retention is proven.
 
+5. **Personal-list cap under sync (non-blocking).** Today's 300-entry cap counts archived entries
+   and nothing deletes an entry, so concurrent offline adds near the cap leave over-cap entries on
+   one device only (3.6). Options: count only active entries, add a delete op, or keep the limit.
+   Recommendation: count only active entries once sync ships. Decides: Ted.
+
 Already open elsewhere and affected: `firefox-identity-ruling` (data categories once sync
 exists), `audio-local-voices-ruling` (free local-voice baseline beside paid synthesis), and
 `hosted-tier-and-donations-ruling` (Ted has now directed no donations).
+
+## Review record
+
+Council review to fixpoint on PR #47, 21 rounds, seats pinned at the Lead tier: native Anthropic
+Opus and OpenAI `gpt-6-sol` via ask-agent; the Google `agy` seat was empty throughout (quota
+exhausted, resets after this lane). Every Critical and Important finding was fixed; round 21
+(`faf8051..5fb6c38`) was CLEAN from both seats. Two logged reorientations: round 13 dropped an
+"overwritten log" and its row-identity machinery after three failed approaches; round 15 replaced
+local-persistence mechanism prose with invariants and acceptance tests. Remaining nits are filed
+as ditz `sync-proposal-round21-nits`.
 
 ## Sources
 
