@@ -1,0 +1,25 @@
+id: sync-encryption-recovery-ruling
+title: Choose sync encryption and lost-device recovery
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: end-to-end encryption with recovery code; or server-readable data with
+  operator-assisted recovery. Recommendation: end-to-end encryption, explicit recovery-code
+  confirmation and independent local backups. Tradeoff: loss of all devices AND the
+  recovery code loses the server copy. Blocks stage2 product/security design, not
+  pure merge experiments.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
