@@ -133,6 +133,7 @@ Every record the server stores is an opaque envelope:
 ```
 { account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot-part" | "device-retired", formatVersion,
   snapshot?: { snapshotId, baseSeq, partIndex, partCount },  // snapshot parts only
+  lastDeviceSeq?,                                            // device-retired only
   nonce, ciphertext }
 ```
 
@@ -149,9 +150,12 @@ compact (3.4). The fold skips `snapshot-part` envelopes; they are read only when
 A `device-retired` envelope is the one record the server writes itself: `device` names the
 device, a plaintext `lastDeviceSeq` holds its last accepted `deviceSeq`, `deviceSeq`, `nonce`
 and `ciphertext` are absent, and it is not authenticated. The fold reads it at its `serverSeq`
-(3.4); it is excluded from `deviceMarks` and from the contiguity check. A `lastDeviceSeq` below
-that device's highest `deviceSeq` already seen is a server fault: the client ignores the record
-and reports it.
+(3.4); it is excluded from `deviceMarks` and from the contiguity check. Because the server orders the
+record after every envelope it accepted from that device, `lastDeviceSeq` must equal that
+device's highest `deviceSeq` seen so far (in the base's `deviceMarks` or the pulled stream
+before this record; a device's own unpushed outbox does not count); any other value is a
+server fault (a lower one, or a higher one hiding withheld envelopes), and the client reports it
+and ignores the record.
 
 ### 3.2 Operations (inside the ciphertext)
 
@@ -198,7 +202,7 @@ still contributes its observed row, because the retrieval happened.
 | `encounter` | kind (`seen`/`peek`), day | `countCardEncounter`; the per-day caps in `review.js` bound volume |
 | `reset` | seen `{due, reviews, familiar, claimAt, claimDue}` | Applies only if the replayed card equals `seen`, the same check `wordReset` makes today; then deletes the card and sets its card generation to this op's ID. Otherwise superseded |
 | `adopt.part` | adoptId, partIndex, partCount, cards `{id: card}`, log rows | Buffered; no effect until its commit |
-| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. The scope's current log, except the adopter's own rows (its kept copy, and so the parts, already holds them), moves to its separate **overwritten log** (bounded at 5,000 rows, oldest evicted, appended to by each later adopt), which keeps it for history and calibration but is not read by card-derived views such as `verifiedWords`; the main log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
+| `scope.adopt` | adoptId, partCount, basis (the `serverSeq` the device had folded) | The user's explicit choice to make this device's history the scope's. Applies if every part is folded and the scope's `adoptSeq` (the `serverSeq` at which its current adopt applied; 0 for generation `"0"`) is ≤ `basis`. It then replaces the scope's cards with the parts' contents, sets the scope generation to this op's ID, `adoptSeq` to this op's `serverSeq`, and every card generation in the scope to `"0"`. Otherwise superseded. Other devices' card ops in the scope between `basis` and the adopt are recorded as "overwritten by adopt", and later ops still naming the old scope generation are superseded; both are shown to their users. `scope.adopt` is the only op in its envelope. Every log row has a stable identity (the op ID that produced it, or for rows recorded before sync, the adopting device and the row's ordinal). The scope's current log, except rows whose identity is present in the parts, moves to its separate **overwritten log** (bounded at 5,000 rows, oldest evicted, appended to by each later adopt), which keeps it for history and calibration but is not read by card-derived views such as `verifiedWords`; the main log becomes the parts' rows, stamped with the commit's `serverSeq`, their order within the parts, and the adopter's device. A `basis` at or above the commit's own `serverSeq` is malformed. Parts are keyed by `(device, adoptId)` and a commit uses only its own device's parts. A device writes an adopt's parts and commit as consecutive `deviceSeq`s, with no other envelope (snapshot parts included) between them; buffered parts are dropped as soon as that device's next envelope is not the next part or the commit, when the commit applies or is superseded, or at that device's `device-retired` envelope (3.4) |
 | `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID, then fold-time de-duplication (3.6) |
 | `personal.archive` | uuid, archived, at | Last-writer-wins register on the survivor (3.6) |
 | `pref.set` | field, value, at | Last-writer-wins register per field |
@@ -290,7 +294,9 @@ De-duplication survives compaction:
 
 When a device is revoked or stops being active, the server appends a `device-retired` envelope
 (3.1) naming it; the fold drops that device's buffered adopt parts there, and snapshots record
-it in `retired`. The server refuses pushes only from a **revoked** device. An inactive device
+it in `retired` (informational, holding the latest such `serverSeq`, not cleared when the device
+returns). The server writes an inactivity record only once per silence: again only after the
+device has pulled since its last one (`devices.retired_seq`). The server refuses pushes only from a **revoked** device. An inactive device
 that returns reloads from the snapshot and resumes pushing; its later envelopes fold normally.
 If its pending adopt lost its parts this way, the commit is superseded and the device offers the
 choice again from its kept copy (3.7). The envelope is unauthenticated, but forging one
@@ -386,8 +392,11 @@ adds can bypass all three. The fold therefore, in server order:
   which includes those writes. The user can also cancel enabling sync: the device stops pushing,
   waits for any in-flight push to finish or time out, discards every sealed envelope it never
   transmitted, and revokes its own device token; `DELETE /v1/device/<id>` returns
-  `max_device_seq` in the same transaction as the revoke, so the device knows exactly what
-  landed. It returns the scope to the kept copy. The server's `device-retired` envelope drops
+  `max_device_seq` in the same transaction as the revoke. The server checks a push's token and
+  inserts its envelope in one write transaction, serialised against the revoke (one SQLite
+  writer), so no push can land after the revoke and the returned value is exactly what landed. A
+  repeated `DELETE` by the same, now revoked, token returns the same value, so a lost response
+  can be retried. It returns the scope to the kept copy. The server's `device-retired` envelope drops
   any adopt parts that landed. A commit that already landed stays applied, and the user is told
   so. If it was the account's only device, re-enabling later needs the
   recovery code. Anything already
@@ -523,11 +532,11 @@ One process, one SQLite file:
 accounts(id, created_at, format_version, plan,              -- plan: null when self-hosted
          recovery_verifier, wrapped_secret)
 devices(id, account_id, token_hash, created_at, last_pull_seq, max_device_seq, max_read_version,
-        revoked_at)
+        revoked_at, retired_seq)
 envelopes(server_seq PK, account_id, device_id, device_seq, kind, format_version,
           snapshot_id, base_seq, part_index, part_count,        -- snapshot parts only
-          nonce, ciphertext, created_at, UNIQUE(account_id, device_id, device_seq))
           last_device_seq,                                       -- device-retired rows only
+          nonce, ciphertext, created_at, UNIQUE(account_id, device_id, device_seq))
           -- device-retired rows: device_seq, nonce, ciphertext NULL (outside the UNIQUE rule)
 blobs(account_id, blob_id, ciphertext, PRIMARY KEY(account_id, blob_id))   -- blob_id is an HMAC
 ```
@@ -733,7 +742,7 @@ Each stage ends with something testable. Stages 0–2 need no account, money or 
 | 0a. Secret store | One worker-only interface for secrets (Gemini key, device token, account secret). Chrome: today's `storage.local` after `setAccessLevel`. Firefox: extension-origin IndexedDB, with derived working keys as non-extractable `CryptoKey`s. Fails closed elsewhere, including Firefox permanent private browsing | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
 | 0b. Op reducer | Pure `sync-ops.js`: op validation (exporting the `portability.js` validators, adding `guessFirst`), fold for every card op in 3.2, generations, supersession records | Equivalence test: folding the ops of a recorded single-device session equals the state the current `rateReview`/`finishInline`/`claimKnown`/`wordKnown`/`wordReset` paths wrote. Convergence test: any server order of two devices' batches, with duplicates, converges, including both devices rating the same due card Easy inline. Mutation-checked | Nothing |
 | 1. Tracer bullet | Section 8 | Section 8 | Nothing |
-| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, and a key-substituting pairing relay | E2EE/recovery ruling |
+| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server: offline review on both, then reconnect; reset-vs-review in both orders; old-format refusal. Automated tests for a lost acknowledgement, compaction with `deviceMarks`, a truncated or abandoned snapshot, a late op after compaction, an inactive device retired mid-adopt that then returns, and a key-substituting pairing relay | E2EE/recovery ruling |
 | 3. Full scope | Personal entries with aliases and the cap (3.6), packs, preferences; first-enable `scope.adopt` (3.7); key rotation; Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card within the 300-entry personal cap (3.6); Firefox profile converges with Chrome profile | Stage 2 |
 | 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
 | P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
