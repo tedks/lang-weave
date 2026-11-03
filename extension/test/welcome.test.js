@@ -141,7 +141,7 @@ test('welcome page renders its notes and choice results as the exact English', a
     const $ = (id) => window.document.getElementById(id);
     const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
     expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(2)'))).toBe('Reading level controls which bundled words can appear; Beginner is a good start.');
-    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(3)'))).toBe('Gradual learning introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.');
+    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(3)'))).toBe('Gradual learning starts on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. You can change the pace or turn it off in Settings.');
     expect($('suggestX').hidden).toBe(false);
     $('onlySites').click();
     await wait(() => $('choiceStatus').textContent !== '');

@@ -38,6 +38,7 @@ const worker = {
   startupUnsupportedSettings: false,
   keyIsolationUnavailable: true, // cleared only after Chrome accepts trusted-context storage
   keyRejectedEpoch: '', // an unsaved diagnostic must still stop this worker's rejected key
+  freshProfile: false, // startup found no settings object; with an install event, gets the install defaults
 };
 const captureDrafts = new Map(); // worker memory only; a restart invalidates every nonce
 const completedCaptures = new Map(); // short-lived idempotent receipts; no draft/page metadata
@@ -64,6 +65,7 @@ const ready = (async () => {
     } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
   }
   const { settings } = await store.get('settings');
+  worker.freshProfile = settings === undefined;
   try { validateStorageSettings(settings || {}); }
   catch { worker.startupUnsupportedSettings = true; }
   if (!worker.keyIsolationUnavailable && settings?.apiKey)
@@ -96,7 +98,7 @@ const { checkUpdate, arm, updatePending } = createUpdate({ store, locked, modelC
   onBadgeChange: () => refreshBadges() });
 const badge = createBadge({ store, context, updatePending });
 refreshBadges = badge.refreshAll;
-const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status } = createSettingsHandlers({ store, cache, locked,
+const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, installDefaults } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
 const commands = createCommands({ tabs: chrome.tabs, runtime: chrome.runtime, context, save });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
@@ -178,6 +180,9 @@ chrome.runtime.onInstalled.addListener(arm);
 chrome.commands?.onCommand?.addListener((command, tab) => {
   void ready.then(() => commands.handle(command, tab)).catch(() => {});
 });
+// Install defaults go through the same locked, merging save a page uses, so a welcome-page choice that
+// lands first is kept rather than overwritten.
+chrome.runtime.onInstalled.addListener((details) => void sitesReady.then(() => installDefaults(details)).catch(() => {}));
 chrome.runtime.onInstalled.addListener(openWelcome);
 chrome.runtime.onStartup.addListener(arm);
 chrome.alarms?.onAlarm?.addListener((a) => {

@@ -922,7 +922,7 @@
     "description": "First-run welcome page: name of the reading level setting, in bold. Starts a sentence."
   },
   "welcome_gradual_note": {
-    "message": "$TERM$ introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.",
+    "message": "$TERM$ starts on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. You can change the pace or turn it off in Settings.",
     "description": "First-run welcome page: explains the gradual learning setting. $TERM$ is the setting name in bold, its own message.",
     "placeholders": {
       "TERM": {

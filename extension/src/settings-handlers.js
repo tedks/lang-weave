@@ -183,6 +183,16 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     return { ok: true };
   }
 
+  // Gradual learning starts on, at five new words a day, for a truly fresh install only
+  // (gradual-default-on-install-ruling): Chrome reports an install AND this worker's startup found no
+  // settings object. DEFAULT_SETTINGS keeps gradual off, so an update, a reload, an existing profile or
+  // one missing the field is never opted in by cleanSettings. The flag is consumed on first use.
+  async function installDefaults(details) {
+    if (details?.reason !== 'install' || !worker.freshProfile) return { ok: false };
+    worker.freshProfile = false;
+    return save({ settings: { gradual: true, newWordsPerDay: 5 } });
+  }
+
   async function removeKey() {
     await save({ apiKey: '' }, true); // the key-change path rotates both epochs and clears all diagnostics
     return { ok: true };
@@ -276,5 +286,5 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       review: await reviewStatus(config),
       update: await checkUpdate() };
   }
-  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status };
+  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, installDefaults };
 }
