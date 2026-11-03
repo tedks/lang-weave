@@ -1,0 +1,25 @@
+id: store-shots-gradual-default
+title: Should Store screenshots show the gradual-on new-install experience?
+desc: 'Since 0.12.24 (PR #48) a new install starts with gradual learning on at 5 words/day.
+  e2e/store-shots.mjs now pins gradual:false so the five listing screenshots stay
+  byte-for-byte the plain reading experience they always showed; with gradual on,
+  a first page shows at most the introduced words, not the denser plain swap set.
+  Options: (A) keep the plain screenshots (they show what the product does once words
+  are learned, and remain reproducible); (B) re-shoot with gradual on so the first
+  screenshot matches the first-run experience; (C) mix: one screenshot of a gradual
+  introduction. Recommendation: A for now, C when the listing copy is next revised.
+  Decides: Ted (listing/product). Blocks nothing in code; affects Store listing accuracy
+  before any upload.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T04:11:45-00:00
+references: []
+log_events:
+- time: 2026-11-03T04:11:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
