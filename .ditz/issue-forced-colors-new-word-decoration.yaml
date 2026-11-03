@@ -1,0 +1,29 @@
+id: forced-colors-new-word-decoration
+title: Check forced-colors underline colour on gradual 'new' status words
+desc: 'Observed while gating gradual-on-install-impl (PR #48), synthetic Chromium
+  only: in e2e/gloss.mjs under page.emulateMedia({ forcedColors: ''active'' }), a
+  gradual-mode swap span with data-fw-status="new" reports computed text-decoration-color
+  rgb(32, 33, 36) (the page''s own text colour) while its computed color is rgb(0,
+  0, 0). A non-gradual span on pristine main reports them equal. content.css forces
+  CanvasText only for data-fw-status active/shaky. Unknown whether Chrome paints the
+  forced colour anyway (computed vs used value), so this may be a test-observability
+  difference rather than a visible defect. Options: (A) add "new" (or all statuses)
+  to the forced-colors rule and extend gloss.mjs to cover a gradual span; (B) confirm
+  with a forced-colors screenshot that the painted underline is already CanvasText
+  and record it. Recommendation: B first, then A if the screenshot shows the page
+  colour. Gloss.mjs now pins gradual:false to keep testing the plain path, so this
+  is untested in gradual mode until resolved. Decides: lead/implementer; no product
+  ruling.'
+type: bugfix
+component: accessibility
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T04:11:44-00:00
+references: []
+log_events:
+- time: 2026-11-03T04:11:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
