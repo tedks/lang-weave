@@ -1,0 +1,41 @@
+id: vocabulary-pd-path-ruling
+title: Rule on the simpler public-domain vocabulary path (self-authored glosses, CC0
+  morphology, flagged single-reader review)
+desc: 'Source: docs/research/public-domain-vocabulary.md (PR #49). Ted''s challenge:
+  avoid the CC BY-SA posture and 100% double native review.
+
+
+  Options and recommendation:
+
+  1. Glosses: write English glosses ourselves (as the 226 already are), taking forms/POS/gender
+  from Wikidata Lexemes (CC0), with Wikidata, Project Gutenberg 1900-1919 school vocabularies
+  (US public domain, ~80% headword coverage of the top 3,000) and Tatoeba alignment
+  as uncopied witnesses. Rec: yes; stop planning to copy Wiktionary glosses into shipped
+  data.
+
+  2. Frequency source: (a) keep the wordfreq coarse bands (BY-SA credit, already shipping),
+  (b) Tatoeba-derived bands (CC BY 2.0 FR credit, conversational, needs a name denylist),
+  (c) a CC0 ranking (only Common Voice text exists, measured unusable). Rec: (a) now,
+  since it already ships; (b) if Ted wants to remove BY-SA from shipped data.
+
+  3. Review: replace 100% double native review with one fluent reader on flagged rows
+  plus a seeded 50-row random sample per 300-row band; add a second reader only on
+  disagreement or evidence of missed defects. Rec: yes. On the shipped 226, the Tatoeba
+  alignment flag found real sense issues (divertido->funny, barco->boat, avion->airplane).
+
+
+  Decides: Ted. Blocks: curriculum-growth first band; supersedes parts of curriculum-data-licence-ruling
+  if adopted. Not legal advice; non-US status of Gutenberg editions is unchecked.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T04:09:45-00:00
+references: []
+log_events:
+- time: 2026-11-03T04:09:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
