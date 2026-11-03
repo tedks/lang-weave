@@ -1,0 +1,22 @@
+id: sync-personal-overflow-preservation
+title: Require recovery/export for concurrent personal-vocabulary overflow
+desc: PR47 section3.6 proposes local-only overflow excluded by the current300-entry
+  backup validator; section3.7 also admits held pack-card loss after eviction. Preserve
+  these as unresolved design risks, not accepted production data loss. Before stage3,
+  tie each rejected/held/overflow record to an export/recovery policy chosen with
+  sync-personal-cap-ruling and verify concurrent-add/eviction/downgrade cases. Do
+  not silently drop entries or claim full progress sync while excluding them. Root
+  engineering gate; no code phase dispatched.
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:45-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
