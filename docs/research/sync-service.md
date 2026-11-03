@@ -1,9 +1,623 @@
 # Cross-machine progress sync and the paid-service direction
 
-Status: DRAFT, research in progress (2026-11-02). Design proposal only; nothing here is built,
-deployed or authorized beyond Ted's stated direction.
+Research date: 2026-11-02. Author: sync-service-exploration lane (Anthropic Opus 5.5, Lead).
+Base: `main` at 72a36e8 (extension 0.12.23). This is a design proposal. Nothing in it is
+built, deployed, purchased or published. Where it says "recommend", that is a proposal for
+review, not a ruling; Ted's approved direction is quoted as such in [Direction](#direction).
 
-Sections to come: local contract inventory, what syncs and what stays local, sync record
-design, concurrency and FSRS reconciliation, identity/recovery/encryption, server and hosted
-operation, browser sync storage, Firefox key-isolation prerequisite, pronunciation, provider
-resale, staged plan, tracer bullet, open decisions, sources.
+## Bottom line
+
+- **Sync is a merge problem, not a transport problem.** Today the only cross-machine path is
+  the learning backup, and its import only accepts a *fresh, keyless* target
+  (`targetFresh`, `extension/src/portability.js`); it replaces, it never merges. Any sync
+  needs a new merge contract first. That contract, not the server, is the bulk of the work.
+- **The scheduler makes a clean merge possible.** FSRS in `fsrs.js` is pure and deterministic
+  (no fuzz, no clock reads), and `scheduleCard` in `review.js` is a pure function of the prior
+  card, the rating, the time and two settings. So a card's state can be rebuilt by replaying
+  its rating operations in one agreed order. Recommend an **operation log**: each device
+  appends small, idempotent operations; the server assigns a total order; every device folds
+  the same ops in the same order and reaches the same cards.
+- **Encrypt on the device; the server stores ciphertext and order only.** Records hold word
+  IDs, times, ratings and user-typed personal vocabulary, never page text, URLs, hosts or
+  keys. End-to-end encryption still matters: the personal entries are the user's own words
+  and the timestamps are an activity diary. It also keeps the server trivially small, because
+  the server never needs to read or merge anything.
+- **The simplest server is small enough to self-host and to sell.** One AGPL process, SQLite,
+  four tables, three endpoints (push, pull, snapshot). The hosted paid tier is the same
+  binary plus billing at the edge.
+- **Browser sync storage (`storage.sync`) should not carry this, even as an interim.** It
+  does not cross browser vendors, which breaks the Firefox direction; its quota fits the
+  226-card bundled deck but not the 5,000-card limits the backup already supports; and an
+  interim would still need the whole merge contract. The file backup already covers one-shot
+  moves.
+- **Firefox needs the key-isolation prerequisite before any secret ships there.** The real
+  Firefox probe found no `storage.local.setAccessLevel`, so content scripts can read
+  `storage.local`. A sync token and an encryption key are secrets just like the Gemini key;
+  they need a store content scripts cannot reach, or Firefox gets no sync, never a weaker one.
+- **Pronunciation and token resale are separate products with separate authorization.**
+  They are feasible; whether provider terms permit them is a different question, answered per
+  provider in [Pronunciation](#pronunciation) and [Provider resale](#provider-resale).
+
+## Direction
+
+Recorded from the CTO's brief of 2026-11-02, as Ted's direction (approved, not proposals):
+
+- A paid sync service, itself AGPL.
+- Bring-your-own-key (BYOK) is preserved.
+- A Firefox port.
+- Paid AI-synthesized pronunciation (not only OS voices); pronunciation is an explicit user
+  action.
+- Eventually resell provider tokens (a hosted, no-key tier).
+- No donations.
+- Public launch deferred.
+
+Everything else in this document (record formats, encryption model, recovery, server shape,
+caps, prices) is a proposal.
+
+## 1. What exists today (contract inventory)
+
+All learning state lives in `chrome.storage.local`. Every key below is read from the source
+at 72a36e8.
+
+| Storage key | Module | What it holds | Shape and bounds |
+|---|---|---|---|
+| `settings` | `settings.js` | Preferences and site policy | `enabled, model, levelOverride, language, gradual, newWordsPerDay, density, inlineRecall, newSitesEnabled, siteOverrides{host:bool}`, optional `desiredRetention` (0.85–0.90), `guessFirst` |
+| `apiKey` | `settings-handlers.js` | Gemini key | Written only after `setAccessLevel(TRUSTED_CONTEXTS)` succeeds (DESIGN.md) |
+| `recallReview` (Spanish) / `lang:<code>:<version>:recallReview` | `review.js`, `scope.js` | Cards per scope | `{version:1, cards:{[wordId]: card}, current, inline, learning:{day,count}}`, ≤5,000 cards |
+| `personalVocabularyV1` | `personal.js` | User-typed entries and their histories | `{version:1, revision, entries[≤300], history:{[lang]: review}}`; entry IDs `personal:<lang>:<uuid>` |
+| `languagePacks` | `languages.js` | Generated vocabulary packs | `{[code]: {version: 16 hex, words[]}}` |
+| `learningRetrievals` (scoped) | `learning-log.js` | One row per rating, claim or guess | Arrays `[word, at, source, direction, outcome, prior, latencyMs, elapsedDays, intervalDays, predicted]`, ≤5,000 |
+| `learningExposures` (scoped) | `learning-log.js` | Lifetime per-word exposure aggregates | `[count, peeks, distinctDays, firstDay, lastDay]`, ≤5,000 words |
+| `readingEvents`, `seenSent` (scoped) | `events.js` | Pending reading feedback, today's de-dup set | ≤500 |
+| `vocabularyEncounters` (scoped) | `encounters.js` | Weekly-decaying encounter counts | ≤256 IDs, counts ≤7 |
+| `c:*` | `cache.js` | Model decision cache | ≤5,000; keyed by passage hash |
+| `keyEpoch`, `epoch`, `modelCalls`, `modelStatus`, `quotaState`, `consentShown`, `reloadedFor`, import journal/receipt, measurement-skip counter | various | Install-local bookkeeping | `NON_LEARNING_KEYS` in `portability.js` |
+
+A card (`review.js`, validated in `portability.js card()`) is `{due, interval, reviews}` plus
+optional `familiar, maintenance, easyStreak, introducedDay, introGateDay, fsrs:{stability,
+difficulty, lastReview, lapses}, retiredReturn, claimAt, claimDue, peekDue, seenDay,
+seenCount, peekDay, peekCount}`. Measured with Node on this tree: one card serialises to
+about 184 bytes of JSON; the 226 bundled cards to about 42 KB; 5,000 cards to about 0.9 MB.
+
+The learning backup (`portability.js`, schema 2, ≤1 MiB, log budget 512 KiB) is the existing
+portable format. Its rules carry straight into sync:
+
+- **Read before write.** "A build must read a schema before any build writes it"
+  (`BACKUP_SCHEMA`/`READ_SCHEMAS`). Sync record versions follow the same release order.
+- **Fail closed on malformed data; omit-and-count unverifiable log rows** (CTO ruling B).
+- **Catalog-only IDs.** Every log write requires the scope catalog, so no URL, host or page
+  text can enter (`learning-records.js`, `learning-log.js` privacy contract).
+- **Install-local state is never exported**: key, consent, quota, epochs, receipts.
+
+What the backup does *not* give sync: import requires a fresh keyless target and replaces
+everything. There is no merge, no per-record identity for operations, no tombstone for a
+reset card (`wordReset` in `progress-handlers.js` deletes the card outright), and the
+retrieval log cannot be replayed exactly for cards migrated from pre-FSRS due/interval state
+(`withFsrs` estimates, and the log deliberately does not record a prediction for them).
+
+## 2. What syncs and what stays local
+
+Principle: sync only what makes the *learning* continue on another machine. Everything about
+*where* and *what* the user reads stays on the device.
+
+| Syncs (opt-in, encrypted) | Stays local, always |
+|---|---|
+| Card operations for every scope: introduce, rate, already-know claim, practice-now grant, reset | `apiKey` and any other credential, including the sync token and the account key at rest |
+| Personal vocabulary entries (add, archive/unarchive) | Page text, URLs, hosts, titles: never present in sync records by construction |
+| Installed language packs, as content-addressed blobs (`code`, `version`, words) | `siteOverrides` (hostnames are browsing history), `newSitesEnabled`, `enabled`, pause state |
+| Learning preferences: `language, levelOverride, gradual, newWordsPerDay, density, inlineRecall, desiredRetention, guessFirst` | Decision cache `c:*` (passage hashes), `readingEvents`, `seenSent`, `vocabularyEncounters` |
+| Per-card encounter counters that change scheduling (`peekDue`, seen/peek day counters), as ops | `model`, quota, model status, consent, epochs, import journal/receipts, measurement-skip counter |
+| | Open review/inline tickets (`current`, `inline`): document- and tab-bound |
+| | Lifetime `learningExposures` aggregates (stage 3 decision, see below) |
+
+Notes:
+
+- `model` stays local because it is tied to the device's key and quota tier.
+- `siteOverrides` could be a later opt-in ("sync my site choices"); by default it is browsing
+  history and stays local. Not proposed for v1.
+- The retrieval log is **rebuilt locally from synced rating ops** (each rating op carries the
+  fields the log row needs), so the "is this working?" view and calibration see every
+  device's reviews without syncing the log itself.
+- Lifetime exposure aggregates cannot be merged exactly (`distinctDays` double-counts days
+  seen on two devices). Options: keep them per device (default), or sync per-device rows and
+  show the sum as an upper bound. Recommend per device until the progress views actually need
+  cross-device exposure totals.
+
+## 3. Sync records
+
+### 3.1 Envelope
+
+Every record the server stores is an opaque envelope:
+
+```
+{ account, device, deviceSeq, serverSeq, kind: "ops" | "snapshot", formatVersion, nonce, ciphertext }
+```
+
+The server sees only those plaintext fields. `device` is a random UUID made when sync is
+enabled on that install (not the extension ID, not a hardware ID). `deviceSeq` increases by one
+per batch the device writes. `serverSeq` is assigned by the server on accept. `formatVersion`
+is plaintext so the server can refuse a client too old to read the account (see 3.6).
+
+### 3.2 Operations (inside the ciphertext)
+
+A batch is a list of operations. Each operation has a stable ID `(device, deviceSeq, index)`,
+so redelivery is harmless: the server stores a batch once per `(device, deviceSeq)` (unique
+key), and clients skip an operation ID they already applied.
+
+| Op | Fields | Applied as |
+|---|---|---|
+| `introduce` | scope, cardId, day, at | Create the card if absent at the current epoch; no-op if present |
+| `rate` | scope, cardId, epoch, at, rating, source, direction, latencyMs, autoFamiliar, retention | `scheduleCard(card, rating, at, autoFamiliar, retention, early)` on the replayed card, with `early = source === 'standalone' && card.due > at` (inline ratings pass `autoFamiliar = true` and never `early`, as `finishInline` does today; standalone passes the `gradual` setting); appends the derived log row |
+| `claim` | scope, cardId, epoch, at, gradual | `claimKnown` (gradual) or set `familiar` |
+| `encounter` | scope, cardId, epoch, kind (`seen`/`peek`), day, at | `countCardEncounter`; the per-day caps in `review.js` bound volume |
+| `reset` | scope, cardId, epoch | Delete the card and increment its epoch (tombstone) |
+| `seed` | scope, cardId, card | First-enable merge only (3.6): insert a validated existing card verbatim when the account has none for that ID at epoch 0 |
+| `personal.add` | entry (the validated `personalVocabularyV1` entry) | Insert by UUID; no-op if present |
+| `personal.archive` | uuid, archived, at | Last-writer-wins register on `archived` |
+| `pref.set` | field, value, at | Last-writer-wins register per field |
+| `pack.install` | code, version, contentHash | Reference to a pack blob (3.4) |
+
+Every op is validated with the same functions the backup uses (`card()`, `personal()`,
+`packs()`, `preferences()`, the scope catalog) before it is applied; an invalid op fails closed
+for its scope exactly as a bad backup does, and is reported, never silently dropped.
+
+The `epoch` per card ID lives in the sync layer's own state, not in the card, so the stored card
+format (and every backup schema) is unchanged; a missing epoch is 0.
+
+What is *not* in an op: no page text, no URL, no host, no passage hash, no title, no key, no
+model output except pack words the user explicitly generated and installed.
+
+### 3.3 Order and replay
+
+The server's `serverSeq` is the single total order. Each device keeps:
+
+- a **base**: the decoded state at some `serverSeq` N (a snapshot, or empty);
+- the ops with `serverSeq > N`, in order;
+- an **outbox** of local ops not yet acknowledged.
+
+Local state = fold(base, server ops in `serverSeq` order, then outbox ops in local order).
+After a pull, the device re-folds. Because the fold is deterministic and every device folds
+the same sequence, all devices converge once they have pulled the same `serverSeq`.
+
+Why server order rather than wall-clock order: device clocks disagree and can go backwards;
+`elapsedDays` already clamps a backward step to zero (`fsrs.js`), so an op that arrives "late"
+is still well defined. Wall-clock ordering would force re-folding history whenever an old op
+arrives, and history below a snapshot no longer exists.
+
+### 3.4 Snapshots and compaction
+
+Ops grow without bound (about 176 bytes of JSON per rating op measured here; a 100-review day
+is roughly 18 KB before compression). Any device may write a **snapshot**: its decoded state at
+`serverSeq` N, encrypted, in the same validated shape as a schema 2 backup minus install-local
+fields. A new device downloads the latest snapshot plus ops after it. The server may delete ops
+at or below the latest snapshot's N once every *active* device has acknowledged a pull past N,
+or after a retention window (proposal: 90 days) for devices that went silent; a silent device
+that returns simply reloads from the snapshot and replays its own outbox on top. Nothing it
+did offline is lost, because its outbox ops get new, later `serverSeq` values.
+
+Packs are content-addressed blobs (`sha256(code, version, words)`), uploaded once, referenced by
+`pack.install`. The 16-hex `version` already identifies a pack locally.
+
+### 3.5 Concurrency cases
+
+| Case | Result | Why it is acceptable |
+|---|---|---|
+| Two devices rate *different* cards offline | Both apply | Ops commute across cards |
+| Two devices rate the *same* card offline | Both ratings apply, in server order; the second sees elapsed time from the first (clamped to ≥0) | Both reviews happened and both are evidence; FSRS treats a same-day second review with its short-term formula. Deterministic on every device |
+| Same op delivered twice | Applied once | `(device, deviceSeq)` unique on the server; op IDs de-duplicated on the client |
+| Reset on A, rating on B made before B saw the reset | The rating carries the old epoch and is dropped (logged as superseded) | Reset is an explicit, twice-confirmed action; today's local stale guard (`wordReset` checks the card version) already makes reset win over a stale view |
+| Rating on A, reset on B made before B saw the rating | Reset wins if it is later in server order; earlier rating is erased with the card | Same rule, applied in order; the user asked to forget the word |
+| Introduce on both devices | First `introduce` creates the card; the second is a no-op | Idempotent by card |
+| Daily new-word budget | Each device counts its own introductions plus synced ones for its local day | Two offline devices can overshoot by at most devices × budget for that day; recorded, not prevented. Preventing it would need the server to hand out budget, which means the server reads state |
+| Preference changed on both | Last writer by `(at, device)` wins per field | Preferences are single-valued choices |
+| Personal entry archived on A, unarchived on B | Last writer wins | Same |
+| Old-format client | Refused at the server by `formatVersion` (3.6) | Never silently ignores ops it cannot read |
+
+### 3.6 Versions and migration
+
+- `formatVersion` (plaintext) names the op and snapshot schema. A client reads every version up
+  to its own and refuses an account whose `formatVersion` is newer, with "update Lang Weave to
+  sync". The release order is the backup's: ship a reader before any client writes the new
+  version.
+- The server stores the highest `formatVersion` any device has written and refuses pushes from
+  clients that declare they cannot read it. It never transforms ciphertext.
+- A client that meets an op it cannot apply (for example a future op type inside an allowed
+  version) **stops folding at that `serverSeq`** and holds, rather than skipping: skipping would
+  fork its state from the other devices.
+- First enable on an existing install: the device's current state becomes a snapshot (if the
+  account is empty) or is *merged* into the account (if not). Merging an existing install into a
+  non-empty account is the one genuinely new operation: recommend converting local cards to
+  `introduce` plus a synthetic `seed` op that carries the local card verbatim, applied only when
+  the account has no card for that ID, and otherwise surfaced to the user as a per-language
+  choice ("keep this device's progress for Spanish" / "keep the account's"). No silent
+  card-by-card mixing of two independent histories.
+
+## 4. Identity, account, recovery and encryption
+
+### 4.1 Trust boundaries
+
+| Party | Can see | Cannot see |
+|---|---|---|
+| Lang Weave server (self-hosted or hosted) | Account ID, device IDs, sizes and times of pushes/pulls, `formatVersion`, payment status (hosted) | Any card, rating, word, personal entry, pack or preference |
+| Payment processor (hosted only) | The paying person's billing identity | Anything about learning |
+| Content scripts on web pages | Nothing sync-related (requirement: 4.4) | Sync token, account key, ciphertext |
+| Each enrolled device | Everything for that account | Other accounts |
+
+### 4.2 Keys
+
+- **Account key**: a random 256-bit AES-GCM key generated on the first device (WebCrypto
+  `generateKey`). It encrypts every op batch and snapshot, with a fresh random 96-bit nonce per
+  envelope and the envelope's plaintext header as additional authenticated data, so the server
+  cannot move a batch to another account, device or sequence number undetected.
+- **Device token**: a random bearer secret the server issues at enrolment, stored hashed on the
+  server. It authorises push/pull for one device and is revocable per device.
+- No password is needed for sync itself.
+
+### 4.3 Enrolment and recovery
+
+- **First device**: "Turn on sync" creates the account on the chosen server (hosted, or a
+  self-hosted URL), generates the account key and shows a **recovery code** (the account ID plus
+  the account key, encoded for writing down or printing). The user must confirm they saved it.
+- **Another device**: the enrolled device shows a short-lived **pairing code** (or QR) that
+  carries a one-time enrolment ticket from the server plus the account key. The new device
+  redeems the ticket for its own device token. Same pattern as Firefox's and Signal's device
+  linking; the server never sees the key.
+- **Recovery** (all devices lost): enter the recovery code on a new install. The server holds
+  only a hash of a recovery verifier derived from the account key (HKDF, a separate label from
+  the encryption use); presenting it proves possession and gets a fresh device token. No email
+  or password is needed for sync; a hosted account's billing sign-in stays with the payment
+  processor.
+- **Lost recovery code and all devices**: the encrypted data is unrecoverable by design. Local
+  learning backups still work as today. This is the main product trade-off of end-to-end
+  encryption and is listed as an [open decision](#open-decisions).
+- **Device removal**: revoke its token on the server. Rotating the account key after a lost
+  device is possible (new key, new snapshot, re-pair remaining devices) but not needed for v1.
+
+### 4.4 Firefox key-isolation prerequisite
+
+The Firefox probe (ditz `firefox-probe`, 2026-10-30, Firefox 158) found
+`storage.local.setAccessLevel` absent and showed a content script reading a value written to
+`storage.local`. DESIGN.md already fails closed for the Gemini key on such a browser. The sync
+token and account key get the same rule, with no silent weakening:
+
+- Secrets (Gemini key, device token, account key) live only in a store content scripts cannot
+  read. On Chrome ≥140 that is `storage.local` after `setAccessLevel(TRUSTED_CONTEXTS)`.
+- On Firefox, until it has `setAccessLevel`, the candidate store is the extension origin's own
+  IndexedDB, opened only from the background page and extension pages, with the account key kept
+  as a **non-extractable** `CryptoKey` (structured-cloneable into IndexedDB, never exported as
+  bytes). Chrome documents that web storage called from a content script "accesses data from
+  the host page the content script is injected on and not the extension" [S6], and MDN that a
+  `CryptoKey` "is a serializable object" storable with standard web storage APIs [S9]. No
+  primary page states the extension-origin IndexedDB case for Firefox outright, so the store
+  ships only behind a real-Firefox test that a content script cannot read it (the same harness
+  the probe used).
+- `storage.session` is not a substitute for the account key: it is not exposed to content
+  scripts by default in either browser [S1, S4], but it is cleared when the browser closes, so
+  the user would re-pair every session.
+- Firefox private browsing: extension pages' `indexedDB.open` fails in permanent private
+  browsing (Bugzilla 1427986, duplicate of 1893821) [S8]. In that mode sync is unavailable, not
+  degraded.
+- Until that store is implemented and pinned by a test that fails if a content-script-readable
+  area holds a secret, Firefox shows sync as unavailable with fixed copy. It never falls back to
+  `storage.local`.
+- The probe also showed content scripts can read *learning* data on Firefox. Learning data is not
+  a secret (no keys, no page text), but plaintext learning data being readable by any content
+  script of this extension is a reason to keep the decrypted sync state in the same trusted store
+  and to write only the existing learning keys to `storage.local`.
+
+## 5. Server
+
+### 5.1 Simplest self-hostable AGPL server
+
+One process, one SQLite file:
+
+```
+accounts(id, created_at, format_version, plan)              -- plan: null when self-hosted
+devices(id, account_id, token_hash, created_at, last_pull_seq, revoked_at)
+envelopes(server_seq PK, account_id, device_id, device_seq, kind, format_version,
+          nonce, ciphertext, created_at, UNIQUE(account_id, device_id, device_seq))
+blobs(account_id, content_hash, ciphertext, PRIMARY KEY(account_id, content_hash))
+```
+
+Endpoints (JSON over HTTPS, device token in `Authorization`):
+
+- `POST /v1/push {deviceSeq, kind, formatVersion, nonce, ciphertext}` → `{serverSeq}`; replay of
+  the same `deviceSeq` returns the original `serverSeq`.
+- `GET /v1/pull?after=<serverSeq>` → the latest snapshot if `after` is below it, then envelopes in
+  order, paginated; records the device's `last_pull_seq`.
+- `PUT/GET /v1/blob/<hash>` for pack blobs.
+- Enrolment: `POST /v1/account`, `POST /v1/pairing`, `POST /v1/enroll`, `DELETE /v1/device/<id>`.
+
+Per-account caps (proposal; Ted's call where they become product limits): envelope ≤256 KiB,
+blob ≤1 MiB, a storage ceiling, and a push rate limit. Retention: ops below the latest snapshot
+are compacted per 3.4.
+
+Language: whatever the extension's test toolchain already uses keeps one toolchain (Bun can run
+an HTTP server and SQLite without dependencies), but this is an implementation choice, not a
+contract. The contract is the envelope and the endpoints above.
+
+AGPL: the server is AGPL-3.0-or-later like the extension. Section 13 requires that users
+interacting with a modified version over a network be offered its source; the server answers
+`GET /v1/source` with a link to its exact source revision, and the extension's sync settings
+show it. Section 13: a modified version "must prominently offer all users interacting with it
+remotely through a computer network ... an opportunity to receive the Corresponding Source"
+[S20]. AGPL permits charging for the hosted service.
+
+Prior art checked: Anki's own sync server is AGPL-3.0-or-later, one process, no external
+database, multi-user by environment variables, not end-to-end encrypted [S21]; Etebase's server
+is AGPL-3.0 and built for end-to-end encryption, but needs Django, uvicorn and nginx [S22];
+Automerge's sync server is MIT and describes itself as "an unsecured Express app" [S23]. None
+speaks Lang Weave's records, and adopting Etebase's client library would add a dependency to an
+extension that has none. The proposal borrows Anki's footprint and Etebase's trust model rather
+than either codebase.
+
+The extension must also stay fully usable with sync off: no account appears in onboarding, and
+the "no account" positioning in ROADMAP.md stays true for anyone who never turns sync on.
+
+### 5.2 Hosted paid operation
+
+Same binary, plus:
+
+- Billing at the edge: the server stores only `plan` and an opaque customer reference; the
+  payment processor holds the billing identity. Stripe lists 2.9% + 30¢ per domestic card charge
+  plus 0.7% for Billing, with tax compliance left to the seller [S24]; Paddle and Lemon Squeezy
+  list 5% + 50¢ as merchant of record, handling VAT and sales tax [S25, S26]. On a $4 monthly
+  charge that is roughly 45¢ against 70¢.
+- Hosting: one small VM with the SQLite file on local disk, backed up encrypted off-site. The
+  data is ciphertext, so a backup leak exposes only metadata.
+- Cost shape: storage per user is tiny (a heavy user's compacted snapshot is under 1 MB; a year
+  of ops before compaction is a few MB), so the cost floor is the VM, the processor fee and the
+  operator's time, not bandwidth. Fly.io lists a 256 MB shared-CPU machine at $2.19 a month
+  and volumes at $0.15/GB-month [S27]; Hetzner lists cloud servers from €5.99 a month [S28].
+  The floor is single-digit dollars a month before the first user.
+- Policy surfaces that change when a server exists: the Chrome Web Store user-data disclosure and
+  privacy policy, and Firefox's `data_collection_permissions`. These are outward acts; the
+  proposal prepares text, Ted publishes. The Chrome Web Store requires a prominent in-product
+  disclosure and consent before transmitting user data, a secure connection, and Limited Use
+  [S11]; turning on sync is that consent screen. Firefox's data categories are
+  `personallyIdentifyingInfo`, `healthInfo`, `financialAndPaymentInfo`, `authenticationInfo`,
+  `personalCommunications`, `locationInfo`, `browsingActivity`, `websiteContent`,
+  `websiteActivity`, `searchTerms`, `bookmarksInfo`, plus optional-only
+  `technicalAndInteraction` [S12]. None names learning progress cleanly; which one an opt-in sync
+  declares belongs to the existing `firefox-identity-ruling`. AMO also requires that add-ons
+  "limit data transmission to what is necessary for functionality" and that reviewers get test
+  credentials when an account is needed [S13].
+
+## 6. Browser sync storage as an interim
+
+What `storage.sync` offers, from current docs:
+
+| | Chrome | Firefox |
+|---|---|---|
+| Quota | 102,400 bytes total, 8,192 per item, 512 items; 1,800 writes/hour, 120/minute [S1] | Same byte and item quotas, enforced since Firefox 79 [S3] |
+| When sync is off | "behaves like storage.local" [S1] | Desktop needs "Add-ons" ticked in Sync preferences [S3] |
+| Reach | "every Chrome browser that the user is logged into" [S1]; other Chromium browsers unverified | Firefox desktop instances only; "Firefox for Android does not synchronize data with the user's account" [S3] |
+| Conflicts | Not documented | Server wins per key; MDN suggests merging in `onChanged` [S3] |
+| Who can read it | Google, unless the user set a sync passphrase [S2]; content scripts unless `setAccessLevel` is applied [S1] | Mozilla says Firefox Sync is end-to-end encrypted by default [S10]; whether that covers add-on data is not stated; content scripts can read it (no `setAccessLevel`) [S5] |
+
+Assessment:
+
+- **It cannot be the cross-browser answer.** Chrome data never reaches Firefox and vice versa,
+  and Firefox for Android does not sync at all. Ted's Firefox direction rules it out as the
+  primary path.
+- **It fits only small decks.** The 226 bundled cards are about 42 KB of JSON, which fits after
+  sharding into items under 8 KB. A full 5,000-card deck (about 0.9 MB) does not, and neither does
+  a log of review operations.
+- **It still needs the merge contract.** Per-key "server wins" means two machines that both
+  reviewed would overwrite each other unless the records are the same op-based design as above.
+  An interim would therefore build most of stage 1 anyway, and then a second transport.
+- **It weakens the trust story** relative to the proposal: Google can read it without a sync
+  passphrase.
+
+Recommendation: no `storage.sync` interim. If a free, account-free, Chrome-only path is later
+wanted, the op log could gain a second transport adapter for small decks; that is a later option,
+not part of this plan. Until stage 2 ships, the learning backup remains the supported way to move
+progress, as today.
+
+## Pronunciation
+
+Ted's direction: paid AI-synthesized pronunciation, an explicit user action, not only OS voices.
+The open ditz `audio-local-voices-ruling` (local Web Speech voices) and `speech-voicefor` remain
+useful as the free baseline; this section is about synthesis.
+
+### What a request contains
+
+One word or short phrase, its language, a voice. Never the page sentence, URL or host. The word
+comes from the catalog or the user's personal entry, so it is already bounded by the same
+validators (`validForm`, pack forms).
+
+### Cost per word is negligible; caching decides the rest
+
+| Option | Price (checked 2026-11-02) | Caching | Disclosure | Data handling | Spanish |
+|---|---|---|---|---|---|
+| Gemini API TTS, `gemini-3.8-flash-lite-tts` | $0.50 / 1M text tokens and $6.00 / 1M audio tokens through 2026-12-31; $1.00 and $12.00 from 2027-01-01. Free tier: free of charge [S19]. 25 audio tokens per second [S19] | No audio-specific clause found; "You're responsible for your use of generated content, and for the use of that content by anyone you share it with" [S15] | None found [S37] | Free tier: used to improve Google products; paid: not [S19] | Yes [S37] |
+| Amazon Polly | $4 Standard, $16 Neural, $30 Generative per 1M characters [S33] | "You can cache and replay Amazon Polly's generated speech at no additional cost" [S32] | None found | May store and use text to improve the service, with an org-level opt-out [S32] | Not verified |
+| OpenAI `gpt-4o-mini-tts` | $0.60 / 1M text tokens, $12.00 / 1M audio tokens [S29] | Customer owns Output (OSA 4.1) [S17] | Required: "clear disclosure to end users that the TTS voice they are hearing is AI-generated" [S31] | Not used for training by default (OSA 4.2) [S17] | Yes; voices tuned for English [S31] |
+| Google Cloud TTS | About $4–$30 per 1M characters by voice tier (from official localized pages; English table did not load) [S34] | No clause found in the part of the terms read | None found | Generated Output is Customer Data [S40] | Not verified |
+| Azure AI Speech | Not verified | No clause found | Required by Microsoft's AI Code of Conduct [S35] | Not verified | Not verified |
+| ElevenLabs | About $40–$80 per 1M characters [S36] | Paid users keep rights in Output [S36] | None required | Used to improve, with opt-out [S36] | Not verified |
+| Self-hosted open weights: Kokoro | Server CPU only | Apache-2.0 code and weights: no provider terms on reuse [S39] | Proposal: label anyway | Nothing leaves the operator | Yes (one female, two male voices) [S39] |
+| Self-hosted open weights: Piper | Server CPU only | Code GPL-3.0 (compatible with an AGPL service); **voice licences vary**: es_ES davefx CC0, es_MX ald Unlicense, es_ES sharvard CC-BY 3.0, es_AR daniela CC-BY-SA 4.0 [S38] | Proposal: label anyway | Nothing leaves the operator | es_ES, es_MX, es_AR [S38] |
+
+Arithmetic, not a price proposal: a one-second word is about 25 audio tokens, so on Gemini
+Flash-Lite TTS it costs about $0.00015 now and $0.0003 from 2027. Synthesising 10,000 distinct
+words once is about $1.50–$3. Polly Neural at about 8 characters a word is similar. With a cache,
+synthesis is a rounding error; storage (a short clip is a few KB) and the operator's time are the
+real costs.
+
+### Shapes
+
+- **BYOK (free, no server).** The extension calls Gemini TTS with the user's own key, through the
+  existing worker model queue, and caches the clip in the extension's own storage keyed by
+  `(model, voice, language, text)`. Same terms position as weaving today (the "not for consumer
+  use" and 18+ clauses, free-tier data use) [S15]. No new trust boundary.
+- **Hosted (paid).** `POST /v1/speak {language, text, voice}` on the same server, authorised by the
+  device token and metered per account. Unlike sync, this request is plaintext to the server: it
+  must synthesise. Proposal: a shared server-side cache only for words in a published catalog
+  (bundled and published packs), so a popular word is synthesised once for everyone; personal-entry
+  text is synthesised, returned, cached on the device, and not retained on the server. No
+  account-to-word log beyond the meter count.
+- **Pre-generated catalog audio.** The bundled 226 words could be synthesised once and served as
+  static files. Whether those files may ship inside an AGPL extension depends on the provider: an
+  Apache-2.0 or CC0 voice is clean; a provider's output rights are not established by anything read
+  here.
+
+Recommendation for the hosted engine, for Ted to rule on: start from self-hosted open weights
+(Kokoro, or Piper with CC0/Unlicense voices only) because they carry no provider terms on caching
+or redistribution and keep the requested words on the operator's machine; compare quality against
+Gemini Flash-Lite TTS with a native-speaker listen before choosing. Label every synthesised clip
+"AI voice" whatever the provider: OpenAI and Microsoft require it, and it costs nothing elsewhere.
+This document does not propose a daily cap, a price or a free allowance; those are product limits.
+
+## Provider resale
+
+Ted's direction: eventually resell provider tokens, a hosted no-key tier. Feasibility and
+authorization are separate.
+
+**Feasible:** the same server gains `POST /v1/weave`, carrying the passage and catalog the worker
+sends to Gemini today, and calls a model on the operator's billed account. The extension's existing
+validators (unlisted words, gloss mismatch, no HTML insertion) apply unchanged to the reply.
+
+**Changes the privacy model:** for hosted-tier users, page text then reaches a Lang Weave server.
+The current honest claim, "no Lang Weave server ever sees the reading" (ROADMAP positioning), stops
+being true for them. It must be a separate, explicit opt-in with its own disclosure, never implied
+by turning on sync, and the passage must not be stored or logged beyond the request.
+
+**What the terms say (authorization is Ted's, with counsel where needed):**
+
+| Provider | Building a product for end users | Reselling access |
+|---|---|---|
+| Gemini API | Services are for "professional or business purposes, not for consumer use"; users must be 18+; only paid services for users in the EEA, UK and Switzerland; paid-tier prompts not used to improve products [S15] | The Additional Terms have no explicit resale clause. Google's general APIs terms bar "Sublicense an API for use by a third party" and an API client "that functions substantially the same as the APIs" offered to third parties [S16]; whether those terms govern the Gemini API was not verified |
+| Vertex AI | Explicit "Customer Application" and "End Users" concepts; no generative AI use in services "directed towards or ... likely to be accessed by individuals under the age of 18" [S40] | Not checked beyond that |
+| OpenAI | Explicit right "to make Customer Applications available to End Users" (OSA 2.2) [S17] | "Customer may not resell or lease access to its Account or any End User Account" (3.1); no buying, selling or transferring API keys (3.3(g)) [S17] |
+| Anthropic | May "power products and services Customer makes available to its own customers and end users" (A.1) [S18] | May not "resell the Services except as expressly approved by Anthropic" (D.4(a)) [S18] |
+
+Reading, not legal advice: every provider checked allows a product that uses the model to deliver
+its own feature, and none allows selling raw access. A `/v1/weave` endpoint that only performs Lang
+Weave's own prompt and returns validated swaps is the product shape; a general model proxy is the
+resale shape, and is not proposed. "Resell provider tokens" should be understood, and marketed, as
+selling the feature with model costs included.
+
+Economics: market.md estimated $2–$5 a month for a typical reader and $45–$100 for a heavy reader
+at the current 1,000-call cap on Flash-Lite. Current list prices per 1M tokens: Gemini 3.5
+Flash-Lite $0.30 in / $2.50 out [S19]; OpenAI gpt-5-nano $0.05 / $0.40 [S29]; Anthropic Claude
+Haiku 5.5 $0.10 / $0.50 (prompts up to 100k tokens) [S30]. A cheaper model only counts once it
+passes the swap-quality gates; none has been tested here. The ROADMAP's existing ordering (hosted
+tier only after retention is proven) is unchanged.
+
+## 7. Staged plan
+
+Each stage ends with something testable. Stages 0–2 need no account, money or outward act.
+
+| Stage | What | Evidence that it is done | Needs |
+|---|---|---|---|
+| 0a. Secret store | One worker-only interface for secrets (Gemini key, device token, account key). Chrome: today's `storage.local` after `setAccessLevel`. Firefox: extension-origin IndexedDB with a non-extractable `CryptoKey`. Fails closed elsewhere | Real-Firefox test (probe harness) that a content script cannot read any secret; existing key-isolation tests unchanged | Shared with ditz `firefox-support` |
+| 0b. Op reducer | Pure `sync-ops.js`: op validation (reusing `portability.js` validators), fold for `introduce`, `rate`, `claim`, `encounter`, `reset` | Equivalence test: folding the ops of a recorded session equals the state the current `rateReview`/`claimKnown`/`wordReset` path wrote. Convergence test: any delivery order with duplicates converges. Mutation-checked | Nothing |
+| 1. Tracer bullet | Section 8 | Section 8 | Nothing |
+| 2. Self-hostable server and opt-in sync, development builds only | Server per 5.1; sync settings page (server URL, turn on, recovery code, pair device, remove device); outbox and pull loop on the existing alarm; snapshots | Two real Chrome profiles (throwaway, never Ted's) converge through a local server; offline review on both then reconnect; reset-vs-review case; old-format refusal | E2EE/recovery ruling |
+| 3. Full scope | Personal entries, packs, preferences; first-enable merge of an existing install (3.6); Firefox once 0a lands | Merge of two independently used installs shows the per-language choice and loses no card; Firefox profile converges with Chrome profile | Stage 2 |
+| 4. Hosted paid sync | Same server operated by Lang Weave; billing at the edge; Chrome and Firefox disclosures; AGPL source link | Ted's go on price, processor, policy text and launch | Money and outward acts |
+| P1. BYOK pronunciation | Speaker button on explicit action in review and on the cue; Gemini TTS via the user's key; local clip cache; "AI voice" label | Mocked-model tests; one real check only when authorized | Pronunciation UI ruling |
+| P2. Hosted pronunciation | `/v1/speak` with the catalog cache | Native-speaker listen of the chosen engine; cache-hit test | Engine ruling, stage 2 server |
+| R. Hosted no-key tier | `/v1/weave`, separate opt-in and disclosure | Swap-quality gates on the chosen model; terms review | Retention evidence, terms ruling, money |
+
+## 8. Tracer bullet (suggested, not built)
+
+The thinnest slice through every new boundary:
+
+- `extension/src/sync-ops.js`: op envelope, `rate`/`introduce`/`reset` for the bundled Spanish
+  scope only, and `fold(base, ops)` that calls the existing `scheduleCard` path, not a copy of it.
+- `extension/src/sync-crypto.js`: AES-GCM seal/open of a batch with the envelope header as
+  additional data (WebCrypto only).
+- `server/`: an AGPL push/pull server, in-memory store behind the SQLite schema of 5.1, with the
+  unique `(account, device, deviceSeq)` rule. Not deployed anywhere.
+- `extension/test/sync-tracer.test.js`: two simulated devices, each rating offline, pushing
+  through the server (in-process), pulling, and ending with identical cards; a duplicated push; a
+  reset racing a stale rating; a tampered envelope header rejected by decryption.
+
+Acceptance for the tracer: the convergence test goes red when the fold orders by wall clock
+instead of `serverSeq`, when `deviceSeq` de-duplication is removed, and when the epoch check on
+`reset` is removed (three mutation checks). Nothing ships in the extension zip; no UI.
+
+Necessity check: what fails if we skip the tracer and build stage 2 directly? The merge semantics
+would be discovered inside UI and network code, where a convergence bug looks like flaky sync.
+The tracer is the cheapest place for those three bugs to show up.
+
+## Open decisions
+
+Only the ones that block a stage. Root files the rulings; recommendations are this lane's.
+
+1. **Encryption and recovery (blocks stage 2).** End-to-end encryption, where losing every device
+   and the recovery code loses the synced copy, versus server-readable storage with
+   operator-assisted recovery. Recommendation: end-to-end, with the recovery code shown at
+   enable time and local backups still available.
+2. **Hosted pronunciation engine (blocks P2).** Self-hosted open weights versus a provider API.
+   Recommendation: open weights first, chosen by a native-speaker listen against Gemini Flash-Lite
+   TTS.
+3. **Payment processor and price (blocks stage 4).** Merchant of record (about 5% + 50¢) versus
+   Stripe with self-managed tax. No recommendation on price; this is money.
+4. **Hosted no-key tier (blocks R).** The page-text privacy change and the terms reading in
+   [Provider resale](#provider-resale). Recommendation: only the product-shaped endpoint, separate
+   opt-in, after retention is proven.
+
+Already open elsewhere and affected: `firefox-identity-ruling` (data categories once sync
+exists), `audio-local-voices-ruling` (free local-voice baseline beside paid synthesis), and
+`hosted-tier-and-donations-ruling` (Ted has now directed no donations).
+
+## Sources
+
+All checked 2026-11-02. Research workers read most pages through a summarising fetch tool, so
+short quotes are as that tool returned them; the Gemini TTS prices, the Polly caching sentence
+and the Bugzilla 1724754 status were re-fetched and confirmed verbatim. The OpenAI agreement and
+the AGPL text were read in full with curl.
+
+- [S1] Chrome `chrome.storage` reference: https://developer.chrome.com/docs/extensions/reference/api/storage
+- [S2] Chrome Help, sync and passphrase: https://support.google.com/chrome/answer/165139
+- [S3] MDN `storage.sync`: https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/sync
+- [S4] MDN `storage.session`: https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/session
+- [S5] Bugzilla 1724754 (setAccessLevel; NEW, no target): https://bugzilla.mozilla.org/show_bug.cgi?id=1724754 ; browser-compat-data `webextensions/api/storage.json`: https://github.com/mdn/browser-compat-data
+- [S6] Chrome storage and cookies: https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies
+- [S7] MDN `background` manifest key: https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background
+- [S8] Bugzilla 1427986 (extension IndexedDB in private browsing): https://bugzilla.mozilla.org/show_bug.cgi?id=1427986
+- [S9] MDN `CryptoKey`: https://developer.mozilla.org/en-US/docs/Web/API/CryptoKey
+- [S10] Mozilla Hacks, Firefox Sync privacy (2018): https://hacks.mozilla.org/2018/11/firefox-sync-privacy/
+- [S11] Chrome Web Store user data FAQ: https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
+- [S12] Firefox built-in data consent: https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/
+- [S13] AMO add-on policies: https://extensionworkshop.com/documentation/publish/add-on-policies/
+- [S14] Identity APIs: https://developer.chrome.com/docs/extensions/reference/api/identity ; https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/identity (Firefox for Android lacks `launchWebAuthFlow`; the pairing design does not need it)
+- [S15] Gemini API Additional Terms: https://aistudio.google.com/docs/terms
+- [S16] Google APIs Terms of Service: https://developers.google.com/terms
+- [S17] OpenAI Services Agreement (ONLINE v.010126): https://cdn.openai.com/osa/openai-services-agreement.pdf
+- [S18] Anthropic Commercial Terms: https://www.anthropic.com/legal/commercial-terms
+- [S19] Gemini API pricing: https://aistudio.google.com/docs/pricing
+- [S20] GNU AGPL-3.0 text: https://www.gnu.org/licenses/agpl-3.0.txt
+- [S21] Anki sync server: https://docs.ankiweb.net/sync-server.html
+- [S22] Etebase server: https://github.com/etesync/server
+- [S23] automerge-repo-sync-server: https://github.com/automerge/automerge-repo-sync-server
+- [S24] Stripe pricing: https://stripe.com/pricing
+- [S25] Paddle pricing: https://www.paddle.com/pricing
+- [S26] Lemon Squeezy pricing: https://www.lemonsqueezy.com/pricing
+- [S27] Fly.io pricing: https://docs.fly.io/about/pricing
+- [S28] Hetzner Cloud: https://www.hetzner.com/cloud/
+- [S29] OpenAI API pricing: https://developers.openai.com/api/docs/pricing
+- [S30] Anthropic pricing: https://platform.claude.com/docs/en/about-claude/pricing
+- [S31] OpenAI text-to-speech guide: https://developers.openai.com/api/docs/guides/text-to-speech
+- [S32] Amazon Polly FAQ: https://aws.amazon.com/polly/faqs/
+- [S33] Amazon Polly pricing: https://aws.amazon.com/polly/pricing/
+- [S34] Google Cloud Text-to-Speech pricing: https://cloud.google.com/text-to-speech/pricing
+- [S35] Microsoft AI Code of Conduct: https://learn.microsoft.com/en-us/legal/ai-code-of-conduct
+- [S36] ElevenLabs API pricing and terms: https://elevenlabs.io/pricing/api ; https://elevenlabs.io/terms-of-use
+- [S37] Gemini speech generation: https://aistudio.google.com/docs/speech-generation
+- [S38] Piper voices: https://huggingface.co/rhasspy/piper-voices ; code https://github.com/OHF-Voice/piper1-gpl
+- [S39] Kokoro: https://github.com/hexgrad/kokoro ; https://huggingface.co/hexgrad/Kokoro-82M
+- [S40] Google Cloud Service Specific Terms: https://cloud.google.com/terms/service-terms
+
+### Not verified
+
+`storage.sync` behaviour in Edge, Brave, Vivaldi and Opera; whether Chrome's sync passphrase or
+Firefox Sync's encryption covers extension data; a primary statement on extension-origin
+IndexedDB versus content scripts in Firefox; a non-extractable `CryptoKey` in IndexedDB inside a
+Chrome extension service worker, end to end; whether the Google APIs terms govern the Gemini API;
+OpenAI usage policies (fetch refused) and API retention defaults; Spanish locale lists for Polly,
+Azure, Google Cloud TTS and ElevenLabs; Azure prices; Google Cloud TTS caching terms (only part
+of the terms read); output-rights terms for shipping provider-generated audio in the extension.
