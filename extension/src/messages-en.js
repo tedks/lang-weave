@@ -190,7 +190,7 @@ export const EN = Object.freeze({
   welcome_open_settings: "Open settings",
   welcome_level_note: "$1 controls which bundled words can appear; Beginner is a good start.",
   welcome_level_term: "Reading level",
-  welcome_gradual_note: "$1 introduces words from your reading and schedules review. We recommend turning it on at 5 new words a day in Settings.",
+  welcome_gradual_note: "$1 is on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. Settings shows whether it is on for you, changes the pace or turns it off.",
   welcome_gradual_term: "Gradual learning",
   welcome_chose_all: "All permitted sites selected. Sensitive sites still start off.",
   welcome_chose_only: "Only sites you turn on selected. Open the popup on a site to allow it.",

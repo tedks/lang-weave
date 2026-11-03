@@ -57,7 +57,10 @@ try {
     };
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
       await new Promise((done) => setTimeout(done, 10));
-    await chrome.storage.local.set({ apiKey: 'synthetic-gloss-key', consentShown: true });
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    if (!settings) throw new Error('worker never wrote its startup settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-gloss-key', consentShown: true });
   });
   const fixture = (dark = false) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
     <title>Gloss fixture</title><style>
