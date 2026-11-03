@@ -1,0 +1,27 @@
+id: hosted-weave-privacy-terms-ruling
+title: Approve the hosted no-key privacy boundary and provider terms
+desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+  spend, account creation, deployment or public launch authorized by this issue. Decides:
+  Ted.
+
+
+  Options: retain BYOK-only weaving for now; or add explicit opt-in to a Lang Weave
+  feature endpoint that sends page text through the service under an approved provider
+  contract. Recommendation: keep BYOK while retention/cost evidence is gathered; later
+  separate consent from sync and select a provider whose terms permit the actual product.
+  No raw API/key resale proposed. Gemini applicability questions remain unresolved;
+  specialist review if needed. Blocks stageR, not encrypted progress sync. Existing
+  store-provider-region-ruling remains distinct.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-03T05:16:24-00:00
+references: []
+log_events:
+- time: 2026-11-03T05:16:24-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
