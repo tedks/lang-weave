@@ -11,7 +11,7 @@
         let pkgs = import nixpkgs { inherit system; };
         in {
           default = pkgs.mkShell {
-            packages = [ pkgs.bazel_8 pkgs.buildifier ];
+            packages = [ pkgs.bazel_8 pkgs.buildifier pkgs.python3 pkgs.git ];
           };
         });
     };

@@ -14,6 +14,10 @@ out of the published payload. The package-owned runner label is exported by
 `//build_defs`; the packager source is declared under `//extension/scripts`.
 The existing full package suite separately checks the dev and Store ZIP entry
 sets against the real extension tree.
+`//:version_bump_test` runs the existing Python release classifier tests under
+the pinned Nix shell and checks that BUILD metadata is exempt while changes
+to the package script still require a version bump. The CTO chose 0.12.25
+for this onboarding change; it is a source version only, not a Store release.
 
 This first target is Linux x64 only. The test carries Bazel's Linux sandbox
 network block. Remote execution must separately prove worker architecture,
@@ -27,5 +31,5 @@ runfiles tree into the writable test directory before Bun starts, so Bun
 cannot follow an input symlink back into the source checkout. Before the
 documented test can run
 on a fresh checkout, generate and review `MODULE.bazel.lock` with
-`nix develop --command bazel test //:fsrs_test //:package_boundary_test --lockfile_mode=update`, then commit it;
+`nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_bump_test --lockfile_mode=update`, then commit it;
 subsequent runs use the committed lock under error mode.

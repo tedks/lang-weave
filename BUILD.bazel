@@ -35,3 +35,18 @@ sh_test(
     ],
     visibility = ["//visibility:public"],
 )
+
+sh_test(
+    name = "version_bump_test",
+    srcs = ["//build_defs:run_version_bump_test.sh"],
+    data = [
+        ".claude-plugin/marketplace.json",
+        ".claude-plugin/plugin.json",
+        "extension/manifest.json",
+        "extension/package.json",
+        "tests/check_version_bump.py",
+        "tests/test_version_bump.py",
+    ],
+    tags = ["block-network"],
+    visibility = ["//visibility:public"],
+)
