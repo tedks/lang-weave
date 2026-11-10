@@ -3,6 +3,8 @@ module(
     version = "0.12.24",
 )
 
+bazel_dep(name = "rules_shell", version = "0.8.0")
+
 bun_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 bun_archive(
