@@ -1,1 +1,2 @@
 common --lockfile_mode=error
+common --repo_env=DO_NOT_TRACK=1
