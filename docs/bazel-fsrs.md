@@ -15,7 +15,10 @@ standalone `bun install --frozen-lockfile` and `bun test` workflow remains
 independent and still covers the broader extension.
 
 The binary needs an AVX2-capable x86_64 worker and a glibc-compatible runtime.
-The test also expects Bazel's runfiles tree. Before the documented test can run
+The runner copies its three declared source and fixture inputs from Bazel's
+runfiles tree into the writable test directory before Bun starts, so Bun
+cannot follow an input symlink back into the source checkout. Before the
+documented test can run
 on a fresh checkout, generate and review `MODULE.bazel.lock` with
 `nix develop --command bazel mod deps --lockfile_mode=update`, then commit it;
 subsequent runs use the committed lock under error mode.
