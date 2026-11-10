@@ -19,7 +19,8 @@ test('the extension ZIP omits Bazel package metadata', () => {
   put('extension/src/background.js', 'export const ready = true;\n');
   put('extension/src/BUILD.bazel', 'filegroup(name = "background")\n');
   put('extension/src/nested/BUILD', 'exports_files([])\n');
+  put('extension/src/BUILD/keep.js', 'export const keep = true;\n');
   const result = packageExtension({ extensionDir, licenseDir: root, outDir: join(root, 'out') });
-  expect(result.files).toEqual(['LICENSE', 'LICENSE-MIT', 'NOTICE', 'manifest.json', 'src/background.js']);
+  expect(result.files).toEqual(['LICENSE', 'LICENSE-MIT', 'NOTICE', 'manifest.json', 'src/BUILD/keep.js', 'src/background.js']);
   expect(readFileSync(result.path).length).toBeGreaterThan(0);
 });

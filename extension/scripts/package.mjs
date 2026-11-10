@@ -111,11 +111,14 @@ function walk(absDir, relDir, out) {
   const dirents = readdirSync(absDir, { withFileTypes: true });
   dirents.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   for (const d of dirents) {
-    if (d.name.startsWith('.') || d.name === 'BUILD' || d.name === 'BUILD.bazel') continue;
+    if (d.name.startsWith('.')) continue;
     const rel = `${relDir}/${d.name}`;
     const abs = join(absDir, d.name);
     if (d.isDirectory()) walk(abs, rel, out);
-    else if (d.isFile()) out.push({ name: rel, data: readFileSync(abs) });
+    else if (d.isFile()) {
+      if (d.name === 'BUILD' || d.name === 'BUILD.bazel') continue;
+      out.push({ name: rel, data: readFileSync(abs) });
+    }
     else throw new PackageError(`unsupported file type (symlink or special file) in payload: ${rel}`);
   }
 }

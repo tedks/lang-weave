@@ -90,7 +90,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
     if (existsSync(join(EXT, root))) expected.push(...walkRel(EXT, root));
   }
   const names = entries.map((e) => e.name);
-  expect(names).toEqual([...expected.filter((n) => !n.split('/').some((s) => s.startsWith('.') || s === 'BUILD' || s === 'BUILD.bazel'))].sort());
+  expect(names).toEqual([...expected.filter((n) => !n.split('/').some((s) => s.startsWith('.')) && !['BUILD', 'BUILD.bazel'].includes(n.split('/').at(-1)))].sort());
   expect(names).toEqual([...names].sort());
 
   for (const e of entries) {
@@ -107,7 +107,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
   for (const n of names) {
     expect(n).not.toMatch(/^(test|e2e|node_modules|scripts|dist)\//);
     expect(n).not.toMatch(/^(package\.json|bun\.lock)$/);
-    expect(n.split('/').some((s) => s === 'BUILD' || s === 'BUILD.bazel')).toBe(false);
+    expect(['BUILD', 'BUILD.bazel']).not.toContain(n.split('/').at(-1));
     expect(n.split('/').some((s) => s.startsWith('.'))).toBe(false);
   }
 });
