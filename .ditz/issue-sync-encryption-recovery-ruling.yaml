@@ -9,7 +9,17 @@ desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implemen
   operator-assisted recovery. Recommendation: end-to-end encryption, explicit recovery-code
   confirmation and independent local backups. Tradeoff: loss of all devices AND the
   recovery code loses the server copy. Blocks stage2 product/security design, not
-  pure merge experiments.'
+  pure merge experiments.
+
+
+  TED-DIRECTION-20261110-NO-E2EE
+
+  Ted: "we don''t need end to end encryption I think." Product direction: E2EE is
+  not a requirement for initial sync. Proceed with a simpler server-readable design;
+  normal transport security, authentication, account isolation and recovery still
+  need engineering design and tests. This supersedes the E2EE recommendation in PR47;
+  that memo remains historical research, not a binding protocol. No deployment, spend
+  or collection of page text is authorized by this ruling.'
 type: task
 component: open-questions
 release:
@@ -22,4 +32,8 @@ log_events:
 - time: 2026-11-03T05:16:24-00:00
   who: Ted Smith
   what: created
+  comment: ""
+- time: 2026-11-10T08:07:57-00:00
+  who: Ted Smith
+  what: updated description
   comment: ""
