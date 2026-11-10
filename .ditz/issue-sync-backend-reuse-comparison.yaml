@@ -1,5 +1,5 @@
 id: sync-backend-reuse-comparison
-title: Compare existing E2EE sync libraries before a custom protocol
+title: Compare existing authenticated sync/storage components before a custom backend
 desc: 'Before production protocol selection, compare Etebase and other suitable maintained
   components against an explicit threat model, browser lifecycle, account/pairing/recovery,
   migration, licensing and test requirements. Deployment examples and dependency count
@@ -35,4 +35,8 @@ log_events:
 - time: 2026-11-10T08:07:58-00:00
   who: Ted Smith
   what: updated description
+  comment: ""
+- time: 2026-11-10T08:08:41-00:00
+  who: Ted Smith
+  what: changed title
   comment: ""
