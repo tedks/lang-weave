@@ -15,8 +15,10 @@ out of the published payload. The package-owned runner label is exported by
 The existing full package suite separately checks the dev and Store ZIP entry
 sets against the real extension tree.
 `//:version_classifier_test` runs two self-contained Python classifier fixtures
-under the pinned Nix shell. They check that BUILD metadata is exempt while
-changes to the package script still require a version bump. This target does
+under the pinned Nix shell. The runner copies its two declared Python inputs
+into `$TEST_TMPDIR` and requires Nix-provided Python and Git. The fixtures
+check that BUILD metadata is exempt while package script changes still require
+a version bump. This target does
 not scan the real extension source or replace the full release check. The CTO
 chose 0.12.25 for this onboarding change; it is a source version only, not a
 Store release.
