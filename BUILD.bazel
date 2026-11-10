@@ -37,13 +37,9 @@ sh_test(
 )
 
 sh_test(
-    name = "version_bump_test",
-    srcs = ["//build_defs:run_version_bump_test.sh"],
+    name = "version_classifier_test",
+    srcs = ["//build_defs:run_version_classifier_test.sh"],
     data = [
-        ".claude-plugin/marketplace.json",
-        ".claude-plugin/plugin.json",
-        "extension/manifest.json",
-        "extension/package.json",
         "tests/check_version_bump.py",
         "tests/test_version_bump.py",
     ],
