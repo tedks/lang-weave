@@ -1,11 +1,24 @@
 id: sync-backend-reuse-comparison
 title: Compare existing E2EE sync libraries before a custom protocol
-desc: Before production protocol selection, compare Etebase and other suitable maintained
+desc: 'Before production protocol selection, compare Etebase and other suitable maintained
   components against an explicit threat model, browser lifecycle, account/pairing/recovery,
   migration, licensing and test requirements. Deployment examples and dependency count
   alone are insufficient rejection criteria. Include an exact-version proof of fit
   or concrete blockers. No new credentials, accounts, spend or deployment. Root engineering
   decision; no implementation dispatch from filing.
+
+  Compare ordinary authenticated server-readable storage/sync components first; E2EE
+  support is optional, not a selection requirement.
+
+
+  TED-DIRECTION-20261110-NO-E2EE
+
+  Ted: "we don''t need end to end encryption I think." Product direction: E2EE is
+  not a requirement for initial sync. Proceed with a simpler server-readable design;
+  normal transport security, authentication, account isolation and recovery still
+  need engineering design and tests. This supersedes the E2EE recommendation in PR47;
+  that memo remains historical research, not a binding protocol. No deployment, spend
+  or collection of page text is authorized by this ruling.'
 type: task
 component: default
 release:
@@ -18,4 +31,8 @@ log_events:
 - time: 2026-11-03T05:16:45-00:00
   who: Ted Smith
   what: created
+  comment: ""
+- time: 2026-11-10T08:07:58-00:00
+  who: Ted Smith
+  what: updated description
   comment: ""
