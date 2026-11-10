@@ -4,11 +4,28 @@ package(default_visibility = ["//visibility:private"])
 
 sh_test(
     name = "fsrs_test",
-    srcs = ["build_defs/run_fsrs_test.sh"],
+    srcs = ["//build_defs:run_fsrs_test.sh"],
     args = ["$(rlocationpath @bun_linux_x64//:bun)"],
     data = [
         "//extension/src:fsrs",
         "//extension/test:fsrs_cases",
+        "@bun_linux_x64//:bun",
+    ],
+    tags = ["block-network"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "package_boundary_test",
+    srcs = ["//build_defs:run_package_boundary_test.sh"],
+    args = ["$(rlocationpath @bun_linux_x64//:bun)"],
+    data = [
+        "//build_defs:package_boundary_test.mjs",
+        "//extension/scripts:packager",
         "@bun_linux_x64//:bun",
     ],
     tags = ["block-network"],

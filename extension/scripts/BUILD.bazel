@@ -1,0 +1,10 @@
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "packager",
+    srcs = [
+        "content-bundle.mjs",
+        "package.mjs",
+    ],
+    visibility = ["//:__pkg__"],
+)

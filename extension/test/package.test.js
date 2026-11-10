@@ -90,7 +90,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
     if (existsSync(join(EXT, root))) expected.push(...walkRel(EXT, root));
   }
   const names = entries.map((e) => e.name);
-  expect(names).toEqual([...expected.filter((n) => !n.split('/').some((s) => s.startsWith('.')))].sort());
+  expect(names).toEqual([...expected.filter((n) => !n.split('/').some((s) => s.startsWith('.') || s === 'BUILD' || s === 'BUILD.bazel'))].sort());
   expect(names).toEqual([...names].sort());
 
   for (const e of entries) {
@@ -107,6 +107,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
   for (const n of names) {
     expect(n).not.toMatch(/^(test|e2e|node_modules|scripts|dist)\//);
     expect(n).not.toMatch(/^(package\.json|bun\.lock)$/);
+    expect(n.split('/').some((s) => s === 'BUILD' || s === 'BUILD.bazel')).toBe(false);
     expect(n.split('/').some((s) => s.startsWith('.'))).toBe(false);
   }
 });
@@ -190,8 +191,8 @@ test('package: stored fallback and non-ascii names round-trip', () => {
   for (const e of entries) expect(e.crc).toBe(Bun.hash.crc32(e.data));
 });
 
-test('package: dotfiles and unlisted directories never ship', () => {
-  const { root, ext } = fixture({ 'src/.secret.js': 'x', 'src/.git/config': 'x', 'src/a/.env': 'x', 'test/t.js': 'x', 'scripts/p.mjs': 'x', 'package.json': '{}', 'icons/.DS_Store': 'x', 'icons/i.png': 'png' });
+test('package: dotfiles, Bazel metadata and unlisted directories never ship', () => {
+  const { root, ext } = fixture({ 'src/.secret.js': 'x', 'src/.git/config': 'x', 'src/a/.env': 'x', 'src/BUILD.bazel': 'x', 'src/a/BUILD': 'x', 'test/t.js': 'x', 'scripts/p.mjs': 'x', 'package.json': '{}', 'icons/.DS_Store': 'x', 'icons/i.png': 'png' });
   const r = packageExtension({ extensionDir: ext, licenseDir: root, outDir: fresh('out') });
   expect(readZip(readFileSync(r.path)).map((e) => e.name)).toEqual(['LICENSE', 'LICENSE-MIT', 'NOTICE', 'icons/i.png', 'manifest.json', 'src/background.js', 'src/popup.html', 'src/popup.js']);
 });

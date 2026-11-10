@@ -111,7 +111,7 @@ function walk(absDir, relDir, out) {
   const dirents = readdirSync(absDir, { withFileTypes: true });
   dirents.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   for (const d of dirents) {
-    if (d.name.startsWith('.')) continue;
+    if (d.name.startsWith('.') || d.name === 'BUILD' || d.name === 'BUILD.bazel') continue;
     const rel = `${relDir}/${d.name}`;
     const abs = join(absDir, d.name);
     if (d.isDirectory()) walk(abs, rel, out);
