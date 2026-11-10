@@ -1,0 +1,14 @@
+package(default_visibility = ["//visibility:private"])
+
+sh_test(
+    name = "fsrs_test",
+    srcs = ["build_defs/run_fsrs_test.sh"],
+    args = ["$(rlocationpath @bun_linux_x64//:bun)"],
+    data = [
+        "//extension/src:fsrs",
+        "//extension/test:fsrs_cases",
+        "@bun_linux_x64//:bun",
+    ],
+    tags = ["block-network"],
+    visibility = ["//visibility:public"],
+)

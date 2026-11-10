@@ -1,4 +1,5 @@
 node_modules/
+/bazel-*
 __pycache__/
 *.pyc
 .env
