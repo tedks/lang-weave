@@ -8,23 +8,37 @@ desc: 'Source: docs/research/sync-service.md sections 3, 7 (0b, 1) and 8, PR #47
 
   Scope: pure extension/src/sync-ops.js (op validation reusing exported portability.js
   validators plus guessFirst; generations; supersession records; fold calling an exported
-  review.js scheduleCard), sync-crypto.js (AES-GCM, client header as AAD), an in-process
-  AGPL server/ with the max_device_seq rule, and extension/test/sync-tracer.test.js.
+  review.js scheduleCard), an in-process AGPL server/ with the max_device_seq rule,
+  and extension/test/sync-tracer.test.js.
 
 
   Acceptance: equivalence with the current rateReview/finishInline/claimKnown/wordKnown/wordReset
   writes for a single-device session; two-device convergence over any server order
   with duplicates, including both devices rating the same due card Easy inline, duplicate
-  push after a lost ack, reset vs stale rating in both orders, tampered header rejected.
-  Mutation checks: wall-clock order, removed max_device_seq dedup, removed generation
-  check each turn the test red. bun test green; nothing in the Store zip.
+  push after a lost ack, reset vs stale rating in both orders. Mutation checks: wall-clock
+  order, removed max_device_seq dedup, removed generation check each turn the test
+  red. bun test green; nothing in the Store zip.
 
 
   Root scope guard: initial reducer/convergence work must not commit the project to
   the custom account, pairing, recovery or encryption protocol. Existing-library/backend
   comparison is required before production protocol selection. The memo is exploratory
   research, not an approved implementation spec. No new code phase dispatched at research
-  acceptance.'
+  acceptance.
+
+  Initial bounded experiment covers learning-state merge semantics only. Custom encryption,
+  key pairing and recovery-code implementation are removed from this proposed tracer
+  scope.
+
+
+  TED-DIRECTION-20261110-NO-E2EE
+
+  Ted: "we don''t need end to end encryption I think." Product direction: E2EE is
+  not a requirement for initial sync. Proceed with a simpler server-readable design;
+  normal transport security, authentication, account isolation and recovery still
+  need engineering design and tests. This supersedes the E2EE recommendation in PR47;
+  that memo remains historical research, not a binding protocol. No deployment, spend
+  or collection of page text is authorized by this ruling.'
 type: task
 component: default
 release:
@@ -39,6 +53,10 @@ log_events:
   what: created
   comment: ""
 - time: 2026-11-03T05:16:45-00:00
+  who: Ted Smith
+  what: updated description
+  comment: ""
+- time: 2026-11-10T08:07:59-00:00
   who: Ted Smith
   what: updated description
   comment: ""
