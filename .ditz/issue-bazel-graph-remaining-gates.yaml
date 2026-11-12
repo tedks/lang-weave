@@ -52,3 +52,10 @@ log_events:
     2. build_defs/package_boundary_test.mjs:8: a standalone run leaves its mkdtemp
     fixture directory under the OS tmpdir. Add try/finally rmSync(root, {recursive:true,
     force:true}). This does not affect Bazel runs, because TEST_TMPDIR is temporary.'
+- time: 2026-11-12T07:22:13-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Nit from PR50 council round a9672035ce3c (CLEAN), filed, not fixed: AGENTS.md:18
+    says ''The gates listed below are not yet in the Bazel graph'', but bun test includes
+    fsrs.test.js, which //:fsrs_test runs. The BUILD-metadata line also sits between
+    ''listed below'' and the list. Tighten the wording when the graph grows.'
