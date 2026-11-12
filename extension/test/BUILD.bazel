@@ -1,0 +1,10 @@
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "fsrs_cases",
+    srcs = [
+        "fsrs.test.js",
+        "fsrs-reference.json",
+    ],
+    visibility = ["//:__pkg__"],
+)

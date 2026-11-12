@@ -69,6 +69,9 @@ def versions(repo, ref=None):
 
 
 def shipped(path):
+    # Bazel package metadata under the extension is omitted from both ZIPs.
+    if path.startswith('extension/') and Path(path).name in ('BUILD', 'BUILD.bazel'):
+        return False
     return path.startswith(SHIPPED) and not path.startswith(NOT_SHIPPED) and path not in E2E_HARNESSES
 
 

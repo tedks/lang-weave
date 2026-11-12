@@ -1,0 +1,7 @@
+exports_files([
+    "bun.BUILD.bazel",
+    "run_fsrs_test.sh",
+    "run_package_boundary_test.sh",
+    "run_version_classifier_test.sh",
+    "package_boundary_test.mjs",
+])
