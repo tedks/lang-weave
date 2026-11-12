@@ -1,0 +1,40 @@
+id: bazel-graph-remaining-gates
+title: Bring the remaining Lang Weave gates into the Bazel graph
+desc: 'Next bounded onboarding package after PR50 (tedks/lang-weave#50), which put
+  three targets into the Bazel graph: //:fsrs_test, //:package_boundary_test and //:version_classifier_test.
+
+
+  By CTO ruling on 2026-11-12, PR50''s touched gates outside the graph were accepted
+  as standalone-entrypoint evidence. These gates still have no Bazel target:
+
+  - bun test, the full extension suite (437 tests at PR50)
+
+  - python3 -m unittest discover -s tests (the inherited Python suite)
+
+  - python3 tests/check_version_bump.py --base <base> (the full release version check)
+
+  - node scripts/package.mjs and node scripts/package.mjs --store (dev and Store packaging)
+
+  - node e2e/smoke.mjs and node e2e/store.mjs (real Chromium)
+
+
+  The contract also names the other 15 e2e browser gates, scripts/messages.mjs --check
+  and e2e/store-shots.mjs --check. They are not in the graph either; include them
+  or scope them out explicitly.
+
+
+  Constraints: preserve every standalone entrypoint, use synthetic disposable browser
+  profiles only, keep the network guard, and never make the signing key a graph input.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-12T07:05:18-00:00
+references: []
+log_events:
+- time: 2026-11-12T07:05:18-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
