@@ -37,7 +37,9 @@ cannot follow an input symlink back into the source checkout.
 `MODULE.bazel.lock` is committed, and `.bazelrc` runs every command with
 `--lockfile_mode=error`, so
 `nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test`
-works on a fresh checkout and fails if `MODULE.bazel` drifts from the lock.
+works on a fresh checkout and fails if a `bazel_dep` drifts from the lock.
+The Bun archive is a repository rule, which the lock does not record; its
+SHA-256 in `MODULE.bazel` guards it instead.
 After a reviewed `MODULE.bazel` change, regenerate the lock with
 `nix develop --command bazel mod deps --lockfile_mode=update`, review the
 diff and commit it with the change.
