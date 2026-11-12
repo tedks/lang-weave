@@ -38,3 +38,17 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-12T07:13:30-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Nits from PR50 council round e47e1fd96ebf-20261112T071022Z-634552, both
+    seats CLEAN. These were filed rather than fixed, to avoid moving a gated head
+    for two non-blocking nits.
+
+    1. build_defs/run_version_classifier_test.sh:12: the error says ''must come from
+    the pinned Nix shell'', but the check only proves a /nix/store prefix. Reword
+    it to match docs/bazel-fsrs.md.
+
+    2. build_defs/package_boundary_test.mjs:8: a standalone run leaves its mkdtemp
+    fixture directory under the OS tmpdir. Add try/finally rmSync(root, {recursive:true,
+    force:true}). This does not affect Bazel runs, because TEST_TMPDIR is temporary.'
