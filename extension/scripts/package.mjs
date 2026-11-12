@@ -6,7 +6,8 @@
 //
 // Payload: manifest.json, src/**, icons/** and _locales/** (when present), plus the
 // repo-root LICENSE, LICENSE-MIT and NOTICE at the zip root. Nothing else ships.
-// Path segments starting with '.' are skipped. The manifest and every local reference
+// Path segments starting with '.' are skipped, and so are regular files named BUILD or
+// BUILD.bazel (Bazel package metadata); a directory named BUILD still ships. The manifest and every local reference
 // (manifest paths, HTML script/stylesheet links, relative JS imports) are verified
 // against the payload before anything is written.
 

@@ -4,7 +4,7 @@ User-facing changes from 0.11.0 to 0.12.25, newest first. One entry per pull req
 
 Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Amerged>
 
-## 0.12.25 (2026-11-10)
+## 0.12.25 (2026-11-12)
 
 - #50 Pins local Bazel tests for FSRS scheduling and extension package boundaries; the installed learning behavior is unchanged.
 

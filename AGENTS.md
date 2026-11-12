@@ -12,7 +12,10 @@ Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (M
 
 ## Environment and gates
 
-No Nix flake or Bazel configuration. The extension loads directly from `extension/`.
+The extension loads directly from `extension/`; nothing needs building to load it.
+Bazel 8.7.0 comes from the root `flake.nix`. `nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test` runs the only three Bazel targets; see `docs/bazel-fsrs.md`. They do not cover the gates below.
+The gates below are not yet in the Bazel graph (ditz `bazel-graph-remaining-gates`). Run them through their standalone entrypoints, and label that evidence standalone.
+`BUILD` and `BUILD.bazel` files under `extension/` are left out of both ZIPs and exempt from the version check.
 Run `bun install --frozen-lockfile` and `bun test` inside `extension/`.
 For highlight styling changes, run `npm run test:highlights` inside `extension/` for real Chromium light/dark CSS checks.
 Run `python3 -m unittest discover -s tests` from the root for inherited Python tooling.

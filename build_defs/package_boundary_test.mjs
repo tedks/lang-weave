@@ -1,10 +1,11 @@
 import { test, expect } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { packageExtension } from '../extension/scripts/package.mjs';
 
 test('the extension ZIP omits Bazel package metadata', () => {
-  const root = join(import.meta.dir, 'package-fixture');
+  const root = mkdtempSync(join(process.env.TEST_TMPDIR ?? tmpdir(), 'package-fixture-'));
   const extensionDir = join(root, 'extension');
   const put = (path, body) => {
     const full = join(root, path);

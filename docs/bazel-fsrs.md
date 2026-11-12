@@ -16,14 +16,19 @@ The existing full package suite separately checks the dev and Store ZIP entry
 sets against the real extension tree.
 `//:version_classifier_test` runs two self-contained Python classifier fixtures
 under the pinned Nix shell. The runner copies its two declared Python inputs
-into `$TEST_TMPDIR` and requires Nix-provided Python and Git. The fixtures
+into `$TEST_TMPDIR` and requires Python and Git from `/nix/store`. That check
+is a guard against host tools, not proof of the flake's exact pin.
+`.bazelrc` passes the shell's `PATH` into every test (`--test_env=PATH`), so
+run tests from `nix develop`. The fixtures
 check that BUILD metadata is exempt while package script changes still require
 a version bump. This target does
 not scan the real extension source or replace the full release check. The CTO
 chose 0.12.25 for this onboarding change; it is a source version only, not a
 Store release.
 
-This first target is Linux x64 only. The test carries Bazel's Linux sandbox
+`//:fsrs_test` and `//:package_boundary_test` run the pinned Linux x64 Bun, so
+they are Linux x86_64 only. `//:version_classifier_test` has no platform input
+and carries no platform constraint. All three carry Bazel's Linux sandbox
 network block. Remote execution must separately prove worker architecture,
 archive execution, and isolation before it is qualified. The existing
 standalone `bun install --frozen-lockfile` and `bun test` workflow remains
