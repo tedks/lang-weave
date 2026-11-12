@@ -32,8 +32,12 @@ independent and still covers the broader extension.
 The binary needs an AVX2-capable x86_64 worker and a glibc-compatible runtime.
 The runner copies its three declared source and fixture inputs from Bazel's
 runfiles tree into the writable test directory before Bun starts, so Bun
-cannot follow an input symlink back into the source checkout. Before the
-documented test can run
-on a fresh checkout, generate and review `MODULE.bazel.lock` with
-`nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test --lockfile_mode=update`, then commit it;
-subsequent runs use the committed lock under error mode.
+cannot follow an input symlink back into the source checkout.
+
+`MODULE.bazel.lock` is committed, and `.bazelrc` runs every command with
+`--lockfile_mode=error`, so
+`nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test`
+works on a fresh checkout and fails if `MODULE.bazel` drifts from the lock.
+After a reviewed `MODULE.bazel` change, regenerate the lock with
+`nix develop --command bazel mod deps --lockfile_mode=update`, review the
+diff and commit it with the change.
