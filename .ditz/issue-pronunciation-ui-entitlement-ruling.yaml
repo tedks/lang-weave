@@ -1,6 +1,11 @@
 id: pronunciation-ui-entitlement-ruling
 title: Choose pronunciation controls and BYOK entitlement
-desc: 'Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
+desc: 'TED-PRIORITY-20261113: Backlog by Ted: Firefox and AI audio are outside the
+  GitHub BYOK beta scope and are not beta launch blockers. Preserve this work for
+  a later explicit priority change; no implementation or provider spend is dispatched.
+
+
+  Source: PR #47, docs/research/sync-service.md. Research only; no implementation,
   spend, account creation, deployment or public launch authorized by this issue. Decides:
   Ted.
 
@@ -23,4 +28,12 @@ log_events:
 - time: 2026-11-03T05:16:24-00:00
   who: Ted Smith
   what: created
+  comment: ""
+- time: 2026-11-13T20:33:52-00:00
+  who: Ted Smith
+  what: status -> unstarted
+  comment: ""
+- time: 2026-11-13T20:33:52-00:00
+  who: Ted Smith
+  what: updated description
   comment: ""
