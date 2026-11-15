@@ -1,0 +1,23 @@
+id: vocabulary-beta-scope-ruling
+title: Choose vocabulary expansion scope for the GitHub beta
+desc: 'Ted requested vocabulary expansion after selecting the GitHub BYOK beta and
+  backlogging Firefox/audio. An optional scope question was offered but not answered:
+  (A) expand bundled Spanish first; (B) larger generated packs across languages; (C)
+  both, starting with Spanish. Recommendation/working assumption: A, with a small
+  checked candidate batch before scaling. Decides: Ted. Blocks: treating larger generated
+  packs or a numeric vocabulary target as agreed beta scope. Does not block preparing
+  Spanish candidates under the working assumption. Sourcing/reviewer/admission policy
+  is separately vocabulary-pd-path-ruling; no paid review or licensing ruling implied.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-15T23:10:06-00:00
+references: []
+log_events:
+- time: 2026-11-15T23:10:06-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
