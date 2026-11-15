@@ -19,7 +19,7 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: paused
 disposition:
 creation_time: 2026-10-30T16:56:42-00:00
 references: []
@@ -87,4 +87,8 @@ log_events:
 - time: 2026-11-13T20:33:53-00:00
   who: Ted Smith
   what: updated description
+  comment: ""
+- time: 2026-11-15T23:34:29-00:00
+  who: Ted Smith
+  what: status -> paused
   comment: ""
