@@ -29,7 +29,7 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: paused
 disposition:
 creation_time: 2026-11-12T07:05:18-00:00
 references: []
@@ -59,3 +59,7 @@ log_events:
     says ''The gates listed below are not yet in the Bazel graph'', but bun test includes
     fsrs.test.js, which //:fsrs_test runs. The BUILD-metadata line also sits between
     ''listed below'' and the list. Tighten the wording when the graph grows.'
+- time: 2026-11-15T23:34:29-00:00
+  who: Ted Smith
+  what: status -> paused
+  comment: ""
