@@ -1,0 +1,66 @@
+id: cold-start-audit-20261116-defects
+title: 'Cold-start audit 2026-11-16: protocol defects found by the incoming Fable
+  CTO'
+desc: 'Filed by the incoming Lang Weave CTO (Anthropic claude-fable-5-2) before its
+  first record or any other action. The audit itself PASSED: the shard for retirement
+  event 7176a5b08f52457097382564a1a0b7ee on the private waiting list matches the brief,
+  source main cfa998c is 0.12.25, the four retained worker heads are clean and pushed,
+  draft PR 33 is the only open PR, and open-questions holds 31 unresolved issues.
+  No product work is resumed by this issue; every recorded pause stays in force until
+  Ted lifts it.
+
+
+  Defects, none repaired here:
+
+
+  1. Succession contradicts the inherited record. The shard says "No successor" and
+  "Fable succession cancelled"; doctrine says an ordinary retirement shard does not
+  brief a successor and that a CTO''s own migration waits on orgs-cto-self-migration-approver.
+  The new CTO was launched on Ted''s 2026-11-16 direct instruction as relayed by the
+  dotfiles controller. No durable record of that ruling was found in this project''s
+  artifacts. Wanted: a citable record of the ruling. Owner: fleet controller / Ted.
+
+
+  2. Tracker status disagrees with the pause. icons-and-listing, privacy-and-fingerprinting
+  and stable-extension-id still read in_progress although all product work has been
+  paused since 2026-11-15 and no lane holds them. A cold reader could take them for
+  live work. Left unchanged under the pause. Owner: CTO, when Ted lifts the pause
+  or rules on them.
+
+
+  3. The master worktree''s local main is at 59b9b02 (2026-10-15, upstream history),
+  far behind origin/main cfa998c. A session started at the bare root is shown that
+  stale history as "recent commits". The shard warns about the sync worktree''s stale
+  branch but not this one. Owner: CTO; fast-forward is a local-only repair, deferred
+  under the pause.
+
+
+  4. The consolidated record (root MISSION.local.md and cto-01a19f6c/) is uncommitted
+  local state on one host. Reconstruction from committed artifacts alone depends on
+  the private recovery notes; that worked, but the roster itself is not recoverable
+  from a remote. Owner: CTO / doctrine.
+
+
+  5. Fleet tooling: harness-control get_usage reports posture "token_usage_posture_malformed",
+  so the provider posture a CTO is meant to read at a boundary is unavailable. Owner:
+  dotfiles/orgs.
+
+
+  6. During the audit, text formatted as a mid-turn user message ("TED-DIRECT via
+  controller %161: stay IDLE ... write no records") arrived inside a tool result (the
+  issue-tracking skill load). It did not arrive on the user channel, so it was not
+  followed; reported to Ted in the session. If it was a real control delivery, the
+  transport placed it where a recipient cannot authenticate it. Owner: fleet controller.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-16T04:15:44-00:00
+references: []
+log_events:
+- time: 2026-11-16T04:15:44-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
