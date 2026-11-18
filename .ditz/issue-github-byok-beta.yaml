@@ -13,8 +13,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-15T23:10:06-00:00
 references: []
 log_events:
@@ -30,3 +30,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-18T05:10:37-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: "Published v0.12.26-beta.1 from main ec3b914, with Spanish and Guaran\xED.
+    Public download matches the tested 83-file ZIP byte for byte; install, update
+    and recovery instructions are in the release. The real-key trial is tracked separately
+    as beta-live-reading-trial."
