@@ -1,0 +1,20 @@
+id: beta-live-reading-trial
+title: Run a user-assisted Gemini reading trial on the published beta
+desc: "0.12.26 beta 1 is public. A tester with their own eligible Gemini key can try
+  English page reading on an explicitly enabled public passage, including contextual
+  Guaran\xED substitutions. Record language, observable result and any quality issue
+  without recording keys or private page text. Offline demo, Guaran\xED review, and
+  packaged Chromium install passed. No live trial has been claimed."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-18T05:10:35-00:00
+references: []
+log_events:
+- time: 2026-11-18T05:10:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
