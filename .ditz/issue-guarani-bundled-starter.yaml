@@ -7,8 +7,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-18T04:47:45-00:00
 references: []
 log_events:
@@ -20,3 +20,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-18T05:10:36-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: "Merged PR #54; 14 sourced Paraguayan Guaran\xED words included in the
+    verified public v0.12.26-beta.1 asset. Existing generated pack history and backup
+    tested."
