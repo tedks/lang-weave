@@ -2,6 +2,10 @@
 
 Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (MIT, preserved in LICENSE-MIT). Lang Weave itself is licensed AGPL-3.0-or-later (LICENSE, NOTICE); keep both files and the NOTICE attribution in any release payload. Spanish is its bundled default. Global workflow rules apply from the shared agent configuration. AGENTS.md is canonical; other agent instruction files are symlinks.
 
+## GitHub destination
+
+In a fresh clone, run `gh repo set-default tedks/lang-weave` and verify `gh repo set-default --view` prints `tedks/lang-weave`. Linked worktrees share this setting. For Lang Weave PRs, specify the destination on each write, for example `gh pr create --repo tedks/lang-weave --base main --head <feature-branch> --draft`. Pass `GH_REPO=tedks/lang-weave` to review tools that infer their repository. Use an explicit upstream target for upstream reads. Opening or modifying an upstream PR requires a request to contribute there.
+
 ## Project structure
 
 - `extension/` — shipped MV3 extension, no build step or runtime dependencies; `src/` is code and `test/` holds Bun/happy-dom tests.
