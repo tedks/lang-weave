@@ -129,6 +129,11 @@ to the merge base and prints both full commit IDs. A missing base, an invalid
 ref or a version failure exits nonzero. Make the needed history available
 locally before running the check.
 
+When the selected snapshot declares the root `lang_weave` module, its
+literal version in `MODULE.bazel` must match the plugin and extension
+versions. Historical snapshots without a root module retain the existing
+plugin and extension checks.
+
 ```sh
 # Use HEAD of the clean Bazel checkout.
 nix develop --command bazel run //:release_version_check -- --base refs/tags/PREVIOUS_RELEASE

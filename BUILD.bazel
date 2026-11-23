@@ -163,7 +163,10 @@ sh_test(
     ) + glob(
         ["tests/fixtures/**"],
         allow_empty = True,
-    ) + ["//extension:version_scan_inputs"],
+    ) + [
+        "MODULE.bazel",
+        "//extension:version_scan_inputs",
+    ],
     tags = ["block-network"],
     target_compatible_with = ["@platforms//os:linux"],
 )

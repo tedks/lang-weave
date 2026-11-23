@@ -2,7 +2,8 @@
 """Version checks for a release: run by CI, and locally before a push.
 
   python3 tests/check_version_bump.py                  versions agree (plugin.json, marketplace.json if it has one,
-                                                       extension/manifest.json, extension/package.json)
+                                                       extension/manifest.json, extension/package.json,
+                                                       MODULE.bazel for the root Lang Weave module)
   python3 tests/check_version_bump.py --base REF       also: if a file the plugin ships changed since REF (merge base
                                                        with HEAD), .claude-plugin/plugin.json's version changed too
   ... --head REF                                       check REF instead of the working tree (CI, tests)
@@ -14,14 +15,17 @@
 bump never reaches anyone who already installed. Python 3.9+, standard library only. Exit 1 on a failed check.
 """
 import argparse
+import ast
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
 PLUGIN = '.claude-plugin/plugin.json'
+MODULE = 'MODULE.bazel'
 VERSIONED = (PLUGIN, '.claude-plugin/marketplace.json', 'extension/manifest.json', 'extension/package.json')
 # Installed runtime roots. Some developer-only files under these roots are
 # copied by setup but never loaded by the plugin or unpacked extension.
@@ -54,6 +58,58 @@ def read(repo, path, ref=None):
     return json.loads(result.stdout) if result.returncode == 0 else None
 
 
+def module_version(repo, ref=None):
+    """Read the literal Lang Weave root module version from the selected snapshot."""
+    if ref is None:
+        path = Path(repo) / MODULE
+        try:
+            mode = path.lstat().st_mode
+        except FileNotFoundError:
+            return None
+        if not stat.S_ISREG(mode):
+            raise ValueError(f'{MODULE} must be a regular file')
+        source = path.read_text(encoding='utf-8')
+    else:
+        # Distinguish a historical tree with no MODULE.bazel from a missing blob.
+        entry = git(repo, 'ls-tree', '--full-tree', ref, '--', MODULE).stdout
+        if not entry:
+            return None
+        if entry.split(' ', 1)[0] not in ('100644', '100755'):
+            raise ValueError(f'{MODULE} must be a regular file')
+        source = git(repo, 'show', f'{ref}:{MODULE}', text=False).stdout.decode('utf-8')
+
+    # The declaration uses Python-compatible call and string literal syntax.
+    # Parse it without evaluating any of the candidate's Bazel code.
+    try:
+        tree = ast.parse(source, filename=MODULE)
+    except SyntaxError as error:
+        raise ValueError(f'{MODULE}:{error.lineno}: {error.msg}') from error
+    declarations = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'module'
+    ]
+    if not declarations:
+        return None
+    if len(declarations) > 1:
+        raise ValueError(f'{MODULE} must have at most one module declaration')
+    declaration = declarations[0]
+    if declaration.args or any(keyword.arg is None for keyword in declaration.keywords):
+        raise ValueError(f'{MODULE} module declaration must use explicit keyword arguments')
+    fields = {keyword.arg: keyword.value for keyword in declaration.keywords}
+    name = fields.get('name')
+    if name is None:
+        # An anonymous root carries no Lang Weave module metadata.
+        return None
+    if not isinstance(name, ast.Constant) or not isinstance(name.value, str):
+        raise ValueError(f'{MODULE} module name must be a string literal')
+    if name.value != 'lang_weave':
+        return None
+    version = fields.get('version')
+    if not isinstance(version, ast.Constant) or not isinstance(version.value, str) or not version.value:
+        raise ValueError(f'{MODULE} lang_weave version must be a nonempty string literal')
+    return version.value
+
+
 def versions(repo, ref=None):
     """{file: version} for every versioned file that exists and carries a version."""
     found = {}
@@ -69,6 +125,9 @@ def versions(repo, ref=None):
                 found[f'{path} ({entry.get("name", "plugin")})'] = str(entry['version'])
         elif 'version' in data:
             found[path] = str(data['version'])
+    bazel_version = module_version(repo, ref)
+    if bazel_version is not None:
+        found[MODULE] = bazel_version
     return found
 
 
@@ -180,7 +239,7 @@ def main(argv=None):
             args.base, args.head = release_refs(args.repo, args.base, args.head)
             print(f'Checking release versions: base={args.base} head={args.head}')
         problems, notes = check(args.repo, args.base, args.head)
-    except (RuntimeError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         print(f'version check failed to run: {error}', file=sys.stderr)
         return 1
     for note in notes:

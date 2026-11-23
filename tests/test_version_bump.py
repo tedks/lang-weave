@@ -73,6 +73,61 @@ class VersionBump(unittest.TestCase):
         self.write_versions('0.2.1', marketplace='0.2.1')
         self.assertEqual(self.problems(), [])
 
+    def test_root_module_must_match_the_selected_snapshot(self):
+        self.write('MODULE.bazel', """# module(name="lang_weave", version="0.2.0")
+declaration = module(
+    version = '0.1.9',
+    name = "lang_weave",
+)
+bazel_dep(name="dependency", version="0.2.0")
+""")
+        self.assertIn('MODULE.bazel: 0.1.9', self.problems()[0])
+        bad_head = self.commit('module version is stale')
+
+        self.write('MODULE.bazel', 'module(name="lang_weave", version="0.2.0")\n')
+        self.assertEqual(self.problems(), [])
+        good_head = self.commit('align the module version')
+        self.assertEqual(cvb.versions(self.repo, good_head)['MODULE.bazel'], '0.2.0')
+        rejected = self.strict('--base', self.base, '--head', bad_head)
+        self.assertEqual(rejected.returncode, 1)
+        self.assertIn('MODULE.bazel: 0.1.9', rejected.stdout)
+        self.assertNotIn('Version check passed', rejected.stdout)
+        accepted = self.strict('--base', self.base, '--head', good_head)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertIn('Version check passed: 0.2.0', accepted.stdout)
+
+    def test_missing_and_unrelated_root_modules_keep_prior_version_checks(self):
+        self.write('MODULE.bazel', 'module(version="4.3.2")\n')
+        self.assertEqual(self.problems(), [])
+        self.assertNotIn('MODULE.bazel', cvb.versions(self.repo))
+        self.write('MODULE.bazel', 'module(name="other", version="4.3.2")\n'
+                   'bazel_dep(name="lang_weave", version="1.2.3")\n')
+        self.assertEqual(self.problems(), [])
+        self.assertNotIn('MODULE.bazel', cvb.versions(self.repo))
+        self.write('MODULE.bazel', 'module(name="lang_weave", version="0.1.9")\n')
+        self.commit('add a mismatched module after the historical snapshot')
+        historical = self.strict('--base', self.base, '--head', self.base)
+        self.assertEqual(historical.returncode, 0, historical.stderr)
+        self.assertIn('Version check passed: 0.2.0', historical.stdout)
+
+    def test_our_module_requires_a_literal_version(self):
+        for source in ('module(name="lang_weave")', 'module(name="lang_weave", version="")',
+                       'module(name="lang_weave", version=str(1))'):
+            with self.subTest(source=source):
+                self.write('MODULE.bazel', source + '\n')
+                with self.assertRaisesRegex(ValueError, r'MODULE\.bazel lang_weave version must be'):
+                    cvb.versions(self.repo)
+
+    def test_module_symlink_cannot_hide_its_version(self):
+        self.write('root_module.bazel', 'module(name="lang_weave", version="0.1.9")\n')
+        (self.repo / 'MODULE.bazel').symlink_to('root_module.bazel')
+        with self.assertRaisesRegex(ValueError, r'MODULE\.bazel must be a regular file'):
+            cvb.versions(self.repo)
+        head = self.commit('symbolic module file')
+        result = self.strict('--base', self.base, '--head', head)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('MODULE.bazel must be a regular file', result.stderr)
+
     # 0.2.0 -> 0.2.1: shipped fixes (issue #1 among them) sat on main under an unchanged version, so `claude plugin
     # update` never delivered them to anyone who had already installed.
     def test_shipped_change_without_bump_fails(self):
