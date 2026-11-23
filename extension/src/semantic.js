@@ -82,6 +82,8 @@ const NOUN_COMPOUNDS = [
   'book review', 'computer program', 'page number', 'kitchen table',
   'bathroom door', 'office chair', 'box office', 'gift card', 'lunch break',
   'night shift', 'keyboard shortcut', 'star rating', 'bike lane', 'shoe store',
+  'breakfast cereal', 'tree diagram', 'family tree', 'shop window', 'car window',
+  'soup kitchen', 'river bank', 'theme song',
 ];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));

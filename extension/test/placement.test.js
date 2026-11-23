@@ -6,6 +6,8 @@ import { GUARANI_STARTER } from '../src/language-name.js';
 import { GUARANI_PACK } from '../src/guarani.js';
 import { createBackup, parseBackup } from '../src/portability.js';
 import { hashKey } from '../src/hash.js';
+import { buildRequest } from '../src/gemini.js';
+import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from '../src/prompt.js';
 
 const everyday = JSON.parse(readFileSync(new URL('spanish-everyday-corpus.json', import.meta.url)));
 
@@ -25,7 +27,7 @@ test('placement examples use real forms and meanings, including tiny and empty p
   expect(expanded.every((word) => L2_EXTRA.includes(word))).toBe(true);
   const forms = [...L1_WORDS, ...L2_EXTRA].map(({ fr }) => fr);
   expect(new Set(forms).size).toBe(forms.length);
-  expect(forms.sort()).toEqual(L2_WORDS.map(({ fr }) => fr).sort());
+  expect([...forms].sort()).toEqual(L2_WORDS.map(({ fr }) => fr).sort());
   const basic = { fr: 'hoy', en: 'today' };
   const extra = { fr: 'el árbol', en: 'the tree' };
   expect(placementSamples([basic, basic], [basic, extra])).toEqual([[basic], [extra]]);
@@ -77,7 +79,8 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
       unregisterContentScripts: async () => {}, registerContentScripts: async () => {} },
   };
-  const prompts = [];
+  const requests = [];
+  const promptAt = (index) => requests.at(index).systemInstruction.parts[0].text;
   let holdResponse;
   function holdNextResponse() {
     let started, release;
@@ -91,7 +94,7 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect(url).toStartWith('https://generativelanguage.googleapis.com/');
     const request = JSON.parse(init.body);
     const prompt = request.systemInstruction.parts[0].text;
-    prompts.push(prompt);
+    requests.push(request);
     await holdResponse?.();
     const passages = JSON.parse(request.contents[0].parts[0].text.replace(/^Passages:\n/, '')).map(({ id, text }) => {
       const swaps = [];
@@ -132,13 +135,13 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect(await apply(1, initial)).toEqual({ ok: false });
     expect(storage.settings).toEqual(settings);
     expect(storage.recallReview).toEqual(legacy);
-    expect(prompts).toEqual([]);
+    expect(requests).toEqual([]);
     expect(storage.apiKey).toBeUndefined();
     expect(parseBackup(createBackup(storage, '0.13.0')).state.preferences.levelOverride).toBe(0);
 
     await send({ type: 'save', apiKey: 'synthetic-key' }, 'options');
     const expanded = await config();
-    const text = 'We sometimes catch up without leaving the room.';
+    const text = 'We sometimes catch up by the window without leaving the room.';
     expect(expanded.level).toBe(2);
     expect(await ask(oldConfig.revision, text)).toMatchObject({ stale: true });
     const held = holdNextResponse();
@@ -152,8 +155,9 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     const [swap] = Object.values(results).flat();
     expect(swap.word).toBe('a veces');
     expect(typeof swap.introTicket).toBe('string');
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]).not.toContain('sin = without');
+    expect(requests).toHaveLength(1);
+    expect(promptAt(0)).not.toContain('sin = without');
+    expect(promptAt(0)).not.toContain('la ventana = the window');
     expect(storage.recallReview.cards['a veces']).toBeUndefined();
     expect(storage.recallReview.learning.pending).toMatchObject([{ word: swap.word, ticket: swap.introTicket, revision: expanded.revision }]);
     expect((await config()).revision).toBe(expanded.revision);
@@ -178,11 +182,15 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     const revised = await config();
     expect(Object.values((await ask(revised.revision, 'That documentary explores the world beyond our doorstep.')).results))
       .toEqual([[]]);
-    expect(prompts).toHaveLength(2);
+    expect(requests).toHaveLength(2);
     const doorResult = await ask(revised.revision, doorText);
     expect(Object.values(doorResult.results).flat()).toMatchObject([{ word: 'la puerta', status: 'due' }]);
-    expect(prompts.at(-1)).toContain('la puerta = the door');
-    expect(prompts.at(-1)).toContain('This reading-coverage cap overrides density.');
+    const dueDoor = { ...L2_EXTRA.find(({ fr }) => fr === 'la puerta'), status: 'due' };
+    expect(requests.at(-1)).toEqual(buildRequest({
+      system: buildSystemPrompt(1, [dueDoor], [], 'es', 'normal', 1),
+      user: buildUserContent([{ id: `${revised.revision}:${hashKey(doorText)}`, text: doorText }]),
+      schema: RESPONSE_SCHEMA,
+    }));
     const repeated = await ask(revised.revision, 'We sometimes catch up by writing friendly letters.');
     expect(Object.values(repeated.results).flat()).toMatchObject([{ word: 'a veces', status: 'due' }]);
     expect(await send({ type: 'wordPractice', scope: 'es', id: 'a veces' }, 'words'))
@@ -202,9 +210,9 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     heldDoor.release();
     expect(await pendingDoor).toMatchObject({ stale: true });
     expect((await config()).revision).toBe(revised.revision);
-    const requestsAfterReset = prompts.length;
+    const requestsAfterReset = requests.length;
     expect(Object.values((await ask(revised.revision, doorText)).results)).toEqual([[]]);
-    expect(prompts).toHaveLength(requestsAfterReset);
+    expect(requests).toHaveLength(requestsAfterReset);
     expect(await send({ type: 'inlineReveal', ticket: cue.ticket, revision: revised.revision }))
       .toMatchObject({ answer: { fr: 'la pregunta' } });
 
@@ -232,25 +240,28 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
       .toMatchObject({ practise: true });
     expect(storage.readingEvents).toEqual([{ day: '2026-01-01', word: 'la puerta', kind: 'seen' }]);
 
-    // A pre-upgrade card keeps its history when the same ID becomes Beginner.
-    const savedWindow = { due: 1, interval: 4, reviews: 6 };
-    storage.recallReview.cards['la ventana'] = structuredClone(savedWindow);
-    await apply(1, await preview());
     await send({ type: 'save', settings: { gradual: false } }, 'options');
     const ordinary = await config();
     expect(ordinary).toMatchObject({ language: 'es', level: 1, settings: { gradual: false } });
-    expect((await send({ type: 'wordsList' }, 'words')).rows.find(({ id }) => id === 'la ventana'))
-      .toMatchObject({ reviews: 6, practise: true });
+    expect(ordinary.settings).not.toHaveProperty('spanishPlacement');
+    expect(storage.recallReview.cards['la ventana']).toBeUndefined();
     const visible = await ask(ordinary.revision, everyday.heldOut.home[0]);
     expect(Object.values(visible.results).flat()).toMatchObject([{ word: 'la ventana', f: 'la ventana' }]);
-    expect(prompts.at(-1)).toContain('la ventana = the window');
-    expect(prompts.at(-1)).not.toContain('la maleta = the suitcase');
-    expect(prompts.at(-1)).not.toContain('This reading-coverage cap overrides density.');
+    expect(promptAt(-1)).toContain('la ventana = the window');
+    expect(promptAt(-1)).not.toContain('la maleta = the suitcase');
+    expect(promptAt(-1)).not.toContain('This reading-coverage cap overrides density.');
     const compound = await ask(ordinary.revision, everyday.contrasts[0].text);
-    expect(prompts.at(-1)).toContain('la ventana = the window');
+    expect(promptAt(-1)).toContain('la ventana = the window');
     expect(Object.values(compound.results)).toEqual([[]]);
-    expect(storage.recallReview.cards['la ventana']).toEqual(savedWindow);
+    expect(storage.recallReview.cards['la ventana']).toBeUndefined();
 
+    // A pre-upgrade Expanded card remains usable and keeps its saved history.
+    const savedWindow = { due: 1, interval: 4, reviews: 6 };
+    storage.recallReview.cards['la ventana'] = structuredClone(savedWindow);
+    await apply(1, await preview());
+    expect((await send({ type: 'wordsList' }, 'words')).rows.find(({ id }) => id === 'la ventana'))
+      .toMatchObject({ reviews: 6, practise: true });
+    expect(storage.recallReview.cards['la ventana']).toEqual(savedWindow);
   } finally {
     Object.assign(globalThis, original);
   }
