@@ -1,0 +1,24 @@
+id: guess-keyboard-focus-chrome140
+title: Restore keyboard focus after a Guess answer on Chrome 140
+desc: 'The unchanged public Lang Weave 0.15.7 ZIP reproduces a Guess keyboard focus
+  failure in Chrome for Testing 140.0.7339.207. Press Enter while the second closed-shadow
+  answer button is focused. The trusted keyboard activation has detail 0. Disabling
+  the answer buttons emits focusout and drops the active element to BODY before the
+  product''s focus check. The answer explanation renders and the original woven word
+  never regains focus. Reproduced twice in uninstrumented supplemental fixture runs
+  and four times with a passive focus trace. See PR #88 and its preserved Guess assertion.
+  Preserve the mouse path and avoid moving focus if the learner intentionally moves
+  it during the worker response.'
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:10:31-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:10:31-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
