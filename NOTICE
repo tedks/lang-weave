@@ -22,9 +22,11 @@ wordfreq 3.1.1 by Robyn Speer (https://github.com/rspeer/wordfreq). Its
 underlying data is CC BY-SA 4.0
 (https://creativecommons.org/licenses/by-sa/4.0/). The table rounds Zipf
 values to two decimals and maps their lower Spanish/English score to a band;
-the Beginner 30 are assigned band 0 by product rule. The table is distributed
+Beginner words are assigned band 0 by product rule. The table is distributed
 under CC BY-SA 4.0. The licence and native-review ruling for future new
-vocabulary rows remains open.
+generated curriculum rows remains open. The seven 0.12.27 clothing and packing
+glosses and hints are original Lang Weave additions. See
+docs/CURRICULUM-PIPELINE.md for dictionary references used for verification.
 
 The scheduler in extension/src/fsrs.js is an independent port of the published
 FSRS-6 algorithm (Free Spaced Repetition Scheduler, open-spaced-repetition,

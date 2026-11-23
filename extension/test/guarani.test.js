@@ -48,7 +48,7 @@ test('the starter is selectable without a key and its reviews round trip alongsi
       async set(patch) { Object.assign(data, structuredClone(patch)); },
       async remove(keys) { for (const key of [keys].flat()) delete data[key]; },
     } },
-    runtime: { id: ID, getURL: (path) => BASE + path, getManifest: () => ({ version: '0.12.26' }),
+    runtime: { id: ID, getURL: (path) => BASE + path, getManifest: () => ({ version: '0.12.27' }),
       onMessage: event(listeners), onInstalled: event(), onStartup: event(), onConnect: event() },
     tabs: { query: async () => [] },
     alarms: { create: async () => {}, onAlarm: event() },
@@ -58,7 +58,7 @@ test('the starter is selectable without a key and its reviews round trip alongsi
   };
   const network = [];
   globalThis.fetch = async (url) => {
-    if (String(url).startsWith(BASE)) return Response.json({ version: '0.12.26' });
+    if (String(url).startsWith(BASE)) return Response.json({ version: '0.12.27' });
     network.push(String(url));
     throw new Error('Unexpected network call');
   };
@@ -106,7 +106,7 @@ test('the starter is selectable without a key and its reviews round trip alongsi
     expect((await dispatch('review', { type: 'reviewReveal', ticket: personal.ticket })).answer.fr).toBe('yvyty');
     expect((await dispatch('review', { type: 'reviewRate', ticket: personal.ticket, rating: 'medium' })).ok).toBe(true);
 
-    const backup = parseBackup(createBackup(data, '0.12.26'));
+    const backup = parseBackup(createBackup(data, '0.12.27'));
     expect(backup.state.preferences.language).toBe(GUARANI_STARTER);
     expect(backup.state.packs).toEqual({ gn, 'gn-PY': gnPY });
     expect(backup.state.scopes[`lang:${starterScope}`].retrievals.retrievals[0][0]).toBe('ytororõ');
@@ -125,7 +125,15 @@ test('the starter is selectable without a key and its reviews round trip alongsi
     expect(data[storageKey(`gn:${gn.version}`, 'recallReview')]).toEqual(generatedHistory);
     expect(data[bundledKey]).toEqual(bundledHistory);
     expect((await select('es')).ok).toBe(true);
-    expect(await dispatch('review', { type: 'reviewStatus' })).toMatchObject({ language: 'Spanish', new: 30 });
+    expect(await dispatch('review', { type: 'reviewStatus' })).toMatchObject({ language: 'Spanish', new: 37 });
+    expect(await dispatch('words', { type: 'wordPractice', id: 'el suéter', scope: 'es' }))
+      .toMatchObject({ ok: true });
+    const sweater = (await dispatch('review', { type: 'reviewNext' })).card;
+    expect(sweater.en).toBe('the sweater');
+    expect((await dispatch('review', { type: 'reviewReveal', ticket: sweater.ticket })).answer.fr).toBe('el suéter');
+    expect((await dispatch('review', { type: 'reviewRate', ticket: sweater.ticket, rating: 'medium' })).ok).toBe(true);
+    const spanishBackup = parseBackup(createBackup(data, '0.12.27'));
+    expect(learningPatch(spanishBackup, {}).recallReview.cards['el suéter'].reviews).toBe(1);
     expect(network).toEqual([]);
   } finally {
     Object.assign(globalThis, original);
