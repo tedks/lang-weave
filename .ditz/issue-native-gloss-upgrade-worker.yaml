@@ -8,8 +8,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T09:43:00-00:00
 references: []
 log_events:
@@ -21,3 +21,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T09:51:52-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged #92 at df8a1fe3 with six uncached official Chrome native upgrades,
+    including public 0.15.7 to 0.15.10 on 140, 155 and 158. The live version classifier
+    found no runtime changes. Timing and isolation suggestions recorded separately.'
