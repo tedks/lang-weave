@@ -143,9 +143,9 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
       version: rows[3].version });
     await waitFor(() => $('count').textContent.startsWith('pájaro was reset.'));
 
-    // Practice now names the listed scope and opens the review page.
+    // Practice now asks the worker to open review for the listed word and scope.
     click('Practice now');
-    await waitFor(() => opened.includes('chrome-extension://fw-words/src/review.html'));
+    await waitFor(() => sent.some((m) => m.type === 'wordPractice'));
     expect(sent.find((m) => m.type === 'wordPractice')).toEqual({ type: 'wordPractice', id: 'w3', scope: 'es' });
   } finally {
     globalThis.document = oldDocument;

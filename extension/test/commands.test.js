@@ -13,16 +13,15 @@ test('manifest shortcuts are exact worker commands, without new permissions or m
   expect(manifest.permissions).not.toContain('tabs');
 });
 
-test('pause command saves a site override and broadcasts through save; review opens the exact page', async () => {
-  let tab = { id: 7, active: true, url: 'https://reading.example/article' };
+test('pause command saves a site override through save; review passes the command window to the opener', async () => {
+  let tab = { id: 7, windowId: 3, active: true, url: 'https://reading.example/article' };
   const saved = [];
   const opened = [];
   let origins = ['https://reading.example/*'];
   const settings = { enabled: true, newSitesEnabled: true, siteOverrides: {} };
   const commands = createCommands({
-    tabs: { query: async () => [tab], get: async () => tab,
-      create: async (request) => { opened.push(request); return { id: 8 }; } },
-    runtime: { getURL: (path) => `chrome-extension://test/${path}` },
+    tabs: { query: async () => [tab], get: async () => tab },
+    openReview: async (windowId) => { opened.push(windowId); },
     context: async () => ({ settings, origins }),
     save: async (msg) => { saved.push(msg); settings.siteOverrides[msg.siteOverride.host] = msg.siteOverride.enabled; },
   });
@@ -36,7 +35,7 @@ test('pause command saves a site override and broadcasts through save; review op
     { siteOverride: { host: 'reading.example', enabled: true } },
   ]); // rapid commands serialize their read and save
   await commands.handle(COMMANDS.openReview, tab);
-  expect(opened).toEqual([{ url: 'chrome-extension://test/src/review.html' }]);
+  expect(opened).toEqual([3]);
   await commands.handle('unknown-command', tab);
   expect(saved).toHaveLength(4);
   expect(opened).toHaveLength(1);
@@ -64,7 +63,7 @@ test('pause command refuses ungranted, inactive, hidden-URL, and global-off tabs
   let tab = { id: 7, active: true, url: 'https://reading.example/article' };
   const saved = [];
   const commands = createCommands({ tabs: { query: async () => [tab], get: async () => tab },
-    runtime: { getURL: (path) => path }, context: async () => ({ settings, origins }),
+    context: async () => ({ settings, origins }),
     save: async (msg) => saved.push(msg) });
   await commands.handle(COMMANDS.pauseSite, tab);
   origins = ['https://reading.example/*'];

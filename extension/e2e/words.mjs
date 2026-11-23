@@ -1,34 +1,40 @@
-// Real MV3 Chromium gate for the "My words" page. No network, no Gemini, no API key: every card
-// is seeded through the real worker's review messages, and every assertion reads the page or the
-// worker's own storage. Throwaway profile; the scratch directory is removed in finally.
+// Real MV3 Chromium gate for My words and opening review. Use the extracted beta ZIP when
+// run by Bazel. All learner actions and storage stay in a fresh disposable profile.
 import assert from 'node:assert/strict';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const { chromium } = await import(process.env.LANG_WEAVE_PLAYWRIGHT
+  ? pathToFileURL(process.env.LANG_WEAVE_PLAYWRIGHT).href
+  : 'playwright');
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-words-'));
-const extension = join(scratch, 'extension');
+const unpackedBeta = process.env.LANG_WEAVE_WELCOME_EXTENSION;
+const extension = unpackedBeta || join(scratch, 'extension');
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them
-  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
+  if (!unpackedBeta) {
+    await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
+    await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true });
+    await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true });
+    await writeFile(join(extension, 'manifest.json'), await readFile(join(root, 'manifest.json')));
+  }
+  const executablePath = process.env.LANG_WEAVE_CHROMIUM;
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...(executablePath ? { executablePath } : { channel: 'chromium' }), headless: true, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
-      '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
+      '--host-resolver-rules=MAP * ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   const extensionId = await worker.evaluate(() => chrome.runtime.id);
   const url = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
   const send = (page, message) => page.evaluate((m) => chrome.runtime.sendMessage(m), message);
   const stored = () => worker.evaluate(() => chrome.storage.local.get(['recallReview', 'learningRetrievals']));
+  const reviewTabs = () => worker.evaluate((url) => chrome.tabs.query({ url }), url('review'));
   const until = async (read, check, what) => {
     let value;
     for (let i = 0; i < 100; i++) {
@@ -43,20 +49,47 @@ try {
   const settings = await worker.evaluate(async () => (await chrome.storage.local.get('settings')).settings);
   assert.ok(!settings?.language || settings.language === 'es', `unexpected default language ${settings?.language}`);
 
-  // 2. Seed through the real review flow: introduce 5, rate one 'medium'.
-  const seed = await browser.newPage();
-  await seed.goto(url('review'));
-  const introduced = await send(seed, { type: 'reviewIntroduce' });
-  assert.equal(introduced.added, 5);
-  const next = await send(seed, { type: 'reviewNext' });
-  assert.ok(next.card?.ticket, 'a card is served');
-  const revealed = await send(seed, { type: 'reviewReveal', ticket: next.card.ticket });
-  const rated = revealed.answer.fr; // the Spanish form of the card rated here
-  const ratedGloss = next.card.en;
-  const rateReply = await send(seed, { type: 'reviewRate', ticket: next.card.ticket, rating: 'medium' });
-  assert.equal(rateReply.ok, true);
-  await seed.close(); // no other review tab may race the cards under test
-  let data = await stored();
+  const popup = await browser.newPage();
+  await popup.goto(url('popup'));
+  await popup.locator('#primary').getByText('Add words', { exact: true }).waitFor();
+  const [review] = await Promise.all([
+    browser.waitForEvent('page', { predicate: (p) => p.url() === url('review') }),
+    popup.locator('#primary').click(),
+  ]);
+  const reviewId = await review.evaluate(async () => (await chrome.tabs.getCurrent()).id);
+  await review.locator('#introduce').click();
+  const prompt = review.locator('#prompt');
+  const answer = review.locator('#answer');
+  await prompt.waitFor();
+  const ratedGloss = await prompt.textContent();
+  await review.locator('#reveal').click();
+  await answer.waitFor();
+  const rated = await answer.textContent();
+  const firstOffer = (await stored()).recallReview.current;
+  assert.equal(firstOffer.revealed, true);
+  // Restart the worker with the revealed card still on screen. The popup click
+  // wakes it and must find the same document even with no in-memory tab IDs.
+  const cdp = await browser.newCDPSession(popup);
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const initialWorker = targetInfos.find((target) => target.type === 'service_worker' && target.url === worker.url());
+  assert.ok(initialWorker);
+  const oldWorker = worker;
+  await cdp.send('Target.closeTarget', { targetId: initialWorker.targetId });
+  await until(() => cdp.send('Target.getTargets'), ({ targetInfos }) =>
+    targetInfos.every((target) => target.targetId !== initialWorker.targetId), 'the old review worker to stop');
+  const restarted = browser.waitForEvent('serviceworker', { predicate: (candidate) => candidate !== oldWorker });
+  await popup.bringToFront();
+  await popup.locator('#primary').click();
+  worker = await restarted;
+  await until(reviewTabs, (tabs) => tabs.some((tab) => tab.id === reviewId && tab.active), 'the same review tab to refocus');
+  assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
+  assert.equal(await prompt.textContent(), ratedGloss);
+  assert.equal(await answer.isVisible(), true);
+  assert.equal(await answer.textContent(), rated);
+  assert.deepEqual((await stored()).recallReview.current, firstOffer);
+  assert.equal((await stored()).learningRetrievals?.retrievals.length ?? 0, 0);
+  await review.locator('[data-rating="medium"]').click();
+  let data = await until(stored, (d) => d.learningRetrievals?.retrievals.length === 1, 'first rating');
   const cardIds = Object.keys(data.recallReview.cards);
   assert.equal(cardIds.length, 5);
   assert.ok(cardIds.includes(rated));
@@ -67,8 +100,10 @@ try {
   assert.equal(untouched.length, 4);
 
   // 3. The words page: count, incremental rendering, today line, strip, measurements.
-  const words = await browser.newPage();
-  await words.goto(url('words'));
+  const [words] = await Promise.all([
+    browser.waitForEvent('page', { predicate: (p) => p.url() === url('words') }),
+    popup.locator('#openWords').click(),
+  ]);
   await words.locator('#words li[data-id]').first().waitFor();
   const total = Number((await words.locator('#count').textContent()).match(/^(\d+) words$/)?.[1]);
   assert.ok(total >= 200, `count says ${await words.locator('#count').textContent()}`);
@@ -115,14 +150,27 @@ try {
   await search(accented.target.toUpperCase());
   assert.equal(await row(accented.id).count(), 1);
 
-  // 5. Practice now on the not-due word opens the review tab on exactly that card.
-  await search(rated);
-  const [review] = await Promise.all([browser.waitForEvent('page'),
-    row(rated).getByRole('button', { name: 'Practice now' }).click()]);
-  await review.waitForLoadState();
-  assert.equal(new URL(review.url()).pathname, '/src/review.html');
-  await review.locator('#prompt').getByText(ratedGloss, { exact: true }).waitFor();
-  assert.equal((await review.locator('#prompt').textContent()), ratedGloss);
+  // 5. Choose a different card in the open review, then choose the early card.
+  const current = data.recallReview.current ?? (await stored()).recallReview.current;
+  assert.ok(current);
+  const different = list.rows.find((item) => untouched.includes(item.id) && item.id !== current.word);
+  assert.ok(different);
+  const practice = async ({ id, target, gloss }) => {
+    await words.bringToFront();
+    await search(target);
+    await row(id).getByRole('button', { name: 'Practice now' }).click();
+    await prompt.getByText(gloss, { exact: true }).waitFor();
+    assert.equal(await answer.isVisible(), false);
+    assert.deepEqual((await reviewTabs()).filter((tab) => tab.url === url('review')).map((tab) => [tab.id, tab.active]),
+      [[reviewId, true]]);
+  };
+  await practice(different);
+  const stale = await send(review, { type: 'reviewRate', ticket: current.ticket, rating: 'medium' });
+  assert.match(stale.error, /stale/);
+  await practice({ id: rated, target: rated, gloss: ratedGloss });
+  const prior = await stored();
+  assert.deepEqual(prior.recallReview.cards, data.recallReview.cards);
+  assert.deepEqual(prior.learningRetrievals, data.learningRetrievals);
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText(rated, { exact: true }).waitFor();
   await review.locator('[data-rating="medium"]').click();
@@ -134,7 +182,6 @@ try {
   assert.equal(log[1][0], rated);
   assert.equal(typeof log[1][9], 'number', `early review predicted recall: ${JSON.stringify(log[1])}`);
   assert.ok(log[1][9] > 0 && log[1][9] <= 1);
-  await review.close();
 
   // 6. Reset: two clicks, Cancel leaves the card, Confirm removes it.
   await words.bringToFront();
@@ -195,8 +242,6 @@ try {
   }
 
   // 8. The popup links to the page and stays within Chrome's popup cap.
-  const popup = await browser.newPage();
-  await popup.goto(url('popup'));
   await popup.waitForFunction(() => document.querySelector('#today')?.textContent.trim() &&
     document.querySelector('#primary')?.textContent.trim());
   assert.equal(await popup.locator('#openWords').getAttribute('href'), 'words.html');
@@ -205,7 +250,21 @@ try {
   assert.equal(popupSize.width, 300);
   assert.ok(popupSize.height <= 600, `popup exceeds Chrome's 600px cap: ${popupSize.height}px`);
 
-  console.log(`PASS: My words in real MV3 Chromium: ${total} words rendered in batches, today/strip/measures, search (form, gloss, accent-insensitive, ArrowDown focus), Practice now opened the review card with an FSRS early-review prediction, Reset confirm/cancel/guards, no URLs on the page, popup link and size. No network or model call.`);
+  // Concurrent ordinary opens after closing the review must create one replacement.
+  await review.close();
+  const returnToReview = browser.waitForEvent('page', { predicate: (p) => p.url() === url('review') });
+  await popup.evaluate(() => {
+    document.getElementById('primary').click();
+    document.getElementById('primary').click();
+  });
+  const replacement = await returnToReview;
+  await replacement.locator('#prompt').waitFor();
+  // This request waits behind both clicks in the worker's queue.
+  assert.deepEqual(await send(popup, { type: 'openReview' }), { ok: true });
+  assert.equal((await reviewTabs()).length, 1);
+  assert.equal((await stored()).learningRetrievals.retrievals.length, 2);
+
+  console.log(`PASS: My words and review in real MV3 Chromium: ${total} words, popup open and cold resume, repeated practice in one tab, stale-ticket and duplicate-open protection, explicit early rating, reset guards, search and popup sizing. No network or model call.`);
 } finally {
   if (browser) await browser.close();
   await rm(scratch, { recursive: true, force: true }); // this script owns its unique scratch directory

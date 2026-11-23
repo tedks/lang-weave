@@ -14,6 +14,7 @@ import { createReviewState } from './review-state.js';
 import { createGradualBudgets } from './gradual-budgets.js';
 import { createReading } from './reading.js';
 import { createReviewHandlers } from './review-handlers.js';
+import { createReviewTabs } from './review-tabs.js';
 import { createInlineRecall } from './inline-recall.js';
 import { createUpdate, openWelcome, ALARM } from './update.js';
 import { createSettingsHandlers } from './settings-handlers.js';
@@ -104,7 +105,8 @@ const badge = createBadge({ store, context, updatePending });
 refreshBadges = badge.refreshAll;
 const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, placement } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
-const commands = createCommands({ tabs: chrome.tabs, runtime: chrome.runtime, context, save });
+const openReview = createReviewTabs({ tabs: chrome.tabs, windows: chrome.windows, runtime: chrome.runtime });
+const commands = createCommands({ tabs: chrome.tabs, context, save, openReview });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
   personalIntroduce, personalExportResult, registerCaptureMenu, captureMenuListener } =
   createCaptureHandlers({ store, locked, worker, captureDrafts, completedCaptures, contentDocuments,
@@ -146,7 +148,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     reviewKnown: () => reviewKnown(msg),
     learningStats: () => learningStats(),
     progress: () => progress(), wordsList: () => wordsList(),
-    wordPractice: () => wordPractice(msg), wordKnown: () => wordKnown(msg), wordReset: () => wordReset(msg),
+    openReview: () => openReview(sender.tab?.windowId ?? msg.windowId),
+    wordPractice: () => openReview(sender.tab?.windowId, () => wordPractice(msg)),
+    wordKnown: () => wordKnown(msg), wordReset: () => wordReset(msg),
     inlineBegin: () => inlineAction(msg, sender),
     inlineReveal: () => inlineAction(msg, sender),
     inlineRate: () => inlineAction(msg, sender),

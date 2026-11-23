@@ -67,6 +67,7 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     } },
     runtime: { id, getURL: (path) => extension + path, getManifest: () => ({ version: '0.13.0' }),
       onMessage: on(listeners), onInstalled: on(), onStartup: on() },
+    windows: { getLastFocused: async () => ({ id: 1 }), update: async () => {} },
     tabs: { get: async () => ({ id: 1, title: 'Reading', url: page.url }),
       query: async () => {
         if (!failBroadcast) return [];

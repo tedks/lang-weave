@@ -1,7 +1,7 @@
 import { hasSiteAccess, siteOn } from './settings.js';
 import { COMMANDS } from './router.js';
 
-export function createCommands({ tabs, runtime, context, save }) {
+export function createCommands({ tabs, context, save, openReview }) {
   let pauseQueue = Promise.resolve();
   async function pauseSite(tab) {
     const current = tab?.id != null ? tab : (await tabs.query({ active: true, currentWindow: true }))[0];
@@ -24,7 +24,7 @@ export function createCommands({ tabs, runtime, context, save }) {
       return next;
     }
     if (command === COMMANDS.openReview)
-      return tabs.create({ url: runtime.getURL('src/review.html') });
+      return openReview(tab?.windowId);
   }
   return { handle };
 }
