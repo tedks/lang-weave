@@ -9,8 +9,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T03:22:15-00:00
 references: []
 log_events:
@@ -22,3 +22,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T04:06:43-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged PR #59 at f8c028821dfc2305ee8fde46249b09e987939551. Merge tree
+    equals exact gated 550103da82f9fa24bd7d373b5be1169ef6bb1ac3. Installed Chromium
+    smoke, 446 full Bun tests, 102 inherited tests, version gate, and council passed.'
