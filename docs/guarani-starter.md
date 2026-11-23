@@ -23,4 +23,14 @@ The home and school nouns were checked against the Academy of the Guaraní Langu
 | [aranduka](https://spl.gov.py/recurso/Diccionario%20Guarani%20Paraguayo/lexicon/01.htm#e130) | book as a printed volume |
 | [kuatia](https://spl.gov.py/recurso/Diccionario%20Guarani%20Paraguayo/lexicon/11.htm#e687) | paper as a writing material, first sense |
 
-Generated Guaraní packs remain available under their existing selections and keep their own progress. The starter retains its catalog ID and accepts earlier starter backups. To restore a backup with progress on the home and school words, use Lang Weave 0.14.2 or later. Backup data for the original starter is supported from 0.12.26.
+## Restoring a backup
+
+Generated Guaraní packs keep their own selections and progress. For the bundled starter, choose the newest version required by anything in your backup.
+
+| Your backup includes | Minimum Lang Weave version to restore |
+| --- | --- |
+| Original starter selection or nature-word progress | 0.12.26 |
+| Reading-day dates (backup format 3) | 0.13.3 |
+| Progress on a home or school word | 0.14.2 |
+
+For example, a backup containing reading days and a review of *aranduka* (book) requires 0.14.2 or later. [Reading-day backup compatibility](PROGRESS-MISSION.md#reading-day-backup-compatibility)
