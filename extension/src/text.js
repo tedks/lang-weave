@@ -379,6 +379,21 @@ function wrap(place, swap, language) {
   return span;
 }
 
+function displayAt(text, start, swap, language, sentenceOptions) {
+  // I is capitalized everywhere in English; capitalize its target at a sentence start.
+  return /^I(?!\p{L})/u.test(swap.o) && sentenceStart(text, start, sentenceOptions)
+    ? { ...swap, f: swap.f.charAt(0).toLocaleUpperCase(language) + swap.f.slice(1) } : swap;
+}
+
+// A trusted local exercise already knows the validated occurrence in its single text node.
+// Never search again by spelling: another occurrence could have identical surroundings.
+export function applySwapAt(node, offset, swap, language) {
+  const length = swap.o.length;
+  if (node?.nodeType !== TEXT_NODE || !node.parentNode || !Number.isInteger(offset) ||
+      offset < 0 || !length || node.data.slice(offset, offset + length) !== swap.o) return null;
+  return wrap({ node, offset, length }, displayAt(node.data, offset, swap, language, { allowDialogue: true }), language);
+}
+
 // Applies validated swaps [{o, f, g, h, ctx}] to root. Returns the number placed.
 export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
   const flat = flatten(root);
@@ -392,10 +407,7 @@ export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
     const place = toNode(flat, m, swap.o);
     if (!place) continue;
     used.push(m);
-    // I is capitalized everywhere in English; capitalize its target only at this located sentence start.
-    const display = /^I(?!\p{L})/u.test(swap.o) && sentenceStart(flat.text, m.start)
-      ? { ...swap, f: swap.f.charAt(0).toLocaleUpperCase(language) + swap.f.slice(1) } : swap;
-    placed.push({ place, swap: display });
+    placed.push({ place, swap: displayAt(flat.text, m.start, swap, language) });
   }
   // Later positions first, so earlier offsets in the same text node stay valid.
   placed.sort((a, b) => b.place.seg - a.place.seg || b.place.offset - a.place.offset);
