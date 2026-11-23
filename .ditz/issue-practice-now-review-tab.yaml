@@ -10,8 +10,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T19:59:48-00:00
 references: []
 log_events:
@@ -42,3 +42,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T06:17:32-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Accepted and merged in tedks/lang-weave PR #75 at a97f26ba7a1e454a8ddb27ce53031431662902ae.
+    Reviewed head 1c39d5331cab1a2ef54e819539f7cc60340ab537 passed the exact Nix+Bazel
+    and disposable Chromium gates.'
