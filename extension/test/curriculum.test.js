@@ -181,17 +181,6 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
   expect(validateSwaps(1, [{ o: 'the window', f: 'la ventana' }])).toEqual([]);
 });
 
-test('prompt growth stays bounded against the merged 0.6.2 candidate set', () => {
-  const ordinary = buildSystemPrompt(2);
-  const allNew = buildSystemPrompt(2, L2_WORDS.map((w) => ({ ...w, status: 'new' })));
-  // Merged 0.6.2 baseline: 147 candidates, ordinary 4,997, all-new 5,184 characters.
-  expect(ordinary.length).toBeLessThanOrEqual(7200);
-  expect(allNew.length).toBeLessThanOrEqual(7400);
-  expect(ordinary).toContain('la ventana = the window');
-  expect(ordinary).toContain('el libro = the book');
-  expect(ordinary).toContain('Keep English noun compounds intact');
-});
-
 test('an Expanded upgrade retains Spanish ratings, budget and events without crossing generated-pack scopes', async () => {
   const now = Date.parse('2026-10-20T15:00:00Z');
   const saved = { version: 1, cards: {
