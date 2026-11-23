@@ -23,3 +23,15 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T09:48:28-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #88 round 51aedf7df5b3-20261123T094352Z-8fba9c optional items to revisit
+    with another harness edit: explain the shared browser module''s deliberate Bazel
+    requirement for an extracted beta ZIP when My Words is used by a new target, avoid
+    shadowed offscreen tab names, and label the three additional storage checks with
+    the Gradual stage. The worker-load promise issue was corrected by confirming permissions
+    from the requesting page. The extension-wide store and registered content scripts
+    preserve the scope. Consider a worker-side permission read again only if a separate
+    stable observation is needed. These were nonblocking and the coordinating user
+    requested this head frozen.'
