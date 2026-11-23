@@ -10,7 +10,7 @@ The original nature words use the spellings and senses documented by the Direcci
 | y (water), yva (fruit), yvyra (tree) | Components explained in entries 177, 179, and 186, respectively |
 | mainumby, ysapy, ysyry, ytororõ, jasyrendy | 84, 175, 177, 178, 53 |
 
-The home and school nouns were checked against the Academy of the Guaraní Language's dictionary hosted by the same Secretariat. The table identifies the dictionary entry and the English sense selected for Lang Weave. The spelling follows each headword, including the curly glottal-stop character U+2019 in *mbo’ehao* and *mbo’ehára*. The English qualifiers identify the intended sense for the learner and model. Local matching still looks for the base English word. [Academy dictionary](https://spl.gov.py/es/diccionario-guarani-paraguayo/)
+The home and school nouns were checked against the Academy of the Guaraní Language's dictionary hosted by the same Secretariat. The table identifies the dictionary entry and the English sense selected for Lang Weave. The spelling follows each headword, including the curly glottal-stop character U+2019 in *mbo’ehao* and *mbo’ehára*. The English qualifiers identify the intended sense for the learner and model. The bundled noun translations for book, chair, water, wind, and fire are skipped in clearly signaled verb positions such as “should book” and “we need to water.” The paragraph picker keeps plausible noun occurrences, and the learner chooses which sense fits. [Academy dictionary](https://spl.gov.py/es/diccionario-guarani-paraguayo/)
 
 | Headword | Selected English sense |
 | --- | --- |

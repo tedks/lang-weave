@@ -43,6 +43,7 @@ E2E_HARNESSES = (
     'extension/e2e/gloss.mjs',
     'extension/e2e/gradual.mjs',
     'extension/e2e/guess.mjs',
+    'extension/e2e/guarani-context.mjs',
     'extension/e2e/highlights.mjs',
     'extension/e2e/key-rejection.mjs',
     'extension/e2e/legacy-gloss-upgrade.mjs',

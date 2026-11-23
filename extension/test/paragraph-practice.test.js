@@ -62,6 +62,24 @@ test('trusted web swaps still resolve and guard the exact occurrence before pain
   } finally { window.close(); }
 });
 
+test('Guaraní DOM placement checks the target and exact occurrence, even with a trusted swap', () => {
+  const text = 'The book explains how to book a room above the orchard.';
+  const noun = { o: 'book', f: 'aranduka', word: 'aranduka', g: 'book (printed volume)', h: '', ctx: 'The book explains' };
+  const verb = { ...noun, word: undefined, ctx: 'how to book a room' };
+  const window = new Window();
+  try {
+    for (const level of [1, 2]) {
+      const passage = window.document.createElement('p');
+      passage.textContent = text;
+      expect(applySwaps(passage, [verb, noun], undefined, GUARANI_STARTER, level)).toBe(1);
+      expect(passage.textContent).toBe('The aranduka explains how to book a room above the orchard.');
+      const generated = window.document.createElement('p');
+      generated.textContent = text;
+      expect(applySwaps(generated, [verb], undefined, 'gn-PY', level)).toBe(1);
+    }
+  } finally { window.close(); }
+});
+
 test('manual practice accepts quoted dialogue while validation and web DOM placement still protect it', () => {
   const text = '“The window stuck.” Then I said, "try the window again." He said, “The window frame is broken.”';
   expect(spans(text, 'es', 1)).toEqual([['The window', ['La ventana']], ['the window', ['la ventana']]]);

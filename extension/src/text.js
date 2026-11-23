@@ -424,13 +424,12 @@ export function applySwapAt(node, offset, swap, language) {
 // Live reading supplies its effective level. The curated Welcome demo uses the default guards.
 export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es', level = 2) {
   const flat = flatten(root);
-  const sourceOptions = { language, level };
   const placed = [];
   const used = [];
   for (const swap of swaps) {
     const m = locate(flat, swap.o, swap.ctx);
     if (!m) continue;
-    if (sourceIssue(flat.text, m.start, m.end, swap.o, sourceOptions)) continue;
+    if (sourceIssue(flat.text, m.start, m.end, swap.o, { language, level, target: swap.f })) continue;
     if (used.some((u) => m.start < u.end && u.start < m.end)) continue;
     const place = toNode(flat, m, swap.o);
     if (!place) continue;

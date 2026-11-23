@@ -23,7 +23,7 @@ function anchorPattern(anchor) {
   return new RegExp(`(?<!${WORD})(?<!${WORD}${JOINER})${literal}(?!${WORD}|${JOINER}${WORD})`, 'giu');
 }
 
-// These are choices of catalog senses, with no contextual sense inference.
+// The learner chooses among the catalog senses that pass source checks.
 // Keep offsets in the original paragraph, including its original whitespace and apostrophes.
 export function paragraphMatches(text, language, level) {
   if (text.length > MAX_PARAGRAPH_LENGTH || !bundledLanguage(language)) return [];
@@ -31,8 +31,8 @@ export function paragraphMatches(text, language, level) {
   const searchable = text.replace(/[’‘`]/g, "'");
   const occurrences = new Map();
   const blocked = new Map();
-  const sourceOptions = { allowQuoted: true, language, level };
   for (const word of words) {
+    const sourceOptions = { allowQuoted: true, language, level, target: word.fr };
     const definite = language === 'es' && DEFINITE_SPANISH.test(word.fr);
     for (const sense of word.en.split(/\s*[/;,]\s*/)) {
       const anchors = englishAnchors({ en: sense }, { bare: definite });
@@ -47,8 +47,9 @@ export function paragraphMatches(text, language, level) {
           const source = text.slice(start, end);
           const key = `${start}:${end}`;
           // The learner picks the exact words and sense, including in dialogue.
-          if (!blocked.has(key)) blocked.set(key, sourceIssue(text, start, end, source, sourceOptions));
-          if (blocked.get(key)) continue;
+          const blockedKey = language === GUARANI_STARTER ? `${key}:${word.fr}` : key;
+          if (!blocked.has(blockedKey)) blocked.set(blockedKey, sourceIssue(text, start, end, source, sourceOptions));
+          if (blocked.get(blockedKey)) continue;
           const [swap] = validateSwaps(level, [{ o: source, f: word.fr }], [{ ...word, en: sense }], language);
           if (!swap) continue;
           ends.add(end);
