@@ -53,13 +53,15 @@ function retainReadingDays(dates, today) {
 
 // Caller serializes read-modify-write operations. Keep only the latest 500 events.
 export async function queueEvents(storage, events, day = localDay(),
-  { wordIds = [], canWrite = () => true, receivedDay = day } = {}) {
+  { wordIds = [], canWrite = () => true, getCurrentDay = () => day } = {}) {
   const obj = await storage.get([PENDING_KEY, SENT_KEY, READING_DAYS_KEY]);
+  const currentDay = getCurrentDay();
   const stored = obj[READING_DAYS_KEY];
   let dates = readingDates(obj, wordIds);
   const pending = Array.isArray(obj[PENDING_KEY]) ? [...obj[PENDING_KEY]] : [];
   const oldSent = obj[SENT_KEY];
-  const updateSent = receivedDay === day || oldSent?.day === day;
+  // An earlier lock holder may have written today's bucket while this sighting was queued.
+  const updateSent = currentDay === day || oldSent?.day === day;
   const sent = { day, words: oldSent?.day === day && Array.isArray(oldSent.words)
     ? oldSent.words.filter((word) => typeof word === 'string') : [] };
   for (const e of events || []) {
@@ -79,7 +81,7 @@ export async function queueEvents(storage, events, day = localDay(),
     pending.push({ word, kind: e.kind, day });
   }
   if (!canWrite()) return null;
-  dates = retainReadingDays(dates, receivedDay);
+  dates = retainReadingDays(dates, currentDay);
   const changed = dates.length && (!validReadingDays(stored) || stored.length !== dates.length ||
     dates.some((date, i) => date !== stored[i]));
   await storage.set({ [PENDING_KEY]: pending.slice(-MAX_EVENTS), ...(updateSent ? { [SENT_KEY]: sent } : {}),

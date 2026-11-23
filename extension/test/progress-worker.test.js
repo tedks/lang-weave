@@ -38,7 +38,7 @@ async function boot(name, data, origins = [], beforePermissions = () => {}) {
     tabs: { query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { async getAll() { beforePermissions(); return { origins }; }, onAdded: on(), onRemoved: on() },
+    permissions: { async getAll() { await beforePermissions(); return { origins }; }, onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
@@ -55,7 +55,13 @@ test('a delayed sighting keeps its local date without replacing the next day’s
   const data = { apiKey: 'synthetic-test-key', settings: { enabled: true, newSitesEnabled: true, gradual: false } };
   const before = new Date(2026, 9, 20, 23, 59).getTime(), after = new Date(2026, 9, 21, 0, 1).getTime();
   let crossMidnight = false;
-  const { clock, dispatch, restore } = await boot('activity-midnight', data, ['https://example.com/*'], () => {
+  let waitForMidnight;
+  const { clock, dispatch, restore } = await boot('activity-midnight', data, ['https://example.com/*'], async () => {
+    if (waitForMidnight) {
+      const hold = waitForMidnight;
+      waitForMidnight = null;
+      await hold();
+    }
     if (crossMidnight) clock.now = after;
   });
   const page = { id: ID, tab: { id: 1 }, url: 'https://example.com/article', frameId: 0, documentLifecycle: 'active' };
@@ -81,6 +87,25 @@ test('a delayed sighting keeps its local date without replacing the next day’s
     const activity = await dispatch({ type: 'progress' }, sender('popup'));
     expect(activity.today.seen).toBe(1);
     expect(activity.practisedThisWeek).toBe(2);
+
+    // A peek holds the lock before midnight and writes the next day's bucket before a
+    // sighting that already dispatched on the previous day can enter the lock.
+    crossMidnight = false;
+    clock.now = before;
+    const { promise: entered, resolve: enter } = Promise.withResolvers();
+    const { promise: midnight, resolve: release } = Promise.withResolvers();
+    waitForMidnight = () => { enter(); return midnight; };
+    const peek = dispatch({ type: 'event', event: 'peek', word: 'y', revision }, page);
+    await entered;
+    const sighting = event('muy', '2026-10-20');
+    await Promise.resolve(); // Let the settled runtime gate dispatch record before moving the clock.
+    clock.now = after;
+    release();
+    expect(await peek).toEqual({ ok: true });
+    expect(await sighting).toEqual({ ok: true });
+    expect(data[PENDING_KEY].at(-1)).toEqual({ word: 'muy', kind: 'seen', day: '2026-10-20' });
+    expect(data[SENT_KEY]).toEqual({ day: '2026-10-21', words: ['pero', 'peek:y'] });
+    expect((await dispatch({ type: 'progress' }, sender('popup'))).today).toMatchObject({ seen: 1, peeked: 1 });
   } finally { restore(); Object.assign(globalThis, saved); }
 });
 
