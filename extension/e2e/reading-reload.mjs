@@ -13,7 +13,9 @@ assert.ok(DISPLAY && isAbsolute(LANG_WEAVE_RELOAD_XDOTOOL || '') && isAbsolute(L
   'Pass a dedicated disposable X display, absolute xdotool path, and public outgoing ZIP to the Bazel test.');
 const { chromium } = await import(pathToFileURL(LANG_WEAVE_PLAYWRIGHT).href);
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-reload-'));
-const managed = join(scratch, 'managed');
+// Give the native chooser a private folder with a single selectable extension.
+const pickerRoot = join(scratch, 'pick');
+const managed = join(pickerRoot, 'managed');
 const extensionId = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
 const extensionPage = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
 const site = 'https://reading.example';
@@ -57,6 +59,11 @@ try {
     env[key] = join(scratch, key.toLowerCase());
     await mkdir(env[key], { mode: 0o700 });
   }
+  for (const toolkit of ['gtk-3.0', 'gtk-4.0']) {
+    const config = join(env.XDG_CONFIG_HOME, toolkit);
+    await mkdir(config, { recursive: true });
+    await writeFile(join(config, 'bookmarks'), pathToFileURL(pickerRoot).href + ' Test extension folder\n');
+  }
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
     executablePath: LANG_WEAVE_CHROMIUM, headless: false, locale: 'en-US', noViewport: true,
     ignoreDefaultArgs: ['--disable-extensions'], env,
@@ -69,11 +76,13 @@ try {
   if (await manager.locator('#loadUnpacked').isHidden()) await manager.locator('#devMode').click();
   await manager.locator('#loadUnpacked').click();
   await until(activeTitle, (title) => /extension directory/i.test(title), 'the native directory chooser');
-  xdo('key', 'ctrl+l');
-  await sleep(250);
-  xdo('type', '--clearmodifiers', '--', managed);
+  // Alt+1 opens the first GTK bookmark. Select its only row, then confirm
+  // with Open. A typed path may leave Open disabled while GTK suggests folders.
+  xdo('key', 'alt+1');
+  await sleep(350);
   const chooser = activeBounds();
-  clickNative(chooser.X + chooser.WIDTH - 50, chooser.Y + chooser.HEIGHT - 28);
+  clickNative(chooser.X + 350, chooser.Y + 88);
+  clickNative(chooser.X + chooser.WIDTH - 45, chooser.Y + chooser.HEIGHT - 33);
 
   const installed = () => manager.evaluate(async (id) => (await chrome.developerPrivate.getExtensionsInfo({
     includeDisabled: true,
