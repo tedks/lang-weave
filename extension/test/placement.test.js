@@ -6,8 +6,8 @@ import { createBackup, parseBackup } from '../src/portability.js';
 import { hashKey } from '../src/hash.js';
 
 test('the Spanish course Score only chooses a preview order at the published A1/A2 boundary', () => {
-  for (const value of ['0', '9', '10', '19', '20', '29', '  29  ']) expect(duolingoPreview(value)).toBe(1);
-  for (const value of ['30', '59', '60', '79', '80', '99', '100', '114', '115', '129', '130', '160'])
+  for (const value of ['0', '0000', '9', '10', '19', '20', '29', '  29  ']) expect(duolingoPreview(value)).toBe(1);
+  for (const value of ['30', '0030', '59', '60', '79', '80', '99', '100', '114', '115', '129', '130', '160'])
     expect(duolingoPreview(value)).toBe(2);
   for (const value of ['', ' ', '-1', '+1', '1.5', '30.0', '1e2', '161', '1600', '30 XP'])
     expect(duolingoPreview(value)).toBeNull();

@@ -85,7 +85,11 @@ export function mountPlacement(panel) {
 
   function showFirst(hint) {
     const first = hint === 2 ? expandedExamples : beginnerExamples;
-    if (samples.firstElementChild !== first) samples.prepend(first);
+    const last = hint === 2 ? beginnerExamples : expandedExamples;
+    if (samples.firstElementChild === first) return;
+    // Leave the focused group in place when a language change resets order.
+    if (first.contains(document.activeElement)) samples.append(last);
+    else samples.prepend(first);
   }
 
   function clearScore() {
