@@ -241,12 +241,15 @@ try {
   // Click-to-flip is unchanged and records no guess.
   await o.click();
   assert.equal(await o.textContent(), 'or');
+  assert.equal(axBy(await ax(), 'button', 'or')?.description?.value, 'Show Spanish');
   await o.click();
   assert.equal(await o.textContent(), 'o');
+  assert.match(axBy(await ax(), 'button', 'o')?.description?.value || '', /^or.*Show English$/);
   await page.mouse.move(5, 5);
   await o.hover();
-  await page.locator('.fw-gloss-on').waitFor();
-  assert.equal(await panel.count(), 0);
+  await page.locator('.fw-gloss-on, .fw-guess-host').first().waitFor();
+  assert.equal(await panel.count(), 0, 'the meaning was already revealed');
+  assert.equal(await page.locator('.fw-gloss-on').count(), 1);
   assert.equal((await log()).length, 2);
 
   // My words: the measurement with its not-enough-data state.
