@@ -15,8 +15,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T18:22:37-00:00
 references: []
 log_events:
@@ -35,3 +35,10 @@ log_events:
     offline with a git archive of 810d3b5 (62/62 files match, upgrade from b1bc0cf
     works, Chromium loads stable ID with all four icons). Pin not advanced; unblocks
     a future pin past #23 once #225 merges.'
+- time: 2026-11-23T06:21:26-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Verified the fleet fix is released. Dotfiles #225 merged at 1ffa24ef;
+    the current 0.15.0 fleet installer and its ownership marker on drynwyn contain
+    each 16/32/48/128 PNG named by the manifest, byte-identical to the public release.
+    Loaded the installed path with its stable ID in disposable Chromium.'
