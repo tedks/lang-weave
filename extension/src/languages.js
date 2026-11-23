@@ -5,6 +5,7 @@ import { languageCode, languageName } from './language-name.js';
 import { classifyProviderFailure, readBoundedBody } from './quota-status.js';
 import { validPackForm } from './word-form.js';
 export { languageCode, languageName } from './language-name.js';
+export { packWords } from './catalog.js';
 
 export const PACKS_KEY = 'languagePacks';
 export const MAX_PACKS = 5;
@@ -42,10 +43,6 @@ export function cleanPacks(raw) {
     if (Object.keys(result).length === MAX_PACKS) break;
   }
   return result;
-}
-
-export function packWords(pack, level) {
-  return pack.words.filter((w) => level > 1 || w.level === 1);
 }
 
 const PACK_SCHEMA = {

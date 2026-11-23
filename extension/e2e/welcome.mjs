@@ -63,6 +63,122 @@ async function checkSample(page, { name, tag, targets, source, firstSource }) {
   assert.equal(await demo.textContent(), source);
 }
 
+async function openParagraph(context, entry, url) {
+  const [page] = await Promise.all([
+    context.waitForEvent('page'),
+    entry.getByRole('link', { name: 'Practice a paragraph' }).press('Enter'),
+  ]);
+  await page.waitForURL(url);
+  await page.locator('#language:enabled').waitFor();
+  return page;
+}
+
+async function checkParagraph(context, worker, id) {
+  const base = `chrome-extension://${id}/src/`;
+  assert.equal(context.pages().some((p) => p.url() === `${base}paragraph.html`), false);
+  const popup = await context.newPage();
+  await popup.goto(`${base}popup.html`);
+  const before = await worker.evaluate(async () => ({
+    local: await chrome.storage.local.get(null), sync: await chrome.storage.sync.get(null),
+    session: await chrome.storage.session.get(null), permissions: await chrome.permissions.getAll(),
+  }));
+  assert.equal(before.local.apiKey, undefined);
+  await worker.evaluate(() => {
+    self.paragraphWorkerCalls = 0;
+    const observe = (sender) => {
+      if (sender?.url === chrome.runtime.getURL('src/paragraph.html')) self.paragraphWorkerCalls++;
+    };
+    chrome.runtime.onMessage.addListener((_message, sender) => { observe(sender); });
+    chrome.runtime.onConnect.addListener((port) => { observe(port.sender); });
+  });
+  const page = await openParagraph(context, popup, `${base}paragraph.html`);
+  let consoleCalls = 0;
+  let pageErrors = 0;
+  page.on('console', () => { consoleCalls++; });
+  page.on('pageerror', () => { pageErrors++; });
+  await page.setViewportSize({ width: 320, height: 700 });
+  const source = page.getByRole('textbox', { name: 'Short English paragraph' });
+  const find = page.getByRole('button', { name: 'Find words' });
+  const occurrence = page.getByRole('combobox', { name: 'Occurrence in your paragraph' });
+  const sense = page.getByRole('combobox', { name: 'Catalog word and meaning' });
+  const practice = page.getByRole('button', { name: 'Practice this word' });
+  const preview = page.locator('#preview');
+  const language = page.getByRole('combobox', { name: 'Practice language' });
+  assert.equal(await language.inputValue(), 'es');
+  assert.equal(await language.getAttribute('aria-describedby'), 'level');
+  await page.getByText('Vocabulary tier: Beginner').waitFor();
+  await page.getByRole('button', { name: 'Use example' }).click();
+  await find.click();
+  assert.ok(await occurrence.locator('option').count() >= 6);
+  const text = 'A window faced the river. Dr. Lee said, “The window stood open.” Then I said, "Close the window." A window-frame broke. <img src=x>';
+  await source.fill(text);
+  assert.equal(await occurrence.isHidden(), true);
+  await find.press('Enter');
+  assert.equal(await occurrence.evaluate((el) => el === document.activeElement), true);
+  assert.deepEqual((await occurrence.locator('option').allTextContents()).map((label) => label.match(/\[(.*?)\]/)[1]),
+    ['window', 'the river', 'The window', 'the window']);
+  assert.equal(await page.locator('#senseContext').textContent(), 'ventana · window');
+  await occurrence.selectOption('2');
+  assert.equal((await page.locator('#occurrenceContext').textContent()).trim(), 'Dr. Lee said, “The window stood open.”');
+  assert.equal(await page.locator('#occurrenceContext mark').textContent(), 'The window');
+  await practice.press('Enter');
+  const word = preview.getByRole('button', { name: 'La ventana', exact: true });
+  assert.equal(await word.evaluate((el) => el === document.activeElement), true);
+  assert.equal(await word.getAttribute('lang'), 'es');
+  assert.equal(await preview.textContent(), text.replace('“The window', '“La ventana'));
+  assert.equal(await preview.locator('img').count(), 0);
+  await page.keyboard.press('Space');
+  assert.equal(await preview.textContent(), text);
+  await occurrence.selectOption('3');
+  await practice.click();
+  assert.equal(await preview.textContent(), text.replace('Close the window', 'Close la ventana'));
+  await preview.getByRole('button', { name: 'la ventana', exact: true }).click();
+  assert.equal(await preview.textContent(), text);
+  await source.fill('Zebras prance.');
+  await find.click();
+  await page.getByRole('status').getByText(/Try the example or edit your paragraph/).waitFor();
+  await language.selectOption({ label: 'Paraguayan Guaraní' });
+  await page.getByRole('button', { name: 'Use example' }).click();
+  await find.click();
+  const teacher = occurrence.locator('option').filter({ hasText: /\[teacher\]/ });
+  await occurrence.selectOption(await teacher.getAttribute('value'));
+  assert.equal(await sense.locator('option:checked').textContent(), 'mbo’ehára · teacher (at school)');
+  assert.equal(await page.locator('#senseContext').textContent(), 'mbo’ehára · teacher (at school)');
+  assert.equal(await page.locator('#senseContext [lang]').getAttribute('lang'), 'gn-PY');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth &&
+    ['occurrenceContext', 'senseContext'].every((id) => {
+      const context = document.getElementById(id);
+      return context.scrollWidth <= context.clientWidth && getComputedStyle(context).whiteSpace === 'pre-wrap';
+    })), true);
+  await practice.click();
+  const guaraniWord = preview.getByRole('button', { name: 'mbo’ehára', exact: true });
+  assert.equal(await guaraniWord.getAttribute('lang'), 'gn-PY');
+  await guaraniWord.click();
+  assert.equal(await preview.textContent(), await source.inputValue());
+  await page.getByRole('button', { name: 'Clear paragraph' }).press('Space');
+  assert.equal(await source.inputValue(), '');
+  assert.equal(await source.evaluate((el) => el === document.activeElement), true);
+  assert.equal(await occurrence.isHidden(), true);
+  await source.fill('The window was stuck.');
+  await find.click();
+  await page.reload();
+  await page.locator('#language:enabled').waitFor();
+  assert.equal(await source.inputValue(), '');
+  assert.equal(await occurrence.isHidden(), true);
+  assert.equal(page.url(), `${base}paragraph.html`);
+  const after = await worker.evaluate(async () => ({
+    local: await chrome.storage.local.get(null), sync: await chrome.storage.sync.get(null),
+    session: await chrome.storage.session.get(null), permissions: await chrome.permissions.getAll(),
+  }));
+  assert.deepEqual(after, before, 'paragraph practice leaves storage and permissions untouched');
+  assert.equal(await worker.evaluate(() => self.paragraphWorkerCalls), 0);
+  assert.equal(consoleCalls, 0);
+  assert.equal(pageErrors, 0);
+  await page.close();
+  await popup.close();
+  console.log('PASS: installed popup routes to keyless Spanish and Guaraní paragraph practice, exact dialogue selection and flipping, plain text, no-match recovery, clear and reload. Storage and grants unchanged. No worker calls or console output from practice.');
+}
+
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-welcome-'));
 const suppliedExtension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
@@ -100,6 +216,7 @@ try {
   assert.equal(before.apiKey, undefined);
   assert.equal(before.settings.language, 'es');
   const permissions = await worker.evaluate(() => chrome.permissions.getAll());
+  await checkParagraph(context, worker, id);
   await checkSample(page, spanish);
   await pickerFor(page).selectOption({ label: guarani.name });
   await checkSample(page, guarani);
@@ -161,6 +278,31 @@ try {
   assert.equal(placed.apiKey, undefined);
   assert.equal(placed.recallReview, undefined);
   assert.deepEqual(placed.settings, before.settings, 'placement leaves the regular settings intact');
+  const practiceUrl = `chrome-extension://${id}/src/paragraph.html`;
+  const placementPractice = await openParagraph(context, page, practiceUrl);
+  assert.equal(page.url(), welcomeUrl);
+  await placementPractice.getByText('Vocabulary tier: Expanded').waitFor();
+  const practiceSource = placementPractice.getByRole('textbox', { name: 'Short English paragraph' });
+  await practiceSource.fill('Admission is free. Admission is free.');
+  await placementPractice.getByRole('button', { name: 'Find words' }).click();
+  await placementPractice.getByRole('combobox', { name: 'Occurrence in your paragraph' }).selectOption('1');
+  const practiceMeanings = placementPractice.getByRole('combobox', { name: 'Catalog word and meaning' });
+  assert.deepEqual(await practiceMeanings.locator('option').allTextContents(), ['libre · free (unrestricted)', 'gratis · free (no cost)']);
+  await practiceMeanings.selectOption({ label: 'gratis · free (no cost)' });
+  assert.equal(await placementPractice.locator('#senseContext').textContent(), 'gratis · free (no cost)');
+  const practiceButton = placementPractice.getByRole('button', { name: 'Practice this word' });
+  await practiceButton.press('Space');
+  assert.equal(await placementPractice.locator('#preview').textContent(), 'Admission is free. Admission is gratis.');
+  await practiceSource.fill('She said, “I don’t know.”');
+  await placementPractice.getByRole('button', { name: 'Find words' }).click();
+  await practiceButton.click();
+  assert.equal(await placementPractice.locator('#preview').textContent(), 'She said, “No sé.”');
+  await placementPractice.goto('about:blank');
+  await placementPractice.goBack();
+  await placementPractice.locator('#language:enabled').waitFor();
+  assert.equal(await practiceSource.inputValue(), '');
+  assert.equal(await placementPractice.locator('#choices').isHidden(), true);
+  await placementPractice.close();
   await page.close(); // a learner may close welcome before choosing
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
@@ -237,6 +379,9 @@ try {
   await languagePreview.press('Enter');
   await guaraniWelcome.getByText('Choose Spanish in Settings to use this check.').waitFor();
   assert.equal(await openScore.isHidden(), true);
+  const guaraniPractice = await openParagraph(context, guaraniWelcome, practiceUrl);
+  assert.equal(await guaraniPractice.getByRole('combobox', { name: 'Practice language' }).inputValue(), 'gn-PY-x-weave');
+  await guaraniPractice.close();
   await guaraniWelcome.close();
   console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
 
@@ -282,6 +427,12 @@ try {
   await reopened.reload();
   await reopened.locator('#demo').getByRole('button', { name: 'hoy', exact: true }).waitFor();
   assert.equal(await pickerFor(reopened).inputValue(), 'es');
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY');
+  const generatedPractice = await openParagraph(context, reopened, practiceUrl);
+  await generatedPractice.getByText(/Offline practice supports the two bundled languages/).waitFor();
+  const practiceLanguage = generatedPractice.getByRole('combobox', { name: 'Practice language' });
+  assert.equal(await practiceLanguage.inputValue(), 'es');
+  await practiceLanguage.selectOption({ label: 'Paraguayan Guaraní' });
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY');
 
   assert.deepEqual(networkRequests, []);
