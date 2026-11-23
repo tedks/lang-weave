@@ -18,5 +18,14 @@ export const GUARANI_PACK = {
     ['ysyry', 'stream', 2],
     ['ytororõ', 'waterfall', 2],
     ['jasyrendy', 'moonlight', 2],
+    // Append new Beginner rows after the original pack to keep its ordering.
+    ['óga', 'house (dwelling)', 1],
+    ['koty', 'room (indoors)', 1],
+    ['apyka', 'chair (seat)', 1],
+    ['tupa', 'bed (for sleeping)', 1],
+    ['mbo’ehao', 'school (for students)', 1],
+    ['mbo’ehára', 'teacher (at school)', 1],
+    ['aranduka', 'book (printed volume)', 1],
+    ['kuatia', 'paper (writing material)', 1],
   ].map(([fr, en, level]) => ({ fr, en, level, hint: '' })),
 };

@@ -254,6 +254,20 @@ try {
   await review.locator('#answer').getByText('y', { exact: true }).waitFor();
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('apiKey'))).apiKey, undefined);
   console.log('PASS: selected bundled Paraguayan Guaraní and revealed water → y in offline review.');
+
+  const words = await context.newPage();
+  await words.goto(`chrome-extension://${id}/src/words.html`);
+  await words.locator('#words li[data-id="y"]').waitFor();
+  const teacher = words.locator('#words li[data-id="mbo’ehára"]');
+  const [teacherReview] = await Promise.all([context.waitForEvent('page'),
+    teacher.getByRole('button', { name: 'Practice now' }).click()]);
+  await teacherReview.locator('#prompt').getByText('teacher (at school)', { exact: true }).waitFor();
+  await teacherReview.locator('#reveal').click();
+  await teacherReview.locator('#answer').getByText('mbo’ehára', { exact: true }).waitFor();
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('apiKey'))).apiKey, undefined);
+  await teacherReview.close();
+  console.log('PASS: new everyday Guaraní appears in My words and opens keyless Review on the original catalog.');
+
   // Simulate a previously generated pack for the same locale without using Gemini.
   await worker.evaluate(() => chrome.storage.local.set({ languagePacks: { 'gn-PY': {
     words: Array.from({ length: 20 }, (_, i) => ({
