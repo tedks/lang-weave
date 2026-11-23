@@ -20,7 +20,7 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-11-23T03:36:20-00:00
 references: []
@@ -44,3 +44,7 @@ log_events:
     and /home/tedks/.local/state/lang-weave/nov23/demo-evidence.0TtYXZ/full-gate-retry.log.
     Prior demo head 581e9d4ee8de0c6cb3d7e9c6fc48aac02bc7d11c + same gate patch passed
     439/439; log /home/tedks/.local/state/lang-weave/nov23/demo-evidence.UvKTBv/full-gate.log.'
+- time: 2026-11-23T03:50:42-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
