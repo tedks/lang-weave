@@ -26,3 +26,15 @@ log_events:
     (closed as duplicate). Scope: one helper that focuses an existing extension review
     tab, used by the popup button (popup.js:91), the Alt+Shift+R command (commands.js:27)
     and Practice now (words.js:119), with a browser test.'
+- time: 2026-11-23T05:33:54-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Reproduced on the anonymously downloaded 0.14.4 ZIP through ordinary installed
+    UI. From a fresh profile, Add 5 new words served \u201Cand\u201D in the first
+    review tab. Two successive Practice now choices from My words opened separate
+    tabs serving \u201Cbut\u201D and \u201Cor\u201D. Three review tabs remained for
+    the one queue and no rating was logged. Private reproduction cto-review-tab.path/repro.log.
+    Product ruling: ordinary Open Review (including keyboard shortcut) should focus
+    an existing review without interrupting its current question/answer. Explicit
+    Practice now should bring the requested word into that tab. Preserve other user-opened
+    tabs, existing card/ticket safety, profile boundaries, and current permissions."
