@@ -9,18 +9,25 @@ export const MAINTENANCE_MS = 21 * DAY_MS;
 export const MAX_INLINE_TICKETS = 16;
 const RATINGS = new Set(['again', 'hard', 'medium', 'easy']);
 
+const storedCards = (raw) => raw?.version === 1 && raw.cards && typeof raw.cards === 'object' && !Array.isArray(raw.cards)
+  ? raw.cards : {};
+const validSchedule = (card) => card && Number.isSafeInteger(card.due) && card.due >= 0 &&
+  Number.isSafeInteger(card.interval) && card.interval >= 0 && card.interval <= 365 &&
+  Number.isSafeInteger(card.reviews) && card.reviews >= 0 && card.reviews <= 10000;
+
+export function introducedReviewWords(raw, words) {
+  const cards = storedCards(raw);
+  return words.filter(({ fr }) => Object.hasOwn(cards, fr) && validSchedule(cards[fr]));
+}
+
 export function cleanReview(raw, words, now = Date.now(), gradual = false) {
   const cards = Object.create(null);
-  const source = raw?.version === 1 && raw.cards && typeof raw.cards === 'object' && !Array.isArray(raw.cards)
-    ? raw.cards : {};
   // `words` is the full scope catalog, never a prompt window. Keep valid
   // historical orphans as well: a temporary catalog change must not erase a
   // card merely because its form cannot currently be offered for reading.
-  for (const [fr, card] of Object.entries(source)) {
+  for (const [fr, card] of Object.entries(storedCards(raw))) {
     if (!fr || fr.length > 100) continue;
-    if (card && Number.isSafeInteger(card.due) && card.due >= 0 &&
-        Number.isSafeInteger(card.interval) && card.interval >= 0 && card.interval <= 365 &&
-        Number.isSafeInteger(card.reviews) && card.reviews >= 0 && card.reviews <= 10000) {
+    if (validSchedule(card)) {
       cards[fr] = { due: card.due, interval: card.interval, reviews: card.reviews,
         ...(card.familiar === true ? { familiar: true } : {}),
         ...(gradual && (card.maintenance === true || card.familiar === true) ? { maintenance: true } : {}),

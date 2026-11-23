@@ -457,6 +457,10 @@
     "message": "Settings changed while this was open. Choose your Spanish starting point again.",
     "description": "A stale placement choice was rejected."
   },
+  "placement_retry": {
+    "message": "Reload placement",
+    "description": "Try loading Spanish placement again after a local error."
+  },
   "placement_error": {
     "message": "Could not load or save Spanish placement. Try again.",
     "description": "A local placement operation failed."

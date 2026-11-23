@@ -102,6 +102,7 @@ export const EN = Object.freeze({
   placement_save: "Save starting point",
   placement_saved: "Spanish starting point saved on this device.",
   placement_changed: "Settings changed while this was open. Choose your Spanish starting point again.",
+  placement_retry: "Reload placement",
   placement_error: "Could not load or save Spanish placement. Try again.",
   placement_spanish_only: "Choose Spanish in Settings to use this check.",
   placement_level_hint: "Spanish placement is active. To use this reading level again, choose “Use my reading level setting” in Spanish placement.",

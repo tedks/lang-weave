@@ -9,6 +9,7 @@ const $ = (id) => document.getElementById(id);
 localize();
 const placementPanel = $('placement');
 mountPlacement(placementPanel);
+const placementSummary = placementPanel.firstElementChild;
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 let status;
 let refreshGeneration = 0;
@@ -44,6 +45,8 @@ async function refresh() {
   $('levelOverride').value = String(s.levelOverride || 0);
   $('levelOverride').disabled = !!s.spanishPlacement;
   $('levelHint').textContent = t(s.spanishPlacement ? 'placement_level_hint' : 'options_level_hint');
+  if (s.spanishPlacement) placementSummary.setAttribute('aria-describedby', 'levelHint');
+  else placementSummary.removeAttribute('aria-describedby');
   placementPanel.hidden = c.language !== 'es';
   if (placementPanel.hidden) placementPanel.open = false;
   $('gradual').checked = s.gradual;

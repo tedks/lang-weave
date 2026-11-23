@@ -109,6 +109,8 @@ try {
   await review.locator('#prompt').getByText('if', { exact: true }).waitFor();
   const placedHistory = await worker.evaluate(() => chrome.storage.local.get('recallReview'));
   const settingsPlacement = options.locator('#placement');
+  await options.locator('#levelOverride:disabled').waitFor();
+  assert.equal(await settingsPlacement.locator(':scope > summary').getAttribute('aria-describedby'), 'levelHint');
   await settingsPlacement.locator(':scope > summary').press('Enter');
   const settingsChoice = settingsPlacement.getByRole('combobox', { name: 'Spanish starting point' });
   await settingsPlacement.locator('fieldset:enabled').waitFor();

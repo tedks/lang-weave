@@ -30,11 +30,13 @@ export function mountPlacement(panel) {
       </fieldset>
     </form>
     <p role="status"></p>
+    <button type="button" data-placement-retry hidden data-i18n="placement_retry"></button>
   `);
   const form = panel.querySelector('form');
   const fieldset = form.querySelector('fieldset');
   const choice = form.querySelector('select');
   const status = panel.querySelector('[role="status"]');
+  const retry = panel.querySelector('[data-placement-retry]');
   const [beginner, expanded] = placementSamples();
   let snapshot;
   let busy = false;
@@ -71,22 +73,38 @@ export function mountPlacement(panel) {
     snapshot = null;
     fieldset.disabled = true;
     const current = await chrome.runtime.sendMessage({ type: 'placement' });
-    if (!current?.available) {
-      status.textContent = t(current?.available === false ? 'placement_spanish_only' : 'placement_error');
+    if (current?.available === false) {
+      status.textContent = t('placement_spanish_only');
+      retry.hidden = true;
       return;
     }
+    if (!current?.available) throw new Error('Placement unavailable');
     snapshot = current;
     choice.value = String(current.choice);
     fieldset.disabled = false;
+    retry.hidden = true;
     status.textContent = '';
   }
 
-  panel.addEventListener('toggle', async () => {
-    if (!panel.open || busy) return;
+  function showError() {
+    status.textContent = t('placement_error');
+    retry.hidden = !!snapshot;
+  }
+
+  async function refresh() {
+    if (busy) return;
     busy = true;
     try { await load(); }
-    catch { status.textContent = t('placement_error'); }
+    catch { showError(); }
     finally { busy = false; }
+  }
+
+  panel.addEventListener('toggle', () => {
+    if (panel.open) void refresh();
+  });
+  retry.addEventListener('click', async () => {
+    await refresh();
+    if (snapshot) choice.focus();
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -95,6 +113,7 @@ export function mountPlacement(panel) {
     if (choice.selectedOptions[0]?.disabled) return;
     busy = true;
     fieldset.disabled = true;
+    status.textContent = '';
     try {
       const result = await chrome.runtime.sendMessage({ type: 'placement', choice: selected, epoch: snapshot.epoch });
       if (result?.ok) {
@@ -104,7 +123,7 @@ export function mountPlacement(panel) {
         await load();
         if (snapshot) status.textContent = t('placement_changed');
       }
-    } catch { status.textContent = t('placement_error'); }
+    } catch { showError(); }
     finally { fieldset.disabled = !snapshot; busy = false; }
   });
 }

@@ -81,9 +81,10 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     const consentGeneration = worker.permissionGeneration;
     const settingsAtStart = worker.settingsGeneration;
     let policyDay = '';
+    const sameReadingPool = (latest) => latest.revision === ctx.revision && latest.retainedWordsKey === ctx.retainedWordsKey;
     const stillSafe = async () => {
       const latest = await context();
-      if (latest.revision !== ctx.revision || !activeOn(latest, sender.url) ||
+      if (!sameReadingPool(latest) || !activeOn(latest, sender.url) ||
           !(await safePageTitle(msg, sender)) ||
           (ctx.settings.gradual && !(await liveGradualDocument(sender)))) return false;
       // Permission and gradual settings events can occur during either tab lookup.
@@ -188,7 +189,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         .map(([key, swaps]) => [cacheKey(key), swaps])));
       const latest = await context();
       if (!(await stillSafe())) return { results: {}, stale: true };
-      if (latest.revision !== ctx.revision) return { results: {}, stale: true };
+      if (!sameReadingPool(latest)) return { results: {}, stale: true };
       let output;
       try {
         const current = await adaptiveReviewState(latest, day, Date.now());
@@ -226,7 +227,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     let requestEpoch = '';
     try {
       fresh = await modelCall(async () => {
-        if ((await context()).revision !== ctx.revision) return null;
+        if (!sameReadingPool(await context())) return null;
         const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY, STATUS_KEY, 'consentShown']);
         const { apiKey } = keyData;
         // The only UI transition is false -> true. A false snapshot cannot dispatch, even
@@ -284,7 +285,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         await saveModelStatus({ category }, requestEpoch);
       }
       const latest = await context();
-      if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
+      if (!sameReadingPool(latest) || !activeOn(latest, sender.url)) return { results: {}, stale: true };
       const error = category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
         : category === 'key_rejected' ? 'Gemini rejected this key. Paste a new one.'
@@ -315,7 +316,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     } catch (e) {
       if (e?.stale) return { results: {}, stale: true };
       const latest = await context();
-      if (latest.revision !== ctx.revision || !activeOn(latest, sender.url)) return { results: {}, stale: true };
+      if (!sameReadingPool(latest) || !activeOn(latest, sender.url)) return { results: {}, stale: true };
       const category = 'storage_failed';
       const error = 'Local reading storage failed';
       await saveModelStatus({ category }, requestEpoch);

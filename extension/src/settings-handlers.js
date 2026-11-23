@@ -10,7 +10,7 @@ import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { futureBudgetDay } from './learning.js';
 import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName } from './languages.js';
-import { publicContext, laterDay } from './worker-context.js';
+import { publicContext, laterDay, availableLanguage } from './worker-context.js';
 import { personalReview } from './review-state.js';
 
 export function createSettingsHandlers({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
@@ -192,15 +192,16 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
   // Only Welcome and Settings can read or change this device-local Spanish
   // preference. An older panel cannot overwrite a newer choice or language.
   async function placement(msg) {
-    const read = () => store.get(['settings', 'epoch', 'spanishPlacement']);
+    const read = () => store.get(['settings', 'epoch', 'spanishPlacement', PACKS_KEY]);
     const snapshot = (data) => ({
-      available: cleanSettings(data.settings).language === 'es',
+      available: availableLanguage(cleanSettings(data.settings).language, cleanPacks(data[PACKS_KEY])) === 'es',
       epoch: data.epoch || '',
       choice: [1, 2].includes(data.spanishPlacement) ? data.spanishPlacement : 0,
     });
     if (!Object.hasOwn(msg, 'choice')) return snapshot(await read());
     if (![0, 1, 2].includes(msg.choice) || typeof msg.epoch !== 'string') return { ok: false };
-    worker.settingsGeneration++;
+    // Dispatch and delivery check the reading revision under this same lock.
+    // Placement rotates it only after a change, without interrupting key tests.
     const result = await locked(async () => {
       const current = snapshot(await read());
       if (!current.available || current.epoch !== msg.epoch) return { ok: false };
