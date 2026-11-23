@@ -10,8 +10,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T08:39:32-00:00
 references: []
 log_events:
@@ -34,3 +34,8 @@ log_events:
     council cleared Sol and Opus at the exact head; the bounded Google attempt hit
     quota. Keep this issue in progress pending CTO integration. Nonblocking slow-loading
     follow-up: review-loading-edge-cases.'
+- time: 2026-11-23T09:11:19-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'CTO accepted and merged PR #87 as 8b894171f443a87f5ec9122e3a2bf7fc398acf68.
+    Its tree matches the exact tested and reviewed head 5639a6ec37b90650a2b1607200ce5b6df8207c5e.'
