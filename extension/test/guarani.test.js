@@ -55,7 +55,10 @@ test.each([1, 2])('Guaraní tier %i omits plainly verbal uses and preserves the 
   for (const [o, f, negative, positive] of [
     ['book', 'aranduka', 'Please book a room near the station.', 'She read a book beside the window.'],
     ['book', 'aranduka', 'The librarian needs to book a room.', 'She showed the librarian her book.'],
+    ['book', 'aranduka', 'The visitor needs to book the last room near the stairs.', 'The last book fell beneath the stairs.'],
+    ['book', 'aranduka', 'The visitor has to book a couple of rooms upstairs.', 'She left the book in an upstairs room.'],
     ['chair', 'apyka', 'We will chair the discussion after lunch.', 'We carried a chair into the kitchen.'],
+    ['chair', 'apyka', 'The secretary would chair the next meeting on Thursday.', 'The secretary left a chair beside the wall.'],
     ['water', 'y', 'The caretaker has to water the garden today.', 'The school needs access to water from the well.'],
     ['wind', 'yvytu', 'I need to wind the clock before bed.', 'We listened to wind through the shutters.'],
     ['fire', 'tata', 'They hope to fire the manager next week.', 'The travelers gathered beside the fire.'],
@@ -103,6 +106,24 @@ test('Guaraní recognizes bounded cues without interpreting every prepositional 
   ]) expect(offers(text, word)).toBe(true);
   expect(offers('Wind the clock before leaving.', 'yvytu')).toBe(true); // An unmarked imperative remains ambiguous to the matcher.
   expect(offers('They wrote about what people can\nBook fairs returned in spring.', 'aranduka')).toBe(true);
+});
+
+test.each([1, 2])('Guaraní tier %i preserves water with temporal and inverted noun readings', (level) => {
+  const words = packWords(GUARANI_PACK, level);
+  for (const [text, o] of [
+    ['We value the access we have to water the whole year.', 'water'],
+    ['We value the access we have to water the rest of the year.', 'water'],
+    ['She compared the access they had to water the previous year with their current supply.', 'water'],
+    ['Why would water this cold freeze in the basin?', 'water'],
+    ['We’d water for two days before the barrels ran dry.', 'water'],
+    ['Everyone said it would. Water was everywhere.', 'Water'],
+  ]) {
+    expect(paragraphMatches(text, GUARANI_STARTER, level).flatMap(({ senses }) => senses))
+      .toContainEqual(expect.objectContaining({ o, word: 'y' }));
+    expect(validateSwaps(level, [{ o, f: 'y' }], words, GUARANI_STARTER, { text })).toMatchObject([{ o, word: 'y' }]);
+  }
+  expect(validateSwaps(level, [{ o: 'water', f: 'y' }], words, GUARANI_STARTER,
+    { text: 'We’d water this garden twice a week.' })).toEqual([]);
 });
 
 test.each([1, 2])('Guaraní tier %i validates ordinary and gradual replies at the located occurrence', async (level) => {

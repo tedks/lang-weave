@@ -146,7 +146,8 @@ const NEGATED_DO = new Set(["don't", "doesn't", "didn't"]);
 // "That" can instead start a relative clause modifying the noun.
 const OBJECT_DETERMINERS = new Set(['a', 'an', 'the', 'my', 'your', 'his', 'her', 'its', 'our', 'their',
   'some', 'this', 'these', 'those']);
-const TIME_ADJUNCT = /^(?:next|last|past|rest|few|couple|(?:second|minute|hour|morning|afternoon|evening|day|night|week|month|year|spring|summer|autumn|fall|winter|weekend)s?)$/u;
+const TIME_NOUN = /^(?:second|minute|hour|morning|afternoon|evening|day|night|week|month|year|spring|summer|autumn|fall|winter|weekend)s?$/u;
+const TIME_MODIFIERS = new Set(['next', 'last', 'past', 'whole', 'previous', 'coming', 'current', 'entire', 'few']);
 const LINE_BREAK = /[\r\n\u2028\u2029]/u;
 const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
   !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
@@ -159,9 +160,26 @@ function tokenBefore(text, ts, at) {
 const modal = (value) => !!value && (MODALS.has(value) || CONTRACTED_MODAL.test(value));
 
 function clearModalContext(cue, subject, takesObject) {
-  if (CONTRACTED_MODAL.test(cue.value) || CLAUSE_STARTS.has(subject?.value)) return true;
+  // Contracted 'd can mean had: "We'd water for two days."
+  if (CONTRACTED_MODAL.test(cue.value)) return cue.value.endsWith("'ll") || takesObject;
+  if (CLAUSE_STARTS.has(subject?.value)) return true;
   // A noun can be the subject after inversion, as in "How soon will fire spread?"
-  return takesObject && !!subject && LETTER.test(subject.raw) && !SUBJECT_DETERMINERS.has(subject.value);
+  return takesObject && !!subject && LETTER.test(subject.raw) &&
+    !QUESTION_ADJUNCTS.has(subject.value) && !SUBJECT_DETERMINERS.has(subject.value);
+}
+
+function adjacentObjectCue(text, ts, at) {
+  const noun = ts[at + 2];
+  if (!OBJECT_DETERMINERS.has(ts[at + 1]?.value) || !noun || !LETTER.test(noun.raw) ||
+      LINE_BREAK.test(text.slice(ts[at].end, noun.start))) return false;
+  // A temporal adjunct can start with a determiner, as in "access we have to water the whole year".
+  const following = ts[at + 3]?.value ?? '';
+  if (TIME_NOUN.test(noun.value) || TIME_MODIFIERS.has(noun.value) && TIME_NOUN.test(following)) return false;
+  if ((noun.value === 'rest' || noun.value === 'couple') && following === 'of') {
+    const quantity = ts[at + (ts[at + 4]?.value === 'the' ? 5 : 4)]?.value ?? '';
+    return !TIME_NOUN.test(quantity);
+  }
+  return true;
 }
 
 function clearVerbContext(text, ts, at, allowDialogue) {
@@ -169,10 +187,7 @@ function clearVerbContext(text, ts, at, allowDialogue) {
   if (!cue) return false;
   const head = tokenBefore(text, ts, at - 1);
   const subject = head && tokenBefore(text, ts, at - 2);
-  const next = ts[at + 1];
-  // A time adjunct can also start with a determiner: "access we have to water this summer".
-  const takesObject = OBJECT_DETERMINERS.has(next?.value) && !LINE_BREAK.test(text.slice(ts[at].end, next.start)) &&
-    !TIME_ADJUNCT.test(ts[at + 2]?.value ?? '');
+  const takesObject = adjacentObjectCue(text, ts, at);
   if (modal(cue.value)) return clearModalContext(cue, head, takesObject);
   if (cue.value === 'not' && modal(head?.value)) return clearModalContext(head, subject, takesObject);
   if (cue.value === 'to') {
