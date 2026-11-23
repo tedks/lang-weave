@@ -28,3 +28,18 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T05:06:40-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Pre-implementation evidence on 31977049 using the shipped catalog matcher.
+    Took 100 evenly spaced prose paragraphs of 30\u2013150 whitespace-delimited words
+    each from The Time Machine, The Secret Garden and The Adventures of Sherlock Holmes,
+    after the first narrative line and before the ebook footer. Of 300 passages, Beginner
+    Spanish had at least one lexical candidate in 294 and two or more in 271; y alone
+    matched 252. Beginner Guaran\xED had a match in 75, and two or more in 14. Expanded
+    totals with any were 300 and 76 respectively. These counts precede contextual
+    sense, quoting and occurrence validation and do not estimate learner mastery or
+    general web coverage. Ship a guaranteed useful original example for each language
+    and give the reader a choice among specific occurrences. Show an actionable no-match
+    path for pasted Guaran\xED text; a bounded explicit word list can guide editing.
+    Private reproduction and pinned source blobs are under paragraph-coverage.path."
