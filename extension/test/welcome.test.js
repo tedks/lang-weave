@@ -250,9 +250,11 @@ test('welcome page renders its notes and choice results as the exact English', a
     expect($('placementChoice').value).toBe('2');
     placementSave = { ok: false };
     placementRead = {};
+    submit.focus();
     submit.click();
     await wait(() => !retry.hidden);
     expect(text(placementStatus)).toBe('Could not load or save Spanish placement. Try again.');
+    expect(window.document.activeElement).toBe(retry);
     expect($('placementChoice').value).toBe('2');
     expect(placementMessages.at(-2)).toEqual({ type: 'placement', choice: 2, epoch: 'local' });
     placementRead = { available: true, choice: 0, epoch: 'reconciled' };

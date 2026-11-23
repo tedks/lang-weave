@@ -367,18 +367,26 @@ try {
   await placement.getByText('Could not load or save Spanish placement. Try again.', { exact: true }).waitFor();
   assert.equal(await startingPoint.inputValue(), '2');
   assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
-  await placement.getByRole('button', { name: 'Reload placement' }).click();
-  await waitForChoice(page, 0);
+  const reloadPlacement = placement.getByRole('button', { name: 'Reload placement' });
+  const lostReload = await holdPlacementResponse(page, false);
+  await reloadPlacement.press('Space');
+  await lostReload.wait();
+  await lostReload.release(true);
+  assert.equal(await reloadPlacement.evaluate((button) => button === document.activeElement), true);
+  await otherChoice.selectOption('1');
+  await otherSave.click();
+  await waitForChoice(page, 1);
+  assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
 
   const heldPassive = await holdPlacementResponse(page, false);
   await otherChoice.selectOption('2');
   await otherSave.click();
   await heldPassive.wait();
-  await otherChoice.selectOption('1');
+  await otherChoice.selectOption('0');
   await otherSave.click();
-  await waitForChoice(page, 1);
+  await waitForChoice(page, 0);
   await heldPassive.release();
-  assert.equal(await startingPoint.inputValue(), '1', 'a late read cannot replace a newer saved choice');
+  assert.equal(await startingPoint.inputValue(), '0', 'a late read cannot replace a newer saved choice');
 
   const heldSave = await holdPlacementResponse(page, true);
   await startingPoint.selectOption('2');
@@ -407,6 +415,13 @@ try {
   assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
   const competing = await stored();
   assert.equal(competing.spanishPlacement, 1);
+  const lostSave = await holdPlacementResponse(page, true);
+  await saveStartingPoint.press('Space');
+  await lostSave.wait();
+  await lostSave.release(true);
+  await placement.getByText('Saved starting point: Beginner. Your selection is unsaved.', { exact: true }).waitFor();
+  assert.equal(await startingPoint.inputValue(), '2');
+  assert.deepEqual(await stored(), competing);
   await saveStartingPoint.press('Space');
   await placement.getByText('Saved starting point: Beginner. Review your selection and save again to keep it.',
     { exact: true }).waitFor();
@@ -551,6 +566,17 @@ try {
   await options.locator('#language').selectOption('gn-PY-x-weave');
   await openScore.waitFor({ state: 'hidden' });
   assert.equal(await languagePreview.evaluate((summary) => summary === document.activeElement), true);
+  await options.locator('#language').selectOption('es');
+  await openScore.waitFor({ state: 'visible' });
+  await guaraniWelcome.bringToFront();
+  const heldScopeSave = await holdPlacementResponse(guaraniWelcome, true);
+  await saveDraft.press('Space');
+  await heldScopeSave.wait();
+  await guaraniWelcome.waitForFunction(() => document.activeElement === document.body, null, { polling: 50, timeout: 3000 });
+  await options.locator('#language').selectOption('gn-PY-x-weave');
+  await openScore.waitFor({ state: 'hidden' });
+  assert.equal(await languagePreview.evaluate((summary) => summary === document.activeElement), true);
+  await heldScopeSave.release();
   await languagePreview.press('Enter');
   await guaraniWelcome.locator('#placement:not([open])').waitFor();
   await languagePreview.press('Enter');

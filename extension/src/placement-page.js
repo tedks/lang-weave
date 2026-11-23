@@ -60,6 +60,7 @@ export function mountPlacement(panel) {
   let readGeneration = 0;
   let saving = false;
   let pendingSave;
+  let saveFocus;
   let notice;
 
   function showExamples(container, words) {
@@ -131,9 +132,11 @@ export function mountPlacement(panel) {
     if (status.textContent !== message) status.textContent = message;
   }
 
-  function restoreSaveFocus(previousFocus) {
+  function restoreSaveFocus() {
+    const previousFocus = saveFocus;
+    saveFocus = undefined;
     // Chromium can drop focus when disabling a focused form control.
-    if (!previousFocus || !fieldset.contains(previousFocus) ||
+    if (!previousFocus ||
         (document.activeElement !== document.body && document.activeElement !== previousFocus)) return;
     if (!fieldset.disabled) previousFocus.focus();
     else if (!retry.hidden) retry.focus();
@@ -149,6 +152,7 @@ export function mountPlacement(panel) {
       ?? choice.options[0];
     const saved = Number(option.value);
     const recovering = !retry.hidden;
+    const focused = document.activeElement;
     const settled = pendingSave;
     pendingSave = undefined;
     snapshot = { ...current, choice: saved };
@@ -157,7 +161,8 @@ export function mountPlacement(panel) {
     if (!current.available) {
       hideScore();
       announce(t('placement_spanish_only'));
-      restoreSaveFocus(settled?.focus);
+      if (focused === retry || fieldset.contains(focused)) trigger.focus();
+      restoreSaveFocus();
       return;
     }
     scoreForm.hidden = !(beginner.length && expanded.length);
@@ -165,15 +170,16 @@ export function mountPlacement(panel) {
     // Refresh the displayed saved choice without granting a dirty draft a new
     // epoch. A rejected Save can do so with an explicit second-save prompt.
     const clean = !dirty || selected === saved;
-    if (clean || settled?.kind === 'conflict') saveEpoch = current.epoch;
+    if (clean || settled === 'conflict') saveEpoch = current.epoch;
     const label = option.textContent;
-    if (settled?.kind === 'saved' && selected === saved) announce(t('placement_saved'), 'saved');
-    else if (settled?.kind === 'conflict') announce(t('placement_changed', label), 'draft');
-    else if (settled?.kind === 'error') announce(t('placement_error'));
+    if (settled === 'saved' && selected === saved) announce(t('placement_saved'), 'saved');
+    else if (settled === 'conflict') announce(t('placement_changed', label), 'draft');
     else if (!clean && saveEpoch !== current.epoch) announce(t('placement_competing', label), 'draft');
+    else if (settled === 'error') announce(t('placement_error'));
     else if (recovering || wasUnavailable || (notice === 'draft' && clean) ||
              (notice === 'saved' && saved !== previousChoice)) announce('');
-    restoreSaveFocus(settled?.focus);
+    if (focused === retry) choice.focus();
+    restoreSaveFocus();
   }
 
   async function refresh() {
@@ -189,10 +195,7 @@ export function mountPlacement(panel) {
       if (isCurrent()) {
         announce(t('placement_error'));
         retry.hidden = false;
-        if (pendingSave) {
-          restoreSaveFocus(pendingSave.focus);
-          pendingSave.focus = undefined;
-        }
+        restoreSaveFocus();
       }
     }
   }
@@ -202,6 +205,7 @@ export function mountPlacement(panel) {
     readGeneration++;
     snapshot = null;
     pendingSave = undefined;
+    saveFocus = undefined;
     fieldset.disabled = true;
     retry.hidden = true;
     hideScore();
@@ -213,10 +217,12 @@ export function mountPlacement(panel) {
     const before = settings?.oldValue?.language ?? DEFAULT_SETTINGS.language;
     const after = settings?.newValue?.language ?? DEFAULT_SETTINGS.language;
     if (before !== after) {
-      const choiceFocused = fieldset.contains(document.activeElement);
+      const focused = document.activeElement;
+      const choiceFocused = fieldset.contains(focused) || (saveFocus && focused === document.body);
       if (snapshot) snapshot = { ...snapshot, available: false };
       fieldset.disabled = true;
       pendingSave = undefined;
+      saveFocus = undefined;
       hideScore();
       if (choiceFocused && isOpen()) trigger.focus();
     }
@@ -227,14 +233,7 @@ export function mountPlacement(panel) {
     saveEpoch = snapshot.epoch;
     if (notice === 'draft') announce('');
   });
-  retry.addEventListener('click', async () => {
-    const view = opening;
-    const wasFocused = document.activeElement === retry;
-    await refresh();
-    const focused = document.activeElement;
-    if (isOpen() && view === opening && snapshot?.available &&
-        (focused === retry || wasFocused && focused === document.body)) choice.focus();
-  });
+  retry.addEventListener('click', () => { void refresh(); });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!isOpen() || fieldset.disabled || !snapshot?.available) return;
@@ -242,7 +241,8 @@ export function mountPlacement(panel) {
     if (choice.selectedOptions[0]?.disabled) return;
     const view = opening;
     const isSameOpening = () => isOpen() && view === opening;
-    const focus = document.activeElement;
+    const focused = document.activeElement;
+    saveFocus = fieldset.contains(focused) ? focused : undefined;
     saving = true;
     readGeneration++;
     fieldset.disabled = true;
@@ -253,12 +253,12 @@ export function mountPlacement(panel) {
       if (result?.ok) {
         // This draft was saved. A fresh read decides whether it is still current.
         snapshot = { ...result, choice: selected, available: snapshot.available };
-        if (snapshot.available) pendingSave = { kind: 'saved', focus };
+        if (snapshot.available) pendingSave = 'saved';
       } else if (snapshot.available) {
-        pendingSave = { kind: result?.ok === false ? 'conflict' : 'error', focus };
+        pendingSave = result?.ok === false ? 'conflict' : 'error';
       }
     } catch {
-      if (isSameOpening() && snapshot.available) pendingSave = { kind: 'error', focus };
+      if (isSameOpening() && snapshot.available) pendingSave = 'error';
     }
     finally {
       saving = false;
