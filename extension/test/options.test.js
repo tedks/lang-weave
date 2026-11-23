@@ -45,6 +45,7 @@ test('options works without a tab; settings, exception reset and key removal rou
   const messages = [];
   let storageChanged;
   let generateFails = false;
+  let workerAvailable = false;
   let due = 2;
   let isolationUnavailable = false;
   let testCategory = 'key_rejected';
@@ -56,7 +57,10 @@ test('options works without a tab; settings, exception reset and key removal rou
     runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.5' }),
       sendMessage: async (msg) => {
         messages.push({ ...msg, ...(msg.apiKey ? { apiKey: '[redacted]' } : {}) });
-        if (msg.type === 'status') return status();
+        if (msg.type === 'status') {
+          if (!workerAvailable) throw new Error('Worker unavailable');
+          return status();
+        }
         if (msg.type === 'save') return handlers.save(msg);
         if (msg.type === 'removeKey') return handlers.removeKey();
         if (msg.type === 'clearCache') return handlers.clearCache();
@@ -76,7 +80,11 @@ test('options works without a tab; settings, exception reset and key removal rou
   try {
     await import('../src/options.js?options-roundtrip');
     const $ = (id) => window.document.getElementById(id);
+    await waitFor(() => $('notice').textContent === 'Worker unavailable');
     expect($('version').textContent).toBe('0.12.5');
+    expect($('update').hidden).toBe(true);
+    workerAvailable = true;
+    storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('wordInfo').textContent === '30 Spanish words');
     isolationUnavailable = true;
     storageChanged({ settings: {} }, 'local');

@@ -160,6 +160,7 @@ try {
   await offlineOptions.goto(options.url());
   await offlineOptions.locator('#notice').getByText('Status unavailable in this test', { exact: true }).waitFor();
   assert.equal(await offlineOptions.locator('#version').textContent(), manifest.version);
+  assert.equal(await offlineOptions.locator('#update').isHidden(), true);
   await offlineOptions.close();
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
