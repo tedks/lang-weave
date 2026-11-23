@@ -32,3 +32,9 @@ log_events:
     ordinary prompt projects an eligible window row and omits an unrelated suitcase
     row before a window card exists. Focused Linux-sandbox Nix/Bazel passed 92/92.
     Keep open until integration.'
+- time: 2026-11-23T05:09:33-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Verified on ready PR #71 exact 31977049ad89cb5658f3d09aa1f611e70ddf603f.
+    Light gate 99/99 and full 467/467, routed synthetic ordinary compaction and full
+    gradual worker body assertions. Awaiting normal merge before closure.'
