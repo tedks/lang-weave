@@ -92,7 +92,8 @@ export function mountPlacement(panel) {
     else samples.prepend(first);
   }
 
-  function clearScore() {
+  function hideScore() {
+    scoreForm.hidden = true;
     score.value = '';
     score.removeAttribute('aria-invalid');
     scoreStatus.textContent = '';
@@ -119,8 +120,7 @@ export function mountPlacement(panel) {
   async function load() {
     snapshot = null;
     fieldset.disabled = true;
-    scoreForm.hidden = true;
-    clearScore();
+    hideScore();
     const languageAtRead = languageChanges;
     const current = await chrome.runtime.sendMessage({ type: 'placement' });
     if (current?.available === false) {
@@ -153,13 +153,14 @@ export function mountPlacement(panel) {
 
   panel.addEventListener('toggle', () => {
     if (panel.open) void refresh();
-    else clearScore();
+    else hideScore();
   });
   chrome.storage?.onChanged?.addListener(({ settings }, area) => {
-    if (area !== 'local' || settings?.oldValue?.language === settings?.newValue?.language) return;
+    const before = settings?.oldValue?.language ?? 'es';
+    const after = settings?.newValue?.language ?? 'es';
+    if (area !== 'local' || before === after) return;
     languageChanges++;
-    scoreForm.hidden = true;
-    clearScore();
+    hideScore();
   });
   retry.addEventListener('click', async () => {
     const wasFocused = document.activeElement === retry;
