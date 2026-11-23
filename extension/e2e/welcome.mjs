@@ -11,6 +11,7 @@ const { chromium } = await import(process.env.LANG_WEAVE_PLAYWRIGHT
   : 'playwright');
 
 const pickerFor = (page) => page.getByRole('combobox', { name: 'Sample language' });
+const passageFor = (page) => page.getByRole('combobox', { name: 'Passage', exact: true });
 const spanish = {
   name: 'Spanish',
   tag: 'es',
@@ -48,6 +49,8 @@ async function checkSample(page, { name, tag, targets, source, firstSource }) {
   await gloss.waitFor({ state: 'detached' });
 
   await picker.focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await passageFor(page).evaluate((el) => el === document.activeElement), true);
   await page.keyboard.press('Tab');
   assert.equal(await first.evaluate((word) => word.matches(':focus-visible')), true);
   await gloss.waitFor();
@@ -316,9 +319,28 @@ try {
   assert.equal(before.settings.language, 'es');
   const permissions = await worker.evaluate(() => chrome.permissions.getAll());
   await checkParagraph(context, worker, id);
+  const sampleState = await worker.evaluate(() => chrome.storage.local.get(null));
   await checkSample(page, spanish);
+  const passage = passageFor(page);
+  await passage.selectOption({ label: 'Packing for the train' });
+  await checkSample(page, { ...spanish, firstSource: 'the sweater',
+    targets: ['el suéter', 'la pulsera', 'la maleta', 'mañana'],
+    source: 'Before the train arrived, I folded the sweater and tucked it beside the bracelet in the suitcase. We leave for the coast tomorrow.' });
+  await passage.selectOption({ label: 'Music by the river' });
+  await checkSample(page, { ...spanish, firstSource: 'the soup', targets: ['la sopa', 'la ventana', 'la canción', 'el río'],
+    source: 'I left the soup by the window to cool. Outside, the song from a passing bicycle faded as the rider crossed the river.' });
   await pickerFor(page).selectOption({ label: guarani.name });
+  assert.equal(await passage.locator('option:checked').textContent(), 'A walk in the garden');
   await checkSample(page, guarani);
+  await passage.selectOption({ label: 'In the classroom' });
+  await checkSample(page, { ...guarani, firstSource: 'teacher',
+    targets: ['mbo’ehára', 'aranduka', 'kuatia', 'koty', 'apyka'],
+    source: 'Our teacher opened my book and handed me a sheet of paper. I drew the room as it looked from my chair.' });
+  await passage.selectOption({ label: 'A moonlit road' });
+  await checkSample(page, { ...guarani, firstSource: 'night', targets: ['pyhare', 'jasy', 'tape', 'yvytu', 'okẽ'],
+    source: 'At night we watched the moon rise over the road. A gust of wind rattled the door before dawn.' });
+  assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get(null)), sampleState);
+  console.log('PASS: all six bundled passages rendered, revealed their original English and retained local learning data.');
   const practiceUrl = `chrome-extension://${id}/src/paragraph.html`;
   const fromSample = await openParagraph(context, page, `${practiceUrl}#gn-PY-x-weave`);
   assert.equal(await fromSample.getByRole('combobox', { name: 'Practice language' }).inputValue(), 'gn-PY-x-weave');

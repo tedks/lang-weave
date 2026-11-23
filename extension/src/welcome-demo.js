@@ -1,19 +1,54 @@
+import { t } from './i18n.js';
 import { GUARANI_PACK } from './guarani.js';
 import { GUARANI_STARTER, languageName } from './language-name.js';
 import { applySwaps, isSwap, revert, toggle } from './text.js';
 import { L1_WORDS } from './vocabulary.js';
 
-const SPANISH_ANCHORS = ['Today', 'with', 'and', 'important', 'always', 'because', 'difficult', 'but', 'possible'];
-const GUARANI_ANCHORS = ['rain', 'tree', 'butterfly', 'flower', 'sun'];
-const GUARANI_PASSAGE = 'After the rain, I walked past a tree toward the garden. A butterfly landed on a flower, and the sun warmed the path.';
+// Each English span names its existing Beginner catalog entry. Use the bundled hint and sense.
+const SPANISH_SAMPLES = [
+  {
+    title: t('welcome_sample_friend'),
+    // The first Spanish passage is the readable fallback in welcome.html.
+    words: [['Today', 'hoy'], ['with', 'con'], ['and', 'y'], ['important', 'importante'], ['always', 'siempre'],
+      ['because', 'porque'], ['difficult', 'difícil'], ['but', 'pero'], ['possible', 'posible']],
+  },
+  {
+    title: t('welcome_sample_train'),
+    text: 'Before the train arrived, I folded the sweater and tucked it beside the bracelet in the suitcase. We leave for the coast tomorrow.',
+    words: [['the sweater', 'el suéter'], ['the bracelet', 'la pulsera'], ['the suitcase', 'la maleta'], ['tomorrow', 'mañana']],
+  },
+  {
+    title: t('welcome_sample_river'),
+    text: 'I left the soup by the window to cool. Outside, the song from a passing bicycle faded as the rider crossed the river.',
+    words: [['the soup', 'la sopa'], ['the window', 'la ventana'], ['the song', 'la canción'], ['the river', 'el río']],
+  },
+];
 
-// Keep both examples fixed and sense-safe, with words from their bundled Beginner lists.
-export function demoSwaps(language = 'es') {
-  const guarani = language === GUARANI_STARTER;
-  const words = guarani ? GUARANI_PACK.words : L1_WORDS;
-  return (guarani ? GUARANI_ANCHORS : SPANISH_ANCHORS).map((source) => {
-    const word = words.find(({ en, level }) => en === source.toLowerCase() && (!guarani || level === 1));
-    if (!word) throw new Error(`Missing Beginner demo word: ${source}`);
+const GUARANI_SAMPLES = [
+  {
+    title: t('welcome_sample_garden'),
+    text: 'After the rain, I walked past a tree toward the garden. A butterfly landed on a flower, and the sun warmed the path.',
+    words: [['rain', 'ama'], ['tree', 'yvyra'], ['butterfly', 'panambi'], ['flower', 'yvoty'], ['sun', 'kuarahy']],
+  },
+  {
+    title: t('welcome_sample_classroom'),
+    text: 'Our teacher opened my book and handed me a sheet of paper. I drew the room as it looked from my chair.',
+    words: [['teacher', 'mbo’ehára'], ['book', 'aranduka'], ['paper', 'kuatia'], ['room', 'koty'], ['chair', 'apyka']],
+  },
+  {
+    title: t('welcome_sample_moon'),
+    text: 'At night we watched the moon rise over the road. A gust of wind rattled the door before dawn.',
+    words: [['night', 'pyhare'], ['moon', 'jasy'], ['road', 'tape'], ['wind', 'yvytu'], ['door', 'okẽ']],
+  },
+];
+
+const samplesFor = (language) => language === GUARANI_STARTER ? GUARANI_SAMPLES : SPANISH_SAMPLES;
+
+export function demoSwaps(language = 'es', index = 0) {
+  const words = language === GUARANI_STARTER ? GUARANI_PACK.words.filter((word) => word.level === 1) : L1_WORDS;
+  return samplesFor(language)[index].words.map(([source, target]) => {
+    const word = words.find(({ fr }) => fr === target);
+    if (!word) throw new Error(`Missing Beginner demo word: ${target}`);
     return { o: source, f: word.fr, g: word.en, h: word.hint, ctx: '' };
   });
 }
@@ -21,6 +56,16 @@ export function demoSwaps(language = 'es') {
 export async function mountWelcomeDemo(demo, picker) {
   const doc = demo.ownerDocument;
   const spanishPassage = demo.textContent;
+  const passagePicker = doc.getElementById('demoPassage');
+  function populatePassages() {
+    passagePicker.replaceChildren();
+    for (const sample of samplesFor(picker.value)) {
+      const option = doc.createElement('option');
+      option.textContent = sample.title;
+      passagePicker.append(option);
+    }
+    passagePicker.selectedIndex = 0;
+  }
   let tipTimer;
   let tipBox;
   const hideTip = () => {
@@ -32,8 +77,9 @@ export async function mountWelcomeDemo(demo, picker) {
   const render = () => {
     hideTip();
     revert(demo);
-    demo.textContent = picker.value === GUARANI_STARTER ? GUARANI_PASSAGE : spanishPassage;
-    applySwaps(demo, demoSwaps(picker.value), undefined, languageTag());
+    const index = passagePicker.selectedIndex;
+    demo.textContent = samplesFor(picker.value)[index].text ?? spanishPassage;
+    applySwaps(demo, demoSwaps(picker.value, index), undefined, languageTag());
   };
   const swapAt = (event) => {
     const span = event.target.closest?.('.fw-word');
@@ -89,12 +135,16 @@ export async function mountWelcomeDemo(demo, picker) {
   try { savedLanguage = (await chrome.storage.local.get('settings')).settings?.language; }
   catch { /* Spanish is the default if the preference cannot be loaded. */ }
   picker.value = savedLanguage === GUARANI_STARTER ? GUARANI_STARTER : 'es';
+  populatePassages();
   render();
+  passagePicker.addEventListener('change', render);
   const practiceLink = doc.getElementById('practiceParagraph');
   picker.addEventListener('change', () => {
     // A sample choice applies to this link only. The plain link follows Settings at open time.
     if (practiceLink) practiceLink.hash = picker.value === GUARANI_STARTER ? GUARANI_STARTER : 'es';
+    populatePassages();
     render();
   });
+  passagePicker.disabled = false;
   picker.disabled = false;
 }

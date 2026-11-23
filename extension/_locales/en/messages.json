@@ -981,6 +981,34 @@
     "message": "Sample language",
     "description": "First-run welcome page: label for the local reading sample selector."
   },
+  "welcome_demo_passage": {
+    "message": "Passage",
+    "description": "Label for the local reading passage selector."
+  },
+  "welcome_sample_friend": {
+    "message": "Reading with a friend",
+    "description": "Title of an offline reading passage on Welcome."
+  },
+  "welcome_sample_train": {
+    "message": "Packing for the train",
+    "description": "Title of an offline reading passage on Welcome."
+  },
+  "welcome_sample_river": {
+    "message": "Music by the river",
+    "description": "Title of an offline reading passage on Welcome."
+  },
+  "welcome_sample_garden": {
+    "message": "A walk in the garden",
+    "description": "Title of an offline reading passage on Welcome."
+  },
+  "welcome_sample_classroom": {
+    "message": "In the classroom",
+    "description": "Title of an offline reading passage on Welcome."
+  },
+  "welcome_sample_moon": {
+    "message": "A moonlit road",
+    "description": "Title of an offline reading passage on Welcome."
+  },
   "welcome_demo_help": {
     "message": "Hover over or focus an underlined word for its meaning. Click it or press Enter or Space to flip it. This bundled sample stays on your device. Choose your reading language in Settings.",
     "description": "First-run welcome page: how to use the sample passage above it."
