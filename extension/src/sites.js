@@ -10,8 +10,8 @@ export const declaredMatches = () => [...new Set((chrome.runtime.getManifest().c
 
 export function createSites({ store, locked, worker, broadcast, context }) {
   // Granted origins (all sites, or one at a time from the popup) decide where the content script is injected.
-  // Hosts the manifest itself injects into are excluded so no page gets the loader twice: X in the unpacked
-  // build, where it works without a grant. The Store build declares no content script (scripts/package.mjs
+  // Hosts the manifest itself injects into are excluded so no page gets the loader twice: X and Twitter in
+  // the unpacked build. The Store build declares no content script (scripts/package.mjs
   // STORE_DELTAS), so there a granted X is registered like any other site.
   let registrations = Promise.resolve();
   const recoveredTabs = new Set(); // one recovery attempt per tab in this worker life

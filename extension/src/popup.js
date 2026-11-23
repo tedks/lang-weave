@@ -71,16 +71,20 @@ $('enabled').addEventListener('change', (e) => run(async () => {
   finally { await refresh(); }
 }));
 $('siteEnabled').addEventListener('change', (e) => run(async () => {
-  if (!host || !tab?.url) return;
+  if (!host || !tab?.url || !status) return;
   const enabled = e.target.checked;
-  if (enabled && !hasSiteAccess(tab.url, status.config.origins)) {
-    // This request must be first in the click handler, before any await loses the gesture.
-    const accepted = await chrome.permissions.request({ origins: [`${new URL(tab.url).protocol}//${host}/*`] });
-    if (!accepted) { await refresh(); return; }
+  e.target.disabled = true;
+  try {
+    if (enabled && !hasSiteAccess(tab.url, status.config.origins)) {
+      // Start the request in the click handler, before any await loses the gesture.
+      const accepted = await chrome.permissions.request({ origins: [`${new URL(tab.url).protocol}//${host}/*`] });
+      if (!accepted) return;
+    }
+    await send({ type: 'save', siteOverride: { host, enabled } });
+  } finally {
+    await refresh();
   }
-  await send({ type: 'save', siteOverride: { host, enabled } });
-  await refresh();
-  if (enabled) await inject();
+  if (enabled && hasSiteAccess(tab.url, status.config.origins)) await inject();
 }));
 $('cancelBudget').addEventListener('click', () => { $('budgetRecovery').hidden = true; });
 $('recoverBudget').addEventListener('click', () => run(async () => {

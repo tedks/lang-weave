@@ -24,6 +24,18 @@ export const personalScope = (language) => scopedStorage(chromeStorage, `persona
 export const laterDay = (a, b) => a > b ? a : b; // ISO local dates or empty string
 export const availableLanguage = (code, packs) => bundledLanguage(code) || Object.hasOwn(packs, code) ? code : 'es';
 
+async function readingOrigins(manifest) {
+  const { origins = [] } = await chrome.permissions.getAll();
+  const scriptable = new Set((manifest.content_scripts ?? []).flatMap(({ matches }) => matches));
+  if (!scriptable.size) return origins;
+  // getAll() merges explicit host grants with static content-script matches.
+  // contains() requires both for an origin declared in both places.
+  const available = await Promise.all(origins.map((origin) => scriptable.has(origin)
+    ? chrome.permissions.contains({ origins: [origin] })
+    : true));
+  return origins.filter((_, index) => available[index]);
+}
+
 export function createContext({ store, ready, worker }) {
   // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
   async function context() {
@@ -73,11 +85,12 @@ export function createContext({ store, ready, worker }) {
     const scope = pack ? `${saved.language}:${pack.version}` : 'es';
     const hasKey = !!data.apiKey;
     const paused = false; // retained in the page config protocol; pause is settings.enabled
-    const { origins = [] } = await chrome.permissions.getAll();
+    const manifest = chrome.runtime.getManifest();
+    const origins = await readingOrigins(manifest);
     const revision = hashKey(JSON.stringify([data.epoch || '', readingSettings(settings), level, scope,
       safeLegacyWords.map((word) => [word.fr, word.en]), personalAuto.map(({ entry }) =>
         [entry.id, entry.source, entry.target]), personal.unsupported === true,
-      chrome.runtime.getManifest().version, hasKey, origins]));
+      manifest.version, hasKey, origins]));
     return { settings, level, revision, hasKey, paused, origins, captureEpoch: data.epoch || '',
       stage: 0, language: saved.language,
       scope, words, allWords, legacyWords: retainedWords.length ? [...legacyWords, ...retainedWords] : legacyWords,

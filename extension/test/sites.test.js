@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { createSites } from '../src/sites.js';
+import { activeOn, createContext } from '../src/worker-context.js';
 import { storeManifest } from '../scripts/package.mjs';
 
 const dev = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
@@ -27,6 +28,37 @@ async function register(manifest, { origins, existing = [] }) {
 }
 
 const granted = ['https://x.com/*', 'https://example.com/*', 'https://generativelanguage.googleapis.com/*'];
+
+test('reading context requires an explicit grant for static origins even when getAll never changes', async () => {
+  const saved = globalThis.chrome;
+  const twitter = 'https://twitter.com/*';
+  const origins = [...granted, twitter];
+  const data = { apiKey: 'fixture-key', settings: { newSitesEnabled: false,
+    siteOverrides: { 'x.com': true, 'twitter.com': true, 'example.com': true } } };
+  let explicitX = false;
+  globalThis.chrome = {
+    runtime: { getManifest: () => dev },
+    permissions: {
+      getAll: async () => ({ origins }),
+      contains: async ({ origins }) => origins[0] === 'https://x.com/*' && explicitX,
+    },
+  };
+  try {
+    const { context } = createContext({ store: { get: async () => data }, worker: {} });
+    const x = 'https://x.com/reader/status/123';
+    const before = await context();
+    expect(activeOn(before, x)).toBe(false);
+    expect(activeOn(before, 'https://twitter.com/reader/status/123')).toBe(false);
+    expect(activeOn(before, 'https://example.com/article')).toBe(true);
+    explicitX = true;
+    const after = await context();
+    expect(activeOn(after, x)).toBe(true);
+    expect(after.revision).not.toBe(before.revision);
+    expect(activeOn(after, 'https://twitter.com/reader/status/123')).toBe(false);
+    explicitX = false;
+    expect(activeOn(await context(), x)).toBe(false);
+  } finally { globalThis.chrome = saved; }
+});
 
 test('dev manifest: a granted X stays with the manifest content script, never registered twice', async () => {
   const [[kind, [script]]] = await register(dev, { origins: granted });

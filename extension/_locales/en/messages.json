@@ -873,6 +873,16 @@
       }
     }
   },
+  "options_site_access_needed": {
+    "message": "Open $HOST$ and turn on site access in the Lang Weave popup.",
+    "description": "Settings page: a saved site exception still needs browser permission.",
+    "placeholders": {
+      "HOST": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
   "options_site_reset": {
     "message": "Reset",
     "description": "Settings page: button that removes one site exception."

@@ -17,7 +17,7 @@ test('popup shows one action and grants this site before saving or injecting', a
   globalThis.document = window.document;
   const events = [];
   let failSave = false;
-  const state = { enabled: true, due: 3, available: 7, access: false, siteOverride: null, progressFails: false, consentShown: true,
+  const state = { enabled: true, due: 3, available: 7, access: false, grant: false, siteOverride: null, progressFails: false, consentShown: true,
     isolationUnavailable: false };
   const today = { day: '2026-10-30', introduced: 2, seen: 14, peeked: 3, flipped: 0, reviewed: 5 };
   const pageUrl = 'https://example.com/article';
@@ -47,7 +47,12 @@ test('popup shows one action and grants this site before saving or injecting', a
       } },
     tabs: { query: async () => [{ id: 5, url: pageUrl }],
       create: async ({ url }) => { events.push(url); return { id: 9 }; } },
-    permissions: { request: async () => { events.push('permission'); state.access = true; return true; } },
+    permissions: { request: async (details) => {
+      expect(details).toEqual({ origins: ['https://example.com/*'] });
+      events.push('permission');
+      state.access = state.grant;
+      return state.grant;
+    } },
     scripting: { insertCSS: async () => { events.push('css'); },
       executeScript: async () => { events.push('script'); } },
   };
@@ -74,6 +79,14 @@ test('popup shows one action and grants this site before saving or injecting', a
     await waitFor(() => events.includes('options-tab'));
     $('openWords').click();
     await waitFor(() => events.includes('chrome-extension://fw-popup/src/words.html'));
+    events.length = 0;
+    $('siteEnabled').checked = true;
+    $('siteEnabled').dispatchEvent(new window.Event('change'));
+    expect(events).toEqual(['permission']); // request starts in the gesture
+    await waitFor(() => !$('siteEnabled').disabled);
+    expect($('siteEnabled').checked).toBe(false);
+    expect(events).toEqual(['permission']); // denial saves nothing and injects nothing
+    state.grant = true;
     events.length = 0;
     $('siteEnabled').checked = true;
     $('siteEnabled').dispatchEvent(new window.Event('change'));

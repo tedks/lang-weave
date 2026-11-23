@@ -95,6 +95,10 @@ test('options works without a tab; settings, exception reset and key removal rou
     await waitFor(() => $('siteList').textContent === 'None');
     expect(data.settings.siteOverrides).toEqual({});
     expect(messages.some((m) => m.siteOverride?.host === 'example.com' && m.siteOverride.enabled === null)).toBe(true);
+    data.settings.siteOverrides = { 'x.com': true };
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('siteList').textContent.includes('Open x.com and turn on site access in the Lang Weave popup.'));
+    expect(data.settings.siteOverrides['x.com']).toBe(true);
     $('newLanguage').value = 'fr';
     $('addLanguage').click();
     await waitFor(() => $('operation').textContent === '' && !$('addLanguage').disabled);
@@ -162,7 +166,8 @@ test('options renders its multi-part sentences and dynamic notes as the exact En
   window.document.write(readFileSync(new URL('../src/options.html', import.meta.url), 'utf8'));
   window.setInterval = () => 1;
   globalThis.document = window.document;
-  const status = { config: { settings: cleanSettings({ newSitesEnabled: true, siteOverrides: { 'a.example': true } }), language: 'fr', hasKey: false, origins: [] },
+  const status = { config: { settings: cleanSettings({ newSitesEnabled: true, siteOverrides: { 'a.example': true } }), language: 'fr', hasKey: false,
+    origins: ['https://a.example/*'] },
     update: '0.12.19', languages: [{ code: 'es', name: 'Spanish' }, { code: 'fr', name: 'French', experimental: true }],
     words: 21, review: { due: 4, new: 0 }, pastedKey: false, consentShown: false, modelStatus: null };
   globalThis.chrome = {
