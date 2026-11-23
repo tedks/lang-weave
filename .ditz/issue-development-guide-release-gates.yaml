@@ -1,0 +1,20 @@
+id: development-guide-release-gates
+title: Point the public development guide to the release checks
+desc: The public Development section still instructs maintainers to use standalone
+  Bun, Node and Python quality gates. Point contributors to the same project-root
+  Nix+Bazel tests, strict version comparison and exact committed ZIP workflow used
+  to accept releases. Preserve the unpacked user guide and separate Store packaging
+  context.
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T08:33:02-00:00
+references: []
+log_events:
+- time: 2026-11-23T08:33:02-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
