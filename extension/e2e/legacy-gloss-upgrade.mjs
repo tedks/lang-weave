@@ -17,11 +17,12 @@ assert.equal(createHash('sha256').update(await readFile(priorZip)).digest('hex')
 const id = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
 const host = 'legacy-reading.example';
 const pattern = `https://${host}/*`;
-const url = `https://${host}/reading`;
+const origin = `https://${host}`;
 const prose = {
   positive: 'The visitor said hello to everyone at the station.',
   negative: 'The visitor packed his bag before sunrise.',
 };
+const pages = new Map([[`${origin}/hello`, prose.positive], [`${origin}/his`, prose.negative]]);
 const savedReview = { version: 1, cards: { 'la pregunta': { due: 1, interval: 3, reviews: 2 } },
   learning: { day: '', count: 0 } };
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-legacy-'));
@@ -43,11 +44,13 @@ async function openInstalled() {
       '--no-first-run', '--disable-background-networking', '--host-resolver-rules=MAP * ~NOTFOUND',
       '--proxy-server=http://127.0.0.1:9', '--proxy-bypass-list=<-loopback>'],
   });
-  await context.route(/^https?:/, (route) => route.request().url() === url
-    ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html>
-    <html lang="en"><head><title>Legacy reading practice</title></head>
-    <body><main><p id="hello">${prose.positive}</p><p id="his">${prose.negative}</p></main></body></html>` })
-    : route.abort());
+  await context.route(/^https?:/, (route) => {
+    const text = pages.get(route.request().url());
+    if (!text) return route.abort();
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html>
+      <html lang="en"><head><title>Legacy reading practice</title></head>
+      <body><main><p id="passage">${text}</p></main></body></html>` });
+  });
   return context;
 }
 
@@ -78,8 +81,8 @@ async function loadUnpacked(manager) {
   await expectInstalled(manager, '0.15.7');
 }
 
-async function installProvider(worker) {
-  await worker.evaluate(({ positive, negative }) => {
+async function installProvider(worker, forceNegative = false) {
+  await worker.evaluate(({ positive, negative, forceNegative }) => {
     const anchors = new Map([[positive, 'hello'], [negative, 'his']]);
     const originalFetch = globalThis.fetch;
     globalThis.legacyRequests = [];
@@ -90,35 +93,41 @@ async function installProvider(worker) {
       const offered = request.systemInstruction.parts[0].text.includes('hola = hello');
       const passages = JSON.parse(request.contents[0].parts[0].text.replace(/^Passages:\n/, '')).map(({ id, text }) => {
         const o = anchors.get(text);
-        globalThis.legacyRequests.push({ id, text, offered });
-        return { id, swaps: o && offered ? [{ o, f: 'hola' }] : [] };
+        const proposed = !!o && (offered || forceNegative && o === 'his');
+        globalThis.legacyRequests.push({ id, text, offered, proposed });
+        return { id, swaps: proposed ? [{ o, f: 'hola' }] : [] };
       });
       return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
     };
-  }, prose);
+  }, { ...prose, forceNegative });
 }
 
-async function readPair(context, worker) {
-  const page = await context.newPage();
-  await page.goto(url);
-  const word = page.locator('#hello .fw-word[lang="es"]');
-  await word.waitFor();
-  assert.equal(await word.getAttribute('data-en'), 'hello');
-  assert.equal(await page.locator('#hello').textContent(), prose.positive.replace('hello', 'hola'));
+async function readPair(context, worker, requireNegativeOffer = false) {
+  const negative = await context.newPage();
+  await negative.goto(`${origin}/his`);
   const result = await worker.evaluate(async (text) => {
     for (const deadline = Date.now() + 5000; Date.now() < deadline;) {
       const bad = globalThis.legacyRequests.find((request) => request.text === text);
       if (bad) {
         const key = `c:${bad.id}`;
         const entry = (await chrome.storage.local.get(key))[key];
-        if (entry) return { offered: bad.offered, key, entry };
+        if (entry) return { offered: bad.offered, proposed: bad.proposed, key, entry };
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     return null;
   }, prose.negative);
-  assert.ok(result?.offered, 'the ordinary prompt offered hola and the synthetic his proposal reached the cache');
-  return { page, key: result.key, entry: result.entry };
+  assert.ok(result?.proposed, 'the his proposal reached the worker on its own page');
+  if (requireNegativeOffer) assert.equal(result.offered, true, '0.15.7 offered hola with only the his passage');
+
+  const positive = await context.newPage();
+  await positive.goto(`${origin}/hello`);
+  const word = positive.locator('#passage .fw-word[lang="es"]');
+  await word.waitFor();
+  assert.equal(await word.getAttribute('data-en'), 'hello');
+  assert.equal(await positive.locator('#passage').textContent(), prose.positive.replace('hello', 'hola'));
+  await positive.close();
+  return { page: negative, key: result.key, entry: result.entry };
 }
 
 let context;
@@ -144,10 +153,10 @@ try {
   await grantReadingSite(context, worker, pattern);
   await welcome.close();
 
-  const old = await readPair(context, worker);
+  const old = await readPair(context, worker, true);
   assert.deepEqual(old.entry.s.map(({ o, f }) => [o, f]), [['his', 'hola']]);
-  await old.page.locator('#his .fw-word[lang="es"]').waitFor();
-  assert.equal(await old.page.locator('#his').textContent(), prose.negative.replace('his', 'hola'));
+  await old.page.locator('#passage .fw-word[lang="es"]').waitFor();
+  assert.equal(await old.page.locator('#passage').textContent(), prose.negative.replace('his', 'hola'));
   const before = await worker.evaluate(() => chrome.storage.local.get(['settings', 'spanishPlacement', 'recallReview']));
   assert.deepEqual(before.recallReview, savedReview);
   await old.page.close();
@@ -171,14 +180,14 @@ try {
   await manager.close();
   assert.equal(new URL(worker.url()).host, id);
   assert.equal(await worker.evaluate(() => chrome.runtime.getManifest().version), candidate.version);
-  await installProvider(worker);
+  await installProvider(worker, true);
   assert.equal(await worker.evaluate((pattern) => chrome.permissions.contains({ origins: [pattern] }), pattern), true);
 
   const updated = await readPair(context, worker);
   assert.notEqual(updated.key.split(':')[1], old.key.split(':')[1], 'the version changed the reading revision');
   assert.deepEqual(updated.entry.s, []);
-  assert.equal(await updated.page.locator('#his').textContent(), prose.negative);
-  assert.equal(await updated.page.locator('#his .fw-word').count(), 0);
+  assert.equal(await updated.page.locator('#passage').textContent(), prose.negative);
+  assert.equal(await updated.page.locator('#passage .fw-word').count(), 0);
   const retained = await worker.evaluate(async (key) => chrome.storage.local.get([key, 'settings', 'spanishPlacement', 'recallReview']), old.key);
   const { [old.key]: historicCache, ...after } = retained;
   assert.deepEqual(historicCache, old.entry);
