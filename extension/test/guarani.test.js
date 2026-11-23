@@ -88,6 +88,9 @@ test('Guaraní recognizes bounded cues without interpreting every prepositional 
     ['They brought hope to fire survivors.', 'tata'],
     ['They were used to water from the mountain spring.', 'y'],
     ['She argued for the right to water and shelter.', 'y'],
+    ['The access they have to water comes from a shallow well.', 'y'],
+    ['Can water freeze under pressure?', 'y'],
+    ['How soon will fire spread through wet timber?', 'tata'],
     ['We carried water for the trip.', 'y'],
   ]) expect(offers(text, word)).toBe(true);
   expect(offers('Wind the clock before leaving.', 'yvytu')).toBe(true); // An unmarked imperative remains ambiguous to the matcher.

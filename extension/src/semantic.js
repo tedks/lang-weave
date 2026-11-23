@@ -136,7 +136,8 @@ const GUARANI_NOUN_ANCHORS = new Map([
 const MODALS = new Set(['can', 'could', 'may', 'might', 'must', 'shall', 'should', 'will', 'would',
   'cannot', "can't", "couldn't", "won't", "wouldn't", "shouldn't", "mustn't", "mightn't", "shan't"]);
 const CONTRACTED_MODAL = /^(?:i|you|he|she|it|we|they)'(?:ll|d)$/u;
-const INFINITIVE_MARKERS = new Set(['how', 'when', 'where', 'what', 'whether', 'have', 'has', 'had']);
+const INFINITIVE_MARKERS = new Set(['how', 'when', 'where', 'what', 'whether']);
+const HAVE_FORMS = new Set(['have', 'has', 'had']);
 const INFINITIVE_VERBS = new Set(['need', 'needs', 'needed', 'hope', 'hopes', 'hoped', 'want', 'wants', 'wanted',
   'plan', 'plans', 'planned', 'try', 'tries', 'tried', 'decide', 'decides', 'decided']);
 const QUESTION_AUXILIARIES = new Set(['do', 'does', 'did']);
@@ -151,15 +152,27 @@ function tokenBefore(text, ts, at) {
 
 const modal = (value) => !!value && (MODALS.has(value) || CONTRACTED_MODAL.test(value));
 
+function clearModalContext(text, cue, subject, anchor, allowDialogue) {
+  if (CONTRACTED_MODAL.test(cue.value) || CLAUSE_STARTS.has(subject?.value)) return true;
+  // A bare noun can be the subject after inversion: "How soon will fire spread?"
+  return !!subject && LETTER.test(subject.raw) && !SUBJECT_DETERMINERS.has(subject.value) &&
+    !sentenceStart(text, cue.start, { allowDialogue }) && text[sentenceEnd(text, anchor.end) - 1] !== '?';
+}
+
 function clearVerbContext(text, ts, at, allowDialogue) {
   const cue = tokenBefore(text, ts, at);
   if (!cue) return false;
   const head = tokenBefore(text, ts, at - 1);
   const subject = head && tokenBefore(text, ts, at - 2);
-  if (modal(cue.value)) return !SUBJECT_DETERMINERS.has(head?.value);
-  if (cue.value === 'not' && modal(head?.value)) return !SUBJECT_DETERMINERS.has(subject?.value);
+  if (modal(cue.value)) return clearModalContext(text, cue, head, ts[at], allowDialogue);
+  if (cue.value === 'not' && modal(head?.value)) return clearModalContext(text, head, subject, ts[at], allowDialogue);
   if (cue.value === 'to') {
     // Bare prepositional "to" leaves a noun sense possible, as in "access to water".
+    // "Have to" can express possession and a preposition. Require an object cue after the verb.
+    if (HAVE_FORMS.has(head?.value)) {
+      return SUBJECT_DETERMINERS.has(ts[at + 1]?.value) &&
+        /^\p{Zs}+$/u.test(text.slice(ts[at].end, ts[at + 1].start));
+    }
     return INFINITIVE_MARKERS.has(head?.value) || INFINITIVE_VERBS.has(head?.value) &&
       (CLAUSE_STARTS.has(subject?.value) || modal(subject?.value));
   }
