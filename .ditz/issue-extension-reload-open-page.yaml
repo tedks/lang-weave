@@ -13,8 +13,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-01T04:50:59-00:00
 references: []
 log_events:
@@ -51,3 +51,11 @@ log_events:
     as the boundary. 0.15.3 follows #77, with a separate version commit and exact
     historical-adoption and supported-forward-upgrade evidence. No automatic tab reload
     or reconstruction from page markers.'
+- time: 2026-11-23T07:17:08-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Accepted in tedks/lang-weave#79 at normal merge 0f4198c3556023c4055520d6a6075b422f507815,
+    identical to the qualified d8873dc tree. Actual offline installer and native Chrome
+    upgrades preserve the open document, edits, grants and learning state. Earlier
+    outgoing builds can need one manual refresh. Version 0.15.3 begins supported retirement
+    before auto-reload.
