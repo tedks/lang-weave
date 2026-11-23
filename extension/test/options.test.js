@@ -76,8 +76,8 @@ test('options works without a tab; settings, exception reset and key removal rou
   try {
     await import('../src/options.js?options-roundtrip');
     const $ = (id) => window.document.getElementById(id);
-    await waitFor(() => $('version').textContent === '0.12.5');
-    expect($('wordInfo').textContent).toBe('30 Spanish words');
+    expect($('version').textContent).toBe('0.12.5');
+    await waitFor(() => $('wordInfo').textContent === '30 Spanish words');
     isolationUnavailable = true;
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('keyFeedback').textContent === 'This browser cannot keep the key private. Update Chrome to 140 or newer.');
@@ -181,7 +181,7 @@ test('options renders its multi-part sentences and dynamic notes as the exact En
   try {
     await import('../src/options.js?options-english');
     const $ = (id) => window.document.getElementById(id);
-    await waitFor(() => $('version').textContent === '0.12.18');
+    await waitFor(() => $('wordInfo').textContent === '21 French words');
     const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
     expect(text($('levelInfo').parentElement)).toBe('Current effective level: L1');
     expect(text($('wordInfo').parentElement)).toBe('Eligible vocabulary: 21 French words (not words learned). Recall reviews due: 4.');

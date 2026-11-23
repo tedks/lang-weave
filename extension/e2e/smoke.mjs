@@ -146,9 +146,21 @@ try {
   assert.ok(popupSize.height <= 600, `popup exceeds Chrome's 600px cap: ${popupSize.height}px`);
   const [options] = await Promise.all([context.waitForEvent('page'), popup.locator('#openSettings').click()]);
   await options.waitForLoadState();
-  await options.waitForFunction((version) => document.querySelector('#version')?.textContent === version, manifest.version);
+  await options.waitForFunction((text) => document.querySelector('#wordInfo')?.textContent === text,
+    `${beginnerSpanishWords} Spanish words`);
+  assert.equal(await options.locator('#version').textContent(), manifest.version);
   assert.equal(await options.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
-  assert.equal(await options.locator('#wordInfo').textContent(), `${beginnerSpanishWords} Spanish words`);
+  // About can identify the loaded build even when the worker cannot answer Settings.
+  const offlineOptions = await context.newPage();
+  await offlineOptions.addInitScript(() => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = (...args) => args[0]?.type === 'status'
+      ? Promise.reject(new Error('Status unavailable in this test')) : send(...args);
+  });
+  await offlineOptions.goto(options.url());
+  await offlineOptions.locator('#notice').getByText('Status unavailable in this test', { exact: true }).waitFor();
+  assert.equal(await offlineOptions.locator('#version').textContent(), manifest.version);
+  await offlineOptions.close();
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
   assert.equal(new URL(words.url()).pathname, '/src/words.html');
