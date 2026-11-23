@@ -45,9 +45,7 @@ const BEGINNER_CLOTHING = [
   W('la maleta', 'the suitcase', 'lah mah-LEH-tah', 0),
 ];
 
-export const L1_WORDS = [...BEGINNER_CORE, ...BEGINNER_CLOTHING];
-
-export const L2_EXTRA = [
+const EXPANDED_ADDITIONS = [
   W('si', 'if', 'see', 1),
   W('como', 'like / as', 'KOH-moh', 1),
   W('cuando', 'when', 'KWAHN-doh', 1),
@@ -247,6 +245,13 @@ export const L2_EXTRA = [
   W('el zapato', 'the shoe', 'el sah-PAH-toh', 3),
 ];
 
-// Keep the original Expanded sequence before the newer Beginner entries.
-export const L2_WORDS = [...BEGINNER_CORE, ...L2_EXTRA, ...BEGINNER_CLOTHING];
+// Beginner uses the same forms, glosses and hints. Its introductory band
+// is local to this level. Expanded keeps the original rows and their order.
+const BEGINNER_PROMOTIONS = new Set([
+  'la ventana', 'el desayuno', 'la sopa', 'el árbol', 'el río', 'la canción', 'la película',
+]);
+export const L1_WORDS = [...BEGINNER_CORE, ...BEGINNER_CLOTHING,
+  ...EXPANDED_ADDITIONS.filter(({ fr }) => BEGINNER_PROMOTIONS.has(fr)).map((word) => ({ ...word, band: 0 }))];
+export const L2_EXTRA = EXPANDED_ADDITIONS.filter(({ fr }) => !BEGINNER_PROMOTIONS.has(fr));
+export const L2_WORDS = [...BEGINNER_CORE, ...EXPANDED_ADDITIONS, ...BEGINNER_CLOTHING];
 export function wordsForLevel(level) { return level <= 1 ? L1_WORDS : L2_WORDS; }

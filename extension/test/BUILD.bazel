@@ -36,6 +36,8 @@ filegroup(
         "portability.test.js",
         "portability-v2.test.js",
         "router.test.js",
+        "spanish-everyday-corpus.json",
+        "spanish-everyday.test.js",
         "spanish.test.js",
         "web-accessible.test.js",
     ],
