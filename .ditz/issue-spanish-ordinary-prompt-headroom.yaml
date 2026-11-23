@@ -10,8 +10,8 @@ type: task
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T03:28:43-00:00
 references: []
 log_events:
@@ -50,3 +50,9 @@ log_events:
     Google empty due quota. Evidence https://github.com/tedks/lang-weave/pull/63#issuecomment-7091377790.
     Gate''s broad slot returned. Nonblocking additional worker capture is tracked
     as ordinary-spanish-prompt-worker-wiring.'
+- time: 2026-11-23T04:15:16-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'CTO normally merged #63 at 662d889b5b494d2631543c1c6378d245460abf03 (0.13.2).
+    Exact-head tests, fresh council, live version check and ZIP inspection passed.
+    Separate worker integration coverage remains tracked.'
