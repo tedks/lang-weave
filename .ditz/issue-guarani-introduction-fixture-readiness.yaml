@@ -1,0 +1,21 @@
+id: guarani-introduction-fixture-readiness
+title: "Wait for the confirmed Guaran\xED introduction before testing its target face"
+desc: "In the real Chrome 140 beta installation suite at 64af497, the Guaran\xED gradual
+  tier 2 chair fixture had data-en=chair but its visible face was still English while
+  the introduction ticket was pending. The positive test sampled the preliminary span
+  instead of waiting for its approved target. Preserve the separate noun, verb, visible
+  text and keyboard assertions. The Spanish case already waits for the target language
+  and text."
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T10:52:55-00:00
+references: []
+log_events:
+- time: 2026-11-23T10:52:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
