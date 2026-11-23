@@ -1,6 +1,12 @@
 package(default_visibility = ["//visibility:private"])
 
 filegroup(
+    name = "version_scan_inputs",
+    srcs = glob(["*.mjs"]),
+    visibility = ["//extension:__pkg__"],
+)
+
+filegroup(
     name = "packager",
     srcs = [
         "content-bundle.mjs",

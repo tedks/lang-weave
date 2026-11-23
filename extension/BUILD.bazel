@@ -19,3 +19,13 @@ exports_files(
     ],
     visibility = ["//:__pkg__"],
 )
+
+filegroup(
+    name = "version_scan_inputs",
+    srcs = glob(["design/**"]) + [
+        "package.json",
+        ":payload",
+        "//extension/scripts:version_scan_inputs",
+    ],
+    visibility = ["//:__pkg__"],
+)

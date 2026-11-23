@@ -23,7 +23,8 @@ The gates listed below are not yet in the Bazel graph. Agents counted their stan
 Standalone entrypoints, kept for people who work in this repo without Bazel or the parent workspace (they are not agent validation evidence):
 - `bun install --frozen-lockfile && bun test` inside `extension/`.
 - `npm run test:highlights` inside `extension/`, the real Chromium light/dark CSS checks for highlight styling.
-- `python3 -m unittest discover -s tests` from the root, for inherited Python tooling.
+
+For release acceptance, run `nix develop --command bazel test --spawn_strategy=linux-sandbox //:inherited_python_test` and compare candidate commits with `nix develop --command bazel run //:release_version_check`. See [the Bazel release commands](docs/bazel-fsrs.md#python-and-release-version-gates). The inherited Python suite also supports standalone `python3 -m unittest discover -s tests` from the root.
 
 Keep Chrome runtime verification separate from mocked model verification; never imply a live Gemini check without one.
 
