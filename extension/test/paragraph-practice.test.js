@@ -97,8 +97,9 @@ test('the exercise reads only preferences and discards every view on edit, reset
     expect(doc.activeElement).toBe($('occurrence'));
     $('occurrence').selectedIndex = 1;
     $('occurrence').dispatchEvent(new window.Event('change'));
-    expect($('occurrenceContext').textContent.trim()).toBe('Admission is free.');
+    expect($('occurrenceContext').textContent.trim()).toBe('Admission is free. <img src=x>');
     expect($('occurrenceContext').querySelector('mark').textContent).toBe('free');
+    expect($('occurrenceContext').querySelector('img')).toBeNull();
     $('sense').selectedIndex = 1;
     $('sense').dispatchEvent(new window.Event('change'));
     expect($('senseContext').textContent).toBe('gratis · free (no cost)');

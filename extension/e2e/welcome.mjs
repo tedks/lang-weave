@@ -269,9 +269,9 @@ try {
   await practiceSource.fill('Admission is free. Admission is free.');
   await page.getByRole('button', { name: 'Find words' }).click();
   await page.getByRole('combobox', { name: 'Occurrence in your paragraph' }).selectOption('1');
-  const meanings = page.getByRole('combobox', { name: 'Catalog word and meaning' });
-  assert.deepEqual(await meanings.locator('option').allTextContents(), ['libre · free (unrestricted)', 'gratis · free (no cost)']);
-  await meanings.selectOption({ label: 'gratis · free (no cost)' });
+  const practiceMeanings = page.getByRole('combobox', { name: 'Catalog word and meaning' });
+  assert.deepEqual(await practiceMeanings.locator('option').allTextContents(), ['libre · free (unrestricted)', 'gratis · free (no cost)']);
+  await practiceMeanings.selectOption({ label: 'gratis · free (no cost)' });
   assert.equal(await page.locator('#senseContext').textContent(), 'gratis · free (no cost)');
   await page.getByRole('button', { name: 'Practice this word' }).press('Space');
   assert.equal(await page.locator('#preview').textContent(), 'Admission is free. Admission is gratis.');
