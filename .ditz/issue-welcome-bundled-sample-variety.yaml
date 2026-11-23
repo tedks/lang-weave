@@ -8,8 +8,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T10:22:33-00:00
 references: []
 log_events:
@@ -21,3 +21,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T10:40:13-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: "Merged #95 at f2f81b0cda70d8f92a3f7e135c7c5a581110e1c8. Public 0.15.14
+    SHA-256 532a4ddf4886753e7ae7c7da9221a89b44f19bf848dc4bd90f7fc115a9fb481e. All
+    six passages tested on 140, 155 and 158, all 32 expected senses verified, and
+    an independent public .12\u2192.14 native alarm upgrade kept a real Guaran\xED
+    review card and settings."
