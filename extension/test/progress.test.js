@@ -108,13 +108,16 @@ for (const tz of ['America/Los_Angeles', 'Asia/Tokyo']) {
     ];
     // sol was introduced today and later marked known: still counted, so the count never drops.
     expect(todayCounts(scopes, entries, now)).toEqual({ day, introduced: 3, seen: 2, peeked: 1, flipped: 1, reviewed: 1 });
-    const strip = activity(entries, now);
+    const readingOnly = localDay(new Date(now - 2 * DAY));
+    const strip = activity(entries, now, { readingDays: [day, day, readingOnly, localDay(new Date(now + DAY))] });
     expect(strip).toHaveLength(30);
-    expect(strip.at(-1)).toEqual({ day, retrievals: 2 });
-    expect(strip.at(-2)).toEqual({ day: yesterday, retrievals: 1 });
+    expect(strip.at(-1)).toEqual({ day, retrievals: 2, reading: true });
+    expect(strip.at(-2)).toEqual({ day: yesterday, retrievals: 1, reading: false });
+    expect(strip.at(-3)).toEqual({ day: readingOnly, retrievals: 0, reading: true });
+    expect(strip.filter((d) => d.reading)).toHaveLength(2);
     expect(strip.reduce((n, d) => n + d.retrievals, 0)).toBe(3);
     expect(new Set(strip.map((d) => d.day)).size).toBe(30);
-    expect(practisedThisWeek(strip)).toBe(2);
+    expect(practisedThisWeek(strip)).toBe(3);
   });
 }
 
@@ -183,8 +186,8 @@ test('popup text: the Today line, headline and the honest primary action', () =>
 });
 
 test('progress copy: plural forms, the week line and the stage labels read as before', () => {
-  expect([0, 1, 2].map(weekLine)).toEqual(['Practised on 0 days of the last 7', 'Practised on 1 day of the last 7',
-    'Practised on 2 days of the last 7']);
+  expect([0, 1, 2].map(weekLine)).toEqual([0, 1, 2].map((days) =>
+    `Practised on ${days} of the last 7 days (reading or review activity)`));
   expect(headline(2)).toBe('2 words verified known');
   expect(primaryAction({ due: 3, new: 0 }).label).toBe('Review 3 due words');
   expect(todayLine({ introduced: 1, seen: 4, peeked: 1, flipped: 1, reviewed: 2 }))

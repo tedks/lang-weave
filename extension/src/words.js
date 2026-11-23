@@ -42,12 +42,16 @@ function drawProgress(p) {
     return li;
   }));
   $('today').textContent = todayLine(p.today);
-  const active = p.activity.filter((d) => d.retrievals > 0).length;
+  const active = p.activity.filter((d) => d.reading || d.retrievals > 0).length;
   $('strip').setAttribute('aria-label', t('words_strip_label', active));
   $('strip').replaceChildren(...p.activity.map((d) => {
-    const cell = document.createElement('span');
-    if (d.retrievals > 0) cell.className = 'on';
-    cell.title = tn('words_strip_day', d.retrievals, d.day);
+    const cell = document.createElement('li');
+    if (d.reading || d.retrievals > 0) cell.className = 'on';
+    const label = document.createElement('span');
+    const summary = tn('words_strip_day', d.retrievals, d.day);
+    label.textContent = d.reading ? t('words_strip_reading', summary) : summary;
+    cell.title = label.textContent;
+    cell.append(label);
     return cell;
   }));
   $('week').textContent = weekLine(p.practisedThisWeek);

@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { validateSwaps, glossMatches, normalizeFr } from '../src/levels.js';
-import { queueEvents, shownToday, PENDING_KEY } from '../src/events.js';
+import { queueEvents, shownToday, PENDING_KEY, SENT_KEY, READING_DAYS_KEY } from '../src/events.js';
 import { memoryStorage } from '../src/cache.js';
 import { relativeImports } from '../scripts/package.mjs';
 
@@ -108,4 +108,28 @@ test('local feedback is deduplicated daily and capped without retaining page tex
   await queueEvents(store, [{ word: 'personal:es:00000000-0000-4000-8000-000000000001', kind: 'seen' },
     { word: 'personal:es:00000000-0000-4000-8000-000000000002', kind: 'peek' }], '2026-10-18');
   expect(await shownToday(store, '2026-10-18')).toEqual(['y', 'personal:es:00000000-0000-4000-8000-000000000001']);
+});
+
+test('reading dates share the event write, survive queue eviction and keep the most recent 30 observations', async () => {
+  const store = memoryStorage({ [READING_DAYS_KEY]: { malformed: true }, [SENT_KEY]: { day: '2026-10-01', words: 42 },
+    [PENDING_KEY]: [{ word: 'y', kind: 'seen', day: '2026-09-30' }, { word: 'outside', kind: 'seen', day: '2026-09-29' }] });
+  const writes = [];
+  const tracked = { ...store, async set(patch) { writes.push(patch); await store.set(patch); } };
+  const flip = { word: 'y', kind: 'flip' }, seen = { word: 'y', kind: 'seen' };
+  expect(await queueEvents(tracked, [seen], '2026-10-01', { wordIds: ['y'], canWrite: () => false })).toBeNull();
+  expect(writes).toHaveLength(0);
+  await queueEvents(tracked, [seen, seen], '2026-10-01', { wordIds: ['y'] });
+  expect(writes).toHaveLength(1);
+  expect(writes[0][READING_DAYS_KEY]).toEqual(['2026-09-30', '2026-10-01']);
+  expect(writes[0][PENDING_KEY].slice(-1)).toEqual([{ word: 'y', kind: 'seen', day: '2026-10-01' }]);
+  await queueEvents(tracked, Array.from({ length: 510 }, () => flip), '2026-10-02');
+  expect((await store.getAll())[PENDING_KEY].every((event) => event.kind === 'flip')).toBe(true);
+  expect((await store.getAll())[READING_DAYS_KEY]).toEqual(['2026-09-30', '2026-10-01']);
+  for (let i = 2; i <= 31; i++) await queueEvents(tracked, [seen], `2026-10-${String(i).padStart(2, '0')}`);
+  expect((await store.getAll())[READING_DAYS_KEY]).toHaveLength(30);
+  expect((await store.getAll())[READING_DAYS_KEY][0]).toBe('2026-10-02');
+  await queueEvents(tracked, [seen], '2026-10-01'); // clock rolled back to an evicted day
+  expect((await store.getAll())[READING_DAYS_KEY]).toHaveLength(30);
+  expect((await store.getAll())[READING_DAYS_KEY].at(-1)).toBe('2026-10-01');
+  expect((await store.getAll())[READING_DAYS_KEY]).toContain('2026-10-31');
 });

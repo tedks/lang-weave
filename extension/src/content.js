@@ -97,6 +97,8 @@ function record(span, event) {
   const id = revision + ':' + localDay() + ':' + event + ':' + word;
   const daily = event === 'seen' || event === 'peek';
   if (daily && seen.has(id)) return;
+  if (event === 'seen' && (document.visibilityState === 'hidden' || !span.isConnected || !visibleWords.has(span) ||
+      span.classList.contains('fw-en') || span.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false)) return;
   if (daily) seen.add(id);
   void send({ type: 'event', word, event, revision }).then((r) => {
     if (!r?.ok && daily) seen.delete(id);
@@ -819,6 +821,7 @@ function reveal(e) {
   hideTip(); closeGuess();
   if (isPractice(span)) { void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
+  else record(span, 'seen');
   observer?.takeRecords();
 }
 chrome.runtime.onMessage.addListener((msg) => {
@@ -884,7 +887,7 @@ const navTimer = setInterval(() => {
     page = location.href;
     titleSensitive = sensitive;
     if (config) update(config, true);
-  }
+  } else if (day !== today) seenVisible();
   day = today;
 }, 1000);
 void send({ type: 'config' }).then(update).catch(() => {});

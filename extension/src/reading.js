@@ -340,18 +340,26 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
   // Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
   async function record(msg, sender) {
     return locked(async () => {
+      const consent = worker.permissionGeneration;
       const ctx = await context();
-      if (msg.revision !== ctx.revision || !activeOn(ctx, sender.url) || !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
+      if (worker.permissionGeneration !== consent || msg.revision !== ctx.revision || !activeOn(ctx, sender.url) ||
+          !['seen', 'flip', 'peek'].includes(msg.event) || typeof msg.word !== 'string') return { ok: false };
+      if (msg.event === 'seen' && ((sender.frameId ?? 0) !== 0 ||
+          (sender.documentLifecycle && sender.documentLifecycle !== 'active'))) return { ok: false };
       const found = resolveWord(ctx, msg.word);
       if (!found) return { ok: false };
-      return applyEvent(ctx, found, msg.event, sender, worker.permissionGeneration);
+      return applyEvent(ctx, found, msg.event, sender, consent);
     });
   }
   // One reading event for a resolved word. The caller holds the lock and has checked revision and
   // site access; `consent` is the permission generation it checked them under.
   async function applyEvent(ctx, { word, personal }, event, sender, consent) {
-    await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
-      [{ word: personal?.id || word.fr, kind: event }]);
+    const wordIds = personal ? ctx.personal.entries.filter((entry) => entry.language === ctx.language).map((entry) => entry.id)
+      : ctx.legacyAllWords.map((word) => word.fr);
+    const written = await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
+      [{ word: personal?.id || word.fr, kind: event }], localDay(),
+      { wordIds, canWrite: () => worker.permissionGeneration === consent });
+    if (written === null) return { ok: false };
     // Exposure aggregates for the learning log, at the same point as the reading events. The
     // event write yielded, so recheck consent before this separate write. A flip is a reveal
     // of the English, not an exposure.

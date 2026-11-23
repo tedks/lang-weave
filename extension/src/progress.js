@@ -101,9 +101,9 @@ export function todayCounts(scopes, entries, now) {
 // The last `days` local days ending today, oldest first, with how many retrievals (ratings
 // and claims) each holds. Days are dates in the device's current time zone: the log stores
 // instants only, so after travel past retrievals are re-bucketed into the new zone's
-// dates. Calendar arithmetic, so DST days are still one entry each. Entries
-// from the future (a clock rollback) are ignored.
-export function activity(entries, now, days = ACTIVITY_DAYS) {
+// dates. Reading dates stay on their original local date. Calendar arithmetic keeps DST days
+// to one entry each. Future entries and reading dates stay outside the display after a rollback.
+export function activity(entries, now, { days = ACTIVITY_DAYS, readingDays = [] } = {}) {
   const today = new Date(now);
   const list = Array.from({ length: days }, (_, i) =>
     localDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1 - i))));
@@ -113,13 +113,13 @@ export function activity(entries, now, days = ACTIVITY_DAYS) {
     const day = localDay(new Date(e.at));
     if (counts.has(day)) counts.set(day, counts.get(day) + 1);
   }
-  return list.map((day) => ({ day, retrievals: counts.get(day) }));
+  const read = new Set(readingDays);
+  return list.map((day) => ({ day, retrievals: counts.get(day), reading: read.has(day) }));
 }
 
-// Days with any retrieval among the last seven local days, today included. Forgiving by
-// design: a missed day lowers nothing but this rolling count, and nothing is ever "lost".
+// Count each day of reading or review activity once, among the last seven local days.
 export function practisedThisWeek(strip) {
-  return strip.slice(-WEEK_DAYS).filter((d) => d.retrievals > 0).length;
+  return strip.slice(-WEEK_DAYS).filter((d) => d.reading || d.retrievals > 0).length;
 }
 
 // The section 9 measurements that the log can answer, over every scope's entries, each with

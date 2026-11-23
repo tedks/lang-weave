@@ -14,7 +14,8 @@ const progress = {
   language: 'Spanish', due: 1, new: 3, returned: 2, verifiedKnown: 2, practisedThisWeek: 3,
   today: { day: '2026-10-30', introduced: 1, seen: 4, peeked: 0, flipped: 0, reviewed: 2 },
   stages: { new: 140, learning: 6, maintenance: 2, known: 1, verified: 2 },
-  activity: Array.from({ length: 30 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`, retrievals: i % 3 ? 0 : 2 })),
+  activity: Array.from({ length: 30 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`,
+    retrievals: i % 3 ? 0 : 2, reading: i === 0 || i === 29 })),
   measurements: {
     graded: 3, nextDayRecall: { n: 1, passed: 1, rate: 1, enough: false },
     longRetention: { n: 0, rate: null, target: 0.9, enough: false },
@@ -68,9 +69,12 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     expect([...items().find((li) => li.dataset.id === 'w4').querySelectorAll('button')]
       .map((b) => [b.textContent, b.disabled])).toEqual([['Practice now', false], ['Reset', false]]);
     expect($('today').textContent).toBe('Today: 1 introduced · 4 seen · 2 reviewed');
-    expect($('week').textContent).toBe('Practised on 3 days of the last 7');
+    expect($('week').textContent).toBe('Practised on 3 of the last 7 days (reading or review activity)');
     expect($('strip').children).toHaveLength(30);
-    expect($('strip').getAttribute('aria-label')).toBe('Days with reviews in the last 30 days: 10');
+    expect($('strip').getAttribute('aria-label')).toBe('11 of the last 30 days with reading or review activity');
+    expect($('strip').lastElementChild.textContent).toBe('2026-10-30 · 0 review events · read a woven word');
+    expect($('strip').firstElementChild.textContent).toBe('2026-10-01 · 2 review events · read a woven word');
+    expect($('strip').querySelectorAll('.on')).toHaveLength(11);
     expect($('measures').children).toHaveLength(8);
     expect($('more').hidden).toBe(false);
     expect($('more').textContent).toBe('Show more (91 left)');
