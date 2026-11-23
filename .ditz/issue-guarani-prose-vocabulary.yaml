@@ -36,3 +36,10 @@ log_events:
     a separate My words/Review reveal and saved review rating, plus the existing Welcome,
     placement and consent flow. Version 0.15.2, reader compatibility, formal council
     and the exact broad suite follow #75."
+- time: 2026-11-23T06:23:24-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Ready for CTO acceptance at 43c6d0e58644cfedee7e4d2fa41b4249e2ab00f7 in
+    tedks/lang-weave#77. All exact Nix/Bazel gates against 0.15.1, 0.15.2 Chromium
+    ZIP, and historical reader probes passed. Formal native Sol and Opus CLEAN, Google
+    quota-empty. Separate version commit. Exact evidence: https://github.com/tedks/lang-weave/pull/77#issuecomment-7093286796'
