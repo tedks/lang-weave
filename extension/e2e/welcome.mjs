@@ -235,6 +235,12 @@ try {
   await checkSample(page, spanish);
   await pickerFor(page).selectOption({ label: guarani.name });
   await checkSample(page, guarani);
+  const practiceUrl = `chrome-extension://${id}/src/paragraph.html`;
+  const fromSample = await openParagraph(context, page, `${practiceUrl}#gn-PY-x-weave`);
+  assert.equal(await fromSample.getByRole('combobox', { name: 'Practice language' }).inputValue(), 'gn-PY-x-weave');
+  await fromSample.getByRole('button', { name: 'Use example' }).click();
+  assert.match(await fromSample.locator('#source').inputValue(), /the door/);
+  await fromSample.close();
   await pickerFor(page).selectOption({ label: spanish.name });
   assert.deepEqual(await page.locator('#demo').getByRole('button').allTextContents(), spanish.targets);
   assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown', 'apiKey'])), before);
@@ -293,8 +299,7 @@ try {
   assert.equal(placed.apiKey, undefined);
   assert.equal(placed.recallReview, undefined);
   assert.deepEqual(placed.settings, before.settings, 'placement leaves the regular settings intact');
-  const practiceUrl = `chrome-extension://${id}/src/paragraph.html`;
-  const placementPractice = await openParagraph(context, page, practiceUrl);
+  const placementPractice = await openParagraph(context, page, `${practiceUrl}#es`);
   assert.equal(page.url(), welcomeUrl);
   await placementPractice.getByText('Vocabulary tier: Expanded').waitFor();
   const practiceSource = placementPractice.getByRole('textbox', { name: 'Short English paragraph' });
@@ -404,6 +409,9 @@ try {
   await reopened.locator('#demo').getByRole('button', { name: 'ama', exact: true }).waitFor();
   assert.equal(await pickerFor(reopened).inputValue(), 'gn-PY-x-weave');
   await pickerFor(reopened).selectOption({ label: spanish.name });
+  const fromSpanishSample = await openParagraph(context, reopened, `${practiceUrl}#es`);
+  assert.equal(await fromSpanishSample.locator('#language').inputValue(), 'es');
+  await fromSpanishSample.close();
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY-x-weave');
 
   await review.goto(`chrome-extension://${id}/src/review.html`);

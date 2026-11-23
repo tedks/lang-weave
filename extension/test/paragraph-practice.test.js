@@ -108,7 +108,7 @@ test('both original examples have distinct Beginner options including Guaraní h
 const html = readFileSync(new URL('../src/paragraph.html', import.meta.url), 'utf8');
 
 test('the exercise reads only preferences and discards every view on edit, reset or pagehide', async () => {
-  const url = 'chrome-extension://fixture/src/paragraph.html';
+  const url = 'chrome-extension://fixture/src/paragraph.html#gn-PY';
   const window = new Window({ url });
   const doc = window.document;
   doc.body.innerHTML = html.slice(html.indexOf('<body>') + '<body>'.length, html.indexOf('<script'));
