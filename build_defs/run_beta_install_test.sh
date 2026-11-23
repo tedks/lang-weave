@@ -25,4 +25,5 @@ done
 export TMPDIR=/tmp
 export DO_NOT_TRACK=1
 "$bun_path" "${runfiles_root}/extension/e2e/welcome.mjs"
+"$bun_path" "${runfiles_root}/extension/e2e/spanish-prose.mjs"
 exec "$bun_path" "${runfiles_root}/extension/e2e/words.mjs"
