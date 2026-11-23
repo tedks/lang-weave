@@ -1,0 +1,30 @@
+id: offline-paragraph-practice
+title: "Practise a short English paragraph locally with bundled Spanish or Guaran\xED
+  words"
+desc: "A learner without a Gemini key can currently read one fixed Welcome sample
+  per bundled language and review flashcards. Add a discoverable local practice page
+  for the learner\u2019s own short English paragraph. Let them preview a matching
+  catalog word with its English sense in context, choose which occurrence(s) to weave,
+  and read/flip the result using the existing accessible interactions. Make a short
+  original example available for each bundled language so a new learner can practise
+  immediately. Preserve the correct word scope, exact diacritics, punctuation and
+  plain text. Never interpret pasted markup, submit the passage to a provider, put
+  it in settings/history/URLs/backups, or request site access. Keep language and vocabulary
+  level behavior transparent. This is voluntary, keyless practice; explicit later
+  review can use the normal review flow. Prove real keyboard and mouse flows in the
+  installable ZIP with a disposable browser, no account/key or live sites, including
+  no matches and ambiguous/repeated words. Root is preparing this as the feature after
+  the combined 0.14.4 release. Confirm scope against the shipped build before coding."
+type: feature
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T05:03:26-00:00
+references: []
+log_events:
+- time: 2026-11-23T05:03:26-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
