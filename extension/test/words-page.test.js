@@ -147,6 +147,7 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     click('Practice now');
     await waitFor(() => sent.some((m) => m.type === 'wordPractice'));
     expect(sent.find((m) => m.type === 'wordPractice')).toEqual({ type: 'wordPractice', id: 'w3', scope: 'es' });
+    expect(opened).not.toContain('chrome-extension://fw-words/src/review.html');
   } finally {
     globalThis.document = oldDocument;
     globalThis.chrome = oldChrome;

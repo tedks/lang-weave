@@ -74,6 +74,12 @@ test('a private origin cannot focus a regular review or start a practice ticket'
   expect(calls).toEqual([]);
 });
 
+test('ordinary Open Review prefers an active review in the source window and only focuses it', async () => {
+  const { open, calls } = browser([reviewTab(3, 4, { active: true }), reviewTab(5, 1), reviewTab(6, 1, { active: true })]);
+  expect(await open(1)).toEqual({ ok: true });
+  expect(calls).toEqual([['tab', 6, { active: true }], ['window', 1, { focused: true }]]);
+});
+
 test('practice skips a navigated page and falls through when the next candidate closes', async () => {
   const { open, calls } = browser([reviewTab(4, 1), reviewTab(5, 1), reviewTab(6, 3)], {
     beforeGet: (tabs, id) => {

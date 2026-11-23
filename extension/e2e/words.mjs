@@ -63,6 +63,11 @@ try {
   await popup.locator('#primary').click();
   const review = await openedPage('review');
   const { id: reviewId, windowId: reviewWindow } = await review.evaluate(() => chrome.tabs.getCurrent());
+  const reviewDocument = () => worker.evaluate(async (tabId) => (await chrome.runtime.getContexts({
+    contextTypes: ['TAB'], tabIds: [tabId], frameIds: [0],
+  }))[0]?.documentId, reviewId);
+  const waitForReview = () => until(reviewTabs, (tabs) => tabs.some((tab) => tab.id === reviewId && tab.active),
+    'the same review tab to refocus');
   await review.locator('#introduce').click();
   const prompt = review.locator('#prompt');
   const answer = review.locator('#answer');
@@ -72,6 +77,8 @@ try {
   await answer.waitFor();
   const rated = await answer.textContent();
   const firstOffer = (await stored()).recallReview.current;
+  const documentId = await reviewDocument();
+  assert.ok(documentId);
   assert.equal(firstOffer.revealed, true);
   // Restart the worker with the revealed card still on screen. The popup click
   // wakes it and must find the same document even with no in-memory tab IDs.
@@ -97,11 +104,12 @@ try {
   'the popup to wake the review worker');
   worker = browser.serviceWorkers().find((candidate) => candidate.url() === oldWorker.url()) || oldWorker;
   assert.equal(await worker.evaluate(() => globalThis.reviewWarmWorker), undefined);
-  await until(reviewTabs, (tabs) => tabs.some((tab) => tab.id === reviewId && tab.active), 'the same review tab to refocus');
+  await waitForReview();
   assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
   assert.equal(await prompt.textContent(), ratedGloss);
   assert.equal(await answer.isVisible(), true);
   assert.equal(await answer.textContent(), rated);
+  assert.equal(await reviewDocument(), documentId);
   const focusedWindow = () => worker.evaluate(async () => (await chrome.windows.getLastFocused()).id);
   if (shortcutTool) await until(focusedWindow, (id) => id === reviewWindow, 'the review window to focus');
   const neighboringTab = await worker.evaluate((tabId) => chrome.tabs.get(tabId), unrelated.id);
@@ -110,6 +118,29 @@ try {
   assert.equal(neighboringTab.active, false);
   assert.deepEqual((await stored()).recallReview.current, firstOffer);
   assert.equal((await stored()).learningRetrievals?.retrievals.length ?? 0, 0);
+
+  await review.locator('[data-rating="medium"]').click();
+  const position = review.locator('#progress');
+  await position.getByText(/^Card 2 of /).waitFor();
+  await review.locator('#reveal').click();
+  await answer.waitFor();
+  const shown = async () => ({
+    prompt: await prompt.textContent(),
+    answer: await answer.textContent(),
+    revealed: await answer.isVisible(),
+    position: await position.textContent(),
+    documentId: await reviewDocument(),
+    saved: await stored(),
+  });
+  const session = await shown();
+  assert.equal(session.documentId, documentId);
+  assert.equal(session.saved.recallReview.current.revealed, true);
+  assert.equal(session.saved.learningRetrievals.retrievals.length, 1);
+  await worker.evaluate((id) => chrome.tabs.update(id, { active: true }), unrelated.id);
+  await popup.locator('#primary').click();
+  await waitForReview();
+  assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
+  assert.deepEqual(await shown(), session);
 
   if (shortcutTool) {
     // Send the real browser accelerator using the dedicated disposable X
@@ -135,13 +166,10 @@ try {
     execFileSync(shortcutTool, ['key', '--clearmodifiers', binding.toLowerCase()], { timeout: 4000 });
     await until(focusedWindow, (id) => id === reviewWindow, 'the browser shortcut to focus the review window');
     assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
-    assert.equal(await answer.textContent(), rated);
-    assert.equal(await answer.isVisible(), true);
-    assert.deepEqual((await stored()).recallReview.current, firstOffer);
-    console.log(`PASS: the native Open Review shortcut (${binding}) resumes the revealed card in the existing review window.`);
+    assert.deepEqual(await shown(), session);
+    console.log(`PASS: the native Open Review shortcut (${binding}) preserves the revealed card and rating session in the existing review window.`);
   }
-  await review.locator('[data-rating="medium"]').click();
-  let data = await until(stored, (d) => d.learningRetrievals?.retrievals.length === 1, 'first rating');
+  let data = session.saved;
   const cardIds = Object.keys(data.recallReview.cards);
   assert.equal(cardIds.length, 5);
   assert.ok(cardIds.includes(rated));
@@ -201,8 +229,7 @@ try {
   assert.equal(await row(accented.id).count(), 1);
 
   // 5. Choose a different card in the open review, then choose the early card.
-  const current = data.recallReview.current ?? (await stored()).recallReview.current;
-  assert.ok(current);
+  const current = data.recallReview.current;
   const different = list.rows.find((item) => untouched.includes(item.id) && item.id !== current.word);
   assert.ok(different);
   const practice = async ({ id, target, gloss }) => {
