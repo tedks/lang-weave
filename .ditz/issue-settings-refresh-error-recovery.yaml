@@ -9,8 +9,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T10:17:21-00:00
 references: []
 log_events:
@@ -22,3 +22,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T10:56:16-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged #96 at 027da55e. The prior version reproduced stale Worker unavailable.
+    The candidate passed 544 extension cases and installed Settings recovery on Chrome
+    140 and 158, retained the manifest version and preserved a failed action across
+    automatic refreshes.'
