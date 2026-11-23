@@ -162,6 +162,7 @@ test('worker listener dispatches exactly the pinned messages per surface and not
   globalThis.setTimeout = (fn, ms, ...rest) => (ms >= 10000 ? 0 : realTimeout(fn, ms, ...rest));
   const data = { settings: { enabled: true, newSitesEnabled: true } };
   const listeners = [];
+  const requests = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
@@ -179,7 +180,8 @@ test('worker listener dispatches exactly the pinned messages per surface and not
     tabs: { get: async () => ({ id: 1, title: 'Reading', url: SENDERS.page.url }), query: async () => [],
       sendMessage: async () => {}, create: async () => ({ id: 9 }) },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on() },
+    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on(),
+      request: async (permission) => { requests.push(permission); return false; } },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
       unregisterContentScripts: async () => {}, registerContentScripts: async () => {} },
   };
@@ -196,6 +198,13 @@ test('worker listener dispatches exactly the pinned messages per surface and not
   try {
     await import('../src/background.js?router');
     expect(listeners).toHaveLength(1);
+    const siteChoice = { type: 'setReadingSite', tabId: 1, url: SENDERS.page.url, enabled: true, requestAccess: true };
+    expect(await dispatch(siteChoice, SENDERS.page)).toBe(false);
+    expect(requests).toEqual([]);
+    const popupChoice = dispatch(siteChoice, SENDERS.popup);
+    expect(requests).toEqual([{ origins: ['https://example.com/*'] }]);
+    expect(await popupChoice).toBe(true);
+    expect(data.settings.siteOverrides).toEqual({});
     for (const [name, sender] of Object.entries(SENDERS)) {
       const accepted = [];
       for (const type of TYPES) if (await dispatch({ type }, sender)) accepted.push(type);

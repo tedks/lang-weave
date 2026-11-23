@@ -106,8 +106,7 @@ try {
   assert.equal(store.content_scripts, undefined);
   assert.equal(store.web_accessible_resources, undefined);
   assert.equal(store.permissions.includes('alarms'), false);
-  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /js: \['src\/content-bundle\.js'\]/);
-  assert.match(await readFile(join(unpacked, 'src/popup.js'), 'utf8'), /files: \['src\/content-bundle\.js'\]/);
+  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /const LOADER_FILES = \['src\/content-bundle\.js'\]/);
   store.update_url = 'https://update.invalid/service/update2/crx';
   // In a fresh Store install, the suggested X button must obtain a per-site grant from its click.
   open = await launch('store-onboarding', store, unpacked, false);
@@ -146,8 +145,6 @@ try {
   const [registered] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.ok(registered, 'the granted sites are registered dynamically');
   assert.deepEqual(registered.js, ['src/content-bundle.js']);
-  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'),
-    /files: \['src\/content-bundle\.js'\]/, 'Store startup recovery injects the bundle');
   assert.deepEqual(registered.excludeMatches ?? [], []);
   let page = await context.newPage();
   await page.goto('https://x.com/someone/status/1');

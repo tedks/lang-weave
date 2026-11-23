@@ -39,10 +39,11 @@ export function createSites({ store, locked, worker, broadcast, context }) {
     return p;
   }
   async function setReadingSite({ tabId, url, enabled, requestAccess }, save) {
+    if (typeof url !== 'string' || !Number.isSafeInteger(tabId) ||
+        tabId < 0 || typeof enabled !== 'boolean') return { ok: false };
     const parsed = URL.parse(url);
     const host = parsed?.hostname.replace(/\.$/, '');
-    if (!parsed || !/^https?:$/.test(parsed.protocol) || !validSiteHost(host) ||
-        !Number.isSafeInteger(tabId) || typeof enabled !== 'boolean') return { ok: false };
+    if (!parsed || !/^https?:$/.test(parsed.protocol) || !validSiteHost(host)) return { ok: false };
     const permission = { origins: [`${parsed.protocol}//${host}/*`] };
     // A Chrome permission prompt closes the popup. Handle its result here, starting
     // the request synchronously while the popup message still carries the gesture.
