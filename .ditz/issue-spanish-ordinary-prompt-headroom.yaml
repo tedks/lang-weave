@@ -23,3 +23,20 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T03:58:32-00:00
+  who: Ted Smith
+  what: commented
+  comment: "DRAFT SUBMITTED. PR #63 targets tedks/lang-weave at reviewed 9e362fad7fd6947ddc099c8bd20d7b4654a06161,
+    version 0.13.2. Conservative ordinary Spanish prompt projection leaves full validation,
+    review history and consent path in place and preserves gradual and non-Spanish
+    request bytes. Median Expanded whole-request size on 72 sampled passages fell
+    8,441 to 3,851 UTF-8 bytes for singletons and 11,924 to 8,099 for groups of eight.
+    All five exact-head Nix/Bazel source targets, a module-aware live version check
+    and exact ZIP inspection passed; final gate composition passed 448/448. Formal
+    council CLEAN OpenAI and Anthropic, Google empty due quota. Evidence at https://github.com/tedks/lang-weave/pull/63#issuecomment-7091165185.
+    Fixed replies have identical local results; a smaller prompt can change provider
+    choices, and a dense batch can still retain the full catalog. Coverage note: the
+    exhaustive passage-span probe checks canonical target forms, with separate alias
+    cases. If validation ever couples admission across swaps, revisit the one-call
+    span oracle and add independent alias probes. Keep draft until placement and Guaran\xED
+    demo land, then rebase and rerun exact-head checks."
