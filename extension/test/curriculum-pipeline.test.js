@@ -208,16 +208,16 @@ test('the build refuses malformed verb surfaces before source review', async () 
   });
 });
 
-test('candidate anchor colliding with a bundled legacy inflection is refused', async () => {
+test('candidate anchor colliding with an exact bundled legacy synonym is refused', async () => {
   await scratch(async (path) => {
     const rows = structuredClone(original);
-    rows[0].en = 'likes';
-    rows[0].anchors = ['likes'];
+    rows[0].en = 'hi';
+    rows[0].anchors = ['hi'];
     const overlay = join(path, 'overlay.json');
     writeFileSync(overlay, JSON.stringify(rows));
     const rejected = await build({ out: join(path, 'out'), overlay }).then(() => null, (error) => error);
     const rowHash = createHash('sha256').update(JSON.stringify(rows[0])).digest('hex');
-    expect(rejected?.message).toMatch(new RegExp(`gate anchor row ${rowHash}.*legacy overlap.*likes.*como`));
+    expect(rejected?.message).toMatch(new RegExp(`gate anchor row ${rowHash}.*legacy overlap.*hi.*hola`));
   });
 });
 

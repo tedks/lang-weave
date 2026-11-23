@@ -16,6 +16,7 @@ exports_files(
     [
         "design/icon.svg",
         "e2e/browser.mjs",
+        "e2e/legacy-gloss-upgrade.mjs",
         "e2e/reading-reload.mjs",
         "e2e/spanish-prose.mjs",
         "e2e/welcome.mjs",

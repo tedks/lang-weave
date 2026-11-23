@@ -116,7 +116,7 @@ const spanishCompoundTokens = SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).m
 const spanishCompounds = [...compoundTokens, ...spanishCompoundTokens];
 const beginnerSpanishCompounds = [...spanishCompounds,
   ...BEGINNER_SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value))];
-const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
+export const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
   ? `${word.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/u.test(word) ? `${word}es` : `${word}s`;
 const FUNCTION_WORDS = new Set(['and', 'or', 'but', 'with', 'for', 'in', 'on', 'at', 'to', 'of', 'from',
   'by', 'as', 'is', 'are', 'was', 'were', 'has', 'have', 'had', 'will', 'would', 'can', 'could',

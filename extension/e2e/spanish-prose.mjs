@@ -25,6 +25,12 @@ const windowPanes = { form: 'la ventana', gloss: 'the window', rendered: 'La ven
   'The window creaked under a sudden gust.', 'The window',
 ], negative: ['The window panes rattled under a sudden gust.', 'The window'] };
 const expandedCases = [
+  { form: 'hola', gloss: 'hello', rendered: 'hola', positive: [
+    'The new arrival said hello to the conductor.', 'hello',
+  ], negative: ['The new arrival folded his coat before sitting down.', 'his'] },
+  { form: 'nuevo', gloss: 'new', rendered: 'nuevo', positive: [
+    'The wooden latch still looks new after winter.', 'new',
+  ], negative: ['The neighbors heard the news over lunch.', 'news'] },
   { form: 'el río', gloss: 'the river', rendered: 'El río', positive: [
     'The river curved beneath an old stone arch.', 'The river',
   ], negative: ['The river valley curved beneath distant hills.', 'The river'] },

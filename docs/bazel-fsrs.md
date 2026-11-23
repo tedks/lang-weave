@@ -133,13 +133,22 @@ For a focused rerun, pass one or more arguments such as
 
 The separate `//:reading_reload_test` gate uses Chrome's native **Load unpacked**
 and permission prompt in a disposable 1500×920 X11 desktop with a window
-manager. Pass the exact candidate ZIP and Chromium path as above, plus
+manager. Install `xclip` for the generated X display or pass its absolute path with
+`--test_env=LANG_WEAVE_RELOAD_XCLIP=/absolute/path/to/xclip`. The test verifies
+the selected folder name before confirming the native dialog. Pass the exact candidate ZIP and Chromium path as above, plus
 `--test_env=LANG_WEAVE_PRIOR_ZIP=/absolute/path/to/lang-weave-0.15.2.zip`,
 `--test_env=LANG_WEAVE_RELOAD_XDOTOOL=/absolute/path/to/xdotool`,
 `--test_env=DISPLAY` and `--test_env=XAUTHORITY`. The gate pins the public
 0.15.2 asset hash, keeps the same unpacked folder path, and lets Chrome fire a
 real alarm after 30 seconds. A second transition changes only the fixture
 manifest version to exercise two generations of the candidate source.
+
+The `//:legacy_gloss_upgrade_test` gate exercises Chrome's native unpacked
+load and reload in one disposable profile and extension path. Pass the same
+candidate ZIP, Chromium, X11 and xdotool variables and set
+`--test_env=LANG_WEAVE_PRIOR_ZIP=/absolute/path/to/lang-weave-0.15.7.zip`.
+It pins the public 0.15.7 digest, reproduces the cached **his → hola** proposal,
+and checks the new reading revision, historical card, and fictional site grant.
 
 ## Python and release version gates
 

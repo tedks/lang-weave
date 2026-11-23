@@ -1,7 +1,7 @@
 // Exercise Chrome's unpacked reload with public ZIP bytes in a disposable profile.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
@@ -13,7 +13,10 @@ assert.ok(DISPLAY && isAbsolute(LANG_WEAVE_RELOAD_XDOTOOL || '') && isAbsolute(L
   'Pass a dedicated disposable X display, absolute xdotool path, and public outgoing ZIP to the Bazel test.');
 const { chromium } = await import(pathToFileURL(LANG_WEAVE_PLAYWRIGHT).href);
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-reload-'));
-const managed = join(scratch, 'managed');
+// Give the native chooser a private folder with a single selectable extension.
+const pickerRoot = join(scratch, 'pick');
+const folderName = `managed-${randomUUID()}`;
+const managed = join(pickerRoot, folderName);
 const extensionId = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
 const extensionPage = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
 const site = 'https://reading.example';
@@ -57,6 +60,9 @@ try {
     env[key] = join(scratch, key.toLowerCase());
     await mkdir(env[key], { mode: 0o700 });
   }
+  const gtkConfig = join(env.XDG_CONFIG_HOME, 'gtk-3.0');
+  await mkdir(gtkConfig, { recursive: true });
+  await writeFile(join(gtkConfig, 'bookmarks'), pathToFileURL(pickerRoot).href + ' Test extension folder\n');
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
     executablePath: LANG_WEAVE_CHROMIUM, headless: false, locale: 'en-US', noViewport: true,
     ignoreDefaultArgs: ['--disable-extensions'], env,
@@ -69,11 +75,35 @@ try {
   if (await manager.locator('#loadUnpacked').isHidden()) await manager.locator('#devMode').click();
   await manager.locator('#loadUnpacked').click();
   await until(activeTitle, (title) => /extension directory/i.test(title), 'the native directory chooser');
-  xdo('key', 'ctrl+l');
-  await sleep(250);
-  xdo('type', '--clearmodifiers', '--', managed);
-  const chooser = activeBounds();
-  clickNative(chooser.X + chooser.WIDTH - 50, chooser.Y + chooser.HEIGHT - 28);
+  const chooserId = xdo('getactivewindow');
+  function chooserBounds() {
+    const bounds = activeBounds();
+    assert.equal(String(bounds.WINDOW), chooserId, 'the generated directory chooser must still have focus');
+    assert.match(activeTitle(), /extension directory/i);
+    return bounds;
+  }
+  // Ask GTK for the selected folder's name in its location entry. The name
+  // is unique to this run and the X clipboard belongs to the test display.
+  chooserBounds();
+  xdo('key', 'alt+1');
+  await until(() => {
+    const bounds = chooserBounds();
+    clickNative(bounds.X + 175, bounds.Y + 78);
+    xdo('key', 'Home', 'ctrl+l', 'ctrl+a', 'ctrl+c');
+    const selection = spawnSync(process.env.LANG_WEAVE_RELOAD_XCLIP || 'xclip',
+      ['-selection', 'clipboard', '-out'], { encoding: 'utf8', timeout: 1000 });
+    if (selection.error && selection.error.code !== 'ETIMEDOUT') throw selection.error;
+    chooserBounds();
+    xdo('key', 'Escape'); // Leave GTK's location entry and return to the selected row.
+    return selection.status === 0 ? selection.stdout.trim().replace(/\/$/, '') : '';
+  }, (name) => name === folderName || name === managed, 'the generated folder name in the native chooser');
+  // Some GTK versions enable Open only after the location entry has closed.
+  await until(() => {
+    if (xdo('getactivewindow') !== chooserId) return true;
+    const chooser = chooserBounds();
+    clickNative(chooser.X + chooser.WIDTH - 45, chooser.Y + chooser.HEIGHT - 33);
+    return false;
+  }, Boolean, 'the native chooser to confirm the selected folder');
 
   const installed = () => manager.evaluate(async (id) => (await chrome.developerPrivate.getExtensionsInfo({
     includeDisabled: true,
@@ -84,9 +114,20 @@ try {
       app.state === 'ENABLED' && app.path === managed;
   }, `unpacked Lang Weave ${version}`, timeout);
   await expectInstalled(outgoing.version);
-  const findWorker = () => browser.serviceWorkers().find((item) =>
-    item.url() === `chrome-extension://${extensionId}/src/background.js`);
-  let worker = await until(findWorker, Boolean, 'Lang Weave worker');
+  async function readyWorker(version) {
+    return until(async () => {
+      for (const candidate of browser.serviceWorkers()) {
+        if (candidate.url() !== `chrome-extension://${extensionId}/src/background.js`) continue;
+        const ready = await candidate.evaluate((expected) =>
+          globalThis.chrome?.runtime?.getManifest?.().version === expected &&
+          !!chrome.tabs?.query && !!chrome.scripting?.executeScript && !!chrome.storage?.local, version)
+          .catch(() => false);
+        if (ready) return candidate;
+      }
+      return null;
+    }, Boolean, `Lang Weave ${version} worker bindings`);
+  }
+  let worker = await readyWorker(outgoing.version);
   const mockProvider = () => worker.evaluate(() => {
     if (globalThis.readingFixture) return;
     globalThis.readingFixture = [];
@@ -204,7 +245,7 @@ try {
     await rename(managed, join(scratch, `before-${version}`));
     await rename(staged, managed);
     await expectInstalled(version, 80000);
-    worker = await until(findWorker, Boolean, 'replacement worker');
+    worker = await readyWorker(version);
     await mockProvider();
     const current = await until(documentWorld, (world) => world.live && world.loader && world.registrations === 1,
       'the replacement listener and dynamic registration');
