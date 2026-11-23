@@ -47,4 +47,4 @@ Generated Guaraní packs keep their own selections and progress. For the bundled
 | Progress on a home or school word | 0.14.2 |
 | Progress on an everyday prose word from the table above | 0.15.2 |
 
-A backup containing reading days and a review of *aranduka* (book) requires 0.14.2 or later. A backup that includes a review of *okẽ* (door) requires 0.15.2 or later, even if it uses format 2. Older readers can reject cards or reading history for words they lack and report omitted learning-log entries, so use the minimum version in the table for a complete restore. [Reading-day backup compatibility](PROGRESS-MISSION.md#reading-day-backup-compatibility)
+A backup containing reading days and a review of *aranduka* (book) requires 0.14.2 or later. A backup that includes a review of *okẽ* (door) requires 0.15.2 or later, even if it uses format 2. An older reader can refuse the entire restore when a card or reading history refers to a word it lacks. If the word appears only in the learning log, the reader reports those entries as omitted. [Reading-day backup compatibility](PROGRESS-MISSION.md#reading-day-backup-compatibility)
