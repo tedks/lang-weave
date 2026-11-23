@@ -1,0 +1,25 @@
+id: unpacked-cli-cold-worker-stale
+title: Check stale extension worker code on command-line unpacked restart
+desc: "A disposable Chrome for Testing 155 profile started with --load-extension against
+  the exact public 0.15.7 ZIP. It genuinely cached and rendered his \u2192 hola through
+  a synthetic reply. After Chrome closed and the same extension directory was replaced
+  with the exact candidate 0.15.10 ZIP, a second --load-extension startup reported
+  0.15.10 and used a different reading revision yet still accepted his \u2192 hola.
+  Exact fresh install and the documented native Load unpacked and Reload path passed
+  the same scenario, preserved progress, and bypassed the original cache. Reproduce
+  the command-line lifecycle behavior independently and diagnose whether Chrome reuses
+  installed worker code under that launch mode. Keep separate from the Spanish gloss
+  contract and public 0.15.10 gating."
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:23:19-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:23:19-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
