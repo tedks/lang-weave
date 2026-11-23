@@ -40,7 +40,7 @@ async function refresh() {
   primary = primaryAction(progress || status.review);
   $('primary').textContent = primary.label;
   const state = readingState(c, tab?.url, status.modelStatus, status.consentShown);
-  $('openWelcome').textContent = t(status.consentShown === false ? 'popup_welcome_route' : 'popup_read_sample');
+  $('openWelcome').textContent = status.consentShown === false ? t('popup_welcome_route') : t('popup_read_sample');
   $('operation').textContent = status.modelStatus?.category === 'key_isolation_unavailable'
     ? statusLabel(status.modelStatus)
     : state === 'paused' ? t('popup_state_off')
