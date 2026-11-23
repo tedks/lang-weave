@@ -7,7 +7,7 @@ import { possibleSpanishPromptWords, validateSwaps } from '../src/levels.js';
 import { paragraphMatches } from '../src/paragraph-matches.js';
 import { createBackup, learningPatch, parseBackup } from '../src/portability.js';
 import { cleanReview } from '../src/review.js';
-import { FRESH_INSTALL_SETTINGS } from '../src/settings.js';
+import { DEFAULT_SETTINGS, FRESH_INSTALL_SETTINGS } from '../src/settings.js';
 import { EXPANDED_PLACEMENT_WORDS, L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
 
 const formerBeginnerSize = 44;
@@ -128,7 +128,7 @@ test.each([1, 2])('Spanish tier %i validates provider placements after ordinary 
     const candidates = gradual ? selectWorkingSet({ batch, words, scope: 'es', state: cleanReview(null, words, now),
       settings: { ...FRESH_INSTALL_SETTINGS, spanishPlacement: level }, now, day, level, language: 'es' }) :
       words.map((word) => ({ ...word, status: 'active' }));
-    const result = await requestSwaps({ model: FRESH_INSTALL_SETTINGS.model, apiKey: 'synthetic', batch, level,
+    const result = await requestSwaps({ model: DEFAULT_SETTINGS.model, apiKey: 'synthetic', batch, level,
       words: candidates, language: 'es', unknownLimit: gradual, fetchImpl: async (_url, { body }) => {
         expect(JSON.parse(body).systemInstruction.parts[0].text).toContain('la ventana = the window');
         return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({

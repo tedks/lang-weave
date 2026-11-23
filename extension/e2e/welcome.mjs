@@ -101,6 +101,49 @@ async function holdPlacementResponse(page, save) {
   };
 }
 
+async function checkSpanishCompounds(page, expanded = false) {
+  const source = page.getByRole('textbox', { name: 'Short English paragraph' });
+  const find = page.getByRole('button', { name: 'Find words' });
+  const occurrence = page.getByRole('combobox', { name: 'Occurrence in your paragraph' });
+  const practice = page.getByRole('button', { name: 'Practice this word' });
+  const cases = [
+    ['At the garden centre we bought seeds for the garden.', 'the garden', 'el jardín'],
+    ['The door hinges snapped while she was closing the door.', 'the door', 'la puerta'],
+    ['He wiped the window panes before opening the window.', 'the window', 'la ventana'],
+    ['The river mouth was calm, but we stayed beside the river.', 'the river', 'el río'],
+    ['She wrote the song title and quietly hummed the song.', 'the song', 'la canción'],
+  ];
+  if (expanded) cases.push(
+    ['We stored the life jackets before we talked about life.', 'life', 'vida'],
+    ['We spent the night watching the night sky.', 'the night', 'la noche'],
+    ['We watched the night sky before dawn brightened the sky.', 'the sky', 'el cielo'],
+  );
+  for (const [text, english, spanish] of cases) {
+    await source.fill(text);
+    await find.click();
+    const choices = await occurrence.locator('option').all();
+    const matching = [];
+    for (const option of choices) {
+      const selectedWords = (await option.textContent()).match(/\[(.*?)\]/)?.[1];
+      if (selectedWords?.toLowerCase().replace(/^the /, '') === english.replace(/^the /, '')) matching.push(option);
+    }
+    assert.equal(matching.length, 1, `only the standalone occurrence is offered in ${text}`);
+    await occurrence.selectOption(await matching[0].getAttribute('value'));
+    await practice.click();
+    const preview = page.locator('#preview');
+    const standalone = text.lastIndexOf(english);
+    assert.equal(await preview.textContent(), text.slice(0, standalone) + spanish + text.slice(standalone + english.length));
+    await preview.getByRole('button', { name: spanish, exact: true }).press('Enter');
+    assert.equal(await preview.textContent(), text);
+  }
+  if (expanded) {
+    await source.fill('We watched the night sky above the empty field.');
+    await find.click();
+    await page.getByRole('status').getByText(/Try the example or edit your paragraph/).waitFor();
+  }
+  console.log(`PASS: keyless ${expanded ? 'Expanded' : 'Beginner'} ZIP paragraph choices keep observed compounds intact and weave separate standalone occurrences`);
+}
+
 async function checkParagraph(context, worker, id) {
   const base = `chrome-extension://${id}/src/`;
   assert.equal(context.pages().some((p) => p.url() === `${base}paragraph.html`), false);
@@ -135,6 +178,7 @@ async function checkParagraph(context, worker, id) {
   assert.equal(await language.inputValue(), 'es');
   assert.equal(await language.getAttribute('aria-describedby'), 'level');
   await page.getByText('Vocabulary tier: Beginner').waitFor();
+  await checkSpanishCompounds(page);
   await page.getByRole('button', { name: 'Use example' }).click();
   await find.click();
   assert.ok(await occurrence.locator('option').count() >= 6);
@@ -442,6 +486,7 @@ try {
   const placementPractice = await openParagraph(context, page, `${practiceUrl}#es`);
   assert.equal(page.url(), welcomeUrl);
   await placementPractice.getByText('Vocabulary tier: Expanded').waitFor();
+  await checkSpanishCompounds(placementPractice, true);
   const practiceSource = placementPractice.getByRole('textbox', { name: 'Short English paragraph' });
   await practiceSource.fill('Admission is free. Admission is free.');
   await placementPractice.getByRole('button', { name: 'Find words' }).click();
