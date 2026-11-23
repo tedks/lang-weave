@@ -63,3 +63,18 @@ log_events:
   who: Ted Smith
   what: status -> paused
   comment: ""
+- time: 2026-11-23T03:43:58-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Release-checks partial delivery: tedks/lang-weave#62 at c9748179555ac489c2e2e3e646581686166be9c7
+    adds //:inherited_python_test and the live bazel run //:release_version_check.
+    Exact-head uncached Linux sandbox gates passed (98 Python tests plus the existing
+    classifier, FSRS, package boundary and extension release tests). A clean repo
+    comparison against the existing beta tag and a separate moved-ref replay confirmed
+    the live command. Formal council fix round c9748179555a-20261123T034039Z-adfe06
+    cleared with OpenAI and Anthropic CLEAN, Google EMPTY on quota. PR is ready for
+    CTO integration. Leave this issue open for the other gates.
+
+
+    The root MODULE.bazel version coverage gap from demo draft 1294427 is separately
+    tracked in release-version-check-bazel-module-version.'
