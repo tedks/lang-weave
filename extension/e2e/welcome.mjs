@@ -668,6 +668,26 @@ try {
   assert.equal(await guaraniPractice.getByRole('combobox', { name: 'Practice language' }).inputValue(), 'gn-PY-x-weave');
   await guaraniPractice.close();
   await guaraniWelcome.close();
+
+  // Returning learners can open a bundled reading directly from the toolbar popup.
+  await popup.reload();
+  const sampleLink = popup.getByRole('link', { name: 'Read a sample', exact: true });
+  await sampleLink.waitFor();
+  const beforeOpeningSample = await worker.evaluate(async () => ({
+    local: await chrome.storage.local.get(null), permissions: await chrome.permissions.getAll(),
+  }));
+  const sampleTab = context.waitForEvent('page');
+  await sampleLink.press('Enter');
+  const returnedSample = await sampleTab;
+  await returnedSample.waitForURL(welcomeUrl);
+  await returnedSample.locator('#demo').getByRole('button', { name: 'ama', exact: true }).waitFor();
+  assert.equal(await pickerFor(returnedSample).inputValue(), 'gn-PY-x-weave');
+  assert.equal(await passageFor(returnedSample).locator('option').count(), 3);
+  assert.deepEqual(await worker.evaluate(async () => ({
+    local: await chrome.storage.local.get(null), permissions: await chrome.permissions.getAll(),
+  })), beforeOpeningSample);
+  await returnedSample.close();
+  console.log('PASS: the returning popup opens all three Guaraní readings by keyboard, preserving local data and permissions.');
   console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
 
   await reopened.reload();

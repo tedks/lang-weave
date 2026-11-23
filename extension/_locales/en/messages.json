@@ -317,6 +317,10 @@
     "message": "Help",
     "description": "Toolbar popup: link to the online help."
   },
+  "popup_read_sample": {
+    "message": "Read a sample",
+    "description": "Toolbar popup: open the built-in offline reading samples after setup."
+  },
   "popup_welcome_route": {
     "message": "Review privacy choices",
     "description": "Toolbar popup: link back to first-run privacy choices while consent is pending."
