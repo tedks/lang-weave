@@ -1,11 +1,17 @@
 import { expect, test } from 'bun:test';
 import { selectWorkingSet } from '../src/adaptive.js';
+import { createCache, memoryStorage } from '../src/cache.js';
 import { entryId } from '../src/catalog.js';
+import { requestSwaps } from '../src/engine.js';
 import { GUARANI_STARTER } from '../src/language-name.js';
 import { GUARANI_PACK } from '../src/guarani.js';
+import { hashKey } from '../src/hash.js';
 import { cleanPack, packWords } from '../src/languages.js';
 import { assertPackAnchors, validateSwaps } from '../src/levels.js';
+import { paragraphMatches } from '../src/paragraph-matches.js';
 import { cleanReview } from '../src/review.js';
+import { DEFAULT_SETTINGS } from '../src/settings.js';
+import { createContext } from '../src/worker-context.js';
 import { validPackForm } from '../src/word-form.js';
 import { createBackup, learningPatch, parseBackup } from '../src/portability.js';
 
@@ -41,6 +47,110 @@ test('all previous Guaraní rows and their stable IDs survive, with six Beginner
   expect(packWords(GUARANI_PACK, 2)).toHaveLength(28);
   expect(entryId(starterScope, { fr: 'ytororõ' })).toBe('gn-PY-x-weave:0000000000000001:legacy:ytoror%C3%B5');
   expect(() => assertPackAnchors(GUARANI_PACK.words)).not.toThrow();
+});
+
+test.each([1, 2])('Guaraní tier %i omits plainly verbal uses and preserves the matching nouns', (level) => {
+  const words = packWords(GUARANI_PACK, level);
+  const choices = (text) => paragraphMatches(text, GUARANI_STARTER, level).flatMap(({ senses }) => senses);
+  for (const [o, f, negative, positive] of [
+    ['book', 'aranduka', 'Please book a room near the station.', 'She read a book beside the window.'],
+    ['chair', 'apyka', 'We will chair the discussion after lunch.', 'We carried a chair into the kitchen.'],
+    ['water', 'y', 'The caretaker has to water the garden today.', 'The school needs access to water from the well.'],
+    ['wind', 'yvytu', 'I need to wind the clock before bed.', 'We listened to wind through the shutters.'],
+    ['fire', 'tata', 'They hope to fire the manager next week.', 'The travelers gathered beside the fire.'],
+  ]) {
+    const proposal = [{ o, f }];
+    expect(choices(negative).map(({ word }) => word)).not.toContain(f);
+    expect(validateSwaps(level, proposal, words, GUARANI_STARTER, { text: negative })).toEqual([]);
+    expect(choices(positive)).toContainEqual(expect.objectContaining({ o, word: f }));
+    expect(validateSwaps(level, proposal, words, GUARANI_STARTER, { text: positive })).toMatchObject([{ o, word: f }]);
+  }
+});
+
+test('manual Guaraní keeps repeated noun occurrences, including dialogue, at their exact offsets', () => {
+  const text = 'I read the book that told me how to book a room. She said, “Please, book it today.” He read the book again.';
+  const target = 'aranduka';
+  const offsets = paragraphMatches(text, GUARANI_STARTER, 1)
+    .filter(({ senses }) => senses.some(({ word }) => word === target)).map(({ start }) => start);
+  expect(offsets).toEqual([text.indexOf('book'), text.lastIndexOf('book')]);
+  expect(paragraphMatches('He said, “Water tastes better here.”', GUARANI_STARTER, 1).flatMap(({ senses }) => senses))
+    .toContainEqual(expect.objectContaining({ o: 'Water', word: 'y' }));
+});
+
+test('Guaraní recognizes bounded cues without interpreting every prepositional noun or unmarked homograph', () => {
+  const offers = (text, target) => paragraphMatches(text, GUARANI_STARTER, 2)
+    .some(({ senses }) => senses.some(({ word }) => word === target));
+  for (const text of [
+    'We’ll book a room on the second floor.', 'We should not book a room this far away.',
+    'Could you book a room for my aunt?', 'Did you book a room on this side of town?',
+  ]) expect(offers(text, 'aranduka')).toBe(false);
+  for (const [text, word] of [
+    ['They brought hope to fire survivors.', 'tata'],
+    ['They were used to water from the mountain spring.', 'y'],
+    ['She argued for the right to water and shelter.', 'y'],
+    ['We carried water for the trip.', 'y'],
+  ]) expect(offers(text, word)).toBe(true);
+  expect(offers('Wind the clock before leaving.', 'yvytu')).toBe(true); // An unmarked imperative remains ambiguous to the matcher.
+  expect(offers('They wrote about what people can\nBook fairs returned in spring.', 'aranduka')).toBe(true);
+});
+
+test.each([1, 2])('Guaraní tier %i validates ordinary and gradual replies at the located occurrence', async (level) => {
+  const text = 'The book described how to book a room near the station.';
+  const batch = [{ id: 'passage', text }];
+  const catalog = packWords(GUARANI_PACK, level);
+  const keep = { o: 'book', f: 'aranduka', ctx: 'The book described' };
+  const refuse = { ...keep, ctx: 'how to book a room' };
+  const day = '2026-11-23';
+  const now = Date.parse(`${day}T12:00:00Z`);
+  for (const gradual of [false, true]) {
+    const words = gradual ? selectWorkingSet({ batch, words: catalog, scope: starterScope, language: GUARANI_STARTER,
+      state: cleanReview(null, catalog, now, true), settings: { gradual: true, newWordsPerDay: 5 }, now, day, level }) :
+      catalog.map((word) => ({ ...word, status: 'active' }));
+    const result = await requestSwaps({ model: DEFAULT_SETTINGS.model, apiKey: 'synthetic-test', batch, level,
+      words, language: GUARANI_STARTER, unknownLimit: gradual, fetchImpl: async (_url, { body }) => {
+        expect(JSON.parse(body).systemInstruction.parts[0].text).toContain('"target":"aranduka"');
+        const passages = [{ id: 'passage', swaps: [refuse, keep] }];
+        return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
+      } });
+    expect(result.results.passage).toHaveLength(1);
+    expect(result.results.passage).toMatchObject([keep]);
+  }
+});
+
+test('generated Guaraní and a distinct personal sense keep their existing anchor rules', () => {
+  const text = 'We should book a room near the station.';
+  const f = 'aranduka';
+  for (const language of ['gn', 'gn-PY']) {
+    expect(validateSwaps(1, [{ o: 'book', f }], [{ fr: f, en: 'book', hint: '' }], language, { text }))
+      .toMatchObject([{ o: 'book', f }]);
+  }
+  const personal = { fr: 'fixture', en: 'book (reserve)', anchors: ['book'], hint: '' };
+  expect(validateSwaps(1, [{ o: 'book', f: personal.fr }], [personal], GUARANI_STARTER, { text }))
+    .toMatchObject([{ o: 'book', f: personal.fr }]);
+});
+
+test('a new manifest version bypasses an old starter cache entry while keeping the history scope', async () => {
+  const previous = globalThis.chrome;
+  let version = '0.15.9';
+  globalThis.chrome = { runtime: { getManifest: () => ({ version }) }, permissions: { getAll: async () => ({ origins: [] }) } };
+  try {
+    const store = memoryStorage({ settings: { language: GUARANI_STARTER, levelOverride: 2 }, epoch: 'fixture' });
+    const { context } = createContext({ store, ready: Promise.resolve(), worker: { keyIsolationUnavailable: false } });
+    const cache = createCache(store);
+    const before = await context();
+    const text = 'The visitor should book a room near the station.';
+    const passage = hashKey(text);
+    const stale = [{ o: 'book', f: 'aranduka', word: 'aranduka', g: 'book (printed volume)', h: '', ctx: '' }];
+    const oldKey = `${before.revision}:${passage}`;
+    await cache.setMany({ [oldKey]: stale });
+    version = '0.15.12';
+    const after = await context();
+    expect(after.scope).toBe(before.scope);
+    expect(after.words).toEqual(before.words);
+    expect(after.revision).not.toBe(before.revision);
+    expect(await cache.getMany([`${after.revision}:${passage}`])).toEqual({});
+    expect(await cache.getMany([oldKey])).toEqual({ [oldKey]: stale });
+  } finally { globalThis.chrome = previous; }
 });
 
 test('everyday passages that had no candidates now reach home and school words through the gradual selector', () => {

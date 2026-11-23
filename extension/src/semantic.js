@@ -1,4 +1,6 @@
 // English-source checks shared by model validation and final DOM placement. The passage, not model ctx, decides.
+import { GUARANI_STARTER } from './language-name.js';
+
 const DOUBLE = { '"': '"', '“': '”', '„': '“”', '«': '»', '「': '」', '『': '』' };
 const SINGLE = { "'": "'", '‘': '’' };
 const BEFORE_SINGLE = /[\s([{“"«„—–\-/]/u;
@@ -127,8 +129,45 @@ const HAS_PARTICIPLES = new Set(['been', 'got', 'gotten', 'had', 'done', 'gone',
   'come', 'taken', 'seen', 'made', 'happened', 'given']);
 const HAS_MODIFIERS = new Set(['finally', 'already', 'just', 'never', 'ever', 'really',
   'actually', 'not', 'still', 'also', 'now']);
+// These bundled targets name only the noun sense. Other targets can have different senses.
+const GUARANI_NOUN_ANCHORS = new Map([
+  ['aranduka', 'book'], ['apyka', 'chair'], ['y', 'water'], ['yvytu', 'wind'], ['tata', 'fire'],
+]);
+const MODALS = new Set(['can', 'could', 'may', 'might', 'must', 'shall', 'should', 'will', 'would',
+  'cannot', "can't", "couldn't", "won't", "wouldn't", "shouldn't", "mustn't", "mightn't", "shan't"]);
+const CONTRACTED_MODAL = /^(?:i|you|he|she|it|we|they)'(?:ll|d)$/u;
+const INFINITIVE_MARKERS = new Set(['how', 'when', 'where', 'what', 'whether', 'have', 'has', 'had']);
+const INFINITIVE_VERBS = new Set(['need', 'needs', 'needed', 'hope', 'hopes', 'hoped', 'want', 'wants', 'wanted',
+  'plan', 'plans', 'planned', 'try', 'tries', 'tried', 'decide', 'decides', 'decided']);
+const QUESTION_AUXILIARIES = new Set(['do', 'does', 'did']);
+const LINE_BREAK = /[\r\n\u2028\u2029]/u;
 const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
   !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
+
+function tokenBefore(text, ts, at) {
+  const previous = ts[at - 1];
+  return previous && !LINE_BREAK.test(text.slice(previous.end, ts[at].start)) ? previous : undefined;
+}
+
+const modal = (value) => !!value && (MODALS.has(value) || CONTRACTED_MODAL.test(value));
+
+function clearVerbContext(text, ts, at, allowDialogue) {
+  const cue = tokenBefore(text, ts, at);
+  if (!cue) return false;
+  const head = tokenBefore(text, ts, at - 1);
+  const subject = head && tokenBefore(text, ts, at - 2);
+  if (modal(cue.value)) return !SUBJECT_DETERMINERS.has(head?.value);
+  if (cue.value === 'not' && modal(head?.value)) return !SUBJECT_DETERMINERS.has(subject?.value);
+  if (cue.value === 'to') {
+    // Bare prepositional "to" leaves a noun sense possible, as in "access to water".
+    return INFINITIVE_MARKERS.has(head?.value) || INFINITIVE_VERBS.has(head?.value) &&
+      (CLAUSE_STARTS.has(subject?.value) || modal(subject?.value));
+  }
+  const please = cue.value === ',' ? head : cue;
+  if (please?.value === 'please') return sentenceStart(text, please.start, { allowDialogue });
+  return (MODALS.has(head?.value) || QUESTION_AUXILIARIES.has(head?.value)) &&
+    CLAUSE_STARTS.has(cue.value) && sentenceStart(text, head.start, { allowDialogue });
+}
 
 // Preserve a possible subject and verb in sentence-initial uses like “The door hinges on one pin.”
 function possiblePredicate(text, ts, at, end, allowDialogue) {
@@ -139,7 +178,7 @@ function possiblePredicate(text, ts, at, end, allowDialogue) {
 }
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
-export function sourceIssue(text, from, to, original, { allowQuoted = false, language, level = 2 } = {}) {
+export function sourceIssue(text, from, to, original, { allowQuoted = false, language, level = 2, target } = {}) {
   const beginnerSpanish = language === 'es' && level <= 1;
   if (allCaps(original) || allCaps(String(text).slice(from, to))) return 'allCaps';
   if (!allowQuoted && quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
@@ -154,6 +193,8 @@ export function sourceIssue(text, from, to, original, { allowQuoted = false, lan
   const o = ts.slice(first, last + 1).map((t) => t.value).join(' ');
   if (nameToken(ts[first], text, allowQuoted) || (first === last && nameToken(prev, text, allowQuoted) &&
     /^\s*$/u.test(text.slice(prev.end, from)) && !FUNCTION_WORDS.has(o))) return 'name';
+  if (language === GUARANI_STARTER && first === last && typeof target === 'string' &&
+    GUARANI_NOUN_ANCHORS.get(target.toLowerCase()) === o && clearVerbContext(text, ts, first, allowQuoted)) return 'verbContext';
   const compounds = beginnerSpanish ? beginnerSpanishCompounds : language === 'es' ? spanishCompounds : compoundTokens;
   for (const phrase of [...fixedTokens, ...compounds]) {
     const isCompound = compounds.includes(phrase);
