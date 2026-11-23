@@ -272,6 +272,31 @@ test('keyboard: arrows and 1-4 pick, Tab and Escape return focus, untrusted keys
   } finally { await p.restore(); }
 }, 30000);
 
+test('flipping a word to English consumes its guess even if choices are still on the way', async () => {
+  let deliverChoices;
+  const p = await page('guess-flip-in-flight', { reply: {
+    begin: () => new Promise((resolve) => { deliverChoices = resolve; }),
+  } });
+  try {
+    const span = p.doc.querySelector('.fw-word');
+    await p.hover(span);
+    expect(deliverChoices).toBeFunction();
+    p.click(span);
+    expect(span.textContent).toBe('and');
+    p.key(span, 'Enter');
+    expect(span.textContent).toBe('y');
+    await p.hover(span, 100);
+    deliverChoices({ ticket: 'late', choices: CHOICES });
+    await p.advance(50);
+    expect(p.guessPanel()).toBeNull();
+    expect(p.doc.querySelector('.fw-gloss')).toBeNull();
+    await p.advance(650);
+    expect(p.doc.querySelector('.fw-gloss-on')?.textContent).toContain('and');
+    expect(p.types().filter((type) => type === 'guessBegin')).toHaveLength(1);
+    expect(p.types()).not.toContain('guessAnswer');
+  } finally { await p.restore(); }
+}, 30000);
+
 test('a click away or a dismissal records nothing; at most one panel is open', async () => {
   const p = await page('guess-one', { body: '<main><p id="one">We read and write every evening.</p><p id="two">We cook and eat every evening.</p></main>' });
   try {
