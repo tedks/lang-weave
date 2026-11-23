@@ -10,6 +10,59 @@ const { chromium } = await import(process.env.LANG_WEAVE_PLAYWRIGHT
   ? pathToFileURL(process.env.LANG_WEAVE_PLAYWRIGHT).href
   : 'playwright');
 
+const pickerFor = (page) => page.getByRole('combobox', { name: 'Sample language' });
+const spanish = {
+  name: 'Spanish',
+  tag: 'es',
+  targets: ['hoy', 'con', 'y', 'importante', 'siempre', 'porque', 'difícil', 'pero', 'posible'],
+  source: 'Today I read with a friend, and we talk about an important idea. We always ask a question because learning is difficult, but it is possible.',
+  firstSource: 'Today',
+};
+const guarani = {
+  name: 'Paraguayan Guaraní',
+  tag: 'gn-PY',
+  targets: ['ama', 'yvyra', 'panambi', 'yvoty', 'kuarahy'],
+  source: 'After the rain, I walked past a tree toward the garden. A butterfly landed on a flower, and the sun warmed the path.',
+  firstSource: 'rain',
+};
+
+async function checkSample(page, { name, tag, targets, source, firstSource }) {
+  const picker = pickerFor(page);
+  const demo = page.locator('#demo');
+  const words = demo.getByRole('button');
+  const first = demo.getByRole('button', { name: targets[0], exact: true });
+  const gloss = page.locator('.fw-gloss.fw-gloss-on');
+  await first.waitFor();
+  assert.equal(await picker.locator('option:checked').textContent(), name);
+  assert.equal(await demo.getAttribute('lang'), 'en');
+  assert.deepEqual(await words.allTextContents(), targets);
+  assert.deepEqual(await words.evaluateAll((list) => list.map((word) => word.lang)), targets.map(() => tag));
+  assert.match(await first.evaluate((word) => word.ownerDocument
+    .getElementById(word.getAttribute('aria-describedby')).textContent), /Show English/);
+
+  await first.hover();
+  await gloss.waitFor();
+  assert.ok((await gloss.textContent()).startsWith(`${targets[0]} · ${firstSource.toLowerCase()}`));
+  assert.equal(await gloss.locator('span').getAttribute('lang'), tag);
+  await page.locator('#demoHeading').hover();
+  await gloss.waitFor({ state: 'detached' });
+
+  await picker.focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await first.evaluate((word) => word.matches(':focus-visible')), true);
+  await gloss.waitFor();
+  await page.keyboard.press('Enter');
+  const flipped = demo.getByRole('button', { name: firstSource, exact: true });
+  assert.equal(await flipped.evaluate((word) => word.closest('[lang]').lang), 'en');
+  assert.equal(await flipped.evaluate((word) => word.ownerDocument
+    .getElementById(word.getAttribute('aria-describedby')).textContent), `Show ${name}`);
+  await gloss.waitFor({ state: 'detached' });
+  await page.keyboard.press('Space');
+  assert.equal(await first.getAttribute('lang'), tag);
+  for (const word of await words.all()) await word.click();
+  assert.equal(await demo.textContent(), source);
+}
+
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-welcome-'));
 const suppliedExtension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
@@ -22,7 +75,7 @@ try {
     await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
     await writeFile(join(extension, 'manifest.json'), await readFile(join(root, 'manifest.json')));
   }
-  const geminiRequests = [];
+  const networkRequests = [];
   const executablePath = process.env.LANG_WEAVE_CHROMIUM;
   context = await chromium.launchPersistentContext(join(scratch, 'profile'), {
     ...(executablePath ? { executablePath } : { channel: 'chromium' }), headless: true,
@@ -31,7 +84,7 @@ try {
       '--host-resolver-rules=MAP * ~NOTFOUND', '--proxy-server=http://127.0.0.1:9'],
   });
   context.on('request', (request) => {
-    if (request.url().startsWith('https://generativelanguage.googleapis.com/')) geminiRequests.push(request.url());
+    if (/^https?:/.test(request.url())) networkRequests.push(request.url());
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
@@ -39,22 +92,21 @@ try {
   const welcomeUrl = `chrome-extension://${id}/src/welcome.html`;
   const page = context.pages().find((p) => p.url() === welcomeUrl) ||
     await context.waitForEvent('page', { predicate: (p) => p.url() === welcomeUrl });
-  await page.locator('#demo .fw-word').first().waitFor();
+  await page.locator('#demoLanguage:enabled').waitFor();
   assert.equal(await page.getByText('The Gemini API requires users to be 18 or older.').count(), 1);
   assert.equal(await page.locator('#suggestX').isHidden(), true, 'the unpacked build already has a static X script');
-  assert.equal(await page.locator('#demo .fw-word').count(), 9);
-  const word = page.locator('#demo .fw-word').first();
-  assert.equal(await word.textContent(), 'hoy');
-  await word.hover();
-  await page.locator('.fw-gloss.fw-gloss-on').waitFor();
-  assert.match(await page.locator('.fw-gloss').textContent(), /hoy · today/);
-  await word.click();
-  assert.equal(await word.textContent(), 'Today');
-  await word.click();
-  assert.equal(await word.textContent(), 'hoy');
   const before = await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown', 'apiKey']));
   assert.equal(before.consentShown, false);
   assert.equal(before.apiKey, undefined);
+  assert.equal(before.settings.language, 'es');
+  const permissions = await worker.evaluate(() => chrome.permissions.getAll());
+  await checkSample(page, spanish);
+  await pickerFor(page).selectOption({ label: guarani.name });
+  await checkSample(page, guarani);
+  await pickerFor(page).selectOption({ label: spanish.name });
+  assert.deepEqual(await page.locator('#demo').getByRole('button').allTextContents(), spanish.targets);
+  assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown', 'apiKey'])), before);
+  assert.deepEqual(await worker.evaluate(() => chrome.permissions.getAll()), permissions);
   // A real install's first startup writes the new-profile learning default (gradual-default-on-install-ruling).
   assert.equal(before.settings.gradual, true);
   assert.equal(before.settings.newWordsPerDay, 5);
@@ -134,6 +186,11 @@ try {
   await options.locator('#language').selectOption({ value: 'gn-PY-x-weave' });
   await options.locator('#wordInfo').getByText(/Paraguayan Guaraní/).waitFor();
   assert.equal(await settingsPlacement.isHidden(), true);
+  await reopened.reload();
+  await reopened.locator('#demo').getByRole('button', { name: 'ama', exact: true }).waitFor();
+  assert.equal(await pickerFor(reopened).inputValue(), 'gn-PY-x-weave');
+  await pickerFor(reopened).selectOption({ label: spanish.name });
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY-x-weave');
 
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#language').getByText(/Paraguayan Guaraní/).waitFor();
@@ -143,8 +200,23 @@ try {
   await review.locator('#answer').getByText('y', { exact: true }).waitFor();
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('apiKey'))).apiKey, undefined);
   console.log('PASS: selected bundled Paraguayan Guaraní and revealed water → y in offline review.');
-  assert.deepEqual(geminiRequests, []);
-  console.log('PASS: fresh install welcome demo, closed-page popup route, pending Settings controls, only-sites consent and no Gemini request during setup.');
+  // Simulate a previously generated pack for the same locale without using Gemini.
+  await worker.evaluate(() => chrome.storage.local.set({ languagePacks: { 'gn-PY': {
+    words: Array.from({ length: 20 }, (_, i) => ({
+      fr: `fixture-${i}`, en: `example ${i}`, hint: 'fixture', level: i < 10 ? 1 : 2,
+    })),
+  } } }));
+  await options.reload();
+  await options.locator('#language option[value="gn-PY"]').waitFor({ state: 'attached' });
+  await options.locator('#language').selectOption('gn-PY');
+  await options.locator('#removeLanguage').waitFor();
+  await reopened.reload();
+  await reopened.locator('#demo').getByRole('button', { name: 'hoy', exact: true }).waitFor();
+  assert.equal(await pickerFor(reopened).inputValue(), 'es');
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY');
+
+  assert.deepEqual(networkRequests, []);
+  console.log('PASS: Spanish and Guaraní sample matching, focus, hover and flip; returning bundled selection, generated-pack fallback, and only-sites consent without a network request.');
 } finally {
   try { await context?.close(); } finally { await rm(scratch, { recursive: true, force: true }); }
 }
