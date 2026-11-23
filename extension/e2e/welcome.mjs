@@ -92,6 +92,7 @@ try {
   const welcomeUrl = `chrome-extension://${id}/src/welcome.html`;
   const page = context.pages().find((p) => p.url() === welcomeUrl) ||
     await context.waitForEvent('page', { predicate: (p) => p.url() === welcomeUrl });
+  await page.locator('#demoLanguage:enabled').waitFor();
   assert.equal(await page.getByText('The Gemini API requires users to be 18 or older.').count(), 1);
   assert.equal(await page.locator('#suggestX').isHidden(), true, 'the unpacked build already has a static X script');
   const before = await worker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown', 'apiKey']));
