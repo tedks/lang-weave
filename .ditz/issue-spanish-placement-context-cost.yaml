@@ -24,3 +24,22 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T07:48:33-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Measured actual warmed Chrome content-script\u2192worker config and cached
+    swaps at public 0.15.5, three new disposable Chromium 155 profiles on framework0.
+    Each case has 90 observations per profile after warmup, alternating order across
+    rounds. A full synthetic history has a valid FSRS card for each of the 233 bundled
+    words (41,926 serialized review bytes). With full history and confirmed Beginner,
+    median config was 1.4\u20131.7 ms and median cached swap 2.8\u20133.4 ms; p95
+    ranges 2.0\u20133.6 and 3.7\u20135.8 ms. With the same history and no explicit
+    placement, medians were 0.5\u20130.7 and 1.0\u20131.2 ms respectively. Confirmed
+    Expanded had 0.6 and 1.0\u20131.1 ms medians. Three synthetic model misses per
+    profile primed the cache, no external provider calls. The isolated fixture added
+    one required grant for its synthetic page; all runtime JS came from the release.
+    The explicit Beginner work is measurable, but these durations do not justify an
+    invalidation cache at this point. Those results are for warmed runs on one system,
+    not cold startup or zero-key live model latency. Exact settings visibility, cache
+    eligibility and review tickets remain intact. Private anonymized reproduction
+    and numeric results: placement-context-measure.path."
