@@ -19,8 +19,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T05:03:26-00:00
 references: []
 log_events:
@@ -76,3 +76,9 @@ log_events:
     ZIP exercise, and formal council are green. Sol and Opus CLEAN, Google quota-empty.
     Dialogue is local-only and the default web quote guards remain tested. Exact evidence:
     https://github.com/tedks/lang-weave/pull/74#issuecomment-7092899150'
+- time: 2026-11-23T06:00:16-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'CTO accepted both bundled languages in installed Chromium and merged PR
+    #74 normally at 055a48df1093085b865bb92ec25f4d8f29d2cd52. The merge tree matches
+    the reviewed and tested head 0bd895edd680d59135eeb75d3b95997aea27b071.'
