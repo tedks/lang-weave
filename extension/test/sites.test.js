@@ -66,7 +66,10 @@ test('site choice requests a single scheme and host before saving, then injects 
   const chosen = { tabId: 12, url: 'https://x.com/reader/status/123', enabled: true, requestAccess: true };
   let allow = false;
   let liveUrl = chosen.url;
+  let documentId = 'original';
+  let navigateDuringCSS = false;
   const permission = { origins: ['https://x.com/*'] };
+  const documentTarget = { tabId: 12, documentIds: ['original'] };
   globalThis.chrome = {
     runtime: { getManifest: () => dev },
     permissions: {
@@ -77,8 +80,18 @@ test('site choice requests a single scheme and host before saving, then injects 
     tabs: { get: async () => ({ url: liveUrl }) },
     scripting: {
       getRegisteredContentScripts: async () => [],
-      insertCSS: async ({ target }) => { calls.push(['css', target.tabId]); },
-      executeScript: async ({ target }) => { calls.push(['script', target.tabId]); },
+      insertCSS: async ({ target }) => {
+        calls.push(['css', target]);
+        if (navigateDuringCSS) documentId = 'replacement';
+      },
+      executeScript: async ({ target, func, args }) => {
+        if (func) {
+          calls.push(['probe', target, args]);
+          return [{ documentId, result: args[0] === liveUrl }];
+        }
+        if (target.documentIds && !target.documentIds.includes(documentId)) throw new Error('No matching document');
+        calls.push(['script', target]);
+      },
     },
   };
   const save = async ({ siteOverride }) => calls.push(['save', siteOverride]);
@@ -96,7 +109,13 @@ test('site choice requests a single scheme and host before saving, then injects 
     allow = true;
     expect(await setReadingSite(chosen, save)).toEqual({ ok: true });
     expect(calls).toEqual([['request', permission], ['contains', permission],
-      ['save', { host: 'x.com', enabled: true }], ['css', 12], ['script', 12]]);
+      ['save', { host: 'x.com', enabled: true }], ['probe', { tabId: 12 }, [chosen.url]],
+      ['css', documentTarget], ['script', documentTarget]]);
+    calls.length = 0;
+    navigateDuringCSS = true;
+    expect(await setReadingSite({ ...chosen, requestAccess: false }, save)).toEqual({ ok: true, reload: true });
+    expect(calls).toEqual([['contains', permission], ['save', { host: 'x.com', enabled: true }],
+      ['probe', { tabId: 12 }, [chosen.url]], ['css', documentTarget]]);
     calls.length = 0;
     liveUrl = 'https://example.com/article';
     expect(await setReadingSite({ ...chosen, requestAccess: false }, save)).toEqual({ ok: true });

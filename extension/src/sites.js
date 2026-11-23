@@ -3,13 +3,13 @@ import { activeOn } from './worker-context.js';
 import { isZeroFrench } from './levels.js';
 import { validSiteHost } from './settings.js';
 
-const LOADER_FILES = ['src/content-loader.js'];
+const LOADER_FILE = 'src/content-loader.js';
 
 // The hosts where the manifest itself injects the loader. Only loader entries count: an unrelated manifest
 // script must not stop the loader reaching a granted host. Always a list, possibly empty: updateContentScripts
 // leaves an omitted property unchanged, so leaving it out could keep a stale exclusion from an earlier registration.
 export const declaredMatches = () => [...new Set((chrome.runtime.getManifest().content_scripts ?? [])
-  .filter((cs) => (cs.js ?? []).includes('src/content-loader.js')).flatMap((cs) => cs.matches ?? []))];
+  .filter((cs) => (cs.js ?? []).includes(LOADER_FILE)).flatMap((cs) => cs.matches ?? []))];
 
 export function createSites({ store, locked, worker, broadcast, context }) {
   // Granted origins (all sites, or one at a time from the popup) decide where the content script is injected.
@@ -30,7 +30,7 @@ export function createSites({ store, locked, worker, broadcast, context }) {
         if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: ['weave-sites'] });
         return;
       }
-      const script = { id: 'weave-sites', matches, js: LOADER_FILES, css: ['src/content.css'], runAt: 'document_idle',
+      const script = { id: 'weave-sites', matches, js: [LOADER_FILE], css: ['src/content.css'], runAt: 'document_idle',
         excludeMatches: declaredMatches(), persistAcrossSessions: true };
       if (existing.length) await chrome.scripting.updateContentScripts([script]);
       else await chrome.scripting.registerContentScripts([script]);
@@ -55,8 +55,13 @@ export function createSites({ store, locked, worker, broadcast, context }) {
       // Complete registration for later tabs and inject into the original open tab.
       await registerSites();
       if ((await chrome.tabs.get(tabId)).url !== url) return { ok: true };
-      await chrome.scripting.insertCSS({ target: { tabId }, files: ['src/content.css'] });
-      await chrome.scripting.executeScript({ target: { tabId }, files: LOADER_FILES });
+      const [frame] = await chrome.scripting.executeScript({ target: { tabId },
+        func: (expected) => location.href === expected, args: [url] });
+      if (frame?.result !== true || !frame.documentId) return { ok: true };
+      // A reload or navigation during injection must not target the replacement page.
+      const target = { tabId, documentIds: [frame.documentId] };
+      await chrome.scripting.insertCSS({ target, files: ['src/content.css'] });
+      await chrome.scripting.executeScript({ target, files: [LOADER_FILE] });
       return { ok: true };
     } catch { return { ok: true, reload: true }; }
   }
@@ -93,7 +98,7 @@ export function createSites({ store, locked, worker, broadcast, context }) {
       try {
         await chrome.scripting.insertCSS({ target: { tabId: id }, files: ['src/content.css'] });
         if (!(await eligible())) return;
-        await chrome.scripting.executeScript({ target: { tabId: id }, files: LOADER_FILES });
+        await chrome.scripting.executeScript({ target: { tabId: id }, files: [LOADER_FILE] });
       } catch { /* A closed or newly ungranted tab is no longer eligible. */ }
     };
     // A tab-heavy session must not start a burst of storage reads and script

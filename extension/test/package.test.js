@@ -1,6 +1,6 @@
 import { test, expect, afterAll } from 'bun:test';
 import { inflateRawSync } from 'node:zlib';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
@@ -131,7 +131,7 @@ test('package: two builds are byte-identical; --store applies only the delta tab
       expect(Buffer.compare(e.data, readZip(a.bytes).find((x) => x.name === e.name).data)).toBe(0);
   }
   const storeFiles = Object.fromEntries(readZip(s.bytes).map((e) => [e.name, e.data.toString()]));
-  expect(storeFiles['src/sites.js']).toContain("const LOADER_FILES = ['src/content-bundle.js']");
+  expect(storeFiles['src/sites.js']).toContain("const LOADER_FILE = 'src/content-bundle.js'");
   expect(storeFiles['src/content-bundle.js']).toContain('src/content.js');
   expect(Buffer.compare(s.bytes, build({ store: true }).bytes)).toBe(0);
 
@@ -159,6 +159,14 @@ test('store manifest: differs from the dev manifest in exactly the delta-table k
   expect(JSON.stringify(store)).not.toContain('x.com');
   expect(JSON.stringify(store)).not.toContain('twitter.com');
   expect(dev).toEqual(JSON.parse(readFileSync(join(EXT, 'manifest.json'), 'utf8'))); // input untouched
+});
+
+test('Store packaging refuses another runtime reference to the modular loader', () => {
+  const extensionDir = fresh('store-loader-drift');
+  cpSync(join(EXT, 'manifest.json'), join(extensionDir, 'manifest.json'));
+  cpSync(join(EXT, 'src'), join(extensionDir, 'src'), { recursive: true });
+  writeFileSync(join(extensionDir, 'src', 'legacy-injection.js'), "export const files = ['src/content-loader.js'];");
+  expect(() => build({ store: true, extensionDir })).toThrow('store bundle: modular loader still referenced in src/legacy-injection.js');
 });
 
 test('store manifest: the X row keeps other content scripts and refuses a changed precondition', () => {

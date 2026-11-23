@@ -591,10 +591,13 @@ export function packageExtension({
     // Store registration and injection use the generated classic script.
     const sites = files.find((file) => file.name === 'src/sites.js');
     const source = sites?.data.toString('utf8');
-    const loader = "const LOADER_FILES = ['src/content-loader.js']";
-    if (!source || source.split(loader).length !== 2)
-      throw new PackageError(`store bundle: expected one ${loader} in src/sites.js`);
-    sites.data = Buffer.from(source.replace(loader, "const LOADER_FILES = ['src/content-bundle.js']"), 'utf8');
+    const loader = 'src/content-loader.js';
+    const declaration = `const LOADER_FILE = '${loader}'`;
+    if (!source || source.split(declaration).length !== 2)
+      throw new PackageError(`store bundle: expected one ${declaration} in src/sites.js`);
+    sites.data = Buffer.from(source.replace(declaration, "const LOADER_FILE = 'src/content-bundle.js'"), 'utf8');
+    const leftover = files.find(({ name, data }) => name.endsWith('.js') && data.includes(loader));
+    if (leftover) throw new PackageError(`store bundle: modular loader still referenced in ${leftover.name}`);
     files.push({ name: 'src/content-bundle.js', data: Buffer.from(code, 'utf8') });
     files.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     const shipped = storeManifest(manifest);

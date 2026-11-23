@@ -106,7 +106,7 @@ try {
   assert.equal(store.content_scripts, undefined);
   assert.equal(store.web_accessible_resources, undefined);
   assert.equal(store.permissions.includes('alarms'), false);
-  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /const LOADER_FILES = \['src\/content-bundle\.js'\]/);
+  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /const LOADER_FILE = 'src\/content-bundle\.js'/);
   store.update_url = 'https://update.invalid/service/update2/crx';
   // In a fresh Store install, the suggested X button must obtain a per-site grant from its click.
   open = await launch('store-onboarding', store, unpacked, false);
