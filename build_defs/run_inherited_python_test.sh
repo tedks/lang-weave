@@ -14,6 +14,7 @@ home="${TEST_TMPDIR}/home"
 mkdir -p "$stage" "$home"
 # The inherited tests locate sources via Path(__file__).resolve().
 cp -RL "$runfiles"/{.claude-plugin,blocks,commands,data,extension,scripts,tests} "$stage"
+cp "$runfiles/MODULE.bazel" "$stage/"
 cd "$stage"
 exec env -i HOME="$home" PATH="$PATH" TMPDIR="$TEST_TMPDIR" GIT_CONFIG_NOSYSTEM=1 \
   PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
