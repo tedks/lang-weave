@@ -13,6 +13,9 @@
   h2 { margin-top: 0; }
   section { padding: 1.4rem; margin: 1.4rem 0; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; }
   .muted { color: var(--ui-muted); }
+  .sample-pickers { display: flex; flex-wrap: wrap; gap: .6rem 1rem; }
+  .sample-pickers > div { display: grid; gap: .2rem; max-width: 100%; }
+  .sample-pickers select { min-width: 0; max-width: 100%; padding: .2rem; font: inherit; }
   .demo { padding: 1rem; border-left: 4px solid #397d77; background: var(--ui-bg); font-size: 1.12rem; }
   .choices { display: flex; flex-wrap: wrap; gap: .7rem; margin: 1rem 0; }
   button { font: inherit; padding: .55rem .8rem; cursor: pointer; }
@@ -27,10 +30,16 @@
   <p class="muted" data-i18n="welcome_intro">Learn another language while reading English pages.</p>
   <section aria-labelledby="demoHeading">
     <h2 id="demoHeading" data-i18n="welcome_demo_heading">1. Try a reading sample</h2>
-    <label for="demoLanguage" data-i18n="welcome_demo_language">Sample language</label>
-    <select id="demoLanguage" disabled aria-describedby="demoHelp"></select>
-    <label for="demoPassage" data-i18n="welcome_demo_passage">Passage</label>
-    <select id="demoPassage" disabled aria-describedby="demoHelp"></select>
+    <div class="sample-pickers">
+      <div>
+        <label for="demoLanguage" data-i18n="welcome_demo_language">Sample language</label>
+        <select id="demoLanguage" disabled aria-describedby="demoHelp"></select>
+      </div>
+      <div>
+        <label for="demoPassage" data-i18n="welcome_demo_passage">Passage</label>
+        <select id="demoPassage" disabled aria-describedby="demoHelp"></select>
+      </div>
+    </div>
     <p id="demo" class="demo" lang="en">Today I read with a friend, and we talk about an important idea. We always ask a question because learning is difficult, but it is possible.</p>
     <p id="demoHelp" class="muted" data-i18n="welcome_demo_help">Hover over or focus an underlined word for its meaning. Click it or press Enter or Space to flip it. This bundled sample stays on your device. Choose your reading language in Settings.</p>
     <p><a id="practiceParagraph" href="paragraph.html" target="_blank" rel="noopener" data-i18n="paragraph_title">Practice a paragraph</a></p>
