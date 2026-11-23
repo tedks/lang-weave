@@ -19,6 +19,9 @@ function sentenceBounds(text, { start, end }) {
   let from = 0;
   for (const { index } of sentences.segment(searchable)) {
     if (!index || !sentenceStart(searchable, index)) continue; // e.g. after Dr.
+    const before = searchable.slice(0, index);
+    if (/(?:^|[^\p{L}])\p{Lu}\.\s*$/u.test(before)) continue; // initials
+    if (/[.!?…]["'”’»]+\s*$/u.test(before) && /^\p{Ll}/u.test(searchable.slice(index))) continue; // attribution
     if (index >= end) return [from, index];
     if (index <= start) from = index;
   }

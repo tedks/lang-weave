@@ -60,8 +60,10 @@ export function quotedRanges(text) {
   return ranges;
 }
 
-export function sentenceStart(text, index) {
+export function sentenceStart(text, index, { allowDialogue = false } = {}) {
   const before = String(text).slice(0, index);
+  // An attributed quotation can start its own sentence in manual practice.
+  if (allowDialogue && /(?:[,:]|\b(?:said|asked|replied|answered|wrote|whispered|shouted))\s*["'“‘„«]\s*$/iu.test(before)) return true;
   if (/\b(?:Mr|Mrs|Ms|Dr|Prof|St|Rev|Gen|Sen|e\.g|i\.e)\.\s*$/iu.test(before)) return false;
   return /(?:^|[\n.!?…]["'”’)\]»]*)[\s"'“‘(\[«]*$/u.test(before);
 }
@@ -100,8 +102,8 @@ const HAS_PARTICIPLES = new Set(['been', 'got', 'gotten', 'had', 'done', 'gone',
   'come', 'taken', 'seen', 'made', 'happened', 'given']);
 const HAS_MODIFIERS = new Set(['finally', 'already', 'just', 'never', 'ever', 'really',
   'actually', 'not', 'still', 'also', 'now']);
-const nameToken = (t, text) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
-  !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start);
+const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
+  !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
 export function sourceIssue(text, from, to, original, { allowQuoted = false } = {}) {
@@ -113,7 +115,7 @@ export function sourceIssue(text, from, to, original, { allowQuoted = false } = 
   if (first < 0 || last < first) return ''; // DOM locator will reject an inexact anchor.
   const prev = ts[first - 1], next = ts[last + 1];
   const o = ts.slice(first, last + 1).map((t) => t.value).join(' ');
-  if (nameToken(ts[first], text) || (first === last && nameToken(prev, text) &&
+  if (nameToken(ts[first], text, allowQuoted) || (first === last && nameToken(prev, text, allowQuoted) &&
     /^\s*$/u.test(text.slice(prev.end, from)) && !FUNCTION_WORDS.has(o))) return 'name';
   for (const phrase of [...fixedTokens, ...compoundTokens]) {
     for (let at = 0; at + phrase.length <= ts.length; at++) {

@@ -52,6 +52,10 @@ test('manual practice accepts quoted dialogue while validation and web DOM place
   const text = '“The window stuck.” Then I said, "try the window again." He said, “The window frame is broken.”';
   expect(spans(text, 'es', 1)).toEqual([['The window', ['La ventana']], ['the window', ['la ventana']]]);
   expect(spans('“I met River.” “The window’s latch caught.”', 'es', 1)).toEqual([]);
+  expect(spans('She said, “The window stuck.” He asked, "The window frame too?"', 'es', 1))
+    .toEqual([['The window', ['La ventana']]]);
+  expect(spans('She said "Water is cold."', GUARANI_STARTER, 1)).toEqual([['Water', ['Y']]]);
+  expect(spans('I got an autograph from “River Song”.', 'es', 1)).toEqual([]);
   expect(spans('“A book,” she said. He replied, "the book is in my room."', GUARANI_STARTER, 1)).toEqual([
     ['book', ['aranduka']], ['book', ['aranduka']], ['room', ['koty']],
   ]);
@@ -150,12 +154,16 @@ test('the exercise reads only preferences and discards every view on edit, reset
     expect(doc.activeElement).toBe($('source'));
     expect($('status').textContent).toBe('Find words again to refresh your choices.');
 
-    $('source').value = 'We waited for Dr. Smith by\nthe window. The tree grew.';
-    $('find').click();
-    $('occurrence').selectedIndex = [...$('occurrence').options].findIndex((option) => option.textContent.includes('[the window]'));
-    $('occurrence').dispatchEvent(new window.Event('change'));
-    expect($('occurrenceContext').textContent.trim()).toBe('We waited for Dr. Smith by\nthe window.');
-    expect($('occurrenceContext').querySelector('mark').textContent).toBe('the window');
+    for (const sentence of [
+      'We waited for Dr. Smith by\nthe window.', 'We asked J. R. Tolkien about the window.', '“Is the window open?” she asked.',
+    ]) {
+      $('source').value = `${sentence} The tree grew.`;
+      $('find').click();
+      $('occurrence').selectedIndex = [...$('occurrence').options].findIndex((option) => option.textContent.includes('[the window]'));
+      $('occurrence').dispatchEvent(new window.Event('change'));
+      expect($('occurrenceContext').textContent.trim()).toBe(sentence);
+      expect($('occurrenceContext').querySelector('mark').textContent).toBe('the window');
+    }
 
     $('language').value = GUARANI_STARTER;
     $('language').dispatchEvent(new window.Event('change'));
