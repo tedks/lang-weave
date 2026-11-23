@@ -61,6 +61,7 @@ try {
     <p contenteditable="true">Editable text and notes stay here every evening.</p>
   </main></body></html>`;
   await grantReadingSite(browser, worker);
+  await grantReadingSite(browser, worker, 'http://reading.example/*');
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const page = await browser.newPage();
   page.on('console', (msg) => { if (msg.type() === 'error') console.error('PAGE CONSOLE', msg.text()); });
@@ -69,7 +70,7 @@ try {
   await page.goto('https://reading.example/guess');
   const y = page.locator('#one .fw-word');
   const pero = page.locator('#two .fw-word');
-  const o = page.locator('#three .fw-word');
+  const o = page.locator('#three .fw-word').describe('third HTTPS guess word');
   await y.waitFor();
   await pero.waitFor();
   await o.waitFor();
@@ -260,7 +261,7 @@ try {
   await browser.route('http://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const httpPage = await browser.newPage();
   await httpPage.goto('http://reading.example/guess');
-  const httpWord = httpPage.locator('#three .fw-word');
+  const httpWord = httpPage.locator('#three .fw-word').describe('third HTTP guess word');
   await httpWord.waitFor();
   await httpWord.hover();
   const httpPanel = httpPage.locator('.fw-guess-host');

@@ -20,12 +20,18 @@ const stableId = [...createHash('sha256').update(Buffer.from(manifest.key, 'base
 async function load(name, { keyless = false, source = extensionRoot } = {}) {
   const extension = keyless ? join(scratch, name, 'extension') : source;
   if (keyless) {
-    await cp(source, extension, { recursive: true });
     const manifestPath = join(extension, 'manifest.json');
-    const shipped = JSON.parse(await readFile(manifestPath, 'utf8'));
+    const shipped = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
+    await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
+    if (shipped.icons || shipped.action?.default_icon)
+      await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+    if (shipped.default_locale)
+      await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
     if (shipped.key) {
       delete shipped.key;
       await writeFile(manifestPath, JSON.stringify(shipped, null, 2));
+    } else {
+      await cp(join(source, 'manifest.json'), manifestPath);
     }
   }
   browser = await chromium.launchPersistentContext(join(scratch, name, 'profile'), {

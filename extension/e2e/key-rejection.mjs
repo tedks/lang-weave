@@ -14,7 +14,6 @@ try {
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND', '--proxy-server=127.0.0.1:9'],
   });
-  await grantReadingSite(browser, worker);
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: '<!doctype html><title>Ordinary reading</title><main><p id="reading">We read books and enjoy quiet evenings every week.</p></main>' }));
   let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
@@ -48,6 +47,7 @@ try {
       { headers: { 'Content-Type': 'application/json' } });
     };
   });
+  await grantReadingSite(browser, worker);
   const first = await browser.newPage();
   await first.goto('https://reading.example/first');
   await waitStatus((status) => status?.category === 'key_rejected');
