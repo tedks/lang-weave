@@ -47,6 +47,8 @@ test('Beginner keeps whole compounds, quotes, names and plural or indefinite phr
     ['THE DOOR scraped against the worn stone step.', 'THE DOOR', 'la puerta'],
     ['The chair wobbled on the broken kitchen tiles.', 'The chair', 'la silla'],
     ['A sky-blue flag hung above the open rafters.', 'sky', 'el cielo'],
+    ['A sky\u2010blue flag hung above the open rafters.', 'sky', 'el cielo'],
+    ['The handmade\u2011door scraped against the worn floor.', 'door', 'la puerta'],
   ];
   for (const [text, o, f] of cases) expect(validateSwaps(1, [{ o, f }], L1_WORDS, 'es', { text })).toEqual([]);
 });

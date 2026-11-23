@@ -16,7 +16,7 @@ const cases = [
   ], negative: ['The garden gate swung past several stone markers.', 'The garden'] },
   { form: 'el cielo', gloss: 'the sky', rendered: 'El cielo', positive: [
     'The sky glowed orange above the deserted pier.', 'The sky',
-  ], negative: ['Mara bumped into Sky outside the crowded station.', 'Sky'] },
+  ], negative: ['A sky\u2011blue flag fluttered above the crowded station.', 'sky'] },
   { form: 'la luna', gloss: 'the moon', rendered: 'la luna', positive: [
     'Leah watched the moon sink beyond the rooftops.', 'the moon',
   ], negative: ['Leah wrote “the moon” at the top of a blank page.', 'the moon'] },

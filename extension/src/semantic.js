@@ -4,6 +4,8 @@ const SINGLE = { "'": "'", '‘': '’' };
 const BEFORE_SINGLE = /[\s([{“"«„—–\-/]/u;
 const LETTER = /\p{L}/u;
 const WORDISH = /[\p{L}\p{N}]/u;
+const UNICODE_HYPHEN_BEFORE = /[\p{L}\p{M}\p{N}_][\u2010\u2011]$/u;
+const UNICODE_HYPHEN_AFTER = /^[\u2010\u2011][\p{L}\p{M}\p{N}_]/u;
 const ELISION = /^(?:tis|twas|cause|em|round|bout)\b/iu;
 const PROPER_POSSESSIVE = /(?:^|[^\p{L}])\p{Lu}[\p{L}]*[sS]$/u;
 
@@ -122,6 +124,9 @@ const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !
 export function sourceIssue(text, from, to, original, { allowQuoted = false, beginnerSpanish = false } = {}) {
   if (allCaps(original) || allCaps(String(text).slice(from, to))) return 'allCaps';
   if (!allowQuoted && quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
+  // Keep the same joined-word boundaries as the Beginner paragraph matcher.
+  if (beginnerSpanish && (UNICODE_HYPHEN_BEFORE.test(text.slice(0, from)) ||
+      UNICODE_HYPHEN_AFTER.test(text.slice(to)))) return 'joined';
   const ts = tokens(text);
   const first = ts.findIndex((t) => t.start === from);
   const last = ts.findIndex((t) => t.end === to);
