@@ -14,16 +14,21 @@ import { personalReview } from '../src/review-state.js';
 import { createContext } from '../src/worker-context.js';
 
 const OLD_EXPANDED = 147;
-const FORMER_BEGINNER = 30;
+const BEGINNER_CORE = 30;
+const FORMER_BEGINNER = 37;
 const FORMER_EXPANDED = 226;
 const hash = (entries) => createHash('sha256').update(JSON.stringify(entries.map(({ fr, en, hint }) => ({ fr, en, hint })))).digest('hex');
 const additions = () => L2_WORDS.slice(OLD_EXPANDED);
-const clothing = () => L1_WORDS.slice(FORMER_BEGINNER);
+const clothing = () => L1_WORDS.slice(BEGINNER_CORE, FORMER_BEGINNER);
 
 test('the original Beginner and Expanded entries retain their forms, glosses, hints and order', () => {
-  expect(L1_WORDS).toHaveLength(37);
+  expect(L1_WORDS).toHaveLength(44);
   expect(L2_WORDS).toHaveLength(233);
-  expect(hash(L1_WORDS.slice(0, FORMER_BEGINNER))).toBe('95c5d607d1146c6e6d974d7829dfbe960fd24079b38066157be6ec98621ced37');
+  expect(createHash('sha256').update(JSON.stringify(L1_WORDS.slice(0, FORMER_BEGINNER))).digest('hex'))
+    .toBe('16c616741e36f3b789e0c16c517b737700c331aeb4d021ab73e1510b7af44e61');
+  expect(createHash('sha256').update(JSON.stringify(L2_WORDS)).digest('hex'))
+    .toBe('a44ea47d7d08af82953069925afad6776bd7bcaa5629d24d2e3c33ca5a1241c3');
+  expect(hash(L1_WORDS.slice(0, BEGINNER_CORE))).toBe('95c5d607d1146c6e6d974d7829dfbe960fd24079b38066157be6ec98621ced37');
   expect(createHash('sha256').update(JSON.stringify(L2_WORDS.slice(0, FORMER_EXPANDED))).digest('hex'))
     .toBe('46761799be8dbbd3ba8992ab6ac583a8aed049538c0b4888ba5fdaafce36d4f2');
   expect(L2_WORDS.slice(FORMER_EXPANDED)).toEqual(clothing());
@@ -178,7 +183,7 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
   expect(one('The book reviews were short.', 'The book', 'el libro')).toBeUndefined();
   expect(one('The kitchen table is small.', 'The kitchen', 'la cocina')).toBeUndefined();
   expect(one('The office chairs are new.', 'The office', 'la oficina')).toBeUndefined();
-  expect(validateSwaps(1, [{ o: 'the window', f: 'la ventana' }])).toEqual([]);
+  expect(validateSwaps(1, [{ o: 'the door', f: 'la puerta' }])).toEqual([]);
 });
 
 test('an Expanded upgrade retains Spanish ratings, budget and events without crossing generated-pack scopes', async () => {

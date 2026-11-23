@@ -184,7 +184,7 @@ test('words actions: Practice now serves the chosen card first, Reset is guarded
     expect(await dispatch({ type: 'wordReset', id: 'y', scope: 'es', confirm: true }, popup)).toBeUndefined();
     expect(await dispatch({ type: 'wordsList' }, review)).toBeUndefined();
     const first = await dispatch({ type: 'progress' }, popup);
-    expect(first).toMatchObject({ language: 'Spanish', due: 0, new: 37, verifiedKnown: 0, practisedThisWeek: 0,
+    expect(first).toMatchObject({ language: 'Spanish', due: 0, new: 44, verifiedKnown: 0, practisedThisWeek: 0,
       today: { introduced: 0, seen: 0, peeked: 0, flipped: 0, reviewed: 0 } });
     expect(first.stages.new).toBeGreaterThanOrEqual(200);
     expect(first.activity).toHaveLength(30);

@@ -77,7 +77,7 @@ Apart from the key, which authenticates your requests to Google, none of this st
 
 ## Learning
 
-**Reading.** **Reading level** chooses how much vocabulary is available. Spanish has 37 Beginner words and 233 in Expanded. Paraguayan Guaraní has 17 Beginner words and 22 in Expanded. **Translation density** (Light, Normal or Heavy) limits how many words are woven into a passage. A model picks the target word that fits the context. Deterministic validation rejects unlisted words and mismatched glosses, but a model can still make a contextual or grammatical mistake. This is mixed-language reading, not full-sentence translation.
+**Reading.** **Reading level** chooses how much vocabulary is available. Spanish has 44 Beginner words and 233 in Expanded. Paraguayan Guaraní has 17 Beginner words and 22 in Expanded. **Translation density** (Light, Normal or Heavy) limits how many words are woven into a passage. A model picks the target word that fits the context. Deterministic validation rejects unlisted words and mismatched glosses, but a model can still make a contextual or grammatical mistake. This is mixed-language reading, not full-sentence translation.
 
 The gloss appears after a 700 ms pause, so you have a beat to recall the word first. Seeing it counts as a peek, which is weak evidence that you needed the meaning.
 
