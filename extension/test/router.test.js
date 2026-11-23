@@ -7,7 +7,7 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 const PINNED = {
   // progress (0.12.10): read-only local progress summary for the popup Today line and options.
   // Only the toolbar popup can forward a click to the site-permission handler.
-  popup: ['progress', 'recoverBudget', 'save', 'setReadingSite', 'status'],
+  popup: ['openReview', 'progress', 'recoverBudget', 'save', 'setReadingSite', 'status'],
   options: ['addLanguage', 'clearCache', 'placement', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
   welcome: ['placement', 'save'],
   // My words (0.12.10): its own page entry. personalArchive is the capture page's existing handler.
@@ -145,7 +145,7 @@ test('unmodified sender decisions equal the pre-split boolean', () => withChrome
       !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   // Messages added after the split have no pre-split decision; PINNED covers them.
-  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement', 'setReadingSite'];
+  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement', 'setReadingSite', 'openReview'];
   for (const sender of senders) for (const type of TYPES.filter((type) => !added.includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);
@@ -178,7 +178,8 @@ test('worker listener dispatches exactly the pinned messages per surface and not
       onMessage: on(listeners), onInstalled: on(), onStartup: on(), onConnect: on() },
     action: { setBadgeText: async () => {} },
     tabs: { get: async () => ({ id: 1, title: 'Reading', url: SENDERS.page.url }), query: async () => [],
-      sendMessage: async () => {}, create: async () => ({ id: 9 }) },
+      sendMessage: async () => {}, create: async () => ({ id: 9, windowId: 1 }) },
+    windows: { getLastFocused: async () => ({ id: 1 }), update: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on(),
       request: async (permission) => { requests.push(permission); return false; } },

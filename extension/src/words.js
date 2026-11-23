@@ -120,7 +120,6 @@ function rowItem(row) {
   actions.className = 'actions';
   const practise = button(t('words_practise'), () => act(practise, async () => {
     await send('wordPractice', { id: row.id, scope: list.scope });
-    await chrome.tabs.create({ url: chrome.runtime.getURL('src/review.html') });
     await load();
   }), { disabled: !row.practise, title: row.reason });
   actions.append(practise);

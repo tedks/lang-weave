@@ -86,7 +86,7 @@ The learner can see their words and whether learning is happening, from local da
   - **Latency.** It starts when the review page first fetches the ticket, whether the card was due or not.
   - **Scope order.** `reviewNext` keeps a ticket that is already on offer across the pack and personal scopes. A chosen personal word is therefore not displaced by an earlier-due pack card. This also applies to an ordinary due ticket already on screen, which the old code could switch away from in that rare case.
   - **Refusals.** Words above the current level, archived words and claimed words cannot be practised.
-  - **Open review tab.** Practice now replaces any ticket another review tab is showing, and that tab's next rating gets the existing stale reply (`practice-now-review-tab`).
+  - **Open review tab.** The popup and shortcut focus an existing review tab with its question and answer intact. Practice now focuses that tab and shows the chosen word. A ticket held by another review tab still gets the stale reply after it is replaced.
 - **Already know.** It sets the existing `familiar` flag. A word that was never introduced gets a familiar card, which does not use the daily introduction budget. The claim is not logged: the log's two sources are the review surfaces, and a third needs a format change (filed as `words-known-claim-log`).
 - **Reset.** It deletes the card: its schedule, FSRS memory, review count and familiar flag. Reset requires three things:
   - a second, explicit click;

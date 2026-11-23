@@ -36,6 +36,7 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
           // Deliberately different from status.review: the button must follow this reply.
           return { due: state.due, new: state.available, today, practisedThisWeek: 3, verifiedKnown: 1 };
         }
+        if (msg.type === 'openReview') { events.push(msg); return { ok: true }; }
         if (msg.type === 'setReadingSite') {
           events.push(msg);
           if (!state.grant) return { ok: false };
@@ -51,6 +52,7 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
         }
         throw new Error('Unexpected message');
       } },
+    windows: { getCurrent: async () => ({ id: 23 }) },
     tabs: { query: async () => [{ id: 5, url: pageUrl }],
       create: async ({ url }) => { events.push(url); return { id: 9 }; } },
   };
@@ -93,7 +95,8 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
     expect(events).toEqual([siteChoice]);
     expect($('siteName').textContent).toBe('On for example.com');
     $('primary').click();
-    await waitFor(() => events.includes('chrome-extension://fw-popup/src/review.html'));
+    await waitFor(() => events.some((event) => event.type === 'openReview'));
+    expect(events.at(-1)).toEqual({ type: 'openReview', windowId: 23 });
     state.due = 0;
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('primary').textContent === 'Add words');

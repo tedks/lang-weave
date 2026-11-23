@@ -29,7 +29,7 @@ async function mount(name, sendMessage) {
   globalThis.document = window.document;
   const listeners = [];
   globalThis.chrome = {
-    runtime: { sendMessage },
+    runtime: { sendMessage, onMessage: { addListener() {} } },
     storage: { onChanged: { addListener: (fn) => listeners.push(fn) } },
   };
   await import(`../src/review-page.js?${name}`);
