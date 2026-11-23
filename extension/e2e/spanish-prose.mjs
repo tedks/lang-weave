@@ -91,7 +91,8 @@ for (const [gradual, level] of [[false, 1], [true, 1], [false, 2], [true, 2]]) {
         return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
       };
       const { settings } = await chrome.storage.local.get('settings');
-      await chrome.storage.local.set({ settings: { ...settings, gradual, newWordsPerDay: cases.length, newSitesEnabled: false,
+      // Leave room for gradual to rank several fresh candidates on the final fixture page.
+      await chrome.storage.local.set({ settings: { ...settings, gradual, newWordsPerDay: 10, newSitesEnabled: false,
         siteOverrides: { [host]: true } },
         ...(level === 2 ? { spanishPlacement: 2 } : {}),
         apiKey: 'synthetic-prose-key', consentShown: true });
