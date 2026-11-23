@@ -2,6 +2,7 @@ import { test, expect } from 'bun:test';
 import { duolingoPreview, placementSamples } from '../src/placement.js';
 import { L1_WORDS, L2_EXTRA } from '../src/vocabulary.js';
 import { GUARANI_STARTER } from '../src/language-name.js';
+import { GUARANI_PACK } from '../src/guarani.js';
 import { createBackup, parseBackup } from '../src/portability.js';
 import { hashKey } from '../src/hash.js';
 
@@ -203,7 +204,7 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect(await preview()).toMatchObject({ available: false });
     expect(await apply(2, beforeSwitch)).toEqual({ ok: false });
     expect(await config()).toMatchObject({ language: GUARANI_STARTER, level: 2 });
-    expect((await send({ type: 'reviewStatus' }, 'review')).new).toBe(14);
+    expect((await send({ type: 'reviewStatus' }, 'review')).new).toBe(GUARANI_PACK.words.length);
     await select('es', 0);
     expect(await apply(2, beforeSwitch)).toEqual({ ok: false });
     expect(await preview()).toMatchObject({ available: true, choice: 1 });
