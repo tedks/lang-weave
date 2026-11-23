@@ -10,10 +10,10 @@ const extension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
 const cases = [
   { form: 'la puerta', gloss: 'the door', rendered: 'La puerta', positive: [
     'The door stuck against the uneven slate threshold.', 'The door',
-  ], negative: ['The door handle slipped from a loose metal bracket.', 'The door'] },
+  ], negative: ['The door frame split beside a loose metal bracket.', 'The door'] },
   { form: 'el jardín', gloss: 'the garden', rendered: 'jardín', positive: [
     'An open gate led to a garden behind the empty station.', 'garden',
-  ], negative: ['The garden path twisted past several stone markers.', 'The garden'] },
+  ], negative: ['The garden gate swung past several stone markers.', 'The garden'] },
   { form: 'el cielo', gloss: 'the sky', rendered: 'El cielo', positive: [
     'The sky glowed orange above the deserted pier.', 'The sky',
   ], negative: ['Mara bumped into Sky outside the crowded station.', 'Sky'] },
@@ -71,7 +71,7 @@ for (const gradual of [false, true]) {
         const passages = input.map(({ id, text }) => {
           const { o, form, gloss } = provider.get(text) || {};
           const offered = !!form && prompt.includes(`${form} = ${gloss}`);
-          globalThis.proseRequests.push({ text, offered });
+          globalThis.proseRequests.push({ id, text, offered });
           return { id, swaps: offered ? [{ o, f: form }] : [] };
         });
         return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
@@ -113,8 +113,15 @@ for (const gradual of [false, true]) {
       assert.equal(await page.locator('#positive').textContent(), positive[0]);
       // The validator sees the negative proposal in this same reading flow.
       const requests = await worker.evaluate(() => globalThis.proseRequests);
-      assert.ok(requests.some(({ text, offered }) => text === negative[0] && offered),
-        `negative anchor on ${url} was offered to the worker (${JSON.stringify(requests.slice(-2))})`);
+      const proposed = requests.find(({ text, offered }) => text === negative[0] && offered);
+      assert.ok(proposed, `negative anchor on ${url} was proposed to the worker`);
+      const validated = await worker.evaluate(async (key) => {
+        // The cache holds validated swaps before gradual density or introduction limits.
+        return Object.entries(await chrome.storage.local.get(null))
+          .filter(([name]) => name === key || name.startsWith(`${key}:gradual:`))
+          .map(([, entry]) => entry.s);
+      }, `c:${proposed.id}`);
+      assert.deepEqual(validated, [[]], 'the validator discarded the negative proposal before delivery');
       assert.equal(await page.locator('#negative').textContent(), negative[0]);
       assert.equal(await page.locator('#negative .fw-word').count(), 0);
     }

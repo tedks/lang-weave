@@ -90,10 +90,20 @@ const NOUN_COMPOUNDS = [
   'breakfast cereal', 'tree diagram', 'family tree', 'shop window', 'car window',
   'soup kitchen', 'river bank', 'theme song',
 ];
+// Common compounds of the Beginner prose promotions. The existing Expanded
+// and other-language matchers keep their established guard list.
+const BEGINNER_SPANISH_COMPOUNDS = [
+  'back door', 'entrance door', 'front door', 'garden door', 'screen door', 'side door',
+  'door frame', 'door knob', 'door lock', 'flower garden', 'vegetable garden',
+  'garden book', 'garden fence', 'garden gate', 'garden hose', 'garden party', 'garden shed', 'garden wall',
+  'night sky', 'sky blue', 'moon base', 'moon landing', 'moon phase', 'moon rock',
+];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));
 const fixedTokens = FIXED.map((phrase) => tokens(phrase).map((t) => t.value));
 const compoundTokens = NOUN_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value));
+const beginnerSpanishCompounds = [...compoundTokens,
+  ...BEGINNER_SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value))];
 const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
   ? `${word.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/u.test(word) ? `${word}es` : `${word}s`;
 const FUNCTION_WORDS = new Set(['and', 'or', 'but', 'with', 'for', 'in', 'on', 'at', 'to', 'of', 'from',
@@ -109,7 +119,7 @@ const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !
   !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
-export function sourceIssue(text, from, to, original, { allowQuoted = false } = {}) {
+export function sourceIssue(text, from, to, original, { allowQuoted = false, beginnerSpanish = false } = {}) {
   if (allCaps(original) || allCaps(String(text).slice(from, to))) return 'allCaps';
   if (!allowQuoted && quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
   const ts = tokens(text);
@@ -120,10 +130,11 @@ export function sourceIssue(text, from, to, original, { allowQuoted = false } = 
   const o = ts.slice(first, last + 1).map((t) => t.value).join(' ');
   if (nameToken(ts[first], text, allowQuoted) || (first === last && nameToken(prev, text, allowQuoted) &&
     /^\s*$/u.test(text.slice(prev.end, from)) && !FUNCTION_WORDS.has(o))) return 'name';
-  for (const phrase of [...fixedTokens, ...compoundTokens]) {
+  const compounds = beginnerSpanish ? beginnerSpanishCompounds : compoundTokens;
+  for (const phrase of [...fixedTokens, ...compounds]) {
     for (let at = 0; at + phrase.length <= ts.length; at++) {
       if (!phrase.every((word, n) => ts[at + n].value === word ||
-        (compoundTokens.includes(phrase) && n === phrase.length - 1 &&
+        (compounds.includes(phrase) && n === phrase.length - 1 &&
           ts[at + n].value === regularPlural(word)))) continue;
       const end = at + phrase.length - 1;
       if (first <= end && at <= last && !(first <= at && last >= end)) return 'phrase';

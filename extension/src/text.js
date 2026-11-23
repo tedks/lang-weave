@@ -395,14 +395,15 @@ export function applySwapAt(node, offset, swap, language) {
 }
 
 // Applies validated swaps [{o, f, g, h, ctx}] to root. Returns the number placed.
-export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
+export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es', level = 2) {
   const flat = flatten(root);
+  const sourceOptions = { beginnerSpanish: language === 'es' && level <= 1 };
   const placed = [];
   const used = [];
   for (const swap of swaps) {
     const m = locate(flat, swap.o, swap.ctx);
     if (!m) continue;
-    if (sourceIssue(flat.text, m.start, m.end, swap.o)) continue;
+    if (sourceIssue(flat.text, m.start, m.end, swap.o, sourceOptions)) continue;
     if (used.some((u) => m.start < u.end && u.start < m.end)) continue;
     const place = toNode(flat, m, swap.o);
     if (!place) continue;

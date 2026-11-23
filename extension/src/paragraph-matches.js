@@ -31,6 +31,7 @@ export function paragraphMatches(text, language, level) {
   const searchable = text.replace(/[’‘`]/g, "'");
   const occurrences = new Map();
   const blocked = new Map();
+  const sourceOptions = { allowQuoted: true, beginnerSpanish: language === 'es' && level <= 1 };
   for (const word of words) {
     const definite = language === 'es' && DEFINITE_SPANISH.test(word.fr);
     for (const sense of word.en.split(/\s*[/;,]\s*/)) {
@@ -46,7 +47,7 @@ export function paragraphMatches(text, language, level) {
           const source = text.slice(start, end);
           const key = `${start}:${end}`;
           // The learner picks the exact words and sense, including in dialogue.
-          if (!blocked.has(key)) blocked.set(key, sourceIssue(text, start, end, source, { allowQuoted: true }));
+          if (!blocked.has(key)) blocked.set(key, sourceIssue(text, start, end, source, sourceOptions));
           if (blocked.get(key)) continue;
           const [swap] = validateSwaps(level, [{ o: source, f: word.fr }], [{ ...word, en: sense }], language);
           if (!swap) continue;

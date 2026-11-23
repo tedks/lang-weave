@@ -50,6 +50,25 @@ test('Beginner keeps whole compounds, quotes, names and plural or indefinite phr
   for (const [text, o, f] of cases) expect(validateSwaps(1, [{ o, f }], L1_WORDS, 'es', { text })).toEqual([]);
 });
 
+test('promoted noun compounds stay whole in Beginner reading and local practice', () => {
+  const cases = [
+    ['The door frame splintered under the falling beam.', 'The door', 'la puerta'],
+    ['The garden gate swung open in the breeze.', 'The garden', 'el jardín'],
+    ['The garden door stuck against a fallen branch.', 'The garden', 'el jardín'],
+    ['The garden door stuck against a fallen branch.', 'door', 'la puerta'],
+    ['The garden books cover several kinds of seed.', 'The garden', 'el jardín'],
+    ['They saw the night sky through the clear panels.', 'sky', 'el cielo'],
+    ['The moon rocks arrived in a padded crate.', 'The moon', 'la luna'],
+  ];
+  for (const [text, o, f] of cases) {
+    const offline = paragraphMatches(text, 'es', 1).flatMap(({ senses }) => senses);
+    const proposal = [{ o, f }];
+    expect(validateSwaps(1, proposal, L1_WORDS, 'es', { text })).toEqual([]);
+    expect(offline.some(({ word }) => word === f)).toBe(false);
+    expect(validateSwaps(2, proposal, L2_WORDS, 'es', { text })).toMatchObject([{ word: f }]);
+  }
+});
+
 test('promotions append in catalog order and preserve due and active cards and backup IDs', () => {
   const before = L1_WORDS.slice(0, formerBeginnerSize);
   const formerPromotions = ['el río', 'la ventana', 'el árbol', 'el desayuno', 'la película', 'la canción', 'la sopa'];
