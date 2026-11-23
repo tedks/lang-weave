@@ -22,3 +22,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T08:59:56-00:00
+  who: Ted Smith
+  what: commented
+  comment: "At the finite #86 boundary, a sentence-initial \u201CThe door hinges on
+    two brass pins\u201D stays eligible, and an embedded standalone use such as \u201CShe
+    explained how the garden centers on a pond\u201D can still be withheld. Preserve
+    both contexts when extending the grammar. Add permanent guards for whole plural
+    and possessive translation spans and for generated and bundled non-Spanish final
+    DOM placement. A four-case isolated Nix/Bazel spot check of PR #86 at c2004ef491e3639aeb916f33b3d535879717fd42
+    passed those placement checks."
