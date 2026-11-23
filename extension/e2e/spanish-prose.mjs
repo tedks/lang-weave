@@ -21,9 +21,9 @@ const cases = [
     'Leah watched the moon sink beyond the rooftops.', 'the moon',
   ], negative: ['Leah wrote “the moon” at the top of a blank page.', 'the moon'] },
 ];
-const origin = 'https://x.com'; // Use the unpacked build's existing static content script, with entirely synthetic pages.
-const prefix = '/lang-weave-offline-prose/';
-const routes = new Map(cases.map((example, index) => [origin + prefix + index, example]));
+const host = 'prose.example';
+const origin = `https://${host}`;
+const routes = new Map(cases.map((example, index) => [`${origin}/reading/${index}`, example]));
 
 for (const gradual of [false, true]) {
   const profile = await mkdtemp(join(tmpdir(), 'lang-weave-prose-'));
@@ -37,9 +37,9 @@ for (const gradual of [false, true]) {
     await context.route(/^https?:/, (route) => {
       const example = routes.get(route.request().url());
       if (!example) return route.abort();
-      return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html lang="en"><body>
-        <article><p id="positive" data-testid="tweetText">${example.positive[0]}</p></article>
-        <article><p id="negative" data-testid="tweetText">${example.negative[0]}</p></article>
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><html lang="en">
+        <head><title>Prose reading exercise</title></head><body>
+        <main><p id="positive">${example.positive[0]}</p><p id="negative">${example.negative[0]}</p></main>
       </body></html>` });
     });
     const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
@@ -57,7 +57,7 @@ for (const gradual of [false, true]) {
     assert.equal(initial.spanishPlacement, undefined);
     assert.equal(initial.apiKey, undefined);
     assert.equal(initial.recallReview, undefined);
-    await worker.evaluate(async ({ cases, gradual }) => {
+    await worker.evaluate(async ({ cases, gradual, host }) => {
       const provider = new Map(cases.flatMap(({ form, gloss, positive, negative }) =>
         [positive, negative].map(([text, o]) => [text, { o, form, gloss }])));
       globalThis.proseRequests = [];
@@ -77,9 +77,28 @@ for (const gradual of [false, true]) {
         return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
       };
       const { settings } = await chrome.storage.local.get('settings');
-      await chrome.storage.local.set({ settings: { ...settings, gradual, newSitesEnabled: true },
+      await chrome.storage.local.set({ settings: { ...settings, gradual, newSitesEnabled: false,
+        siteOverrides: { [host]: true } },
         apiKey: 'synthetic-prose-key', consentShown: true });
-    }, { cases, gradual });
+    }, { cases, gradual, host });
+    // Chromium's extensions manager records the grant. The extension activates the
+    // same optional origin through its permission API in the disposable profile.
+    const manager = await context.newPage();
+    await manager.goto('chrome://extensions/');
+    const pattern = `${origin}/*`;
+    await manager.evaluate(({ id, pattern }) => chrome.developerPrivate.addHostPermission(id, pattern), { id, pattern });
+    await welcome.bringToFront();
+    assert.equal(await welcome.evaluate((pattern) => chrome.permissions.request({ origins: [pattern] }), pattern), true);
+    assert.equal(await worker.evaluate((pattern) => chrome.permissions.contains({ origins: [pattern] }), pattern), true);
+    assert.equal(await worker.evaluate(async (pattern) => {
+      for (const deadline = Date.now() + 5000; Date.now() < deadline;) {
+        const [script] = await chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] });
+        if (script?.matches.includes(pattern)) return true;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return false;
+    }, pattern), true, 'the content script registered on the synthetic origin');
+    await manager.close();
     await welcome.close();
 
     const page = await context.newPage();
@@ -93,8 +112,9 @@ for (const gradual of [false, true]) {
       await word.press('Enter');
       assert.equal(await page.locator('#positive').textContent(), positive[0]);
       // The validator sees the negative proposal in this same reading flow.
-      assert.ok((await worker.evaluate(() => globalThis.proseRequests))
-        .some(({ text, offered }) => text === negative[0] && offered), 'negative anchor was offered to the worker');
+      const requests = await worker.evaluate(() => globalThis.proseRequests);
+      assert.ok(requests.some(({ text, offered }) => text === negative[0] && offered),
+        `negative anchor on ${url} was offered to the worker (${JSON.stringify(requests.slice(-2))})`);
       assert.equal(await page.locator('#negative').textContent(), negative[0]);
       assert.equal(await page.locator('#negative .fw-word').count(), 0);
     }
