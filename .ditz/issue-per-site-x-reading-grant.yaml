@@ -36,3 +36,14 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T05:07:22-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Draft PR #72 confirms the cause in the unchanged ZIP: Chromium merges
+    required scriptable hosts and explicit host grants in permissions.getAll(), but
+    only the latter gives persistent tab URL/title access. The implementation checks
+    permissions.contains() before exposing reading eligibility and requests a single
+    matching host from a popup-only worker action so Chrome can close the popup and
+    still save a successful choice. Focused 47/47 and headed ZIP evidence at a68e2e6
+    cover recovery, denial, ordinary-site access, fresh tabs, unrelated origins and
+    browser revocation. Final 0.14.4 composition and formal review remain pending.'
