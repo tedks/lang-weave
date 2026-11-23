@@ -35,3 +35,11 @@ log_events:
     Neither shipped practice catalog currently carries explicit anchors or accent-bearing
     English anchors. If either catalog adds those, include the offline exercise in
     acceptance, with explicit anchor-to-sense mapping and NFD input where relevant.'
+- time: 2026-11-23T05:58:54-00:00
+  who: Ted Smith
+  what: commented
+  comment: "PR #74 final council follow-up: add the lowercase \u201Cno s\xE9\u201D
+    contrast after a straight closing quotation to the durable contextual fixtures
+    if sentence-case/quote logic changes again. A supplemental Bazel fixture at 0bd895e
+    already verified the case, alongside the shipped positive opening-quote and speaker-name
+    regressions."
