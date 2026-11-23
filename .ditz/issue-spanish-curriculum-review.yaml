@@ -28,3 +28,10 @@ log_events:
   who: Ted Smith
   what: updated description
   comment: ""
+- time: 2026-11-23T05:44:29-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #74 matches the shipped bundled rows from their English sense text.
+    Neither shipped practice catalog currently carries explicit anchors or accent-bearing
+    English anchors. If either catalog adds those, include the offline exercise in
+    acceptance, with explicit anchor-to-sense mapping and NFD input where relevant.'
