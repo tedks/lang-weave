@@ -52,6 +52,7 @@ E2E_HARNESSES = (
     'extension/e2e/smoke.mjs',
     'extension/e2e/startup-recovery.mjs',
     'extension/e2e/welcome.mjs',
+    'extension/e2e/words.mjs',
 )
 ZERO = re.compile(r'^0+$')  # GitHub's "before" SHA for a new branch
 

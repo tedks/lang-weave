@@ -9,15 +9,15 @@ const packagedExtension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
 if (process.env.TEST_SRCDIR && !packagedExtension) throw new Error('Bazel must supply the extracted beta ZIP directory');
 export const extensionRoot = packagedExtension || fileURLToPath(new URL('..', import.meta.url));
 
-export async function waitForExtensionWorker(browser, previous) {
+export async function waitForExtensionWorker(browser, { url: expectedUrl, token } = {}) {
   const matches = (worker) => {
     const url = new URL(worker.url());
     return url.protocol === 'chrome-extension:' && url.pathname === '/src/background.js' &&
-      (!previous || worker.url() === previous.url);
+      (!expectedUrl || worker.url() === expectedUrl);
   };
   // Chrome 140 can publish the worker target before its extension APIs are bound.
   // Playwright can also keep the same Worker object across an MV3 restart.
-  const timeoutMs = previous ? 10000 : 30000;
+  const timeoutMs = token ? 10000 : 30000;
   let waitingFor = 'a matching worker target';
   let timeout, done = false;
   try {
@@ -38,7 +38,7 @@ export async function waitForExtensionWorker(browser, previous) {
                 if (typeof api.permissions?.contains !== 'function') return 'permissions.contains';
                 if (token && globalThis.fixtureWorkerToken === token) return 'a new worker execution context';
                 return null;
-              }, { id: new URL(worker.url()).host, token: previous?.token });
+              }, { id: new URL(worker.url()).host, token });
               if (missing === null) return worker;
               waitingFor = missing;
             } catch (error) {
@@ -52,7 +52,7 @@ export async function waitForExtensionWorker(browser, previous) {
       })(),
       // Playwright can also wait for a worker execution context before evaluating.
       new Promise((_, reject) => {
-        const target = previous ? `replacement for ${previous.url}` : 'Lang Weave background worker';
+        const target = expectedUrl || 'Lang Weave background worker';
         timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${waitingFor} in ${target}`)), timeoutMs);
       }),
     ]);
@@ -62,22 +62,26 @@ export async function waitForExtensionWorker(browser, previous) {
   }
 }
 
-export async function restartExtensionWorker(browser, page, worker) {
-  const url = worker.url();
+export async function markExtensionWorkerForRestart(worker) {
   const token = await worker.evaluate(() => {
     globalThis.fixtureWorkerToken = crypto.randomUUID();
     return globalThis.fixtureWorkerToken;
   });
+  return { url: worker.url(), token };
+}
+
+export async function restartExtensionWorker(browser, page, worker) {
+  const previous = await markExtensionWorkerForRestart(worker);
   const cdp = await browser.newCDPSession(page);
   try {
     const { targetInfos } = await cdp.send('Target.getTargets');
-    const target = targetInfos.find((item) => item.type === 'service_worker' && item.url === url);
+    const target = targetInfos.find((item) => item.type === 'service_worker' && item.url === previous.url);
     assert.ok(target, 'the first worker is running');
     await cdp.send('Target.closeTarget', { targetId: target.targetId });
     // Start the worker directly, without navigation or a user gesture.
     await cdp.send('ServiceWorker.enable');
-    await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${new URL(url).host}/` });
-    return await waitForExtensionWorker(browser, { url, token });
+    await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${new URL(previous.url).host}/` });
+    return await waitForExtensionWorker(browser, previous);
   } finally {
     await cdp.detach();
   }
