@@ -10,8 +10,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T06:42:23-00:00
 references: []
 log_events:
@@ -34,3 +34,12 @@ log_events:
     per mode. OpenAI and Anthropic are clean on exact head. Google is quota-limited
     past cutoff; PR remains draft under the required three-seat review unless explicitly
     excepted. Await normal merge before closing.'
+- time: 2026-11-23T07:28:52-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #80 normally merged as ca9f676a3e6c991b03ca063f3a4df09f7b762cd7, with
+    the exact gated a95817f51720b053f6d8db796cf82d78c420330e tree. Offline prose choices
+    increased on 43/300 passages; guard-valid reading opportunities increased on 16/300
+    per mode. Installed synthetic reading rendered all four forms in both modes. Exact
+    gates passed. The CTO accepted verified Google quota EMPTY with independent OpenAI
+    and Anthropic CLEAN reviews for this exact head.'
