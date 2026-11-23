@@ -24,3 +24,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T04:32:08-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Draft #71 head b4a507c42674df2ddea664dee95d94208ee448e3 captures the complete
+    gradual request for a placement-retained due word and asserts the default Beginner
+    ordinary prompt projects an eligible window row and omits an unrelated suitcase
+    row before a window card exists. Focused Linux-sandbox Nix/Bazel passed 92/92.
+    Keep open until integration.'
