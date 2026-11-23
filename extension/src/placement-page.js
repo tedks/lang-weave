@@ -1,5 +1,6 @@
 import { localize, t } from './i18n.js';
 import { duolingoPreview, placementSamples } from './placement.js';
+import { DEFAULT_SETTINGS } from './settings.js';
 
 export function mountPlacement(panel) {
   panel.insertAdjacentHTML('beforeend', `
@@ -40,6 +41,7 @@ export function mountPlacement(panel) {
     <button type="button" data-placement-retry hidden data-i18n="placement_retry"></button>
   `);
   const form = panel.querySelector('[data-placement-choice]');
+  const trigger = panel.firstElementChild;
   const fieldset = form.querySelector('fieldset');
   const choice = form.querySelector('select');
   const status = panel.querySelector('[data-placement-status]');
@@ -53,6 +55,7 @@ export function mountPlacement(panel) {
   const [beginner, expanded] = placementSamples();
   let snapshot;
   let busy = false;
+  let reopenPending = false;
   let languageChanges = 0;
 
   function showExamples(container, words) {
@@ -93,11 +96,13 @@ export function mountPlacement(panel) {
   }
 
   function hideScore() {
+    const wasFocused = scoreForm.contains(document.activeElement);
     scoreForm.hidden = true;
     score.value = '';
     score.removeAttribute('aria-invalid');
     scoreStatus.textContent = '';
     showFirst(1);
+    if (wasFocused && panel.open && !panel.hidden) trigger.focus();
   }
 
   scoreForm.addEventListener('submit', (event) => {
@@ -143,21 +148,32 @@ export function mountPlacement(panel) {
     retry.hidden = !!snapshot;
   }
 
+  function finishOperation() {
+    busy = false;
+    if (reopenPending) {
+      reopenPending = false;
+      if (panel.open) void refresh();
+    }
+  }
+
   async function refresh() {
     if (busy) return;
     busy = true;
     try { await load(); }
     catch { showError(); }
-    finally { busy = false; }
+    finally { finishOperation(); }
   }
 
   panel.addEventListener('toggle', () => {
-    if (panel.open) void refresh();
-    else hideScore();
+    if (!panel.open) {
+      reopenPending = false;
+      hideScore();
+    } else if (busy) reopenPending = true;
+    else void refresh();
   });
   chrome.storage?.onChanged?.addListener(({ settings }, area) => {
-    const before = settings?.oldValue?.language ?? 'es';
-    const after = settings?.newValue?.language ?? 'es';
+    const before = settings?.oldValue?.language ?? DEFAULT_SETTINGS.language;
+    const after = settings?.newValue?.language ?? DEFAULT_SETTINGS.language;
     if (area !== 'local' || before === after) return;
     languageChanges++;
     hideScore();
@@ -193,14 +209,14 @@ export function mountPlacement(panel) {
     } catch { showError(); }
     finally {
       fieldset.disabled = !snapshot;
-      busy = false;
       // Chromium can drop focus when disabling a focused form control.
       if (panel.open && fieldset.contains(previousFocus) &&
           (document.activeElement === document.body || document.activeElement === previousFocus)) {
         if (snapshot) previousFocus.focus();
         else if (!retry.hidden) retry.focus();
-        else panel.querySelector('summary').focus();
+        else trigger.focus();
       }
+      finishOperation();
     }
   });
 }
