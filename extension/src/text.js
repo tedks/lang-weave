@@ -518,6 +518,7 @@ export function toggle(span, language = 'Spanish') {
   const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
   if (showEn) {
+    pendingGuess.delete(span);
     showEnglish(span, sourceEnglish.get(span));
     span.removeAttribute('aria-label');
     describe(span, t('swap_show_language', language));

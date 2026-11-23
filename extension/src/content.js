@@ -350,7 +350,7 @@ async function beginGuess(span, peek, gen) {
   const key = plainKey(span);
   let reply = null;
   try { reply = await send({ type: 'guessBegin', word: swapWord(span), revision: config.revision }); } catch { reply = null; }
-  if (gen !== generation || tipTarget !== span || !tipEligible(span)) return; // the reader moved on
+  if (gen !== generation || tipTarget !== span || !tipEligible(span) || !isGuessPending(span)) return;
   const choices = guessChoicesFrom(reply);
   if (choices && guessMode() && guessPlace(span)) { openGuess(span, reply.ticket, choices); return; }
   if (reply?.plain && !reply.stale) plainToday.add(key);
