@@ -14,8 +14,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T05:55:15-00:00
 references: []
 log_events:
@@ -43,3 +43,9 @@ log_events:
     tedks/lang-weave#77. All exact Nix/Bazel gates against 0.15.1, 0.15.2 Chromium
     ZIP, and historical reader probes passed. Formal native Sol and Opus CLEAN, Google
     quota-empty. Separate version commit. Exact evidence: https://github.com/tedks/lang-weave/pull/77#issuecomment-7093286796'
+- time: 2026-11-23T06:24:35-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'CTO accepted the exact 0.15.2 candidate after independent verification
+    and merged PR #77 at 90d03b7f9e9ec4183a67c1d4b58eddd9b820e70c. Its tree matches
+    the reviewed and tested 43c6d0e58644cfedee7e4d2fa41b4249e2ab00f7.'
