@@ -13,7 +13,7 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-11-23T04:51:18-00:00
 references: []
@@ -32,3 +32,7 @@ log_events:
     synthetic model request, only the first tab's URL/title accessible, and no external
     traffic. Isolated confirmation with actual all-sites prompt succeeds. New site-access
     lead owns the single-origin persistent grant fix for the next combined beta.
+- time: 2026-11-23T04:53:32-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
