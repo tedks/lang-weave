@@ -92,19 +92,29 @@ const NOUN_COMPOUNDS = [
   'breakfast cereal', 'tree diagram', 'family tree', 'shop window', 'car window',
   'soup kitchen', 'river bank', 'theme song',
 ];
-// Common compounds of the Beginner prose promotions. The existing Expanded
-// and other-language matchers keep their established guard list.
+// Compounds found in installed Spanish practice and the fixed reading sample.
+const SPANISH_COMPOUNDS = [
+  'garden center', 'garden centre', 'door hinge', 'window pane',
+  'river mouth', 'river valley', 'song title', 'life jacket', 'night sky',
+];
+const POSSIBLE_PREDICATES = new Map([
+  ['garden centers', ['on', 'around']], ['garden centres', ['on', 'around']], ['door hinges', ['on']],
+]);
+const SUBJECT_DETERMINERS = new Set(['the', 'a', 'this', 'that', 'my', 'your', 'his', 'her', 'its', 'our', 'their']);
+// Other compounds of the Beginner prose promotions retain their tier scope.
 const BEGINNER_SPANISH_COMPOUNDS = [
   'back door', 'entrance door', 'front door', 'garden door', 'revolving door', 'screen door', 'side door', 'trap door',
   'door frame', 'door knob', 'door lock', 'door to door', 'next door', 'flower garden', 'vegetable garden',
   'garden book', 'garden fence', 'garden gate', 'garden hose', 'garden party', 'garden shed', 'garden wall',
-  'night sky', 'sky blue', 'pie in the sky', 'blue moon', 'moon base', 'moon landing', 'moon phase', 'moon rock', 'over the moon',
+  'sky blue', 'pie in the sky', 'blue moon', 'moon base', 'moon landing', 'moon phase', 'moon rock', 'over the moon',
 ];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));
 const fixedTokens = FIXED.map((phrase) => tokens(phrase).map((t) => t.value));
 const compoundTokens = NOUN_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value));
-const beginnerSpanishCompounds = [...compoundTokens,
+const spanishCompoundTokens = SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value));
+const spanishCompounds = [...compoundTokens, ...spanishCompoundTokens];
+const beginnerSpanishCompounds = [...spanishCompounds,
   ...BEGINNER_SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value))];
 const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
   ? `${word.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/u.test(word) ? `${word}es` : `${word}s`;
@@ -120,8 +130,17 @@ const HAS_MODIFIERS = new Set(['finally', 'already', 'just', 'never', 'ever', 'r
 const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
   !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
 
+// Preserve a possible subject and verb in sentence-initial uses like “The door hinges on one pin.”
+function possiblePredicate(text, ts, at, end, allowDialogue) {
+  const prepositions = POSSIBLE_PREDICATES.get(`${ts[at].value} ${ts[end].value}`);
+  if (!prepositions?.includes(ts[end + 1]?.value)) return false;
+  const start = SUBJECT_DETERMINERS.has(ts[at - 1]?.value) ? ts[at - 1].start : ts[at].start;
+  return sentenceStart(text, start, { allowDialogue });
+}
+
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
-export function sourceIssue(text, from, to, original, { allowQuoted = false, beginnerSpanish = false } = {}) {
+export function sourceIssue(text, from, to, original, { allowQuoted = false, language, level = 2 } = {}) {
+  const beginnerSpanish = language === 'es' && level <= 1;
   if (allCaps(original) || allCaps(String(text).slice(from, to))) return 'allCaps';
   if (!allowQuoted && quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
   // Keep the same joined-word boundaries as the Beginner paragraph matcher.
@@ -135,14 +154,24 @@ export function sourceIssue(text, from, to, original, { allowQuoted = false, beg
   const o = ts.slice(first, last + 1).map((t) => t.value).join(' ');
   if (nameToken(ts[first], text, allowQuoted) || (first === last && nameToken(prev, text, allowQuoted) &&
     /^\s*$/u.test(text.slice(prev.end, from)) && !FUNCTION_WORDS.has(o))) return 'name';
-  const compounds = beginnerSpanish ? beginnerSpanishCompounds : compoundTokens;
+  const compounds = beginnerSpanish ? beginnerSpanishCompounds : language === 'es' ? spanishCompounds : compoundTokens;
   for (const phrase of [...fixedTokens, ...compounds]) {
-    for (let at = 0; at + phrase.length <= ts.length; at++) {
-      if (!phrase.every((word, n) => ts[at + n].value === word ||
-        (compounds.includes(phrase) && n === phrase.length - 1 &&
-          ts[at + n].value === regularPlural(word)))) continue;
+    const isCompound = compounds.includes(phrase);
+    const isSpanishCompound = spanishCompoundTokens.includes(phrase);
+    // A span can only cut phrases that overlap it, including phrases starting before the span.
+    const earliest = Math.max(0, first - phrase.length + 1);
+    const latest = Math.min(last, ts.length - phrase.length);
+    for (let at = earliest; at <= latest; at++) {
       const end = at + phrase.length - 1;
-      if (first <= end && at <= last && !(first <= at && last >= end)) return 'phrase';
+      if (first <= at && last >= end) continue;
+      if (!phrase.every((word, n) => {
+        const actual = ts[at + n].value;
+        if (!isCompound || n !== phrase.length - 1) return actual === word;
+        const head = isSpanishCompound ? actual.replace(/'s$/u, '') : actual;
+        return head === word || head === regularPlural(word);
+      })) continue;
+      if (isSpanishCompound && possiblePredicate(text, ts, at, end, allowQuoted)) continue;
+      return 'phrase';
     }
   }
   if (next?.value === 'of') return 'danglingOf';

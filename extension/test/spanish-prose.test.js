@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { selectWorkingSet } from '../src/adaptive.js';
 import { entryId } from '../src/catalog.js';
+import { requestSwaps } from '../src/engine.js';
+import { GUARANI_STARTER } from '../src/language-name.js';
 import { possibleSpanishPromptWords, validateSwaps } from '../src/levels.js';
 import { paragraphMatches } from '../src/paragraph-matches.js';
 import { createBackup, learningPatch, parseBackup } from '../src/portability.js';
@@ -61,7 +63,6 @@ test('promoted noun compounds stay whole in Beginner reading and local practice'
     ['The garden door stuck against a fallen branch.', 'door', 'la puerta'],
     ['The garden books cover several kinds of seed.', 'The garden', 'el jardín'],
     ['They moved next door well before sunrise yesterday.', 'door', 'la puerta'],
-    ['They saw the night sky through the clear panels.', 'sky', 'el cielo'],
     ['The moon rocks arrived in a padded crate.', 'The moon', 'la luna'],
     ['They set a special table only once in a blue moon.', 'moon', 'la luna'],
     ['We were over the moon when the shipment finally arrived.', 'the moon', 'la luna'],
@@ -72,6 +73,70 @@ test('promoted noun compounds stay whole in Beginner reading and local practice'
     expect(validateSwaps(1, proposal, L1_WORDS, 'es', { text })).toEqual([]);
     expect(offline.some(({ word }) => word === f)).toBe(false);
     expect(validateSwaps(2, proposal, L2_WORDS, 'es', { text })).toMatchObject([{ word: f }]);
+  }
+});
+
+test.each([1, 2])('Spanish tier %i guards both sides of listed compounds and keeps standalone occurrences', (level) => {
+  const cases = [
+    ['We bought tulips at the garden center last spring.', 'the garden', 'el jardín', 'We watered the garden before leaving.'],
+    ['Those garden centres sell pots made nearby.', 'garden', 'el jardín', 'They worked in a garden beyond the bridge.'],
+    ['The door hinges were bright brass.', 'The door', 'la puerta', 'The door hinges on two brass pins.'],
+    ['A glazier examined the window pane’s chipped corner.', 'the window', 'la ventana', 'She heard rain against the window.'],
+    ['Salmon passed the river mouth at dawn.', 'the river', 'el río', 'We followed the river for a mile.'],
+    ['Low clouds filled the river valleys in the morning.', 'the river', 'el río', 'We swam in the river after lunch.'],
+    ['She wrote the song titles on a folded card.', 'the song', 'la canción', 'We sang the song on the way home.'],
+    ['Thin clouds streaked the night skies last week.', 'the night', 'la noche', 'We stayed awake through the night.'],
+    ['We watched the night sky above the field.', 'sky', 'el cielo', 'The sky cleared just past dusk.'],
+    ['We packed a stack of life jackets before leaving.', 'life', 'la vida', 'He valued his life away from the city.'],
+  ].filter(([, , word]) => level === 2 || !['la noche', 'la vida'].includes(word));
+  for (const [compound, o, f, ordinary] of cases) {
+    expect(validateSwaps(level, [{ o, f }], undefined, 'es', { text: compound })).toEqual([]);
+    expect(paragraphMatches(compound, 'es', level).flatMap(({ senses }) => senses.map(({ word }) => word))).not.toContain(f);
+    const good = paragraphMatches(ordinary, 'es', level).flatMap(({ senses }) => senses).find(({ word }) => word === f);
+    expect(good).toBeDefined();
+    expect(validateSwaps(level, [{ o: good.o, f }], undefined, 'es', { text: ordinary })).toMatchObject([{ o: good.o }]);
+  }
+  const text = 'We wiped the window panes and opened the window for the breeze.';
+  const matches = paragraphMatches(text, 'es', level).filter(({ senses }) => senses.some(({ word }) => word === 'la ventana'));
+  expect(matches.map(({ start }) => start)).toEqual([text.lastIndexOf('the window')]);
+});
+
+test('a whole-phrase translation stays valid and the new compound rules apply only to Spanish', () => {
+  const text = 'We cleaned the window pane after the rain.';
+  const f = 'el cristal';
+  const whole = [{ o: 'the window pane', f }];
+  const words = [{ en: 'the window pane', fr: f, hint: '' }];
+  for (const level of [1, 2]) {
+    expect(validateSwaps(level, whole, words, 'es', { text })).toMatchObject(whole);
+  }
+  for (const [language, word] of [[GUARANI_STARTER, 'okẽ'], ['fr', 'porte']]) {
+    const text = 'We wiped the door hinge this morning.';
+    const proposed = [{ o: 'door', f: word }];
+    expect(validateSwaps(1, proposed, [{ en: 'door', fr: word, hint: '' }], language, { text })).toMatchObject(proposed);
+    expect(paragraphMatches(text, GUARANI_STARTER, 1).flatMap(({ senses }) => senses))
+      .toContainEqual(expect.objectContaining({ o: 'door', word: 'okẽ' }));
+  }
+});
+
+test.each([1, 2])('Spanish tier %i validates provider placements after ordinary or gradual selection', async (level) => {
+  const text = 'We wiped the window panes and opened the window for the breeze.';
+  const batch = [{ id: 'passage', text }];
+  const words = level === 1 ? L1_WORDS : EXPANDED_PLACEMENT_WORDS;
+  const chosen = { o: 'the window', f: 'la ventana', ctx: 'opened the window' };
+  const cut = { ...chosen, ctx: 'wiped the window panes' };
+  for (const gradual of [false, true]) {
+    const candidates = gradual ? selectWorkingSet({ batch, words, scope: 'es', state: cleanReview(null, words, now),
+      settings: { ...FRESH_INSTALL_SETTINGS, spanishPlacement: level }, now, day, level, language: 'es' }) :
+      words.map((word) => ({ ...word, status: 'active' }));
+    const result = await requestSwaps({ model: FRESH_INSTALL_SETTINGS.model, apiKey: 'synthetic', batch, level,
+      words: candidates, language: 'es', unknownLimit: gradual, fetchImpl: async (_url, { body }) => {
+        expect(JSON.parse(body).systemInstruction.parts[0].text).toContain('la ventana = the window');
+        return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+          passages: [{ id: 'passage', swaps: [cut, chosen] }],
+        }) }] } }] });
+      } });
+    expect(result.results.passage).toHaveLength(1);
+    expect(result.results.passage).toMatchObject([chosen]);
   }
 });
 
