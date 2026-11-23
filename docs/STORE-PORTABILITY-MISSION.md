@@ -2,6 +2,8 @@
 
 State: implementation verified on `store-progress-portability`, based on accepted `0230718`; PR #15 awaits root acceptance and normal merge. This is not deployed. Issue: `store-progress-portability`. This record contains no personal browsing data.
 
+**November 2026 update.** Backups that include the bundled Paraguayan Guaraní selection or its progress require Lang Weave 0.12.26 or later to restore. [Guaraní starter and backup compatibility](guarani-starter.md)
+
 ## Intent and boundary
 
 Give an existing unpacked installation an explicit local export of supported durable learning state and give a separate, keyless, fresh-learning installation a file-based preview and confirmed import. The old installation and its profile remain intact. This is preparation for a possible Store identity change, not a Store upload, identity change, account action, or release. The existing personal-only export remains available with its original format.

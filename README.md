@@ -1,6 +1,6 @@
 # Lang Weave
 
-Learn a language through the English you already read. This Chrome extension replaces a few words in web pages with your target language. Hover or focus a word for its meaning and a rough sound hint. Click it, or press Enter or Space while it is focused, to flip it back to English. Spanish is the bundled default.
+Learn a language through the English you already read. This Chrome extension replaces a few words in web pages with your target language. Hover or focus a word to see its meaning. Some entries also include a pronunciation hint. Click it, or press Enter or Space while it is focused, to flip it back to English. Spanish is the bundled default.
 
 > The build passed **ahora**, **pero** the old cache still needs work.
 > ahora = now; pero = but
@@ -25,7 +25,7 @@ Chrome 140 or newer is required. This is an unpacked beta from GitHub Releases. 
 
 **One ID.** Since 0.12.0 the manifest carries a public key, so Chrome gives Lang Weave the ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh` from any folder on any machine. Chrome will not run two copies with that ID in one profile, so use a separate profile for a development checkout. Lang Weave and the inherited French companion do not share browser storage.
 
-**Fleet machines** install through the dotfiles installer. Its move to a `lang-weave` path, `${XDG_DATA_HOME:-$HOME/.local/share}/lang-weave/extension`, is tedks/dotfiles#225 and was still open when this was written. Check it before relying on that path.
+**Fleet installs.** The dotfiles installer stages the approved version in `${XDG_DATA_HOME:-$HOME/.local/share}/lang-weave/extension`. On machines with the updater enabled, it checks the fleet pin hourly. To see which build you are actually reading with, open `chrome://extensions` in that Chrome profile, turn on **Developer mode**, and check the Lang Weave entry’s version and ID. Open **Details** to check its unpacked folder. If the ID matches the one above and the folder is the fleet folder, click **Reload**, then refresh the page you were reading. If Chrome still shows a pre-0.12.0 entry, follow the migration steps below to carry your progress across.
 
 ### Upgrading from before 0.12.0
 
@@ -35,7 +35,7 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 
 1. Check the old install's version in `chrome://extensions`. Export needs 0.11.0 or later. If it is older, first update the old folder to 0.11.1, the last release without the key, for example with `git checkout ac71cb7`. A keyless update keeps the old ID and its progress.
 2. Turn off the **On** switch in the old install's popup, not its `chrome://extensions` toggle, so the two installs do not both weave pages. Then open **Learning backup** from that popup and download the JSON file. The switch is not part of the backup.
-3. Open `chrome://extensions`, choose **Load unpacked**, and select the new `extension` folder from a separate clone. It appears as a second Lang Weave entry with ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`.
+3. Open `chrome://extensions`, choose **Load unpacked**, and select the new unpacked folder, such as the managed folder on a fleet machine. It appears as a second Lang Weave entry with ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`.
 4. Do not enter a Gemini key in the new install yet. Import only accepts a target with no key and no progress of its own. Choosing a site policy on the welcome page does not block import. If you already entered a key or read with the new entry, remove that new entry and load the folder again. That resets only the new entry.
 5. In the new install, open **Settings**, then **Your data**, then **Learning backup**. Choose the file, review the counts and preferences, and confirm the import.
 6. Check the restored review queue. Then enter your key and choose your sites again, because a backup excludes keys and site permissions.
