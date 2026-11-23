@@ -120,7 +120,7 @@ try {
   const exports = [];
   await withBackupPage('source', extensionRoot, async (page, worker) => {
     const help = await page.locator('[data-i18n="backup_export_compatibility"]').textContent();
-    assert.match(help, /0\.12\.21.*Guess first.*0\.12\.22.*0\.13\.3.*newer version/);
+    assert.match(help, /Guess first.*0\.12\.21.*0\.12\.22.*0\.13\.3.*bundled language selection.*newer version/);
     const oldReviews = (word, start, count) => Array.from({ length: count }, (_, i) => review(word, start + i));
     await worker.evaluate(async (data) => {
       const { settings } = await chrome.storage.local.get('settings');

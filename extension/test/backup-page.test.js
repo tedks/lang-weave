@@ -231,7 +231,7 @@ test('preview and outcome copy keep the exact English, with and without the opti
       'Exported by Lang Weave ?.',
       'Languages: none · Generated packs: ? · Review cards: ? · Personal entries: 0.',
       'Learning preferences: language ?, level ?, gradual ?, new words/day ?, density ?, inline recall ?.',
-      "Learning measurements: 7 logged reviews and guesses, exposure counts for 3 words. Left out: 4 reviews or guesses and exposure counts for 1 words. Backups have a size limit and keep only measurements that match the backup's vocabulary."]);
+      'Learning measurements: 7 logged reviews and guesses, exposure counts for 3 words. Left out: 4 reviews or guesses and exposure counts for 1 words. Size limits and vocabulary checks can leave measurements out. Backups made before 0.16.0 may also have left out Guess first answers or some generated-form measurements.']);
     $('confirm').checked = true;
     $('confirm').dispatchEvent(new ui.window.Event('change'));
     $('import').click();

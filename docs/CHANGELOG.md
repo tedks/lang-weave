@@ -6,7 +6,7 @@ Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Ame
 
 ## 0.16.0
 
-- Learning backups preserve Guess first answers and retrieval and exposure measurements for generated spellings such as `il/elle`, `z.B.` and `EU:n`. For format 2 files without reading dates, Lang Weave 0.12.21 is the first reader for guesses and 0.12.22 is the first to restore both kinds of measurements. Format 3 files with reading dates require 0.13.3 or later. Progress on [newer bundled vocabulary](guarani-starter.md#restoring-a-backup) can require a newer reader for a complete restore. The preview counts saved and omitted measurements, and the existing catalog checks and size limit still apply.
+- Learning backups preserve Guess first answers and retrieval and exposure measurements for generated spellings such as `il/elle`, `z.B.` and `EU:n`. For format 2 files without reading dates, Lang Weave 0.12.21 is the first reader for guesses and 0.12.22 is the first to restore both kinds of measurements. Format 3 files with reading dates require 0.13.3 or later. Some bundled language selections and newer bundled words require a newer reader for a complete restore. The preview counts saved and omitted measurements, and the existing catalog checks and size limit still apply. [Guaraní restore requirements](guarani-starter.md#restoring-a-backup)
 
 ## 0.12.25 (2026-11-12)
 

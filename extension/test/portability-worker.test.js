@@ -87,6 +87,7 @@ test('worker export, validated preview and import preserve consent, reject confl
       current: { word: 'y', ticket: 'secret-reveal', revealed: true }, inline: null,
       learning: { day: localDay(), count: 1, pending: [{ ownerKey: 'secret-owner' }] } },
     }, 'old');
+    old.setOrigins(['https://source-grant.example/*']);
     await old.load();
     old.openPage();
     const exported = await old.dispatch({ type: 'learningExport' });
@@ -94,6 +95,7 @@ test('worker export, validated preview and import preserve consent, reject confl
     expect(exported.json).toBe(createBackup(old.data, '0.11.0', 2));
     expect(exported.json).not.toContain('secret-source-key');
     expect(exported.json).not.toContain('source.example');
+    expect(exported.json).not.toContain('source-grant.example');
     expect(exported.json).not.toContain('secret-ticket');
     expect(old.data.recallReview.current.ticket).toBe('secret-reveal');
 
@@ -112,6 +114,7 @@ test('worker export, validated preview and import preserve consent, reject confl
     expect(target.data.settings.enabled).toBe(false);
     expect(target.data.settings.newSitesEnabled).toBe(false);
     expect(target.data.settings.siteOverrides).toEqual({ 'target.example': false });
+    expect((await chrome.permissions.getAll()).origins).toEqual([]);
     expect(target.data.keyEpoch).toBe('target-secret-epoch');
     expect(target.data.apiKey).toBeUndefined();
     expect(target.data.recallReview.cards.y.reviews).toBe(1);

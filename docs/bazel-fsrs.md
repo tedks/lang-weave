@@ -136,7 +136,8 @@ backup page and restores both into fresh profiles. To also exercise the
 historical readers with those same files, pass
 `--test_env=LANG_WEAVE_FORMAT_2_READER=/path/to/unpacked-0.12.22` and
 `--test_env=LANG_WEAVE_FORMAT_3_READER=/path/to/unpacked-0.13.3`. The final
-0.12.22 source is commit `37b060dc`. The [0.13.3 beta release](https://github.com/tedks/lang-weave/releases/tag/v0.13.3-beta.1) provides the second reader.
+0.12.22 source is commit `37b060dc`. The 0.13.3 reader ZIP was built from
+commit `883552e2`. [0.13.3 beta release](https://github.com/tedks/lang-weave/releases/tag/v0.13.3-beta.1)
 
 The separate `//:reading_reload_test` gate uses Chrome's native **Load unpacked**
 and permission prompt in a disposable 1500×920 X11 desktop with a window

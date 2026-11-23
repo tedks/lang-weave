@@ -2800,7 +2800,7 @@
     "description": "Paragraph describing what the export contains. Learning backup page (backup.html)."
   },
   "backup_export_compatibility": {
-    "message": "For format 2, use Lang Weave 0.12.21 or later to restore Guess first answers and 0.12.22 or later for measurements of generated forms such as il/elle. Format 3 backups with reading-day dates require 0.13.3 or later. Progress on words added to the bundled vocabulary can require a newer version.",
+    "message": "Format 2 backups with Guess first answers require Lang Weave 0.12.21 or later. If the file includes measurements for generated forms such as il/elle, it requires 0.12.22 or later. Format 3 backups with reading-day dates require 0.13.3 or later. A bundled language selection or progress on newer bundled words can require a newer version.",
     "description": "Minimum versions for restoring newly exported measurements and reading dates. Keep the version numbers and generated spelling il/elle literal. Learning backup page (backup.html)."
   },
   "backup_export_blocked": {
@@ -2980,7 +2980,7 @@
     }
   },
   "backup_measurements_omitted": {
-    "message": "Learning measurements: $RETRIEVALS$ logged reviews and guesses, exposure counts for $WORDS$ words. Left out: $OMITTED_RETRIEVALS$ reviews or guesses and exposure counts for $OMITTED_WORDS$ words. Backups have a size limit and keep only measurements that match the backup's vocabulary.",
+    "message": "Learning measurements: $RETRIEVALS$ logged reviews and guesses, exposure counts for $WORDS$ words. Left out: $OMITTED_RETRIEVALS$ reviews or guesses and exposure counts for $OMITTED_WORDS$ words. Size limits and vocabulary checks can leave measurements out. Backups made before 0.16.0 may also have left out Guess first answers or some generated-form measurements.",
     "description": "Counts the measurements kept and omitted during export or preview validation. Learning backup page (backup.html).",
     "placeholders": {
       "RETRIEVALS": {
