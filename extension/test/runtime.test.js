@@ -114,7 +114,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     win.document.body.innerHTML = '<main><p id="reading">I enjoy cats and dogs every single day.</p><form><p>Private typing and secrets should stay exactly here.</p></form><p contenteditable="true">Private words and typing must never leave this editor.</p><p id="nested">Keep these and other words <span contenteditable="true">private typed text</span> here.</p><p>My doctor says medication and rest are important.</p><p lang="es">Hola y gracias por leer esta página cada día.</p></main>';
     await import('../src/content.js');
     contentListeners.push(...messageListeners.splice(beforeContent));
-    await advanceDOMTime(250);
+    await advanceDOMTime(400);
     expect(modelCalls).toBe(1);
     const el = win.document.querySelector('#reading');
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
@@ -123,15 +123,15 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     // cannot repaint them, and returning to a safe title permits reading.
     const safeCalls = modelCalls;
     win.document.title = 'Hospital medication update';
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(el.textContent).toBe('I enjoy cats and dogs every single day.');
     expect(modelCalls).toBe(safeCalls);
     win.document.title = 'Ordinary reading';
     await settleDOM();
     expect(el.querySelector('.fw-word')).toBeNull(); // reading is stopped and there is no observer
-    // Only the initial 250 ms paint has advanced the clock since content import.
-    await advanceDOMTime(750); // first title poll at t=1000 ms
+    // The initial paint and sensitive-title observation used 420 ms.
+    await advanceDOMTime(580); // first title poll at t=1000 ms
     await advanceDOMTime(249);
     expect(el.querySelector('.fw-word')).toBeNull(); // the batch is still debouncing
     await advanceDOMTime(1);
@@ -147,7 +147,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const visibility = io.findLast((o) => !o.options.rootMargin);
     const span = el.querySelector('.fw-word');
     visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen']);
     expect(span.dataset.fwStatus).toBe('active');
     // The gloss waits for a dwell; a passing pointer neither shows it nor records anything.
@@ -190,7 +190,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const callsBeforeLocalMidnight = modelCalls;
     clock = RealDate.parse('2026-01-02T05:01:00Z');
     visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
-    await settleDOM();
+    await advanceDOMTime(20);
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
     await advanceDOMTime(800);
     expect(local[PENDING_KEY].map((e) => `${e.day}:${e.kind}`)).toEqual([
@@ -203,7 +203,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     await advanceDOMTime(800);
     expect(local[PENDING_KEY]).toHaveLength(4);
     span.dispatchEvent(user(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(span.textContent).toBe('and');
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
@@ -217,7 +217,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     fake.setAttribute('data-en', 'very');
     fake.textContent = 'muy';
     win.document.querySelector('main').append(fake);
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(span.isConnected).toBe(true);
     fake.dispatchEvent(user(new win.MouseEvent('click', { bubbles: true })));
     fake.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
@@ -235,7 +235,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(nativeCalls).toBe(0);
 
     const beforeClear = modelCalls;
-    await call({ type: 'clearCache' }); await advanceDOMTime(250);
+    await call({ type: 'clearCache' }); await advanceDOMTime(400);
     expect(modelCalls).toBe(beforeClear + 1);
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
     await call({ type: 'save', siteOverride: { host: 'example.com', enabled: false } });
@@ -243,11 +243,11 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     await call({ type: 'save', settings: { newSitesEnabled: false }, siteOverride: { host: 'example.com', enabled: true } });
-    await advanceDOMTime(250); expect(el.querySelector('.fw-word')).not.toBeNull();
+    await advanceDOMTime(400); expect(el.querySelector('.fw-word')).not.toBeNull();
 
     // Clearing/off during a delayed API request must not resurrect the old generation.
     delayed = true;
-    await call({ type: 'clearCache' }); await advanceDOMTime(250);
+    await call({ type: 'clearCache' }); await advanceDOMTime(400);
     expect(typeof release).toBe('function');
     await call({ type: 'save', settings: { enabled: false } });
     release();
@@ -263,29 +263,29 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const text = 'I enjoy cats and dogs every single day.';
     const disabledReply = await dispatch({ type: 'swaps', revision: config.revision, items: [{ key: `${config.revision}:${hashKey(text)}`, text }] }, page());
     expect(disabledReply.stale).toBe(true);
-    await call({ type: 'save', settings: { enabled: true } }); await advanceDOMTime(250);
+    await call({ type: 'save', settings: { enabled: true } }); await advanceDOMTime(400);
     expect(el.querySelector('.fw-word')).not.toBeNull();
     const dynamic = win.document.createElement('p');
     dynamic.textContent = 'We enjoy books and music every quiet evening.';
-    win.document.querySelector('main').append(dynamic); await advanceDOMTime(250);
+    win.document.querySelector('main').append(dynamic); await advanceDOMTime(400);
     expect(dynamic.querySelector('.fw-word')).not.toBeNull();
 
     // The popup's enabled switch reverts pages and restores them on resume.
-    await call({ type: 'save', settings: { enabled: false } }); await settleDOM();
+    await call({ type: 'save', settings: { enabled: false } }); await advanceDOMTime(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect((await dispatch({ type: 'config' }, page())).paused).toBe(false);
-    await call({ type: 'save', settings: { enabled: true } }); await advanceDOMTime(250);
+    await call({ type: 'save', settings: { enabled: true } }); await advanceDOMTime(400);
     expect(el.querySelector('.fw-word')).not.toBeNull();
 
     // A failed model call is retried after a backoff instead of leaving the passage English.
     modelThrows = 1; // Flash-Lite, the default, has no fallback: one failed request, then the retry
     const retried = win.document.createElement('p');
     retried.textContent = 'They walk home and talk about the long week.';
-    win.document.querySelector('main').append(retried); await advanceDOMTime(250);
+    win.document.querySelector('main').append(retried); await advanceDOMTime(400);
     expect(retried.querySelector('.fw-word')).toBeNull();
     await advanceDOMTime(5000);
     expect(retried.querySelector('.fw-word')).toBeNull(); // retry still has to batch
-    await advanceDOMTime(250);
+    await advanceDOMTime(500);
     expect(retried.querySelector('.fw-word')?.textContent).toBe('y');
 
     // Past the daily cap, no more Gemini requests until tomorrow.
@@ -294,7 +294,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     local.modelCalls = { ...counted, count: DAILY_MODEL_CALLS };
     const capped = win.document.createElement('p');
     capped.textContent = 'She reads late and sleeps in on quiet mornings.';
-    win.document.querySelector('main').append(capped); await advanceDOMTime(250);
+    win.document.querySelector('main').append(capped); await advanceDOMTime(400);
     expect(modelCalls).toBe(callsBefore);
     expect(capped.querySelector('.fw-word')).toBeNull();
     expect(local.modelStatus.category).toBe('local_budget');
@@ -303,7 +303,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     // Removing website access reverts the page.
     origins = [];
     for (const fn of originEvents.removed) fn();
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(dynamic.querySelector('.fw-word')).toBeNull();
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();

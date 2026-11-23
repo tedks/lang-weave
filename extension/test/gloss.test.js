@@ -39,7 +39,7 @@ test('hover and focus share one delayed gloss without losing hover peeks or focu
     useDOMClock();
     win.document.body.innerHTML = '<main><p id="one">They read books and drink tea every quiet evening.</p><p id="two">We write notes and review them on calm mornings.</p></main>';
     const content = await import('../src/content.js?gloss-overlap');
-    await advanceDOMTime(250);
+    await advanceDOMTime(400);
     const one = win.document.querySelector('#one .fw-word');
     const two = win.document.querySelector('#two .fw-word');
     expect(one?.textContent).toBe('y');

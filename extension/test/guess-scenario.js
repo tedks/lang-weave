@@ -45,7 +45,7 @@ export async function hoverScenario(moduleUrl, settings = {}) {
     useDOMClock();
     win.document.body.innerHTML = '<main><p id="one">We read and write every evening.</p></main>';
     await import(moduleUrl);
-    await advanceDOMTime(250);
+    await advanceDOMTime(400);
     snap();
     const span = win.document.querySelector('.fw-word');
     span.dispatchEvent(trusted(new win.MouseEvent('mouseover', { bubbles: true })));
