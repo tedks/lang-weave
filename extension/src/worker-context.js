@@ -2,8 +2,8 @@
 // policy from context(); its revision changes whenever anything that affects swaps does.
 import { chromeStorage } from './cache.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
-import { resolveLevel, wordsForLevel, L2_EXTRA } from './levels.js';
-import { EXPANDED_PLACEMENT_WORDS } from './vocabulary.js';
+import { resolveLevel } from './levels.js';
+import { EXPANDED_PLACEMENT_WORDS, L2_EXTRA, wordsForLevel } from './vocabulary.js';
 import { hashKey } from './hash.js';
 import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
 import { GUARANI_PACK } from './guarani.js';
@@ -61,7 +61,7 @@ export function createContext({ store, ready, worker }) {
       const { [REVIEW_KEY]: raw } = await store.get(REVIEW_KEY);
       retainedWords = introducedReviewWords(raw, L2_EXTRA);
     } else if (placement === 2) {
-      legacyWords = EXPANDED_PLACEMENT_WORDS;
+      legacyWords = [...EXPANDED_PLACEMENT_WORDS];
     }
     const personal = cleanPersonal(data[PERSONAL_KEY], settings.gradual);
     const activePersonal = personalWords(personal, saved.language, legacyAllWords);

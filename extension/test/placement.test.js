@@ -263,6 +263,20 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect((await send({ type: 'wordsList' }, 'words')).rows.find(({ id }) => id === 'la ventana'))
       .toMatchObject({ reviews: 6, practise: true });
     expect(storage.recallReview.cards['la ventana']).toEqual(savedWindow);
+
+    await send({ type: 'save', settings: { gradual: true, newWordsPerDay: 5 } }, 'options');
+    expect(await apply(2, await preview())).toMatchObject({ ok: true, choice: 2 });
+    const placed = await config();
+    const beforeExpandedRequest = requests.length;
+    await ask(placed.revision, 'The door swung toward the restaurant three times.');
+    expect(requests).toHaveLength(beforeExpandedRequest + 1);
+    const placementPrompt = promptAt(-1);
+    expect(placementPrompt).toContain('la puerta = the door');
+    expect(placementPrompt).toContain('el restaurante = the restaurant');
+    // Explicit Expanded keeps the door's original band 2 above a band 3 noun.
+    // Giving it the new Beginner band 0 would move it behind Expanded words.
+    expect(placementPrompt.indexOf('la puerta = the door'))
+      .toBeLessThan(placementPrompt.indexOf('el restaurante = the restaurant'));
   } finally {
     Object.assign(globalThis, original);
   }
