@@ -27,5 +27,12 @@ export const GUARANI_PACK = {
     ['mbo’ehára', 'teacher (at school)', 1],
     ['aranduka', 'book (printed volume)', 1],
     ['kuatia', 'paper (writing material)', 1],
+    // Prose words follow every previously shipped row.
+    ['ára', 'day (calendar day)', 1],
+    ['pyhare', 'night (after dark)', 1],
+    ['okẽ', 'door (movable barrier)', 1],
+    ['tata', 'fire (something burning)', 1],
+    ['ita', 'stone (piece of rock)', 1],
+    ['tape', 'road (route for travel)', 1],
   ].map(([fr, en, level]) => ({ fr, en, level, hint: '' })),
 };

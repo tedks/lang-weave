@@ -23,12 +23,22 @@ const legacyWords = [
   ['ytororõ', 'waterfall', 2], ['jasyrendy', 'moonlight', 2],
 ].map(([fr, en, level]) => ({ fr, en, level, hint: '' }));
 
-test('the original Guaraní pack is an unchanged prefix with the same scope and level membership', () => {
+const homeSchoolWords = [
+  ['óga', 'house (dwelling)'], ['koty', 'room (indoors)'], ['apyka', 'chair (seat)'], ['tupa', 'bed (for sleeping)'],
+  ['mbo’ehao', 'school (for students)'], ['mbo’ehára', 'teacher (at school)'],
+  ['aranduka', 'book (printed volume)'], ['kuatia', 'paper (writing material)'],
+].map(([fr, en]) => ({ fr, en, level: 1, hint: '' }));
+const proseWords = [
+  ['ára', 'day (calendar day)'], ['pyhare', 'night (after dark)'], ['okẽ', 'door (movable barrier)'],
+  ['tata', 'fire (something burning)'], ['ita', 'stone (piece of rock)'], ['tape', 'road (route for travel)'],
+].map(([fr, en]) => ({ fr, en, level: 1, hint: '' }));
+
+test('all previous Guaraní rows and their stable IDs survive, with six Beginner rows appended', () => {
+  const previousWords = [...legacyWords, ...homeSchoolWords];
   expect(starterScope).toBe(legacyScope);
-  expect(GUARANI_PACK.words.slice(0, legacyWords.length)).toEqual(legacyWords);
-  expect(packWords(GUARANI_PACK, 1).slice(0, 9)).toEqual(legacyWords.filter((word) => word.level === 1));
-  expect(packWords(GUARANI_PACK, 1)).toHaveLength(17);
-  expect(packWords(GUARANI_PACK, 2)).toHaveLength(22);
+  expect(GUARANI_PACK.words).toEqual([...previousWords, ...proseWords]);
+  expect(packWords(GUARANI_PACK, 1)).toEqual([...previousWords.filter((word) => word.level === 1), ...proseWords]);
+  expect(packWords(GUARANI_PACK, 2)).toHaveLength(28);
   expect(entryId(starterScope, { fr: 'ytororõ' })).toBe('gn-PY-x-weave:0000000000000001:legacy:ytoror%C3%B5');
   expect(() => assertPackAnchors(GUARANI_PACK.words)).not.toThrow();
 });
@@ -178,7 +188,7 @@ test('the starter is selectable without a key and its reviews round trip alongsi
     expect((await select(GUARANI_STARTER, 2)).ok).toBe(true);
     const expanded = await dispatch('words', { type: 'wordsList' });
     expect(expanded.scope).toBe(starterScope);
-    expect(expanded.rows.filter(({ kind }) => kind === 'pack')).toHaveLength(22);
+    expect(expanded.rows.filter(({ kind }) => kind === 'pack')).toHaveLength(28);
     expect(expanded.rows.find(({ target }) => target === 'ytororõ')).toMatchObject({ gloss: 'waterfall', practise: true });
     expect(await dispatch('words', { type: 'wordPractice', id: 'ytororõ', scope: starterScope }))
       .toMatchObject({ ok: true });
@@ -189,7 +199,7 @@ test('the starter is selectable without a key and its reviews round trip alongsi
     expect((await dispatch('review', { type: 'reviewRate', ticket: card.ticket, rating: 'medium' })).ok).toBe(true);
     expect((await select(GUARANI_STARTER)).ok).toBe(true);
     expect(await dispatch('review', { type: 'reviewStatus' }))
-      .toMatchObject({ language: 'Paraguayan Guaraní', new: 17 });
+      .toMatchObject({ language: 'Paraguayan Guaraní', new: 23 });
     expect((await dispatch('words', { type: 'wordsList' })).rows.find(({ target }) => target === 'ytororõ'))
       .toMatchObject({ reviews: 1, practise: false });
 
@@ -261,4 +271,12 @@ test('reading validation keeps the listed Guaraní diacritics and rejects unlist
   expect(validate('teacher', 'mbo’ehara')).toEqual([]);
   expect(validate('teacher', "mbo'ehára")).toEqual([]);
   expect(validate('instructor', 'mbo’ehára')).toEqual([]);
+  for (const { fr, en } of proseWords) {
+    const [source] = en.split(' ');
+    expect(validate(source, fr.normalize('NFD'))).toMatchObject([{ o: source, f: fr, g: en }]);
+  }
+  for (const form of ['oke', 'rokẽ', 'hokẽ']) expect(validate('door', form)).toEqual([]);
+  for (const form of ['rata', 'hata']) expect(validate('fire', form)).toEqual([]);
+  expect(validate('day', 'ara')).toEqual([]);
+  expect(validate('road', 'tata')).toEqual([]);
 });

@@ -155,6 +155,21 @@ async function checkParagraph(context, worker, id) {
   assert.equal(await guaraniWord.getAttribute('lang'), 'gn-PY');
   await guaraniWord.click();
   assert.equal(await preview.textContent(), await source.inputValue());
+  const prose = await source.inputValue();
+  const door = occurrence.locator('option').filter({ hasText: /\[door\]/ });
+  await occurrence.selectOption(await door.getAttribute('value'));
+  assert.equal(await page.locator('#senseContext').textContent(), 'okẽ · door (movable barrier)');
+  await practice.press('Enter');
+  const doorWord = preview.getByRole('button', { name: 'okẽ', exact: true });
+  assert.equal(await doorWord.getAttribute('lang'), 'gn-PY');
+  assert.equal(await doorWord.evaluate((word) => word === document.activeElement), true);
+  assert.equal(await preview.textContent(), prose.replace('the door', 'the okẽ'));
+  await doorWord.press('Space');
+  assert.equal(await preview.textContent(), prose);
+  const englishDoor = preview.getByRole('button', { name: 'door', exact: true });
+  assert.equal(await englishDoor.getAttribute('lang'), null);
+  await englishDoor.click();
+  assert.equal(await doorWord.textContent(), 'okẽ');
   await page.getByRole('button', { name: 'Clear paragraph' }).press('Space');
   assert.equal(await source.inputValue(), '');
   assert.equal(await source.evaluate((el) => el === document.activeElement), true);
@@ -412,6 +427,26 @@ try {
   assert.equal(context.pages().filter((page) => page.url() === review.url()).length, 1);
   await words.close();
   console.log('PASS: new everyday Guaraní appears in My words and opens keyless Review on the original catalog.');
+
+  // With review closed, the usual My words route opens a fresh review tab.
+  if (!review.isClosed()) await review.close();
+  const proseWords = await context.newPage();
+  await proseWords.goto(`chrome-extension://${id}/src/words.html`);
+  const doorRow = proseWords.locator('#words li[data-id="okẽ"]');
+  const [doorReview] = await Promise.all([context.waitForEvent('page'),
+    doorRow.getByRole('button', { name: 'Practice now' }).press('Enter')]);
+  await doorReview.locator('#prompt').getByText('door (movable barrier)', { exact: true }).waitFor();
+  await doorReview.locator('#reveal').press('Space');
+  await doorReview.locator('#answer').getByText('okẽ', { exact: true }).waitFor();
+  await doorReview.locator('[data-rating="medium"]').press('Enter');
+  await doorReview.waitForFunction(async () => {
+    const key = 'lang:gn-PY-x-weave:0000000000000001:recallReview';
+    return (await chrome.storage.local.get(key))[key]?.cards?.['okẽ']?.reviews === 1;
+  });
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('apiKey'))).apiKey, undefined);
+  await doorReview.close();
+  await proseWords.close();
+  console.log('PASS: the built-in Guaraní paragraph flips okẽ and My words reveals the same accented form in a separate keyless review.');
 
   // Simulate a previously generated pack for the same locale without using Gemini.
   await worker.evaluate(() => chrome.storage.local.set({ languagePacks: { 'gn-PY': {

@@ -7,7 +7,8 @@ import { sourceIssue } from './semantic.js';
 export const MAX_PARAGRAPH_LENGTH = 2000;
 export const PARAGRAPH_EXAMPLES = {
   es: 'Today I opened the window before breakfast. I could see a tree beside the river. The soup was ready, but I stayed by the window to listen to a song.',
-  [GUARANI_STARTER]: 'At school I opened a book while my teacher handed out paper. Back at the house, I pulled a chair into my room and drank some water.',
+  [GUARANI_STARTER]: 'At school I opened a book while my teacher handed out paper. Back at the house, I pulled a chair into my room and drank some water. ' +
+    'One day I found a smooth stone beside the road. At night I put it by the door and watched the fire.',
 };
 
 export function paragraphLevel(settings, spanishPlacement, language) {

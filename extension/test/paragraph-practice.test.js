@@ -97,7 +97,10 @@ test('both original examples have distinct Beginner options including Guaraní h
     expect(spanish.has(word)).toBe(true);
   }
   const guarani = exampleForms(GUARANI_STARTER);
-  for (const word of ['óga', 'koty', 'apyka', 'mbo’ehao', 'mbo’ehára', 'aranduka', 'kuatia']) {
+  for (const word of [
+    'óga', 'koty', 'apyka', 'mbo’ehao', 'mbo’ehára', 'aranduka', 'kuatia',
+    'ára', 'pyhare', 'okẽ', 'tata', 'ita', 'tape',
+  ]) {
     expect(guarani.has(word)).toBe(true);
   }
 });
