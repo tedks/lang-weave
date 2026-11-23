@@ -225,9 +225,8 @@ test('an unacknowledged reservation can be reoffered only to its document withou
 });
 
 test('full history survives many candidate windows, level/scope toggles and restart', async () => {
-  expect(L1_WORDS).toHaveLength(30);
-  expect(L2_WORDS).toHaveLength(226);
-  const cards = Object.fromEntries(L2_WORDS.map((w, i) => [w.fr,
+  const formerExpanded = L2_WORDS.slice(0, 226);
+  const cards = Object.fromEntries(formerExpanded.map((w, i) => [w.fr,
     { due: now + i * 60000, interval: i % 4, reviews: i % 6, introducedDay: '2026-10-20' }]));
   cards.orphan = { due: now - 1, interval: 1, reviews: 9 };
   const initial = { version: 1, cards, current: null, learning: { day, count: 2, pending: [] }, inline: null };
@@ -246,6 +245,7 @@ test('full history survives many candidate windows, level/scope toggles and rest
   expect(Object.keys(restarted.cards)).toHaveLength(227);
   expect(restarted.cards.orphan).toEqual(cards.orphan);
   expect(restarted.cards['el zapato']).toEqual(cards['el zapato']);
+  expect(restarted.cards['el suéter']).toBeUndefined();
   expect(restarted.learning).toEqual(initial.learning);
   const all = await storage.getAll();
   expect(all.readingEvents).toEqual([{ word: 'y', kind: 'seen', day }]);

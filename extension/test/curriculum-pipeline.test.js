@@ -31,16 +31,16 @@ test('fixture build is byte-identical, retains per-row provenance and never ship
     for (const row of first.rows)
       expect(row.provenance.wiktextract_entry_sha256).toBe(sourcePins.fixture.entry_sha256[row.lemma]);
     expect(JSON.parse(files(a)['MANIFEST.json']).shipped).toBe(false);
-    expect(L2_WORDS).toHaveLength(226);
+    expect(first.rows.some((row) => L2_WORDS.some((word) => word.fr === row.fr))).toBe(false);
   });
 });
 
-test('all 226 shipped bands match the committed wordfreq table in original order', () => {
+test('the original 226 shipped bands match the committed wordfreq table in original order', () => {
   const table = bands.trimEnd().split('\n').slice(1, 227).map((line) => {
     const fields = line.split(',');
     return { fr: fields[0], band: Number(fields[4]) };
   });
-  expect(L2_WORDS.map(({ fr, band }) => ({ fr, band }))).toEqual(table);
+  expect(L2_WORDS.slice(0, table.length).map(({ fr, band }) => ({ fr, band }))).toEqual(table);
   expect(L2_WORDS.slice(0, 30).every((word) => word.band === 0)).toBe(true);
 });
 

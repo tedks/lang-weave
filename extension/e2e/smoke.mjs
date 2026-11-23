@@ -153,19 +153,19 @@ try {
   await options.waitForLoadState();
   await options.waitForFunction((version) => document.querySelector('#version')?.textContent === version, manifest.version);
   assert.equal(await options.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
-  assert.equal(await options.locator('#wordInfo').textContent(), '30 Spanish words');
+  assert.equal(await options.locator('#wordInfo').textContent(), '37 Spanish words');
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
   assert.equal(new URL(words.url()).pathname, '/src/words.html');
   assert.equal(new URL(words.url()).search, '');
-  await words.locator('#count').getByText('226 words').waitFor(); // the full pack, nothing started
+  await words.locator('#count').getByText('233 words').waitFor(); // the full pack, nothing started
   assert.equal(await words.locator('#headline').textContent(), 'No words verified yet');
   assert.equal(await popup.locator('h1').textContent(), 'Lang Weave');
   assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
   assert.equal(await popup.locator('#primary').textContent(), 'Add words');
   const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#primary').click()]);
   await review.waitForLoadState();
-  await review.locator('#counts').getByText('0 due · 30 available to add').waitFor();
+  await review.locator('#counts').getByText('0 due · 37 available to add').waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
   await review.locator('#introduce').click();
   await review.locator('#prompt').getByText('and').waitFor();
@@ -186,7 +186,7 @@ try {
   await review.keyboard.press('2');
   await review.locator('#prompt').getByText('or').waitFor();
   await review.waitForFunction(() => document.activeElement?.id === 'reveal');
-  assert.equal(await review.locator('#counts').textContent(), '3 due · 25 available to add');
+  assert.equal(await review.locator('#counts').textContent(), '3 due · 32 available to add');
   await options.waitForFunction(() => document.querySelector('#reviewInfo')?.textContent === '3');
   const savedReview = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((s) => s.recallReview));
   assert.equal(savedReview.cards.y.interval, 1);
@@ -215,7 +215,7 @@ try {
   assert.equal(await options.locator('#language option[value=ja]').count(), 0);
   await page.locator('#reading .fw-word').getByText('y').waitFor();
   await review.locator('#language').getByText('Reviewing Spanish').waitFor();
-  await review.locator('#counts').getByText('3 due · 25 available to add').waitFor();
+  await review.locator('#counts').getByText('3 due · 32 available to add').waitFor();
   const afterLanguages = await worker.evaluate(() => globalThis.smokeCalls.length);
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);

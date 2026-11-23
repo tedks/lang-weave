@@ -1,7 +1,7 @@
 import { test, expect } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { validateSwaps, glossMatches, normalizeFr, L1_WORDS, L2_WORDS } from '../src/levels.js';
+import { validateSwaps, glossMatches, normalizeFr } from '../src/levels.js';
 import { queueEvents, shownToday, PENDING_KEY } from '../src/events.js';
 import { memoryStorage } from '../src/cache.js';
 import { relativeImports } from '../scripts/package.mjs';
@@ -35,8 +35,6 @@ test('Spanish articles stay with whole noun phrases and never double English det
   expect(validateSwaps(2, [{ o: 'to start', f: 'entonces' }])).toEqual([]);
   expect(validateSwaps(2, [{ o: 'so', f: 'entonces' }])[0]?.f).toBe('entonces');
   expect(validateSwaps(2, [{ o: 'and', f: 'et' }])).toEqual([]);
-  expect(L1_WORDS).toHaveLength(30);
-  expect(L2_WORDS).toHaveLength(226);
 });
 
 test('fork identity and permissions cannot collide with or contact the French companion', () => {

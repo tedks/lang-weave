@@ -71,7 +71,7 @@ test('nextDue includes maintenance at its effective peek and claim gate, but exc
 test('explicit introduction, clock scheduling, and one revealed rating per ticket', () => {
   const now = Date.parse('2026-10-17T12:00:00Z');
   const state = cleanReview(null, L2_WORDS);
-  expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 0, new: 30 });
+  expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 0, new: L1_WORDS.length });
   expect(nextReview(state, L1_WORDS, now)).toBeNull();
   expect(introduce(state, L1_WORDS, now)).toBe(5);
   const first = nextReview(state, L1_WORDS, now, () => 'ticket-1');
@@ -85,7 +85,7 @@ test('explicit introduction, clock scheduling, and one revealed rating per ticke
   expect(rateReview(state, first.ticket, 'hard', now)).toBeNull();
   expect(state.cards.y.reviews).toBe(1);
   expect(state.cards.y.fsrs).toEqual({ ...initialState('easy'), lastReview: now, lapses: 0 });
-  expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 4, new: 25 });
+  expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 4, new: L1_WORDS.length - 5 });
   expect(reviewCounts(state, L1_WORDS, now + 7 * DAY_MS).due).toBe(4);
   expect(reviewCounts(state, L1_WORDS, now + 8 * DAY_MS).due).toBe(5);
   state.current = null;
@@ -122,7 +122,7 @@ test('loaded state retains valid unknown history but excludes it from current le
   expect(state.cards.bonjour).toEqual({ due: now, interval: 1, reviews: 1 });
   expect(state.cards.sí).toEqual({ due: now, interval: 3, reviews: 2 });
   expect(state.current).toBeNull();
-  expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 1, new: 29 });
+  expect(reviewCounts(state, L1_WORDS, now)).toEqual({ due: 1, new: L1_WORDS.length - 1 });
   expect(reviewCounts(state, L2_WORDS, now).due).toBe(2);
 });
 
