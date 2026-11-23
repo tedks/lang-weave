@@ -9,8 +9,8 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T11:16:25-00:00
 references: []
 log_events:
@@ -22,3 +22,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T11:32:42-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: "Merged #100 after #99. Both Chrome 140 and 158 passed keyboard reopening
+    of Guaran\xED samples, the failed popup status fallback, unchanged storage and
+    grants and the popup size check. The pending privacy link retains its existing
+    behavior."
