@@ -1,0 +1,22 @@
+id: spanish-placement-live-refresh
+title: Refresh an open Spanish placement form after an outside save
+desc: "PR #60 council rounds 2\u20134 noted that a Welcome or Settings placement form
+  left open across an external settings write uses the existing epoch conflict flow.
+  The next Save refreshes the stored choice and keeps the draft when that choice is
+  unchanged; this deliberately requires confirmation against the new epoch. Improve
+  passive refresh without losing an unsaved selection, racing an in-flight save, or
+  silently approving a choice after a language round trip. Keep the compare-and-save
+  guard."
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T03:56:05-00:00
+references: []
+log_events:
+- time: 2026-11-23T03:56:05-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
