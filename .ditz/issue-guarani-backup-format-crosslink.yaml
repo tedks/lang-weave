@@ -1,0 +1,21 @@
+id: guarani-backup-format-crosslink
+title: "Cross-link Guaran\xED catalog and backup format requirements"
+desc: "The Guaran\xED starter guide documents the catalog support floors, and README
+  documents the independent format-3 requirement for backups containing reading-day
+  dates. Link those notes directly so someone consulting only the starter guide can
+  confirm both requirements. This is the nonblocking documentation nit from PR #68's
+  final council; preserve the separately verified 0.14.2 floor for backups with later
+  cards."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T05:00:26-00:00
+references: []
+log_events:
+- time: 2026-11-23T05:00:26-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
