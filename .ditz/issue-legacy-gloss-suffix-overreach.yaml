@@ -11,7 +11,7 @@ type: bugfix
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-11-02T17:48:00-00:00
 references: []
@@ -31,3 +31,7 @@ log_events:
     either tier. Fresh profile and explicitly granted synthetic origin. Scope the
     repair to legacy Spanish matching and preserve correct forms; confirm whether
     cached prior entries need read-time revalidation."
+- time: 2026-11-23T09:03:01-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
