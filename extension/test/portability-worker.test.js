@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { localDay } from '../src/events.js';
+import { READING_DAYS_KEY, localDay } from '../src/events.js';
 
 const id = 'fw-backup';
 const sender = { id, url: `chrome-extension://${id}/src/backup.html`, documentId: 'backup-document', tab: { id: 10 } };
@@ -173,6 +173,7 @@ test('partial storage failure reports error and journal recovers on worker resta
   const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
   try {
     const source = setup({ settings: { language: 'es', levelOverride: 2 },
+      [READING_DAYS_KEY]: ['2026-10-28'],
       recallReview: { version: 1, cards: { y: { due: 0, interval: 0, reviews: 0 } },
         learning: { day: '2026-10-28', count: 1, pending: [] } } }, 'failure-source');
     await source.load(); source.openPage();
@@ -181,6 +182,7 @@ test('partial storage failure reports error and journal recovers on worker resta
     const target = setup(data, 'failure-target');
     await target.load(); target.openPage();
     const preview = await target.dispatch({ type: 'learningPreview', json, pageId });
+    expect(preview.preview.schemaVersion).toBe(3);
     target.failNextPatch(true);
     expect((await target.dispatch({ type: 'learningImport', token: preview.token, pageId })).error).toMatch(/did not finish/);
     expect(data.learningImportJournalV1).toBeDefined();
@@ -191,6 +193,8 @@ test('partial storage failure reports error and journal recovers on worker resta
     await restart.load(); restart.openPage();
     const recovered = await restart.dispatch({ type: 'learningExport' });
     expect(recovered.json).toContain('"y"');
+    expect(JSON.parse(recovered.json).state.scopes.es.readingDays).toEqual(['2026-10-28']);
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-28']);
     expect(data.learningImportJournalV1).toBeUndefined();
     expect(data.learningImportReceiptV1.hash).toBeDefined();
     expect(data.recallReview.cards.y.reviews).toBe(0);

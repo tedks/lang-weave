@@ -4,10 +4,9 @@ import { GUARANI_PACK } from './guarani.js';
 import { cleanPack, MAX_PACKS } from './languages.js';
 import { MEASUREMENTS_SKIPPED_KEY } from './measurement-skips.js';
 import { cleanPersonal, validForm, validLanguage, MAX_PERSONAL } from './personal.js';
-import { validDay } from './learning.js';
 import { wordsForLevel } from './levels.js';
 import { REVIEW_KEY } from './review.js';
-import { PENDING_KEY, SENT_KEY } from './events.js';
+import { PENDING_KEY, SENT_KEY, READING_DAYS_KEY, validDay, validReadingDays } from './events.js';
 import { ENCOUNTERS_KEY } from './encounters.js';
 import { entryId } from './catalog.js';
 import { cleanFsrsState, storedFsrs, MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
@@ -15,11 +14,10 @@ import { RETRIEVALS_KEY, EXPOSURES_KEY, MAX_RETRIEVALS, MAX_EXPOSURE_WORDS, clea
   cleanExposures } from './learning-log.js';
 
 export const BACKUP_FORMAT = 'lang-weave-learning-backup';
-// The schema this build writes, and the schemas it reads. Schema 2 adds per-card FSRS state,
-// the learning log (retrievals, exposures) and desiredRetention. A build must read a schema
-// before any build writes it (docs/LEARNING-CORE-MISSION.md, "Release order").
-export const BACKUP_SCHEMA = 2;
-export const READ_SCHEMAS = Object.freeze([1, 2]);
+// Schema 2 adds FSRS, learning logs and desiredRetention. Schema 3 adds only reading dates.
+// Default exports use schema 3 only when there are reading dates to preserve.
+export const BACKUP_SCHEMA = 3;
+export const READ_SCHEMAS = Object.freeze([1, 2, 3]);
 export const MAX_BACKUP_BYTES = 1024 * 1024;
 // One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
 // cards, packs or personal entries under MAX_BACKUP_BYTES.
@@ -28,10 +26,12 @@ export const LOG_BUDGET_BYTES = 512 * 1024;
 const LOG_MARGIN_BYTES = 1024;
 export const IMPORT_JOURNAL_KEY = 'learningImportJournalV1';
 export const IMPORT_RECEIPT_KEY = 'learningImportReceiptV1';
-const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY];
+const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY,
+  READING_DAYS_KEY];
 // Storage suffix -> backup scope field. Every list of learning keys derives from this one.
 const SCOPE_FIELDS = Object.freeze({ [REVIEW_KEY]: 'review', [PENDING_KEY]: 'events', [SENT_KEY]: 'shown',
-  [ENCOUNTERS_KEY]: 'encounters', [RETRIEVALS_KEY]: 'retrievals', [EXPOSURES_KEY]: 'exposures' });
+  [ENCOUNTERS_KEY]: 'encounters', [RETRIEVALS_KEY]: 'retrievals', [EXPOSURES_KEY]: 'exposures',
+  [READING_DAYS_KEY]: 'readingDays' });
 export const LEARNING_STORAGE_KEYS = Object.freeze(['languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
 const LOG_FIELDS = ['retrievals', 'exposures'];
 // Validation context: `source` is local storage (export, target checks) rather than a file;
@@ -318,8 +318,13 @@ function exposureLog(value, catalog, m) {
   return { version: 1, words };
 }
 function feedback(value, scope, installed, personalState, m) {
-  keys(value, ['review', 'events', 'shown', 'encounters', ...(m.schema >= 2 ? LOG_FIELDS : [])], 'scope');
+  keys(value, ['review', 'events', 'shown', 'encounters', ...(m.schema >= 2 ? LOG_FIELDS : []),
+    ...(m.source || m.schema >= 3 ? ['readingDays'] : [])], 'scope');
   const result = {};
+  if (Object.hasOwn(value, 'readingDays')) {
+    if (!validReadingDays(value.readingDays)) fail('invalid reading days');
+    result.readingDays = [...value.readingDays];
+  }
   if (Object.hasOwn(value, 'review')) {
     if (scope.startsWith('personal:')) fail('personal review belongs in personal history');
     result.review = review(value.review, scope, m, installed);
@@ -400,7 +405,7 @@ export function parseBackup(json) {
     ['format', 'schemaVersion', 'exportedByVersion', 'state']);
   if (raw.format !== BACKUP_FORMAT) fail('this is not a Lang Weave learning backup');
   if (!READ_SCHEMAS.includes(raw.schemaVersion)) fail(Number.isSafeInteger(raw.schemaVersion) && raw.schemaVersion > 0
-    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.join(' and ')}. Update Lang Weave to import it`
+    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.join(', ')}. Update Lang Weave to import it`
     : 'unsupported schema version');
   boundedString(raw.exportedByVersion, 40, 'export tool version');
   if (!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(raw.exportedByVersion)) fail('invalid export tool version');
@@ -498,14 +503,16 @@ function fitLog(st, m, budget) {
   if (retrievals || exposureWords) st.logOmitted = { retrievals, exposureWords };
 }
 
-export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
-  if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
+export function createBackup(all, exportedByVersion, schema) {
   const scopes = storageEntries(all);
-  // Schema 1 has no learning log; FSRS card state is stripped by card(). A scope that held only
-  // log data is dropped rather than exported empty.
-  if (schema < 2) for (const [id, fields] of Object.entries(scopes)) {
+  if (schema === undefined) schema = Object.values(scopes).some((fields) => Object.hasOwn(fields, 'readingDays'))
+    ? BACKUP_SCHEMA : 2;
+  if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
+  // Legacy formats omit fields they cannot carry and scopes made empty by those omissions.
+  if (schema < 3) for (const [id, fields] of Object.entries(scopes)) {
     const had = Object.keys(fields).length;
-    for (const field of LOG_FIELDS) delete fields[field];
+    delete fields.readingDays;
+    if (schema < 2) for (const field of LOG_FIELDS) delete fields[field];
     if (id !== 'es' && had && !Object.keys(fields).length) delete scopes[id];
   }
   const settings = object(all.settings || {}, 'settings');
@@ -585,7 +592,7 @@ export function targetFresh(all) {
     for (const field of LOG_FIELDS) delete rest[field];
     const clean = feedback(rest, id, {}, own, mode(true, 1));
     if (Object.keys(clean.review?.cards || {}).length || clean.review?.learning.day || clean.review?.learning.count ||
-        clean.events?.length || clean.shown?.words.length || Object.keys(clean.encounters?.counts || {}).length ||
+        clean.readingDays?.length || clean.events?.length || clean.shown?.words.length || Object.keys(clean.encounters?.counts || {}).length ||
         clean.encounters?.touched.length) fail('target has learning progress');
   }
   return true;

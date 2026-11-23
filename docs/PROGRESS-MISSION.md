@@ -4,6 +4,24 @@ State: PR #28 on branch `progress-words`. Ditz issues `today-progress` and `my-w
 
 Encounter-core update (2026-10-30): [ENCOUNTER-MISSION.md](ENCOUNTER-MISSION.md) supersedes the earlier permanent-familiar behavior below when gradual learning is on. A third Easy is maintenance and remains scheduled under FSRS; an Already know claim is verified only by a later 21+-day retrieval at or after its claim due. In gradual mode My words shows the effective maintenance due date, Practice now can choose maintenance cards, and a pending claim cannot bypass its verification date. The one-time count of old retired cards due for verification appears on the review and progress pages. Reset's stale guard also compares claim fields. Legacy behavior below remains for gradual-off profiles. The My words claim still has no retrieval-log entry; the card's additive claim fields carry its verification gate.
 
+## Reading-day backup compatibility
+
+Lang Weave 0.13.3 is the first reader for learning backup schema 3. It can
+restore and re-export a file with reading dates. Schema 1 and 2 imports remain
+supported, and exports still use schema 2 when there are no reading dates.
+Version 0.13.3 never adds a reading date during reading. Recording new dates
+is a separate change planned for 0.14.0.
+
+Schema 3 adds an optional `readingDays` list per scope, with one to 30 unique
+local calendar dates in `YYYY-MM-DD` format. These dates travel with the scoped
+learning backup even for a removed pack. A date alone carries no word ID or
+evidence of recall. The corresponding local storage key is `readingDaysV1`
+under the normal bundled, versioned pack or personal scope.
+
+Use 0.13.3 or later to restore schema 3 or to export from an installation that
+already holds these date records. Earlier versions reject schema 3 files and
+cannot export from local storage containing the new keys.
+
 ## Intent
 
 The learner can see their words and whether learning is happening, from local data only. Sources: roadmap M2 `today-progress` and `my-words`; UX audit #11, #12 and #16; learning-science recommendations 1, 5 and 11 and section 9, "What to measure".
