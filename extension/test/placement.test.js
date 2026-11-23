@@ -1,7 +1,7 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { duolingoPreview, placementSamples } from '../src/placement.js';
-import { L1_WORDS, L2_EXTRA } from '../src/vocabulary.js';
+import { L1_WORDS, L2_EXTRA, L2_WORDS } from '../src/vocabulary.js';
 import { GUARANI_STARTER } from '../src/language-name.js';
 import { GUARANI_PACK } from '../src/guarani.js';
 import { createBackup, parseBackup } from '../src/portability.js';
@@ -25,6 +25,7 @@ test('placement examples use real forms and meanings, including tiny and empty p
   expect(expanded.every((word) => L2_EXTRA.includes(word))).toBe(true);
   const forms = [...L1_WORDS, ...L2_EXTRA].map(({ fr }) => fr);
   expect(new Set(forms).size).toBe(forms.length);
+  expect(forms.sort()).toEqual(L2_WORDS.map(({ fr }) => fr).sort());
   const basic = { fr: 'hoy', en: 'today' };
   const extra = { fr: 'el árbol', en: 'the tree' };
   expect(placementSamples([basic, basic], [basic, extra])).toEqual([[basic], [extra]]);

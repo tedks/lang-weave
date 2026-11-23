@@ -79,7 +79,7 @@ At 233 Expanded rows, the median whole request fell from 8,441 to 3,851 UTF-8 by
 
 ## Everyday Beginner reading in 0.14.3
 
-Beginner now includes seven previously shipped Expanded nouns. Home gains `la ventana`, meals gain `el desayuno` and `la sopa`, outdoor reading gains `el árbol` and `el río`, and leisure gains `la canción` and `la película`. The promotions reuse the existing glosses, hints and review IDs. They use band 0 in the 44-row Beginner catalog. The full 233-row Expanded catalog retains its row order and metadata.
+Beginner now includes seven previously shipped Expanded nouns. Home gains `la ventana`, meals gain `el desayuno` and `la sopa`, outdoor reading gains `el árbol` and `el río`, and leisure gains `la canción` and `la película`. The promotions reuse the existing glosses, hints and review IDs. They use band 0 in the 44-row Beginner catalog. The full 233-row Expanded catalog retains its row order and metadata. Explicit Expanded placement gives the remaining Expanded-only words first priority for fresh gradual candidates, so the promoted nouns are now treated like the other Beginner words under that choice.
 
 The original [evaluation corpus](../extension/test/spanish-everyday-corpus.json) was fixed before selection. Eighteen discovery paragraphs covered six topics. The seven nouns were selected on that partition and checked on twelve separate paragraphs. For each paragraph, the test intersects locally validated source spans with the ordinary prompt projection or the gradual selector for a fresh reader at five new words per day. An opportunity is one eligible form in one paragraph.
 

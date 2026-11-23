@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { selectWorkingSet } from '../src/adaptive.js';
 import { possibleSpanishPromptWords, validateSwaps, wordsForLevel } from '../src/levels.js';
 import { cleanReview } from '../src/review.js';
+import { FRESH_INSTALL_SETTINGS } from '../src/settings.js';
 
 const corpus = JSON.parse(readFileSync(new URL('spanish-everyday-corpus.json', import.meta.url)));
 const promotions = ['la ventana', 'el desayuno', 'la sopa', 'el árbol', 'el río', 'la canción', 'la película'];
@@ -12,6 +13,7 @@ test('all seven promotions are reachable on held-out Beginner reading in both mo
   const before = words.slice(0, 37);
   const now = Date.parse('2026-11-23T12:00:00Z'), day = '2026-11-23';
   const reached = { ordinary: new Set(), gradual: new Set() };
+  const opportunities = { ordinary: [0, 0], gradual: [0, 0] };
   for (const text of Object.values(corpus.heldOut).flat()) {
     const batch = [{ id: 'paragraph', text }];
     const tokens = [...text.matchAll(/[\p{L}\p{N}’'-]+/gu)];
@@ -23,21 +25,24 @@ test('all seven promotions are reachable on held-out Beginner reading in both mo
       const valid = new Set(validateSwaps(1, probes, catalog, 'es', { text }).map(({ word }) => word));
       const ordinary = possibleSpanishPromptWords(1, catalog, batch);
       const gradual = selectWorkingSet({ batch, words: catalog, scope: 'es', state: cleanReview(null, catalog, now),
-        settings: { gradual: true, newWordsPerDay: 5 }, now, day, level: 1, language: 'es' });
+        settings: FRESH_INSTALL_SETTINGS, now, day, level: 1, language: 'es' });
       return {
         ordinary: ordinary.map(({ fr }) => fr).filter((fr) => valid.has(fr)),
         gradual: gradual.map(({ fr }) => fr).filter((fr) => valid.has(fr)),
       };
     };
     const baseline = measure(before);
-    const expanded = measure(words);
+    const current = measure(words);
     for (const mode of ['ordinary', 'gradual']) {
-      expect(expanded[mode]).toEqual(expect.arrayContaining(baseline[mode]));
-      for (const form of expanded[mode]) {
+      expect(current[mode]).toEqual(expect.arrayContaining(baseline[mode]));
+      opportunities[mode][0] += baseline[mode].length;
+      opportunities[mode][1] += current[mode].length;
+      for (const form of current[mode]) {
         if (!baseline[mode].includes(form)) reached[mode].add(form);
       }
     }
   }
+  expect(opportunities).toEqual({ ordinary: [14, 21], gradual: [13, 20] });
   expect([...reached.ordinary].sort()).toEqual([...promotions].sort());
   expect([...reached.gradual].sort()).toEqual([...promotions].sort());
 });
