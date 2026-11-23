@@ -29,3 +29,18 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T03:37:23-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Demo PR #59 scratch composition: Git archive of 1294427b54ff39861a39c15e2e901f31328e85e1
+    plus the full-gate patch 984381388626f49cbfd7abac5db5124eed7de11a, run on the
+    workstation under Linux sandbox via nix develop --command bazel test --nocache_test_results
+    //:extension_test --test_output=all. Reproduce by applying git diff 984381388^
+    984381388 to the archive. Initial run: 438/440. runtime.test.js expected y and
+    got undefined; a late content.js flush read document.title after teardown during
+    update-gate.test.js. Unchanged retry: 439/440, the panel colours light/dark/forced-colours
+    case timed out after 5000 ms. All welcome cases passed both runs. No further local
+    broad run is active. Private logs: /home/tedks/.local/state/lang-weave/nov23/demo-evidence.0TtYXZ/full-gate.log
+    and /home/tedks/.local/state/lang-weave/nov23/demo-evidence.0TtYXZ/full-gate-retry.log.
+    Prior demo head 581e9d4ee8de0c6cb3d7e9c6fc48aac02bc7d11c + same gate patch passed
+    439/439; log /home/tedks/.local/state/lang-weave/nov23/demo-evidence.UvKTBv/full-gate.log.'
