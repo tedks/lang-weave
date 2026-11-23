@@ -1,0 +1,25 @@
+id: guarani-prose-vocabulary
+title: "Add Guaran\xED words for everyday reading in prose"
+desc: "Select a small sourced addition to the bundled Paraguayan Guaran\xED starter
+  for recurring concrete nouns in English reading. In a private 300-passage comparison
+  across three novels, six prospective Beginner headwords increased the number of
+  paragraphs with an available local practice choice from 64 to 104. This is corpus
+  coverage only. Candidates are \xE1ra (day), pyhare (night), ok\u1EBD (door), tape
+  (road), ita (stone) and tata (fire). Check the dictionary form, meaning and accents
+  against Proyecto Montoya and the Academy where present, write independent sense
+  qualifiers, retain all 22 shipped rows and the existing scope, and verify real offline
+  paragraph selection, card review and backup restore boundaries. No raw book excerpts
+  in the repository."
+type: feature
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T05:55:15-00:00
+references: []
+log_events:
+- time: 2026-11-23T05:55:15-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
