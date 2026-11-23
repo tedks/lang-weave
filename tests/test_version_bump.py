@@ -75,7 +75,7 @@ class VersionBump(unittest.TestCase):
 
     def test_root_module_must_match_the_selected_snapshot(self):
         self.write('MODULE.bazel', """# module(name="lang_weave", version="0.2.0")
-module(
+declaration = module(
     version = '0.1.9',
     name = "lang_weave",
 )
@@ -97,6 +97,9 @@ bazel_dep(name="dependency", version="0.2.0")
         self.assertIn('Version check passed: 0.2.0', accepted.stdout)
 
     def test_missing_and_unrelated_root_modules_keep_prior_version_checks(self):
+        self.write('MODULE.bazel', 'module(version="4.3.2")\n')
+        self.assertEqual(self.problems(), [])
+        self.assertNotIn('MODULE.bazel', cvb.versions(self.repo))
         self.write('MODULE.bazel', 'module(name="other", version="4.3.2")\n'
                    'bazel_dep(name="lang_weave", version="1.2.3")\n')
         self.assertEqual(self.problems(), [])

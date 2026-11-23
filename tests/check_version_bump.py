@@ -81,13 +81,12 @@ def module_version(repo, ref=None):
     # The declaration uses Python-compatible call and string literal syntax.
     # Parse it without evaluating any of the candidate's Bazel code.
     try:
-        statements = ast.parse(source, filename=MODULE).body
+        tree = ast.parse(source, filename=MODULE)
     except SyntaxError as error:
         raise ValueError(f'{MODULE}:{error.lineno}: {error.msg}') from error
     declarations = [
-        stmt.value for stmt in statements
-        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
-        and isinstance(stmt.value.func, ast.Name) and stmt.value.func.id == 'module'
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'module'
     ]
     if not declarations:
         return None
@@ -99,6 +98,7 @@ def module_version(repo, ref=None):
     fields = {keyword.arg: keyword.value for keyword in declaration.keywords}
     name = fields.get('name')
     if name is None:
+        # An anonymous root carries no Lang Weave module metadata.
         return None
     if not isinstance(name, ast.Constant) or not isinstance(name.value, str):
         raise ValueError(f'{MODULE} module name must be a string literal')
