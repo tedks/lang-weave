@@ -61,3 +61,12 @@ log_events:
     growth. Recorded concrete residuals in spanish-compound-ambiguity. Gate receipts
     and measured scope are in https://github.com/tedks/lang-weave/pull/86#issuecomment-7095950493.
     Leave this issue in progress until integration is verified.'
+- time: 2026-11-23T09:01:01-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Final README-reconciled #86 head c2004ef491e3639aeb916f33b3d535879717fd42
+    includes main a2b32da936b864a6d5f112bc0be3afe9d4870a4b. All six exact strict Bazel
+    gates, installed Chrome 155, and version check passed. Fresh Sol/Opus clean and
+    Google quota-limited. ZIP SHA-256 ca7ecf7df16e765883fdf453aca244f7c861a91a3c7a4ebe55a52daf61d612bc.
+    Final acceptance evidence https://github.com/tedks/lang-weave/pull/86#issuecomment-7096094290.
+    Waiting for the CTO to integrate.'
