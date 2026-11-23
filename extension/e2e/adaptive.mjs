@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-adaptive-'));
 const extension = extensionRoot;
@@ -15,7 +15,7 @@ try {
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
       await new Promise((done) => setTimeout(done, 10));

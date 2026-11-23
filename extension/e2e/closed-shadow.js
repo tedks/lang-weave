@@ -36,7 +36,7 @@ export async function closedShadow(page, hostClass) {
     } catch (error) {
       // A reload can invalidate IDs between the snapshot and text lookup.
       // The waiting caller takes another fresh snapshot on its next poll.
-      if (/No node with given id found/.test(String(error))) return [];
+      if (/No node with given id found|Could not find node with given id/.test(String(error))) return [];
       throw error;
     }
   };

@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-quota-'));
 const extension = extensionRoot;
@@ -47,7 +47,7 @@ try {
 
   browser = await launch();
   await route(browser);
-  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  let worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     globalThis.syntheticCalls = 0;
@@ -104,7 +104,7 @@ try {
   // Its synthetic fetch disappears; a bad replay can reach only the owned sink.
   browser = await launch();
   await route(browser);
-  worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  worker = await waitForExtensionWorker(browser);
   assert.equal(await worker.evaluate(() => 'syntheticCalls' in globalThis), false);
   // In an unpacked profile Chrome may recreate dynamic registrations after
   // worker wake. A routed reply must wait for that restoration.

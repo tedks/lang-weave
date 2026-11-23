@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 import { closedShadow } from './closed-shadow.js';
 
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-again-'));
@@ -17,7 +17,7 @@ try {
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     globalThis.virtualNow = Date.now();

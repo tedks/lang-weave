@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const longEntry = {
@@ -41,7 +41,7 @@ try {
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND, MAP probe.weave.test 127.0.0.1',
       `--proxy-server=127.0.0.1:${proxyPort}`],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async (longEntry) => {
     globalThis.glossCalls = [];

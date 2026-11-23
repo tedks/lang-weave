@@ -160,8 +160,8 @@ bazel_dep(name="dependency", version="0.2.0")
         for path in ('README.md', 'tests/test_x.py', '.github/workflows/test.yml', 'extension/test/a.test.js',
                      'extension/src/BUILD.bazel', 'extension/scripts/BUILD',
                      'extension/e2e/smoke.mjs', 'extension/e2e/gradual.mjs', 'extension/e2e/again.mjs',
-                     'extension/e2e/adaptive.mjs',
-                     'extension/e2e/highlights.mjs', 'extension/e2e/welcome.mjs',
+                     'extension/e2e/adaptive.mjs', 'extension/e2e/closed-shadow.js',
+                     'extension/e2e/highlights.mjs', 'extension/e2e/welcome.mjs', 'extension/e2e/words.mjs',
                      'extension/bun.lock',
                      'blocks/level-01.md'):
             self.write(path, 'changed\n')

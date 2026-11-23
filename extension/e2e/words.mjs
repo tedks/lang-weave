@@ -5,11 +5,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-
-const { chromium } = await import(process.env.LANG_WEAVE_PLAYWRIGHT
-  ? pathToFileURL(process.env.LANG_WEAVE_PLAYWRIGHT).href
-  : 'playwright');
+import { fileURLToPath } from 'node:url';
+import { chromium, chromiumBinary, markExtensionWorkerForRestart, waitForExtensionWorker } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-words-'));
@@ -23,17 +20,17 @@ try {
     await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true });
     await writeFile(join(extension, 'manifest.json'), await readFile(join(root, 'manifest.json')));
   }
-  const executablePath = process.env.LANG_WEAVE_CHROMIUM;
   const shortcutTool = process.env.LANG_WEAVE_REVIEW_XDOTOOL;
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    ...(executablePath ? { executablePath } : { channel: 'chromium' }), headless: !shortcutTool, locale: 'en-US',
+    ...chromiumBinary, headless: !shortcutTool, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP * ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
   const extensionId = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
-  const isReviewWorker = (candidate) => candidate.url() === `chrome-extension://${extensionId}/src/background.js`;
-  let worker = browser.serviceWorkers().find(isReviewWorker) || await browser.waitForEvent('serviceworker', isReviewWorker);
+  let worker = await waitForExtensionWorker(browser, {
+    url: `chrome-extension://${extensionId}/src/background.js`,
+  });
   assert.equal(await worker.evaluate(() => chrome.runtime.id), extensionId);
   const url = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
   const send = (page, message) => page.evaluate((m) => chrome.runtime.sendMessage(m), message);
@@ -99,8 +96,7 @@ try {
   const { targetInfos } = await cdp.send('Target.getTargets');
   const initialWorker = targetInfos.find((target) => target.type === 'service_worker' && target.url === worker.url());
   assert.ok(initialWorker);
-  const oldWorker = worker;
-  await worker.evaluate(() => { globalThis.reviewWarmWorker = true; });
+  const previous = await markExtensionWorkerForRestart(worker);
   await cdp.send('Target.closeTarget', { targetId: initialWorker.targetId });
   await until(() => cdp.send('Target.getTargets'), ({ targetInfos }) =>
     targetInfos.every((target) => target.targetId !== initialWorker.targetId), 'the old review worker to stop');
@@ -108,10 +104,9 @@ try {
   await until(async () => {
     assert.equal(await popup.locator('#notice').textContent(), '');
     return (await cdp.send('Target.getTargets')).targetInfos;
-  }, (targets) => targets.some((target) => target.type === 'service_worker' && target.url === oldWorker.url()),
+  }, (targets) => targets.some((target) => target.type === 'service_worker' && target.url === previous.url),
   'the popup to wake the review worker');
-  worker = browser.serviceWorkers().find((candidate) => candidate.url() === oldWorker.url()) || oldWorker;
-  assert.equal(await worker.evaluate(() => globalThis.reviewWarmWorker), undefined);
+  worker = await waitForExtensionWorker(browser, previous);
   await waitForReview();
   assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
   assert.equal(await prompt.textContent(), ratedGloss);
