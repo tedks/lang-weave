@@ -184,6 +184,7 @@ export function possibleSpanishPromptWords(level, words, batch) {
 export function validateSwaps(level, swaps, sharedWords, language = 'es', { text = '' } = {}) {
   if (!Array.isArray(swaps)) return [];
   const idx = indexFor(level, sharedWords, language);
+  const sourceOptions = { beginnerSpanish: language === 'es' && level <= 1 };
   const out = [];
   for (const s of swaps) {
     if (!s || typeof s.o !== 'string' || typeof s.f !== 'string') continue;
@@ -206,7 +207,7 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     const ctx = typeof s.ctx === 'string' ? s.ctx.trim() : '';
     if (text) {
       const at = locate({ text }, o, ctx);
-      if (!at || sourceIssue(text, at.start, at.end, o)) continue;
+      if (!at || sourceIssue(text, at.start, at.end, o, sourceOptions)) continue;
     }
     out.push({
       o,

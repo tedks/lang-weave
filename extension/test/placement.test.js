@@ -40,9 +40,9 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
   const legacyCard = { due: 1, interval: 1, reviews: 3, seenDay: '2026-01-01', seenCount: 2 };
   const storage = { settings: { language: 'es', levelOverride: 0, gradual: true, newWordsPerDay: 1, inlineRecall: true },
     recallReview: { version: 1, cards: {
-      'la puerta': legacyCard, 'la pregunta': { due: 2, interval: 1, reviews: 3 },
+      'la cocina': legacyCard, 'la pregunta': { due: 2, interval: 1, reviews: 3 },
     }, learning: { day: '', count: 0 } }, consentShown: true,
-    readingEvents: [{ day: '2026-01-01', word: 'la puerta', kind: 'seen' }] };
+    readingEvents: [{ day: '2026-01-01', word: 'la cocina', kind: 'seen' }] };
   const listeners = [];
   const on = (list = []) => ({ addListener: (fn) => list.push(fn) });
   const id = 'fw-placement';
@@ -101,8 +101,8 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
       const swaps = [];
       if (prompt.includes('a veces = sometimes') && text.startsWith('We sometimes catch'))
         swaps.push({ o: 'sometimes', f: 'a veces', ctx: 'We sometimes catch' });
-      if (prompt.includes('la puerta = the door') && text.startsWith('The door looks'))
-        swaps.push({ o: 'The door', f: 'la puerta', ctx: 'The door looks' });
+      if (prompt.includes('la cocina = the kitchen') && text.startsWith('The kitchen looks'))
+        swaps.push({ o: 'The kitchen', f: 'la cocina', ctx: 'The kitchen looks' });
       if (text === everyday.heldOut.home[0])
         swaps.push({ o: 'the window', f: 'la ventana', ctx: 'crossed the window' });
       if (text === everyday.contrasts[0].text)
@@ -164,9 +164,9 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect((await config()).revision).toBe(expanded.revision);
     expect(await send({ type: 'introAck', word: swap.word, ticket: swap.introTicket, revision: expanded.revision }))
       .toEqual({ ok: true });
-    const doorText = 'The door looks lovely after a gentle snowfall.';
+    const kitchenText = 'The kitchen looks lovely after a gentle snowfall.';
     const heldOld = holdNextResponse();
-    const oldRequest = ask(expanded.revision, doorText);
+    const oldRequest = ask(expanded.revision, kitchenText);
     await heldOld.requestStarted;
     const afterReading = structuredClone(storage.recallReview);
     const beforeRevision = await preview();
@@ -176,20 +176,20 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     const beginner = await config();
     expect(beginner.level).toBe(1);
     expect(storage.recallReview).toEqual(afterReading);
-    expect(storage.recallReview.cards['la puerta']).toEqual(legacyCard);
+    expect(storage.recallReview.cards['la cocina']).toEqual(legacyCard);
     expect(storage.recallReview.learning.count).toBe(1);
-    expect((await send({ type: 'reviewNext' }, 'review')).card.en).toBe('the door');
+    expect((await send({ type: 'reviewNext' }, 'review')).card.en).toBe('the kitchen');
     await send({ type: 'save', settings: { newWordsPerDay: 2 } }, 'options');
     const revised = await config();
-    expect(Object.values((await ask(revised.revision, 'That documentary explores the world beyond our doorstep.')).results))
+    expect(Object.values((await ask(revised.revision, 'That documentary explores the world alongside our kitchenette.')).results))
       .toEqual([[]]);
     expect(requests).toHaveLength(2);
-    const doorResult = await ask(revised.revision, doorText);
-    expect(Object.values(doorResult.results).flat()).toMatchObject([{ word: 'la puerta', status: 'due' }]);
-    const dueDoor = { ...L2_EXTRA.find(({ fr }) => fr === 'la puerta'), status: 'due' };
+    const kitchenResult = await ask(revised.revision, kitchenText);
+    expect(Object.values(kitchenResult.results).flat()).toMatchObject([{ word: 'la cocina', status: 'due' }]);
+    const dueKitchen = { ...L2_EXTRA.find(({ fr }) => fr === 'la cocina'), status: 'due' };
     expect(requests.at(-1)).toEqual(buildRequest({
-      system: buildSystemPrompt(1, [dueDoor], [], 'es', 'normal', 1),
-      user: buildUserContent([{ id: `${revised.revision}:${hashKey(doorText)}`, text: doorText }]),
+      system: buildSystemPrompt(1, [dueKitchen], [], 'es', 'normal', 1),
+      user: buildUserContent([{ id: `${revised.revision}:${hashKey(kitchenText)}`, text: kitchenText }]),
       schema: RESPONSE_SCHEMA,
     }));
     const repeated = await ask(revised.revision, 'We sometimes catch up by writing friendly letters.');
@@ -203,16 +203,16 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
 
     const cue = await send({ type: 'inlineBegin', word: 'la pregunta', revision: revised.revision });
     expect(typeof cue.ticket).toBe('string');
-    const heldDoor = holdNextResponse();
-    const pendingDoor = ask(revised.revision, 'The door looks bright after a long winter.');
-    await heldDoor.requestStarted;
-    expect(await send({ type: 'wordReset', id: 'la puerta', scope: 'es', confirm: true,
+    const heldKitchen = holdNextResponse();
+    const pendingKitchen = ask(revised.revision, 'The kitchen looks bright after a long winter.');
+    await heldKitchen.requestStarted;
+    expect(await send({ type: 'wordReset', id: 'la cocina', scope: 'es', confirm: true,
       version: { due: 1, reviews: 3, familiar: false, claimAt: null, claimDue: null } }, 'words')).toEqual({ ok: true });
-    heldDoor.release();
-    expect(await pendingDoor).toMatchObject({ stale: true });
+    heldKitchen.release();
+    expect(await pendingKitchen).toMatchObject({ stale: true });
     expect((await config()).revision).toBe(revised.revision);
     const requestsAfterReset = requests.length;
-    expect(Object.values((await ask(revised.revision, doorText)).results)).toEqual([[]]);
+    expect(Object.values((await ask(revised.revision, kitchenText)).results)).toEqual([[]]);
     expect(requests).toHaveLength(requestsAfterReset);
     expect(await send({ type: 'inlineReveal', ticket: cue.ticket, revision: revised.revision }))
       .toMatchObject({ answer: { fr: 'la pregunta' } });
@@ -239,7 +239,7 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect(storage.recallReview).toEqual(beforeClear);
     expect((await send({ type: 'wordsList' }, 'words')).rows.find(({ id }) => id === 'a veces'))
       .toMatchObject({ practise: true });
-    expect(storage.readingEvents).toEqual([{ day: '2026-01-01', word: 'la puerta', kind: 'seen' }]);
+    expect(storage.readingEvents).toEqual([{ day: '2026-01-01', word: 'la cocina', kind: 'seen' }]);
 
     await send({ type: 'save', settings: { gradual: false } }, 'options');
     const ordinary = await config();
@@ -263,6 +263,20 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect((await send({ type: 'wordsList' }, 'words')).rows.find(({ id }) => id === 'la ventana'))
       .toMatchObject({ reviews: 6, practise: true });
     expect(storage.recallReview.cards['la ventana']).toEqual(savedWindow);
+
+    await send({ type: 'save', settings: { gradual: true, newWordsPerDay: 5 } }, 'options');
+    expect(await apply(2, await preview())).toMatchObject({ ok: true, choice: 2 });
+    const placed = await config();
+    const beforeExpandedRequest = requests.length;
+    await ask(placed.revision, 'The door swung toward the restaurant three times.');
+    expect(requests).toHaveLength(beforeExpandedRequest + 1);
+    const placementPrompt = promptAt(-1);
+    expect(placementPrompt).toContain('la puerta = the door');
+    expect(placementPrompt).toContain('el restaurante = the restaurant');
+    // Explicit Expanded keeps the door's original band 2 above a band 3 noun.
+    // Giving it the new Beginner band 0 would move it behind Expanded words.
+    expect(placementPrompt.indexOf('la puerta = the door'))
+      .toBeLessThan(placementPrompt.indexOf('el restaurante = the restaurant'));
   } finally {
     Object.assign(globalThis, original);
   }

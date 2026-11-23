@@ -21,6 +21,6 @@ export function placementSamples(beginner = L1_WORDS, expanded = L2_EXTRA) {
   const basics = new Set(beginner.map(({ fr }) => fr));
   return [
     sample(beginner, ['sin', 'siempre', 'la respuesta', 'nunca']),
-    sample(expanded.filter(({ fr }) => !basics.has(fr)), ['todavía', 'la puerta', 'a menudo', 'la mochila']),
+    sample(expanded.filter(({ fr }) => !basics.has(fr)), ['todavía', 'la cocina', 'a menudo', 'la mochila']),
   ];
 }

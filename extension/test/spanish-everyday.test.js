@@ -43,7 +43,8 @@ test('all seven promotions were reachable in the Expanded discovery pool', () =>
 });
 
 test('all seven promotions are reachable on held-out Beginner reading in both modes', () => {
-  const words = wordsForLevel(1);
+  // Keep the comparison pinned to the Beginner catalog from this batch.
+  const words = wordsForLevel(1).slice(0, FORMER_BEGINNER_SIZE + heldOutSwaps.length);
   const before = words.slice(0, FORMER_BEGINNER_SIZE);
   const now = Date.parse('2026-11-23T12:00:00Z'), day = '2026-11-23';
   const reached = { ordinary: new Set(), gradual: new Set() };

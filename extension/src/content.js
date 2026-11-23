@@ -649,7 +649,8 @@ function paint(el, key, placedTickets = new Set()) {
   if (!on() || keys.get(el) !== key || !readable(el, location.href)) return;
   const swaps = memo.get(key);
   if (!swaps?.length || busy(el, 'paints')) return;
-  applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); }, config.language);
+  applySwaps(el, swaps, (_span, swap) => { if (swap.introTicket) placedTickets.add(swap.introTicket); },
+    config.language, config.level);
   for (const span of el.querySelectorAll(`.${SWAP_CLASS}`)) if (isSwap(span)) visible.observe(span);
   updatePracticeCues();
   observer?.takeRecords();

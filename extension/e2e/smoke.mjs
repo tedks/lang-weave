@@ -153,7 +153,7 @@ try {
   await options.waitForLoadState();
   await options.waitForFunction((version) => document.querySelector('#version')?.textContent === version, manifest.version);
   assert.equal(await options.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
-  assert.equal(await options.locator('#wordInfo').textContent(), '44 Spanish words');
+  assert.equal(await options.locator('#wordInfo').textContent(), '48 Spanish words');
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
   assert.equal(new URL(words.url()).pathname, '/src/words.html');
@@ -165,7 +165,7 @@ try {
   assert.equal(await popup.locator('#primary').textContent(), 'Add words');
   const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#primary').click()]);
   await review.waitForLoadState();
-  await review.locator('#counts').getByText('0 due · 44 available to add').waitFor();
+  await review.locator('#counts').getByText('0 due · 48 available to add').waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
   await review.locator('#introduce').click();
   await review.locator('#prompt').getByText('and').waitFor();

@@ -28,4 +28,5 @@ if [[ -n "${3:-}" ]]; then
     exec "$bun_path" "${runfiles_root}/$3"
 fi
 "$bun_path" "${runfiles_root}/extension/e2e/welcome.mjs"
+"$bun_path" "${runfiles_root}/extension/e2e/spanish-prose.mjs"
 exec "$bun_path" "${runfiles_root}/extension/e2e/words.mjs"
