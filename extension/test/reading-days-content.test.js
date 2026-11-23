@@ -14,7 +14,7 @@ test('visible target faces count once per local day, including a page left open 
     static now() { return now; }
   }
   let tick, observeVisibility;
-  let state = 'visible', cssVisible = true;
+  let state = 'visible', cssVisible = true, acceptSeen = true;
   Object.defineProperty(win.document, 'visibilityState', { get: () => state });
   const seen = [];
   const config = { settings: { enabled: true, newSitesEnabled: true, siteOverrides: {}, gradual: false },
@@ -41,6 +41,7 @@ test('visible target faces count once per local day, including a page left open 
       if (msg.type === 'event' && msg.event === 'seen') {
         expect(msg.day).toBe(localDay());
         seen.push(msg.day);
+        return { ok: acceptSeen };
       }
       return { ok: true };
     } } },
@@ -82,6 +83,15 @@ test('visible target faces count once per local day, including a page left open 
     now = new RealDate(2026, 9, 20, 12).getTime();
     tick(); tick(); // The worker can retain this observed day again even if the old date aged out.
     expect(seen).toEqual(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-20']);
+
+    now = new RealDate(2026, 9, 23, 12).getTime();
+    cssVisible = false; tick();
+    expect(seen).toHaveLength(4);
+    acceptSeen = false;
+    cssVisible = true; tick();
+    expect(seen.at(-1)).toBe('2026-10-23');
+    for (let i = 0; i < 20; i++) { await Promise.resolve(); tick(); }
+    expect(seen).toHaveLength(5); // A rejection returns to the normal event-driven retry path.
   } finally {
     win.happyDOM.cancelAsync();
     Object.assign(globalThis, previous);

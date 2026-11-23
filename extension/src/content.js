@@ -26,6 +26,7 @@ const pending = new Map();
 const inflight = new Set();
 const tracked = new Set();
 const visibleWords = new Set();
+const deferredSightings = new Set(); // intersecting swaps still hidden by CSS
 const introInflight = new Set();
 let introRetries = new WeakMap(); // an expired visible reservation gets a bounded fresh attempt
 const introErrors = new Map();
@@ -91,6 +92,7 @@ const swapFor = (e) => {
 };
 
 function record(span, event) {
+  if (event === 'seen') deferredSightings.delete(span);
   const word = swapWord(span);
   if (!word || !on()) return;
   const revision = config.revision;
@@ -100,8 +102,14 @@ function record(span, event) {
   const id = revision + ':' + event + ':' + word;
   const daily = event === 'seen' || event === 'peek';
   if (daily && events.has(id)) return;
-  if (event === 'seen' && (document.visibilityState === 'hidden' || !span.isConnected || !visibleWords.has(span) ||
-      span.classList.contains('fw-en') || span.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false)) return;
+  if (event === 'seen') {
+    if (document.visibilityState === 'hidden' || !span.isConnected || !visibleWords.has(span) ||
+        span.classList.contains('fw-en')) return;
+    if (span.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) {
+      deferredSightings.add(span);
+      return;
+    }
+  }
   if (daily) events.add(id);
   void send({ type: 'event', word, event, revision, ...(event === 'seen' ? { day: today } : {}) }).then((r) => {
     if (!r?.ok && daily) events.delete(id);
@@ -753,7 +761,9 @@ function mutations(records) {
   }
   observer?.takeRecords();
   for (const el of tracked) if (!el.isConnected) { tracked.delete(el); near.unobserve(el); }
-  for (const span of visibleWords) if (!span.isConnected) { visibleWords.delete(span); visible.unobserve(span); }
+  for (const span of visibleWords) if (!span.isConnected) {
+    visibleWords.delete(span); deferredSightings.delete(span); visible.unobserve(span);
+  }
   pruneDescriptions();
   observer?.takeRecords();
   queuePracticeCues();
@@ -763,7 +773,7 @@ function start() {
   visible = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (e.isIntersecting && e.intersectionRatio >= 0.5) visibleWords.add(e.target);
-      else visibleWords.delete(e.target);
+      else { visibleWords.delete(e.target); deferredSightings.delete(e.target); }
     }
     seenVisible();
   }, { threshold: [0, 0.5] });
@@ -798,7 +808,7 @@ function stop() {
   churn = new WeakMap();
   introRetries = new WeakMap();
   for (const el of tracked) { revert(el); keys.delete(el); }
-  tracked.clear(); visibleWords.clear();
+  tracked.clear(); visibleWords.clear(); deferredSightings.clear();
 }
 function update(next, retry = false) {
   if (!next?.settings || !next.revision) return;
@@ -891,10 +901,12 @@ const navTimer = setInterval(() => {
     page = location.href;
     titleSensitive = sensitive;
     if (config) update(config, true);
-  } else {
-    // Geometry can stay fixed while a word fades in. Recheck settled swaps without changing
-    // introduction acknowledgement or retry timing.
+  } else if (day !== today) {
     seenVisible({ acknowledge: false });
+  } else if (document.visibilityState !== 'hidden') {
+    // Geometry can stay fixed while a word fades in. Recheck only CSS-hidden swaps, so
+    // a rejected worker message cannot start a timer-driven retry loop.
+    for (const span of [...deferredSightings]) record(span, 'seen');
   }
   day = today;
 }, 1000);
