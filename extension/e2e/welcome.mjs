@@ -286,7 +286,7 @@ try {
   await heldOpening.release();
   assert.equal(await placement.evaluate((panel) => panel.open), false);
   assert.equal(await placement.locator('[data-placement-score]').getAttribute('hidden'), '');
-  assert.equal(await placement.locator('fieldset').isDisabled(), true);
+  assert.equal(await placement.locator('fieldset').evaluate((fieldset) => fieldset.disabled), true);
 
   await placementTrigger.focus();
   await placementTrigger.press('Enter');
@@ -329,6 +329,7 @@ try {
     page.locator('#openSettings').click(),
   ]);
   const otherPlacement = otherSettings.locator('#placement');
+  await otherPlacement.waitFor({ state: 'visible' });
   await otherPlacement.locator(':scope > summary').press('Enter');
   const otherChoice = otherPlacement.getByRole('combobox', { name: 'Spanish starting point' });
   const otherSave = otherPlacement.getByRole('button', { name: 'Save starting point' });
@@ -337,6 +338,9 @@ try {
   const waitForChoice = (surface, value) => surface.locator(`#placementChoice option[value="${value}"]:checked`)
     .waitFor({ state: 'attached' });
 
+  await score.fill('30');
+  await score.press('Enter');
+  await score.fill('160');
   await startingPoint.focus();
   await otherChoice.selectOption('2');
   await otherSave.click();
@@ -344,12 +348,24 @@ try {
   assert.equal((await stored()).spanishPlacement, 2);
   await waitForChoice(page, 2);
   assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
+  assert.equal(await score.inputValue(), '160');
+  assert.equal(await placement.getByRole('heading').first().textContent(), 'Expanded');
+
+  const heldPassive = await holdPlacementResponse(page, false);
+  await otherChoice.selectOption('0');
+  await otherSave.click();
+  await heldPassive.wait();
+  await otherChoice.selectOption('1');
+  await otherSave.click();
+  await waitForChoice(page, 1);
+  await heldPassive.release();
+  assert.equal(await startingPoint.inputValue(), '1', 'a late read cannot replace a newer saved choice');
 
   const heldSave = await holdPlacementResponse(page, true);
-  await startingPoint.selectOption('1');
+  await startingPoint.selectOption('2');
   await saveStartingPoint.press('Space');
   await heldSave.wait();
-  await waitForChoice(otherSettings, 1);
+  await waitForChoice(otherSettings, 2);
   await otherChoice.selectOption('0');
   await otherSave.click();
   await otherPlacement.getByText(savedText, { exact: true }).waitFor();
