@@ -2,7 +2,8 @@
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
 import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
-  finishIntroduction, pruneDescriptions, restoreDescriptions, revealGuessMeaning, isGuessPending, SWAP_CLASS } from './text.js';
+  finishIntroduction, pruneDescriptions, restoreDescriptions, revealGuessMeaning, isGuessPending, hasUnownedSwaps,
+  decorateSwap, isIntactSwap, retireSwaps, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -59,19 +60,17 @@ let guessHostCount = 0;
 let guessQuiet = null; // a word just dismissed: no tip or panel until the pointer or focus leaves it
 const plainToday = new Set(); // revision:day:word that the worker answered with the plain gloss
 const GUESS_EDITABLE = 'form, input, textarea, select, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]';
-// After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
-// no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
+// Chrome gives an upgraded extension a new isolated world. This world alone
+// can restore its unchanged swaps, even if Chrome invalidated it without notice.
 let orphaned = false;
+let reloadHold = null;
 const alive = () => { try { return !orphaned && !!chrome.runtime?.id; } catch { return false; } };
 function orphan() {
   if (orphaned) return;
   orphaned = true;
-  generation++;
-  observer?.disconnect(); observer = null;
-  near?.disconnect(); visible?.disconnect();
-  clearTimeout(timer); timer = null; clearInterval(navTimer); hideTip();
-  closeCue(); closeGuess();
-  pending.clear(); inflight.clear();
+  clearTimeout(reloadHold);
+  clearInterval(navTimer);
+  stop({ retiring: true });
 }
 const send = (msg) => {
   if (!alive()) { orphan(); return Promise.reject(new Error('Lang Weave was reloaded')); }
@@ -82,7 +81,8 @@ const send = (msg) => {
     return Promise.reject(e);
   }
 };
-const on = () => !orphaned && window.top === window && config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
+const on = () => !orphaned && window.top === window && reloadHold === null && alive() &&
+  config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
   siteEnabled(config.settings, location.href) && hasSiteAccess(location.href, config.origins);
 const targets = () => selector(location.href);
 // Only real user input on spans this extension made; pages can't forge flips, peeks or seen events.
@@ -94,7 +94,7 @@ const swapFor = (e) => {
 function record(span, event) {
   if (event === 'seen') deferredSightings.delete(span);
   const word = swapWord(span);
-  if (!word || !on()) return;
+  if (!word || !on() || !isIntactSwap(span)) return;
   const revision = config.revision;
   const today = localDay();
   if (seen.day !== today) seen = { day: today, events: new Set() };
@@ -144,7 +144,7 @@ export function placeTip(span, box) {
 // The gloss appears only after a short dwell; reaching it counts as a peek (the reader needed the meaning).
 function hideTip(keepFocus = false) {
   clearTimeout(tipTimer); tipTimer = null;
-  tipTarget?.classList.remove('fw-tip');
+  if (tipTarget) decorateSwap(tipTarget, () => tipTarget.classList.remove('fw-tip'));
   tipTarget = null;
   tipHovered = false;
   tipFocused = false;
@@ -235,7 +235,8 @@ async function openCue(span) {
   document.documentElement.append(shell.host); cue = panel; cueHost = shell.host;
   button(actions, t('recall_dismiss'), () => closeCue(span));
   placeTip(span, shell.host);
-  const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
+  const liveCue = () => gen === generation && cue === panel && on() &&
+    span.isConnected && isPractice(span) && isIntactSwap(span);
   let ticket;
   let answer;
   try {
@@ -306,7 +307,7 @@ async function openCue(span) {
   revealButton.focus();
 }
 function tipEligible(span) {
-  return span?.isConnected && isSwap(span) && on() && alive() && !isPractice(span) &&
+  return span?.isConnected && isIntactSwap(span) && on() && !isPractice(span) &&
     !introductionTicket(span) && !span.classList.contains('fw-en') && !!span.getAttribute('data-tip');
 }
 function startTip(span, peek, delay = TIP_DELAY_MS) {
@@ -324,7 +325,7 @@ function startTip(span, peek, delay = TIP_DELAY_MS) {
 function showPlainTip(span, peek) {
   revealGuessMeaning(span);
   if (!showTip(span)) { hideTip(); return; }
-  span.classList.add('fw-tip');
+  decorateSwap(span, () => span.classList.add('fw-tip'));
   if (peek && tipHovered) record(span, 'peek'); // focus alone never counts
 }
 
@@ -357,7 +358,7 @@ async function beginGuess(span, peek, gen) {
 }
 function guessAlive(state) {
   const { span } = state;
-  return state.gen === generation && state.host?.isConnected !== false && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
+  return state.gen === generation && state.host?.isConnected !== false && span.isConnected && on() && isIntactSwap(span) && !isPractice(span) &&
     !introductionTicket(span) && !span.classList.contains('fw-en') && guessMode() && guessPlace(span);
 }
 function closeGuess(focusWord = false) {
@@ -365,8 +366,10 @@ function closeGuess(focusWord = false) {
   const { host, root, span } = guess;
   const returnFocus = focusWord && (root.activeElement || document.activeElement === span);
   guess = null;
-  span.removeAttribute('aria-controls');
-  span.removeAttribute('aria-expanded');
+  decorateSwap(span, () => {
+    span.removeAttribute('aria-controls');
+    span.removeAttribute('aria-expanded');
+  });
   host.remove();
   if (returnFocus && span.isConnected) { guessQuiet = span; span.focus(); }
 }
@@ -424,8 +427,10 @@ function openGuess(span, ticket, choices) {
   shell.root.addEventListener('keydown', guessKey, true);
   shell.root.addEventListener('focusout', guessFocusOut, true);
   shell.host.id = `fw-guess-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}-${++guessHostCount}`;
-  span.setAttribute('aria-controls', shell.host.id);
-  span.setAttribute('aria-expanded', 'true');
+  if (!decorateSwap(span, () => {
+    span.setAttribute('aria-controls', shell.host.id);
+    span.setAttribute('aria-expanded', 'true');
+  })) return;
   document.documentElement.append(shell.host);
   guess = state;
   placeTip(span, shell.host);
@@ -572,7 +577,7 @@ export function disarmTip(e) {
 }
 function introSpans(ticket) {
   return [...document.querySelectorAll(`span.${SWAP_CLASS}`)]
-    .filter((span) => isSwap(span) && introductionTicket(span) === ticket);
+    .filter((span) => introductionTicket(span) === ticket && isIntactSwap(span));
 }
 function abandonIntro(ticket, word, revision) {
   for (const span of introSpans(ticket)) {
@@ -594,7 +599,7 @@ function retryIntro(ticket, word, revision, gen) {
 function seenVisible({ acknowledge = true } = {}) {
   if (document.visibilityState === 'hidden') return;
   for (const span of visibleWords) {
-    if (!span.isConnected || isPractice(span)) continue;
+    if (!span.isConnected || isPractice(span) || !isIntactSwap(span)) continue;
     const ticket = introductionTicket(span);
     if (ticket) {
       if (!acknowledge) continue;
@@ -784,8 +789,10 @@ function start() {
   observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   track(document.documentElement);
 }
-function stop() {
-  if (config?.settings.gradual && alive()) {
+function stop({ retiring = false } = {}) {
+  // The update handshake runs under the worker's write lock. An unacknowledged
+  // reservation never consumes a saved introduction and expires on its own.
+  if (!retiring && config?.settings.gradual && alive()) {
     const tickets = new Map();
     for (const root of tracked) for (const span of root.querySelectorAll(`span.${SWAP_CLASS}`)) {
       const ticket = introductionTicket(span);
@@ -807,11 +814,15 @@ function stop() {
   closeCue();
   churn = new WeakMap();
   introRetries = new WeakMap();
-  for (const el of tracked) { revert(el); keys.delete(el); }
+  if (retiring) retireSwaps(document);
+  for (const el of tracked) {
+    if (!retiring) revert(el);
+    keys.delete(el);
+  }
   tracked.clear(); visibleWords.clear(); deferredSightings.clear();
 }
 function update(next, retry = false) {
-  if (!next?.settings || !next.revision) return;
+  if (reloadHold !== null || !next?.settings || !next.revision) return;
   if (!retry && next.revision === config?.revision) {
     // Guess first is outside the revision (it changes no swap): take it without repainting.
     if (config && (next.settings.guessFirst === true) !== (config.settings.guessFirst === true)) {
@@ -828,14 +839,14 @@ function update(next, retry = false) {
 function reveal(e) {
   if (!e.isTrusted) return;
   const span = swapFor(e);
-  if (!span || !on() || introductionTicket(span)) return;
+  if (!span || !on() || !isIntactSwap(span) || introductionTicket(span)) return;
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   if (isPractice(span) && !isPracticeCue(span)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip(); closeGuess();
   if (isPractice(span)) { void openCue(span); return; }
-  if (toggle(span, languageName(config.language))) record(span, 'flip');
-  else record(span, 'seen');
+  const english = toggle(span, languageName(config.language));
+  if (english !== null) record(span, english ? 'flip' : 'seen');
   observer?.takeRecords();
 }
 chrome.runtime.onMessage.addListener((msg) => {
@@ -851,6 +862,25 @@ document.addEventListener('contextmenu', () => {
 // The worker targets the exact top-frame document. Recheck consent/title and the live selection here;
 // menu selectionText alone is stale, untrusted input and is never sufficient to authorize capture.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type === 'prepareReadingReload') {
+    if (sender.id !== chrome.runtime.id || sender.url !== `chrome-extension://${chrome.runtime.id}/src/background.js`) return false;
+    if (reloadHold === null) {
+      // A bounded hold also lets this world resume if Chrome declines to reload.
+      reloadHold = setTimeout(() => {
+        reloadHold = null;
+        void send({ type: 'config' }).then((next) => update(next, true)).catch(() => {});
+      }, 5000);
+      stop({ retiring: true });
+    }
+    reply({ ok: true });
+    return false;
+  }
+  if (msg?.type === 'readingReloadHint') {
+    if (sender.id === chrome.runtime.id && sender.url === `chrome-extension://${chrome.runtime.id}/src/popup.html`)
+      // An ambiguous old shape warrants a hint only. The page supplies no source or ownership.
+      reply({ ambiguous: hasUnownedSwaps(document, `span.${SWAP_CLASS}[data-fw-split="1"][data-en]`) });
+    return false;
+  }
   if (msg?.type === 'personalCaptureAlive') {
     const ok = sender.id === chrome.runtime.id && capturePageAllowed({
       url: location.href, title: document.title, settings: config?.settings, origins: config?.origins,
@@ -895,6 +925,7 @@ window.addEventListener('online', () => { void send({ type: 'config' }).then((c)
 let page = location.href;
 let day = localDay();
 const navTimer = setInterval(() => {
+  if (!alive()) { orphan(); return; }
   const today = localDay();
   const sensitive = isZeroFrench(document.title);
   if (page !== location.href || titleSensitive !== sensitive || config?.settings.gradual && day !== today) {

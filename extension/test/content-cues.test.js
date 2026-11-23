@@ -15,6 +15,8 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     const root = originalAttach.call(this, options); roots.set(this, root); return root;
   };
   const cue = () => roots.get(win.document.querySelector('.fw-recall-host'))?.querySelector('.fw-recall') || null;
+  const messages = [];
+  const listeners = [];
   class IO {
     constructor(callback, options) { this.callback = callback; this.options = options; }
     observe(el) {
@@ -28,7 +30,8 @@ test('only two visible practice invitations render; a waiting word gains a slot 
   Object.assign(globalThis, {
     window: win, document: win.document, location: win.location, MutationObserver: win.MutationObserver,
     IntersectionObserver: IO, setInterval: win.setInterval.bind(win),
-    chrome: { runtime: { id: 'cue-test', onMessage: { addListener: () => {} }, sendMessage: async (msg) => {
+    chrome: { runtime: { id: 'cue-test', onMessage: { addListener: (listen) => listeners.push(listen) }, sendMessage: async (msg) => {
+      messages.push(msg.type);
       if (msg.type === 'config') return config;
       if (msg.type === 'swaps') return { results: Object.fromEntries(msg.items.map((item) => [item.key,
         [{ o: 'and', f: 'y', g: 'and', h: '', word: 'y', practice: true }]])) };
@@ -61,12 +64,20 @@ test('only two visible practice invitations render; a waiting word gains a slot 
 
     words[2].dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true })));
     await wait(10);
-    const panel = cue();
+    let panel = cue();
     expect(panel?.getRootNode().host.getAttribute('role')).toBe('group');
     expect(panel?.getRootNode().host.shadowRoot).toBeNull();
     expect(panel?.querySelector('.fw-recall-status')?.getAttribute('aria-live')).toBe('polite');
     expect(panel.getRootNode().activeElement?.textContent).toBe('Reveal answer');
     expect(panel?.querySelector('.fw-recall-ratings')).toBeNull();
+    words[2].dataset.siteEdited = 'true';
+    panel.querySelector('button').dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true })));
+    expect(messages).not.toContain('inlineReveal');
+    expect(cue()).toBeNull();
+    delete words[2].dataset.siteEdited;
+    words[2].dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true })));
+    await wait(10);
+    panel = cue();
     panel.querySelector('button').dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true })));
     await wait(10);
     expect([...panel.querySelectorAll('.fw-recall-ratings button')].map((button) => button.textContent))
@@ -93,6 +104,9 @@ test('only two visible practice invitations render; a waiting word gains a slot 
     words[1].dispatchEvent(uncuedClick);
     expect(uncuedClick.defaultPrevented).toBe(false);
     expect(cue()).toBeNull();
+    for (const listen of listeners) listen({ type: 'retry', config: { ...config, origins: [] } });
+    expect(words[2].isConnected).toBe(false);
+    expect(win.document.querySelector('#three').textContent).toBe('We talk and listen every evening.');
   } finally {
     Object.assign(globalThis, previous);
     win.happyDOM.cancelAsync();

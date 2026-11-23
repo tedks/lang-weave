@@ -12,6 +12,7 @@ import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName } from './languages.js';
 import { publicContext, laterDay, availableLanguage } from './worker-context.js';
 import { personalReview } from './review-state.js';
+import { RELOADED_KEY, selfUpdating } from './update.js';
 
 export function createSettingsHandlers({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
     context, broadcast, reviewState, reviewStatus, checkUpdate }) {
@@ -292,7 +293,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
 
   async function status() {
     const config = await context();
-    const data = await store.get(['apiKey', 'settings', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown']);
+    const data = await store.get(['apiKey', 'settings', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown',
+      RELOADED_KEY]);
     const { state } = await reviewState(config);
     const modelStatus = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch,
       safeModelStatus(data[STATUS_KEY])?.category === 'local_budget' &&
@@ -305,7 +307,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       budgetWarning: laterDay(futureBudgetDay(state.learning, localDay()),
         futureBudgetDay(personalReview(config).state.learning, localDay())),
       review: await reviewStatus(config),
-      update: await checkUpdate() };
+      update: await checkUpdate(),
+      readingUpdated: selfUpdating() && data[RELOADED_KEY] === chrome.runtime.getManifest().version };
   }
   return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, placement };
 }

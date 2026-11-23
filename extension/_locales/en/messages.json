@@ -353,6 +353,10 @@
     "message": "Reload this page to start. Chrome blocks extensions on some pages.",
     "description": "Toolbar popup: error shown when Lang Weave cannot start on the open tab."
   },
+  "popup_reading_reload": {
+    "message": "If earlier woven words stopped responding after the update, refresh this page when you’re ready.",
+    "description": "Toolbar popup: recovery advice when an earlier extension version left words in the open page."
+  },
   "popup_error_budget_changed": {
     "message": "Budget changed. Refresh and try again.",
     "description": "Toolbar popup: error shown when the introduction budget changed before the reset was applied."
