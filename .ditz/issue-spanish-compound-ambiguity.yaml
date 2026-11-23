@@ -1,0 +1,24 @@
+id: spanish-compound-ambiguity
+title: Distinguish additional Spanish reading compounds from standalone noun uses
+desc: "PR #86 covers the compounds reproduced in the installed 0.15.7 picker plus
+  river valley from the fixed reading corpus. The independent contrast sample still
+  offers partial matches for window seat and tree house, and for a sentence-initial
+  nominal reading such as \u201CThe door hinges on the barn rusted over the winter.\u201D
+  The same surfaces can be valid in \u201CThe tree houses a colony of bats\u201D and
+  \u201CThe door hinges on two brass pins.\u201D Extend protection only where paired
+  evidence leaves useful standalone matches available. Measure each tier across paragraph,
+  ordinary, and gradual reading, and retain whole-phrase eligibility. See the exact-head
+  measurement in https://github.com/tedks/lang-weave/pull/86."
+type: bugfix
+component: extension
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T08:48:37-00:00
+references: []
+log_events:
+- time: 2026-11-23T08:48:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
