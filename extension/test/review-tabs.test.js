@@ -83,6 +83,23 @@ test('simultaneous review opens create one tab while Chrome has no URL or docume
   ]);
 });
 
+test('retrying a slow new Review reuses the same pending tab', async () => {
+  let retrying = false;
+  const pendingRead = Promise.withResolvers();
+  const { open, calls, tabsById } = browser([], {
+    afterCreate: (tab) => Object.assign(tab, { status: 'loading', documentId: undefined }),
+    beforeGet: (_tabs, id) => { if (retrying && id === 99) pendingRead.resolve(); },
+  });
+  await expect(open(1)).rejects.toThrow('still loading');
+  retrying = true;
+  const retry = open(3);
+  await pendingRead.promise;
+  expect(calls).toEqual([['create', { url, windowId: 1 }]]);
+  Object.assign(tabsById.get(99), { status: 'complete', documentId: 'new-document' });
+  expect(await retry).toEqual({ ok: true });
+  expect(calls).toEqual([['create', { url, windowId: 1 }], ['window', 1, { focused: true }]]);
+});
+
 test('a private origin cannot focus a regular review or start a practice ticket', async () => {
   const { open, calls, discoveries } = browser([reviewTab(4, 1), reviewTab(5, 2, { incognito: true })]);
   const chooseWord = () => { throw new Error('Private practice reached the queue'); };
@@ -129,21 +146,27 @@ test('practice preserves queue errors and skips a visible pending departure and 
   ]);
 });
 
-test('a hidden pending departure can still expose the old review context without being focused or refreshed', async () => {
-  let reads = 0;
-  const { open, calls } = browser([reviewTab(4, 1, { status: 'loading' })], {
-    beforeGet: (tabs, id) => {
-      // Chrome keeps the old document visible until the protected page commits.
-      if (id === 4 && ++reads === 3) {
-        Object.assign(tabs.get(id), { status: 'complete', documentUrl: 'chrome://version/' });
-      }
-    },
+test.each([false, true])('a committed departure with a slow destination skips the tab (fallback: %s)', async (alternate) => {
+  let checks = 0;
+  const tabs = [reviewTab(4, 1, { status: 'loading' })];
+  if (alternate) tabs.push(reviewTab(8, 3, { active: true }));
+  const { open, calls } = browser(tabs, {
     beforeContexts: (tabs, ids) => {
-      if (ids?.includes(4)) expect(tabs.get(4).status).toBe('complete');
+      // Chrome keeps the old document visible until commit. The destination
+      // stays loading after commit and both of its URL fields are hidden.
+      if (ids?.includes(4) && ++checks === 2) tabs.get(4).documentUrl = 'https://unrelated.example/';
     },
   });
   expect(await open(1, () => ({ ok: true }))).toEqual({ ok: true });
-  expect(calls).toEqual([['create', { url, windowId: 1 }], ['window', 1, { focused: true }]]);
+  expect(calls).toEqual(alternate
+    ? [['window', 3, { focused: true }], ['message', 8, { type: 'refreshReview' }, { documentId: 'document-8' }]]
+    : [['create', { url, windowId: 1 }], ['window', 1, { focused: true }]]);
+});
+
+test('a still-loading candidate does not block another ready Review', async () => {
+  const { open, calls } = browser([reviewTab(4, 1, { status: 'loading' }), reviewTab(8, 3, { active: true })]);
+  expect(await open(1)).toEqual({ ok: true });
+  expect(calls).toEqual([['window', 3, { focused: true }]]);
 });
 
 test('a tab that leaves review during activation never receives a window focus or refresh', async () => {

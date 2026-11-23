@@ -31,8 +31,10 @@ try {
       '--host-resolver-rules=MAP * ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
-  const extensionId = await worker.evaluate(() => chrome.runtime.id);
+  const extensionId = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
+  const isReviewWorker = (candidate) => candidate.url() === `chrome-extension://${extensionId}/src/background.js`;
+  let worker = browser.serviceWorkers().find(isReviewWorker) || await browser.waitForEvent('serviceworker', isReviewWorker);
+  assert.equal(await worker.evaluate(() => chrome.runtime.id), extensionId);
   const url = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
   const send = (page, message) => page.evaluate((m) => chrome.runtime.sendMessage(m), message);
   const stored = () => worker.evaluate(() => chrome.storage.local.get(['recallReview', 'learningRetrievals']));

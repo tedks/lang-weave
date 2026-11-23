@@ -1,5 +1,6 @@
 const LOAD_TIMEOUT_MS = 1000;
 const LOAD_POLL_MS = 25;
+class ReviewLoading extends Error {}
 
 // One worker serializes popup, shortcut and My words opens. Chrome's own
 // Review documents are discoverable again after an MV3 worker restart.
@@ -20,22 +21,27 @@ export function createReviewTabs({ tabs, windows, runtime }) {
 
   async function currentReview(id) {
     const deadline = performance.now() + LOAD_TIMEOUT_MS;
-    do {
+    while (true) {
       let tab = await readTab(id);
       if (!tab || tab.status === 'unloaded') return null;
+      const wasComplete = tab.status === 'complete';
+      const [document] = await contexts([id]);
+      tab = await readTab(id);
+      if (!tab || tab.status === 'unloaded') return null;
+      const complete = tab.status === 'complete';
+      if (document?.documentId) {
+        if (id === openingTabId) openingTabId = undefined;
+        if (complete && document.windowId === tab.windowId) return { tab, documentId: document.documentId };
+      } else if (id !== openingTabId || wasComplete && complete) {
+        // An unrelated destination can keep loading after the Review
+        // document disappears. Only our new tab can be waiting for its first context.
+        return null;
+      }
       // A context can predate its listener on startup and outlive the start
       // of a navigation away, even when Chrome hides the pending URL.
-      if (tab.status === 'complete') {
-        const [document] = await contexts([id]);
-        tab = await readTab(id);
-        if (!tab || tab.status === 'unloaded') return null;
-        if (tab.status === 'complete' && (!document || document.windowId === tab.windowId)) {
-          return document?.documentId ? { tab, documentId: document.documentId } : null;
-        }
-      }
+      if (performance.now() >= deadline) throw new ReviewLoading('The Lang Weave review is still loading. Try again.');
       await new Promise((resolve) => setTimeout(resolve, LOAD_POLL_MS));
-    } while (performance.now() < deadline);
-    throw new Error('The Lang Weave review is still loading. Try again.');
+    }
   }
 
   async function refreshReview(id, review) {
@@ -90,11 +96,18 @@ export function createReviewTabs({ tabs, windows, runtime }) {
       const candidates = (await Promise.all([...ids].map(readTab))).filter(Boolean);
       const rank = (tab) => tab.windowId === origin.id ? (tab.active ? 0 : 1) : 2;
       candidates.sort((a, b) => rank(a) - rank(b) || a.id - b.id);
+      let loading;
       for (const tab of candidates) {
-        const reused = await focusReview(tab.id, !!chooseWord);
-        if (tab.id === openingTabId) openingTabId = undefined;
-        if (reused) return result;
+        try {
+          const reused = await focusReview(tab.id, !!chooseWord);
+          if (tab.id === openingTabId) openingTabId = undefined;
+          if (reused) return result;
+        } catch (error) {
+          if (!(error instanceof ReviewLoading)) throw error;
+          loading = error;
+        }
       }
+      if (loading) throw loading;
       const created = await tabs.create({ url, windowId: origin.id });
       // Hold serialized opens until the new document can be found. If loading
       // times out, keep this ID as a candidate for the next request in this worker.
