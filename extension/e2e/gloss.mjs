@@ -16,6 +16,7 @@ const longEntry = {
   level: 1,
 };
 const longPassage = 'We worked together during the quiet afternoon.';
+const maxRevealDelayMs = 1400;
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-gloss-'));
 const extension = extensionRoot;
 const artifacts = process.argv.includes('--save-screenshots')
@@ -151,7 +152,8 @@ try {
     };
     await waitForGloss('hovering the clipped word');
     const timing = await page.evaluate(() => window.glossTiming);
-    assert.ok(timing.started > 0 && timing.shown - timing.started >= 650 && timing.shown - timing.started < 1400,
+    assert.ok(timing.started > 0 && timing.shown - timing.started >= 650 &&
+      timing.shown - timing.started < maxRevealDelayMs,
       `hover reveal elapsed ${timing.shown - timing.started} ms`);
     const geometry = await page.evaluate(() => {
       const target = document.querySelector('#clipped .fw-word');
@@ -249,6 +251,7 @@ try {
     await longWord.waitFor();
     const longTip = `${longEntry.en} · "${longEntry.hint}"`;
     assert.equal(await longWord.getAttribute('data-tip'), longTip, 'renderer uses the validated pack text');
+    const { interactions: beforeLongHover } = await readingEffects();
     await longWord.hover();
     await waitForGloss('hovering the intact long word at narrow zoom');
     const long = await box.evaluate((el) => {
@@ -272,7 +275,7 @@ try {
     await box.waitFor({ state: 'detached' });
     const forgedTip = '<b>Host edit</b>';
     const beforeDirty = await readingEffects();
-    assert.equal(beforeDirty.interactions.at(-1), 'peek', 'the intact long gloss recorded a peek');
+    assert.deepEqual(beforeDirty.interactions, [...beforeLongHover, 'peek'], 'this theme’s intact long gloss sent a peek');
     await longWord.evaluate((span, text) => {
       span.setAttribute('data-tip', text);
       window.glossInput = [];
@@ -281,9 +284,10 @@ try {
       }
     }, forgedTip);
     await longWord.hover();
-    await page.waitForTimeout(800); // longer than the dwell proved by the intact control
-    assert.equal(await box.count(), 0, 'an edited tip must never appear after trusted hover');
+    await assert.rejects(box.waitFor({ timeout: maxRevealDelayMs }), { name: 'TimeoutError' },
+      'an edited tip must stay hidden throughout the allowed reveal window');
     await longWord.click();
+    await page.waitForTimeout(300); // allow a wrongly dispatched event or passage flush to reach the worker
     assert.deepEqual(await page.evaluate(() => window.glossInput), [['mouseover', true], ['click', true]]);
     assert.equal(await longWord.getAttribute('data-tip'), forgedTip, 'the host edit stays in place');
     assert.equal(await longWord.textContent(), 'ensemble', 'the edited span must not flip');
@@ -341,6 +345,8 @@ try {
       assert.match(await page.locator('#clipped').textContent(), /Host-owned text remains and changes/);
       await popup.close();
     }
+    assert.deepEqual((await readingEffects()).interactions, beforeDirty.interactions,
+      'no late peek or flip arrived from the edited span');
     results.push({ theme, timing: Math.round(timing.shown - timing.started), geometry });
     await page.close();
   }

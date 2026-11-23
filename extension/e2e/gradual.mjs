@@ -182,14 +182,17 @@ try {
   await due.evaluate((span) => span.setAttribute('data-en', 'forged after reveal'));
   await recall.locator('.fw-recall button', { hasText: 'Easy' }).click();
   await recall.locator('.fw-recall').waitFor({ state: 'detached' });
+  await page.waitForTimeout(300); // detaching the panel need not wait for queued worker messages
   assert.deepEqual(await recallEffects(), beforeDirtyRating, 'edited span must reject a rating without writing or sending');
-  console.log('Recall ownership: trusted click and Enter on the edited cue send no inline action; edited post-reveal rating closes with no effects.');
 
   await page.reload();
   await due.waitFor();
   await due.click();
   await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
   await recall.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
+  assert.deepEqual((await recallEffects()).actions, [...beforeDirtyRating.actions, 'inlineBegin', 'inlineReveal'],
+    'the next intact cue sends only its own open and reveal');
+  console.log('Recall ownership: trusted click and Enter on the edited cue send no inline action; edited post-reveal rating closes with no effects.');
   const canFailWrite = await worker.evaluate(() => {
     const original = chrome.storage.local.set;
     const failOnce = (...args) => {

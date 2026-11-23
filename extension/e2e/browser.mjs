@@ -5,7 +5,9 @@ const playwrightPath = process.env.LANG_WEAVE_PLAYWRIGHT;
 export const { chromium } = await import(playwrightPath ? pathToFileURL(playwrightPath).href : 'playwright');
 export const chromiumBinary = process.env.LANG_WEAVE_CHROMIUM
   ? { executablePath: process.env.LANG_WEAVE_CHROMIUM } : { channel: 'chromium' };
-export const extensionRoot = process.env.LANG_WEAVE_WELCOME_EXTENSION || fileURLToPath(new URL('..', import.meta.url));
+const packagedExtension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
+if (process.env.TEST_SRCDIR && !packagedExtension) throw new Error('Bazel must supply the extracted beta ZIP directory');
+export const extensionRoot = packagedExtension || fileURLToPath(new URL('..', import.meta.url));
 
 // Use Chromium's permission store in a disposable profile. The manager pregrants the
 // test origin so the extension's normal optional-permission request has no native prompt.
