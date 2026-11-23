@@ -18,13 +18,13 @@ try {
     body: '<!doctype html><title>Ordinary reading</title><main><p id="reading">We read books and enjoy quiet evenings every week.</p></main>' }));
   let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
-  const waitStatus = async (predicate) => {
+  const waitStatus = async (stage, predicate) => {
     for (let attempt = 0; attempt < 80; attempt++) {
       const status = await worker.evaluate(() => chrome.storage.local.get('modelStatus').then((x) => x.modelStatus));
       if (predicate(status)) return status;
       await new Promise((done) => setTimeout(done, 100));
     }
-    throw new Error('Reading status did not advance');
+    throw new Error(`Reading status did not advance after ${stage}`);
   };
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
@@ -48,9 +48,10 @@ try {
     };
   });
   await grantReadingSite(browser, worker);
+  await grantReadingSite(browser, worker, 'https://other.example/*');
   const first = await browser.newPage();
   await first.goto('https://reading.example/first');
-  await waitStatus((status) => status?.category === 'key_rejected');
+  await waitStatus('the first provider rejection', (status) => status?.category === 'key_rejected');
   const stored = await worker.evaluate(() => chrome.storage.local.get(['modelStatus', 'keyEpoch']));
   assert.equal(stored.modelStatus.keyEpoch, stored.keyEpoch);
   assert.equal(await worker.evaluate(() => globalThis.syntheticCalls), 1);
@@ -58,7 +59,7 @@ try {
   await new Promise((done) => setTimeout(done, 30));
   const second = await browser.newPage();
   await second.goto('https://reading.example/second');
-  await waitStatus((status) => status?.at > stored.modelStatus.at);
+  await waitStatus('a second visit with the rejected key', (status) => status?.at > stored.modelStatus.at);
   assert.equal(await worker.evaluate(() => globalThis.syntheticCalls), 1);
   const options = await browser.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
@@ -94,14 +95,15 @@ try {
     siteOverride: { host: 'reading.example', enabled: false } }));
   await worker.evaluate(() => globalThis.releaseLate(new Response(JSON.stringify({ error: { status: 'API_KEY_INVALID' } }),
     { status: 400, headers: { 'Content-Type': 'application/json' } })));
-  await waitStatus((status) => status?.category === 'key_rejected' && status.keyEpoch !== stored.keyEpoch);
+  await waitStatus('the stale page’s provider rejection',
+    (status) => status?.category === 'key_rejected' && status.keyEpoch !== stored.keyEpoch);
   const staleAt = (await worker.evaluate(() => chrome.storage.local.get('modelStatus'))).modelStatus.at;
   await browser.route('https://other.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: '<!doctype html><title>Ordinary reading</title><main><p>We read books and enjoy quiet evenings every week.</p></main>' }));
   await new Promise((done) => setTimeout(done, 30));
   const other = await browser.newPage();
   await other.goto('https://other.example/article');
-  await waitStatus((status) => status?.at > staleAt);
+  await waitStatus('reading on the unrelated granted site', (status) => status?.at > staleAt);
   assert.equal(await worker.evaluate(() => globalThis.lateCalls), 1);
   const beforeRestart = await worker.evaluate(() => chrome.storage.local.get(['modelCalls', 'modelStatus']));
   const cdp = await browser.newCDPSession(other);
@@ -120,7 +122,7 @@ try {
   await new Promise((done) => setTimeout(done, 30));
   const afterRestart = await browser.newPage();
   await afterRestart.goto('https://other.example/after-restart');
-  await waitStatus((status) => status?.at > beforeRestart.modelStatus.at);
+  await waitStatus('reading after the worker restart', (status) => status?.at > beforeRestart.modelStatus.at);
   assert.deepEqual((await worker.evaluate(() => chrome.storage.local.get('modelCalls'))).modelCalls,
     beforeRestart.modelCalls, 'a new worker spends no call on the persisted rejected epoch');
   console.log('key-rejection: one request per rejected epoch; stale page and worker restart retain the block');
