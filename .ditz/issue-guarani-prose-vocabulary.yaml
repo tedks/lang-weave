@@ -27,3 +27,12 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T06:09:53-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Draft tedks/lang-weave#77 at 066f670. All six intended senses verified
+    from the individual primary Proyecto Montoya headword pages. The early unmodified
+    ZIP passed the actual keyless paragraph example with an accented ok\u1EBD flip,
+    a separate My words/Review reveal and saved review rating, plus the existing Welcome,
+    placement and consent flow. Version 0.15.2, reader compatibility, formal council
+    and the exact broad suite follow #75."
