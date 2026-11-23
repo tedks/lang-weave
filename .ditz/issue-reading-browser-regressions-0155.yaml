@@ -9,8 +9,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T07:54:01-00:00
 references: []
 log_events:
@@ -35,3 +35,10 @@ log_events:
     #84\u2019s Guess assertions. CTO owns integration.\nPR marked ready after the
     formal council check. Sol and Opus cleared the exact head. The actual Google review
     attempt hit its quota. Integration remains pending."
+- time: 2026-11-23T08:39:14-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #83 normally merged at b01490ecb2143f21088081f5fd84a6d86f8b0ac3 with
+    the exact tree qualified at dee606d5b65adba6c7f4956839253441e1bae669. Published
+    0.15.5 and 0.15.7 ZIPs each passed all 13 serial Chromium scenarios. Exact strict
+    Bun passed 498/498, and the standard install and targeted gates passed.'
