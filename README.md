@@ -96,7 +96,9 @@ The gloss appears after a 700 ms pause, so you have a beat to recall the word fi
 - Across one request, new, due and learning swaps are capped near 2% of the words read, with a minimum of one, whatever the density.
 - A pile of five or more due or weak words pauses new introductions.
 
-**Guess first** is an optional setting for gradual learning. Turn it on in **Settings** to try guessing a word’s English meaning while you read. On early encounters with a learning word, hover or focus the woven word and pause for the choices. Click a meaning, or press **Tab** to enter the choices and **Enter** to answer. **Escape** or **Dismiss** closes the choices without recording a guess. To see the English directly, click the word or press **Enter** while the word has focus.
+**Guess first** needs gradual learning. Turn both on in **Settings** to try picking a word’s English meaning while you read. Hover or focus a learning word and pause for the choices. Click a meaning, or press **Tab** to enter the choices, use the arrow keys to pick a meaning, and press **Enter** to answer. **Escape** or **Dismiss** closes the choices without recording a guess. To see the English directly, click the word or press **Enter** while the word has focus.
+
+Each word allows one recorded guess per day, up to three in total. When there are too few suitable choices or you’ve reached a limit, you get the usual gloss. You can see first-guess accuracy in **My words → Is this working?** A wrong guess counts as a peek. Your scheduled reviews keep their own ratings.
 
 **Inline recall** is off by default and needs gradual learning. A due word then shows as English with a dashed underline and a small ?, at most two at a time. Activating one lets you reveal the target word and rate your recall without leaving the page.
 
