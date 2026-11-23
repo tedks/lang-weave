@@ -20,3 +20,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T04:12:43-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Score-hint draft PR #67 extends this existing follow-up. Switching away
+    clears and hides the Score form even in open Welcome. After switching back, closing
+    and reopening that panel refreshes its availability. Passive refresh should retain
+    the existing confirmation/epoch guarantee and clear transient course data on scope
+    changes.'
