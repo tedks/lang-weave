@@ -15,8 +15,9 @@ is a separate change planned for 0.14.0.
 Schema 3 adds an optional `readingDays` list per scope, with one to 30 unique
 local calendar dates in `YYYY-MM-DD` format. These dates travel with the scoped
 learning backup even for a removed pack. A date alone carries no word ID or
-evidence of recall. The corresponding local storage key is `readingDaysV1`
-under the normal bundled, versioned pack or personal scope.
+evidence of recall. The same bounded list is stored under `readingDaysV1`
+in the normal bundled, versioned pack or personal scope. A scope without dates
+has no date key. The import preview says when the file includes dates.
 
 Use 0.13.3 or later to restore schema 3 or to export from an installation that
 already holds these date records. Earlier versions reject schema 3 files and

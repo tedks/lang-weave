@@ -2875,6 +2875,10 @@
       }
     }
   },
+  "backup_includes_reading_dates": {
+    "message": "This backup includes reading-day dates.",
+    "description": "Shown in the import preview when the validated backup holds any reading-day dates."
+  },
   "backup_measurements": {
     "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words.",
     "description": "Preview line counting logged reviews and exposure counts in the backup. Learning backup page (backup.html).",

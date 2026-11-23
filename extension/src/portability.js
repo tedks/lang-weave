@@ -16,8 +16,8 @@ import { RETRIEVALS_KEY, EXPOSURES_KEY, MAX_RETRIEVALS, MAX_EXPOSURE_WORDS, clea
 export const BACKUP_FORMAT = 'lang-weave-learning-backup';
 // Schema 2 adds FSRS, learning logs and desiredRetention. Schema 3 adds only reading dates.
 // Default exports use schema 3 only when there are reading dates to preserve.
-export const BACKUP_SCHEMA = 3;
-export const READ_SCHEMAS = Object.freeze([1, 2, 3]);
+export const READING_DAYS_SCHEMA = 3;
+export const READ_SCHEMAS = Object.freeze([1, 2, READING_DAYS_SCHEMA]);
 export const MAX_BACKUP_BYTES = 1024 * 1024;
 // One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
 // cards, packs or personal entries under MAX_BACKUP_BYTES.
@@ -319,7 +319,7 @@ function exposureLog(value, catalog, m) {
 }
 function feedback(value, scope, installed, personalState, m) {
   keys(value, ['review', 'events', 'shown', 'encounters', ...(m.schema >= 2 ? LOG_FIELDS : []),
-    ...(m.source || m.schema >= 3 ? ['readingDays'] : [])], 'scope');
+    ...(m.source || m.schema >= READING_DAYS_SCHEMA ? ['readingDays'] : [])], 'scope');
   const result = {};
   if (Object.hasOwn(value, 'readingDays')) {
     if (!validReadingDays(value.readingDays)) fail('invalid reading days');
@@ -405,7 +405,7 @@ export function parseBackup(json) {
     ['format', 'schemaVersion', 'exportedByVersion', 'state']);
   if (raw.format !== BACKUP_FORMAT) fail('this is not a Lang Weave learning backup');
   if (!READ_SCHEMAS.includes(raw.schemaVersion)) fail(Number.isSafeInteger(raw.schemaVersion) && raw.schemaVersion > 0
-    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.join(', ')}. Update Lang Weave to import it`
+    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.slice(0, -1).join(', ')} and ${READ_SCHEMAS.at(-1)}. Update Lang Weave to import it`
     : 'unsupported schema version');
   boundedString(raw.exportedByVersion, 40, 'export tool version');
   if (!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(raw.exportedByVersion)) fail('invalid export tool version');
@@ -509,10 +509,10 @@ function fitLog(st, m, budget) {
 export function createBackup(all, exportedByVersion, schema) {
   const scopes = storageEntries(all);
   if (schema === undefined) schema = Object.values(scopes).some((fields) => Object.hasOwn(fields, 'readingDays'))
-    ? BACKUP_SCHEMA : 2;
+    ? READING_DAYS_SCHEMA : 2;
   if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
   // Legacy formats omit fields they cannot carry and scopes made empty by those omissions.
-  if (schema < 3) for (const [id, fields] of Object.entries(scopes)) {
+  if (schema < READING_DAYS_SCHEMA) for (const [id, fields] of Object.entries(scopes)) {
     const had = Object.keys(fields).length;
     delete fields.readingDays;
     if (schema < 2) for (const field of LOG_FIELDS) delete fields[field];
@@ -615,6 +615,7 @@ export function backupPreview(backup) {
     cards: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.review?.cards || {}).length, 0) +
       Object.values(s.personal.history).reduce((sum, scope) => sum + Object.keys(scope.cards).length, 0),
     personal: s.personal.entries.length, preferences: s.preferences, schemaVersion: backup.schemaVersion,
+    includesReadingDays: Object.values(s.scopes).some((scope) => Object.hasOwn(scope, 'readingDays')),
     retrievals: Object.values(s.scopes).reduce((sum, scope) => sum + (scope.retrievals?.retrievals.length || 0), 0),
     exposureWords: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.exposures?.words || {}).length, 0),
     omittedRetrievals: (backup.omitted?.retrievals || 0) + (s.logOmitted?.retrievals || 0),

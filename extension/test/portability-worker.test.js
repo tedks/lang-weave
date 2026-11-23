@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { READING_DAYS_KEY, localDay } from '../src/events.js';
+import { createBackup } from '../src/portability.js';
 
 const id = 'fw-backup';
 const sender = { id, url: `chrome-extension://${id}/src/backup.html`, documentId: 'backup-document', tab: { id: 10 } };
@@ -90,6 +91,7 @@ test('worker export, validated preview and import preserve consent, reject confl
     old.openPage();
     const exported = await old.dispatch({ type: 'learningExport' });
     expect(exported.json).toContain('lang-weave-learning-backup');
+    expect(exported.json).toBe(createBackup(old.data, '0.11.0', 2));
     expect(exported.json).not.toContain('secret-source-key');
     expect(exported.json).not.toContain('source.example');
     expect(exported.json).not.toContain('secret-ticket');
@@ -182,7 +184,7 @@ test('partial storage failure reports error and journal recovers on worker resta
     const target = setup(data, 'failure-target');
     await target.load(); target.openPage();
     const preview = await target.dispatch({ type: 'learningPreview', json, pageId });
-    expect(preview.preview.schemaVersion).toBe(3);
+    expect(preview.preview).toMatchObject({ schemaVersion: 3, includesReadingDays: true });
     target.failNextPatch(true);
     expect((await target.dispatch({ type: 'learningImport', token: preview.token, pageId })).error).toMatch(/did not finish/);
     expect(data.learningImportJournalV1).toBeDefined();
