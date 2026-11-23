@@ -1,14 +1,16 @@
-// A cold upgrade of the same unpacked extension folder and disposable Chrome profile.
+// Chrome's unpacked reload in one disposable profile and extension directory.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, readFile, rename, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 
 const priorZip = process.env.LANG_WEAVE_PRIOR_ZIP || '';
+const xdotool = process.env.LANG_WEAVE_RELOAD_XDOTOOL || '';
 assert.ok(isAbsolute(priorZip), 'Pass an absolute public 0.15.7 ZIP path as LANG_WEAVE_PRIOR_ZIP');
+assert.ok(process.env.DISPLAY && isAbsolute(xdotool), 'Pass a disposable X11 display and absolute xdotool path');
 assert.equal(createHash('sha256').update(await readFile(priorZip)).digest('hex'),
   '4afe0dd5a7b5bc01d801219657088e7ddcdbfa9e86de2063ffb745636677247c');
 
@@ -25,12 +27,21 @@ const savedReview = { version: 1, cards: { 'la pregunta': { due: 1, interval: 3,
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-legacy-'));
 const profile = join(scratch, 'profile');
 const managed = join(scratch, 'extension');
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const xdo = (...args) => execFileSync(xdotool, args, { timeout: 3000, encoding: 'utf8' }).trim();
 
 async function openInstalled() {
+  const env = { ...process.env, HOME: scratch, GTK_USE_PORTAL: '0', GSETTINGS_BACKEND: 'memory',
+    DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(scratch, 'no-session-bus')}` };
+  for (const key of ['XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR']) {
+    env[key] = join(scratch, key.toLowerCase());
+    await mkdir(env[key], { mode: 0o700 });
+  }
   const context = await chromium.launchPersistentContext(profile, {
-    ...chromiumBinary, headless: true, locale: 'en-US',
-    args: [`--disable-extensions-except=${managed}`, `--load-extension=${managed}`,
-      '--host-resolver-rules=MAP * ~NOTFOUND', '--proxy-server=http://127.0.0.1:9'],
+    ...chromiumBinary, headless: false, locale: 'en-US', noViewport: true, ignoreDefaultArgs: ['--disable-extensions'], env,
+    args: ['--force-device-scale-factor=1', '--window-position=10,10', '--window-size=1280,850',
+      '--no-first-run', '--disable-background-networking', '--host-resolver-rules=MAP * ~NOTFOUND',
+      '--proxy-server=http://127.0.0.1:9', '--proxy-bypass-list=<-loopback>'],
   });
   await context.route(/^https?:/, (route) => route.request().url() === url
     ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html>
@@ -38,6 +49,33 @@ async function openInstalled() {
     <body><main><p id="hello">${prose.positive}</p><p id="his">${prose.negative}</p></main></body></html>` })
     : route.abort());
   return context;
+}
+
+async function expectInstalled(manager, version) {
+  await manager.waitForFunction(async ({ id, path, version }) =>
+    (await chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true })).some((app) =>
+      app.id === id && app.path === path && app.version === version && app.state === 'ENABLED'),
+  { id, path: managed, version });
+}
+
+async function loadUnpacked(manager) {
+  await manager.goto('chrome://extensions/');
+  if (await manager.locator('#loadUnpacked').isHidden()) await manager.locator('#devMode').click();
+  await manager.locator('#loadUnpacked').click();
+  let title = '';
+  for (const deadline = Date.now() + 5000; Date.now() < deadline;) {
+    title = xdo('getactivewindow', 'getwindowname');
+    if (/extension directory/i.test(title)) break;
+    await sleep(100);
+  }
+  assert.match(title, /extension directory/i);
+  xdo('key', 'ctrl+l');
+  await sleep(250);
+  xdo('type', '--clearmodifiers', '--', managed);
+  const bounds = Object.fromEntries(xdo('getactivewindow', 'getwindowgeometry', '--shell').split('\n')
+    .filter((entry) => /^[A-Z]+=\d+$/.test(entry)).map((entry) => entry.split('=')).map(([key, value]) => [key, Number(value)]));
+  xdo('mousemove', String(bounds.X + bounds.WIDTH - 50), String(bounds.Y + bounds.HEIGHT - 28), 'click', '1');
+  await expectInstalled(manager, '0.15.7');
 }
 
 async function installProvider(worker) {
@@ -87,6 +125,8 @@ let context;
 try {
   execFileSync('python3', ['-m', 'zipfile', '-e', priorZip, managed]);
   context = await openInstalled();
+  const manager = await context.newPage();
+  await loadUnpacked(manager);
   let worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   assert.equal(new URL(worker.url()).host, id);
   assert.equal(await worker.evaluate(() => chrome.runtime.getManifest().version), '0.15.7');
@@ -106,19 +146,29 @@ try {
 
   const old = await readPair(context, worker);
   assert.deepEqual(old.entry.s.map(({ o, f }) => [o, f]), [['his', 'hola']]);
+  await old.page.locator('#his .fw-word[lang="es"]').waitFor();
   assert.equal(await old.page.locator('#his').textContent(), prose.negative.replace('his', 'hola'));
   const before = await worker.evaluate(() => chrome.storage.local.get(['settings', 'spanishPlacement', 'recallReview']));
   assert.deepEqual(before.recallReview, savedReview);
-  await context.close();
-  context = null;
+  await old.page.close();
 
-  // Preserve the extension path that Chrome associates with this profile.
-  await rename(managed, join(scratch, 'prior-install'));
-  await cp(extensionRoot, managed, { recursive: true });
-  const candidate = JSON.parse(await readFile(join(managed, 'manifest.json'), 'utf8'));
+  // Preserve the folder that Chrome associates with this extension entry.
+  const staged = join(scratch, 'staged');
+  await cp(extensionRoot, staged, { recursive: true });
+  const candidate = JSON.parse(await readFile(join(staged, 'manifest.json'), 'utf8'));
   assert.notEqual(candidate.version, '0.15.7');
-  context = await openInstalled();
+  await rename(managed, join(scratch, 'prior-install'));
+  await rename(staged, managed);
+  // Use the same reload operation as the button in Chrome's extensions manager.
+  await manager.evaluate((id) => chrome.developerPrivate.reload(id), id);
+  await expectInstalled(manager, candidate.version);
+  // Reload can finish before Chrome starts the replacement worker. Settings wakes it.
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${id}/src/options.html`);
+  await options.evaluate(() => chrome.runtime.sendMessage({ type: 'status' }));
   worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  await options.close();
+  await manager.close();
   assert.equal(new URL(worker.url()).host, id);
   assert.equal(await worker.evaluate(() => chrome.runtime.getManifest().version), candidate.version);
   await installProvider(worker);
