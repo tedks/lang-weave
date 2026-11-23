@@ -299,6 +299,31 @@ test.each([
     },
   },
   {
+    name: 'focus moved off the Guess and then back to the body', detail: 0,
+    move: (p) => {
+      const control = p.doc.createElement('button');
+      p.doc.body.append(control);
+      p.focusIn(control);
+      p.focusIn(p.doc.body);
+      return p.doc.body;
+    },
+  },
+  {
+    name: 'focus moved to Dismiss and then back to the body', detail: 0,
+    move: (p, _span, panel) => {
+      p.focusIn(panel.querySelector('.fw-guess-actions button'));
+      p.focusIn(p.doc.body);
+      return p.doc.body;
+    },
+  },
+  {
+    name: 'the window lost focus while the reply was pending', detail: 0,
+    move: (p) => {
+      p.win.dispatchEvent(trusted(new p.win.Event('blur')));
+      return p.doc.body;
+    },
+  },
+  {
     name: 'the originating word was replaced', detail: 0, closed: true,
     move: (p, span) => {
       span.replaceWith(span.cloneNode(true));

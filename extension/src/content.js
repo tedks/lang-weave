@@ -426,6 +426,7 @@ function openGuess(span, ticket, choices) {
   shell.root.append(panel);
   shell.root.addEventListener('keydown', guessKey, true);
   shell.root.addEventListener('focusout', guessFocusOut, true);
+  shell.root.addEventListener('focusin', cancelGuessFocusReturn, true);
   shell.host.id = `fw-guess-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}-${++guessHostCount}`;
   if (!decorateSwap(span, () => {
     span.setAttribute('aria-controls', shell.host.id);
@@ -442,7 +443,7 @@ async function answerGuess(state, index, keyboard) {
   if (guess !== state || state.answered || !guessAlive(state)) return;
   const choice = state.buttons[index];
   // Disabling the focused choice can synchronously move focus to the body.
-  const returnFocus = keyboard && state.root.activeElement === choice;
+  state.returnFocus = keyboard && state.root.activeElement === choice;
   state.answered = true;
   for (const button of state.buttons) button.disabled = true;
   choice.classList.add('fw-guess-chosen');
@@ -462,7 +463,7 @@ async function answerGuess(state, index, keyboard) {
   state.status.classList.remove('fw-guess-status-opening');
   revealGuessMeaning(state.span);
   placeTip(state.span, state.host);
-  if (returnFocus && state.span.isConnected && document.hasFocus() &&
+  if (state.returnFocus && state.span.isConnected && document.hasFocus() &&
       (state.root.activeElement === choice || document.activeElement === document.body)) {
     guessQuiet = state.span;
     state.span.focus();
@@ -509,6 +510,11 @@ function guessKey(e) {
 }
 function guessPointer(e) {
   if (guess && e.isTrusted && e.target !== guess.host) closeGuess();
+}
+function cancelGuessFocusReturn(e) {
+  // A native blur from disabling a choice can leave BODY as the active element.
+  // A later focus move still relinquishes the return, even if it ends at BODY.
+  if (guess?.returnFocus && e.isTrusted && e.target !== document.body) guess.returnFocus = false;
 }
 // Focus leaving the panel and its word for another element closes it; a window blur does not.
 function guessFocusOut(e) {
@@ -905,6 +911,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 });
 document.addEventListener('pointerdown', guessPointer, true);
 document.addEventListener('focusout', guessFocusOut, true);
+document.addEventListener('focusin', cancelGuessFocusReturn, true);
+window.addEventListener('blur', cancelGuessFocusReturn);
 document.addEventListener('keydown', guessKey, true); // before reveal: a handled key stops there
 document.addEventListener('click', reveal, true);
 document.addEventListener('keydown', reveal, true);
