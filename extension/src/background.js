@@ -102,7 +102,7 @@ const { checkUpdate, arm, updatePending } = createUpdate({ store, locked, modelC
   onBadgeChange: () => refreshBadges() });
 const badge = createBadge({ store, context, updatePending });
 refreshBadges = badge.refreshAll;
-const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status } = createSettingsHandlers({ store, cache, locked,
+const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, placement } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
 const commands = createCommands({ tabs: chrome.tabs, runtime: chrome.runtime, context, save });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
@@ -135,6 +135,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     status, clearCache, removeKey, testKey,
     recoverBudget: () => recoverBudget(msg),
     save: () => save(msg),
+    placement: () => placement(msg),
     addLanguage: () => addLanguage(msg),
     removeLanguage: () => removeLanguage(msg),
     reviewStatus: () => reviewStatus(), reviewIntroduce, reviewNext,

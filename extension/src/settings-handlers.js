@@ -10,7 +10,7 @@ import { DAILY_MODEL_CALLS, callsToday, countCall } from './quota.js';
 import { futureBudgetDay } from './learning.js';
 import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
 import { PACKS_KEY, MAX_PACKS, cleanPacks, generatePack, languageCode, languageName } from './languages.js';
-import { publicContext, laterDay } from './worker-context.js';
+import { publicContext, laterDay, availableLanguage } from './worker-context.js';
 import { personalReview } from './review-state.js';
 
 export function createSettingsHandlers({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
@@ -189,6 +189,35 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     return { ok: true };
   }
 
+  // Only Welcome and Settings can read or change this device-local Spanish
+  // preference. An older panel cannot overwrite a newer choice or language.
+  async function placement(msg) {
+    const read = () => store.get(['settings', 'epoch', 'spanishPlacement', PACKS_KEY]);
+    const snapshot = (data) => ({
+      available: availableLanguage(cleanSettings(data.settings).language, cleanPacks(data[PACKS_KEY])) === 'es',
+      epoch: data.epoch || '',
+      choice: [1, 2].includes(data.spanishPlacement) ? data.spanishPlacement : 0,
+    });
+    if (!Object.hasOwn(msg, 'choice')) return snapshot(await read());
+    if (![0, 1, 2].includes(msg.choice) || typeof msg.epoch !== 'string') return { ok: false };
+    // Dispatch and delivery check the reading revision under this same lock.
+    // Placement rotates it only after a change, without interrupting key tests.
+    const result = await locked(async () => {
+      const current = snapshot(await read());
+      if (!current.available || current.epoch !== msg.epoch) return { ok: false };
+      if (current.choice === msg.choice) return { ok: true, ...current };
+      const epoch = crypto.randomUUID();
+      // Keep an explicit 0 after clearing, so words already introduced during
+      // placement stay reviewable under the restored reading level.
+      await store.set({ spanishPlacement: msg.choice, epoch });
+      return { ok: true, ...current, choice: msg.choice, epoch };
+    });
+    // The preference is already committed. A failed tab notification must
+    // not turn it into a failed save; reader requests still check the epoch.
+    if (result.ok && result.epoch !== msg.epoch) await broadcast().catch(() => {});
+    return result;
+  }
+
   async function testKey() {
     if (worker.keyIsolationUnavailable) return { ok: false, category: 'key_isolation_unavailable' };
     return modelCall(async () => {
@@ -278,5 +307,5 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       review: await reviewStatus(config),
       update: await checkUpdate() };
   }
-  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status };
+  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, placement };
 }

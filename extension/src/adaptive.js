@@ -91,10 +91,12 @@ export function selectWorkingSet({ batch, words, scope, state, settings, now, da
     (w.status !== 'new' || owned.has(w.fr) || allowFresh > 0 && !reserved.has(w.fr)));
   // Give unbanded new words the lowest available band, then retain the
   // existing ties. A single numeric key keeps mixed pools transitive.
+  const band = (word) => language === 'es' && settings.spanishPlacement === 2 && word.band === 0
+    ? Number.MAX_SAFE_INTEGER : word.band;
   const availableBand = ranked.reduce((lowest, word) => word.rank === 4 && Number.isInteger(word.band)
-    ? Math.min(lowest, word.band) : lowest, Infinity);
+    ? Math.min(lowest, band(word)) : lowest, Infinity);
   const lowestBand = Number.isFinite(availableBand) ? availableBand : 0;
-  const newBand = (word) => Number.isInteger(word.band) ? word.band : lowestBand;
+  const newBand = (word) => Number.isInteger(word.band) ? band(word) : lowestBand;
   ranked.sort((a, b) => a.rank - b.rank ||
     (a.rank === 0 ? dueAt(state.cards[a.fr]) - dueAt(state.cards[b.fr]) : 0) ||
     (a.rank === 4 ? Number(!owned.has(a.fr)) - Number(!owned.has(b.fr)) : 0) ||

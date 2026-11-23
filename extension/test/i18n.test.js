@@ -56,9 +56,13 @@ describe('the English messages file', () => {
   test('every key used in source, pages and the manifest exists, and every message is used', () => {
     const used = new Set();
     const need = (name) => { used.add(name); expect(MESSAGES[name] ? name : `missing ${name}`).toBe(name); };
+    const markup = (src) => {
+      for (const [, name] of src.matchAll(/data-i18n(?:-[a-z-]+)?="([^"]*)"/g)) need(name);
+    };
     for (const file of sources) {
       if (file === 'messages-en.js') continue;
       const src = read(`src/${file}`).split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+      markup(src);
       for (const [, name] of src.matchAll(/\bt\(\s*'([a-z0-9_]+)'/g)) need(name);
       for (const [, name] of src.matchAll(/\btn\(\s*'([a-z0-9_]+)'/g)) {
         need(`${name}_other`);
@@ -69,9 +73,7 @@ describe('the English messages file', () => {
       expect([file, src.match(/\bt\(\s*[^'\s)]/g) ?? []]).toEqual([file, []]);
       expect([file, src.match(/\btn\(\s*[^'\s)]/g) ?? []]).toEqual([file, []]);
     }
-    for (const file of pages) {
-      for (const [, name] of read(`src/${file}`).matchAll(/data-i18n(?:-[a-z-]+)?="([^"]*)"/g)) need(name);
-    }
+    for (const file of pages) markup(read(`src/${file}`));
     for (const [, name] of read('manifest.json').matchAll(/__MSG_(\w+)__/g)) need(name);
     expect(Object.keys(MESSAGES).filter((name) => !used.has(name))).toEqual([]);
   });

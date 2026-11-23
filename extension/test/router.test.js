@@ -7,8 +7,8 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 const PINNED = {
   // progress (0.12.10): read-only local progress summary for the popup Today line and options.
   popup: ['progress', 'recoverBudget', 'save', 'status'],
-  options: ['addLanguage', 'clearCache', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
-  welcome: ['save'],
+  options: ['addLanguage', 'clearCache', 'placement', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
+  welcome: ['placement', 'save'],
   // My words (0.12.10): its own page entry. personalArchive is the capture page's existing handler.
   words: ['personalArchive', 'progress', 'wordKnown', 'wordPractice', 'wordReset', 'wordsList'],
   // learningStats (0.12.6): read-only local measurements, review page only.
@@ -144,7 +144,7 @@ test('unmodified sender decisions equal the pre-split boolean', () => withChrome
       !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   // Messages added after the split have no pre-split decision; PINNED covers them.
-  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer'];
+  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement'];
   for (const sender of senders) for (const type of TYPES.filter((type) => !added.includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);

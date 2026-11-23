@@ -257,7 +257,7 @@ document.addEventListener('keydown', (event) => {
 
 void run(load);
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !(changes.settings || changes.languagePacks)) return;
+  if (area !== 'local' || !(changes.settings || changes.languagePacks || changes.spanishPlacement)) return;
   loadGeneration++;
   refresh();
 });

@@ -3,9 +3,13 @@ import { statusLabel } from './quota-status.js';
 import { resolveLevel } from './levels.js';
 import { MODELS } from './gemini.js';
 import { weekLine, headline } from './progress-text.js';
+import { mountPlacement } from './placement-page.js';
 
 const $ = (id) => document.getElementById(id);
 localize();
+const placementPanel = $('placement');
+mountPlacement(placementPanel);
+const placementSummary = placementPanel.firstElementChild;
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 let status;
 let refreshGeneration = 0;
@@ -36,9 +40,15 @@ async function refresh() {
   $('accessNote').textContent = s.newSitesEnabled
     ? (all ? t('options_access_all') : t('options_access_needs_ok'))
     : t('options_access_off');
-  const { effective } = resolveLevel(s);
+  const effective = c.level ?? resolveLevel(s).effective;
   $('levelInfo').textContent = t('options_level_value', effective);
   $('levelOverride').value = String(s.levelOverride || 0);
+  $('levelOverride').disabled = !!s.spanishPlacement;
+  $('levelHint').textContent = s.spanishPlacement ? t('placement_level_hint') : t('options_level_hint');
+  if (s.spanishPlacement) placementSummary.setAttribute('aria-describedby', 'levelHint');
+  else placementSummary.removeAttribute('aria-describedby');
+  placementPanel.hidden = c.language !== 'es';
+  if (placementPanel.hidden) placementPanel.open = false;
   $('gradual').checked = s.gradual;
   $('newWordsPerDay').value = String(s.newWordsPerDay);
   $('newWordsPerDay').disabled = !s.gradual;
@@ -174,7 +184,7 @@ const refreshAfterExternalChange = () => {
 };
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && Object.keys(changes).some((key) =>
-    ['settings', 'apiKey', 'languagePacks', 'recallReview', 'personalVocabularyV1'].includes(key) ||
+    ['settings', 'apiKey', 'languagePacks', 'recallReview', 'personalVocabularyV1', 'spanishPlacement'].includes(key) ||
     key.endsWith(':recallReview'))) {
     refreshAfterExternalChange();
   }

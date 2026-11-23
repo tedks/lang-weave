@@ -2,6 +2,7 @@ import { localize, t } from './i18n.js';
 import { L1_WORDS } from './vocabulary.js';
 import { applySwaps, toggle, isSwap } from './text.js';
 import { declaredMatches } from './sites.js';
+import { mountPlacement } from './placement-page.js';
 
 // Keep the example fixed and sense-safe. Each entry must come from the bundled Beginner pack.
 const DEMO_ENGLISH = ['Today', 'with', 'and', 'important', 'always', 'because', 'difficult', 'but', 'possible'];
@@ -25,8 +26,12 @@ export function allowSuggestedX({ request, save }) {
   return request().then((granted) => granted ? save() : false);
 }
 
-if (typeof document !== 'undefined' && document.getElementById('demo')) {
+if (typeof document !== 'undefined') {
   localize();
+  const placementPanel = document.getElementById('placement');
+  if (placementPanel) mountPlacement(placementPanel);
+}
+if (typeof document !== 'undefined' && document.getElementById('demo')) {
   const demo = document.getElementById('demo');
   applySwaps(demo, demoSwaps());
   let tipTimer;
