@@ -130,6 +130,7 @@ sh_test(
         "LICENSE-MIT",
         "NOTICE",
         "//extension:e2e/browser.mjs",
+        "//extension:e2e/guarani-context.mjs",
         "//extension:e2e/spanish-prose.mjs",
         "//extension:e2e/welcome.mjs",
         "//extension:e2e/words.mjs",

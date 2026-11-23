@@ -54,4 +54,5 @@ if [[ -n "${3:-}" ]]; then
 fi
 "$bun_path" "${runfiles_root}/extension/e2e/welcome.mjs"
 "$bun_path" "${runfiles_root}/extension/e2e/spanish-prose.mjs"
+"$bun_path" "${runfiles_root}/extension/e2e/guarani-context.mjs"
 exec "$bun_path" "${runfiles_root}/extension/e2e/words.mjs"
