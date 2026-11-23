@@ -92,14 +92,18 @@ try {
     xdo('key', 'Home', 'ctrl+l', 'ctrl+a', 'ctrl+c');
     const selection = spawnSync(process.env.LANG_WEAVE_RELOAD_XCLIP || 'xclip',
       ['-selection', 'clipboard', '-out'], { encoding: 'utf8', timeout: 1000 });
-    if (selection.error) throw selection.error;
+    if (selection.error && selection.error.code !== 'ETIMEDOUT') throw selection.error;
     chooserBounds();
-    xdo('key', 'Escape');
+    xdo('key', 'Escape'); // Leave GTK's location entry and return to the selected row.
     return selection.status === 0 ? selection.stdout.trim().replace(/\/$/, '') : '';
   }, (name) => name === folderName || name === managed, 'the generated folder name in the native chooser');
-  const chooser = chooserBounds();
-  clickNative(chooser.X + chooser.WIDTH - 45, chooser.Y + chooser.HEIGHT - 33);
-  await until(() => xdo('getactivewindow'), (id) => id !== chooserId, 'the native chooser to close');
+  // Some GTK versions enable Open only after the location entry has closed.
+  await until(() => {
+    if (xdo('getactivewindow') !== chooserId) return true;
+    const chooser = chooserBounds();
+    clickNative(chooser.X + chooser.WIDTH - 45, chooser.Y + chooser.HEIGHT - 33);
+    return false;
+  }, Boolean, 'the native chooser to confirm the selected folder');
 
   const installed = () => manager.evaluate(async (id) => (await chrome.developerPrivate.getExtensionsInfo({
     includeDisabled: true,
@@ -112,14 +116,15 @@ try {
   await expectInstalled(outgoing.version);
   async function readyWorker(version) {
     return until(async () => {
-      const candidate = browser.serviceWorkers().find((item) =>
-        item.url() === `chrome-extension://${extensionId}/src/background.js`);
-      if (!candidate) return null;
-      const ready = await candidate.evaluate((expected) =>
-        globalThis.chrome?.runtime?.getManifest?.().version === expected &&
-        !!chrome.tabs?.query && !!chrome.scripting?.executeScript && !!chrome.storage?.local, version)
-        .catch(() => false);
-      return ready ? candidate : null;
+      for (const candidate of browser.serviceWorkers()) {
+        if (candidate.url() !== `chrome-extension://${extensionId}/src/background.js`) continue;
+        const ready = await candidate.evaluate((expected) =>
+          globalThis.chrome?.runtime?.getManifest?.().version === expected &&
+          !!chrome.tabs?.query && !!chrome.scripting?.executeScript && !!chrome.storage?.local, version)
+          .catch(() => false);
+        if (ready) return candidate;
+      }
+      return null;
     }, Boolean, `Lang Weave ${version} worker bindings`);
   }
   let worker = await readyWorker(outgoing.version);
