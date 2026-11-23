@@ -1,0 +1,26 @@
+id: guarani-noun-verb-placement
+title: "Keep Guaran\xED noun senses out of clear English verb contexts"
+desc: "The published 0.15.9 package offers aranduka (a printed book) for English \u201Cbook\u201D
+  in \u201CPlease book a room\u201D, alongside the valid room choice. In a real Chromium
+  reading page with a synthetic model, ordinary reading accepted and painted \u201CThe
+  visitor should aranduka a room before sunrise.\u201D Gradual validation also accepted
+  the bad mapping into cache; the tested occurrence did not paint. In the first paired
+  paragraph sample the same mismatch appeared for chair a meeting, water the garden,
+  wind the clock and fire the manager, with legitimate noun uses available. Resolve
+  clearly signalled verb uses for the bundled Guaran\xED starter while preserving
+  warranted noun readings, other packs, permissions, existing cards and history. English
+  context work requires attested catalog senses, measured paired and held-out coverage,
+  and clear limits."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:35:53-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:35:53-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
