@@ -31,7 +31,10 @@ export function createReviewTabs({ tabs, windows, runtime }) {
       const complete = tab.status === 'complete';
       if (document?.documentId) {
         if (id === openingTabId) openingTabId = undefined;
-        if (complete && document.windowId === tab.windowId) return { tab, documentId: document.documentId };
+        // A fast commit can finish loading between the context and tab reads.
+        if (wasComplete && complete && document.windowId === tab.windowId) {
+          return { tab, documentId: document.documentId };
+        }
       } else if (id !== openingTabId || wasComplete && complete) {
         // An unrelated destination can keep loading after the Review
         // document disappears. Only our new tab can be waiting for its first context.

@@ -169,6 +169,20 @@ test('a still-loading candidate does not block another ready Review', async () =
   expect(calls).toEqual([['window', 3, { focused: true }]]);
 });
 
+test('a context captured during loading cannot activate the unrelated destination after commit', async () => {
+  let reads = 0;
+  const { open, calls } = browser([reviewTab(4, 1, { status: 'loading' })], {
+    beforeGet: (tabs, id) => {
+      // The first read ranks the candidate. The next two bracket getContexts.
+      if (id === 4 && ++reads === 3) {
+        Object.assign(tabs.get(id), { status: 'complete', documentUrl: 'chrome://version/' });
+      }
+    },
+  });
+  expect(await open(1, () => ({ ok: true }))).toEqual({ ok: true });
+  expect(calls).toEqual([['create', { url, windowId: 1 }], ['window', 1, { focused: true }]]);
+});
+
 test('a tab that leaves review during activation never receives a window focus or refresh', async () => {
   const { open, calls } = browser([reviewTab(4, 3)], {
     beforeUpdate: (tabs, id) => Object.assign(tabs.get(id), { documentUrl: 'chrome://version/', documentId: 'protected' }),
