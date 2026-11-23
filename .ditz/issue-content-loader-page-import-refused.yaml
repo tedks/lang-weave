@@ -1,0 +1,27 @@
+id: content-loader-page-import-refused
+title: Investigate Chrome refusing the unpacked reading module on an enabled HTTPS
+  page
+desc: "On a fleet 0.16.1 install, Chrome logged \u201CUnsafe attempt to load URL\u201D
+  for the static extension URL src/content.js in an HTTPS music page frame at src/content-loader.js:10.
+  The key test showed Key works and HTTP 200. Page weaving also reported generic provider
+  errors, but their relationship to the loader failure is unknown. Repeatability on
+  fresh navigation and the time of the entry are unknown. Preserve the page URL and
+  browser data as private. Release manifest declares the module for HTTPS origins.
+  Public ZIP passed the startup-recovery browser scenario again on a disposable profile
+  with an ordinary granted HTTPS fixture, including a visible word and simulated provider.
+  Investigate on the fleet browser version (157), distinguish a current loader failure
+  from a retained error, and verify a consenting ordinary article still weaves. Keep
+  existing site grants and key isolation."
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T22:16:47-00:00
+references: []
+log_events:
+- time: 2026-11-23T22:16:47-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
