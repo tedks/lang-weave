@@ -53,6 +53,12 @@ class VersionBump(unittest.TestCase):
     def problems(self, base=None, head=None):
         return cvb.check(self.repo, base, head)[0]
 
+    def strict(self, *args, repo=None, **env):
+        return subprocess.run(
+            [sys.executable, cvb.__file__, '--strict', '--repo', str(repo or self.repo), *args],
+            capture_output=True, text=True, env=dict(os.environ, **env),
+        )
+
     def test_this_repo_versions_agree(self):
         problems, _ = cvb.check(ROOT)
         self.assertEqual(problems, [])
@@ -87,6 +93,13 @@ class VersionBump(unittest.TestCase):
             self.write(path, 'changed\n')
         self.write_versions('0.2.1')
         self.assertEqual(self.problems(self.base, self.commit('bumped')), [])
+
+    def test_shipped_paths_with_quoted_characters_still_need_a_bump(self):
+        path = 'extension/src/Ñ.js'
+        self.write(path, 'new source\n')
+        problems = self.problems(self.base, self.commit('shipped unicode path'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn(path, problems[0])
 
     def test_unshipped_changes_need_no_bump(self):
         for path in ('README.md', 'tests/test_x.py', '.github/workflows/test.yml', 'extension/test/a.test.js',
@@ -210,6 +223,78 @@ class VersionBump(unittest.TestCase):
         self.assertIn('FAIL: Files the plugin ships changed (scripts/fw.py)', result.stdout)
         self.assertIn('::error title=Version check::', result.stdout)
         self.assertEqual(run('--base', 'HEAD', '--head', head).returncode, 0)
+
+    def test_strict_requires_local_commits(self):
+        self.assertEqual(self.strict('--base', 'HEAD').returncode, 0)
+        no_base = self.strict()
+        self.assertNotEqual(no_base.returncode, 0)
+        self.assertIn('requires --base REF', no_base.stderr)
+        blob = self.git('rev-parse', 'HEAD:README.md')
+        for option in ('--base', '--head'):
+            for ref in ('missing-ref', '0' * 40, blob, '--all', ''):
+                with self.subTest(option=option, ref=ref):
+                    result = self.strict('--base', 'HEAD', f'{option}={ref}')
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f'{option} {ref!r} does not resolve to a local commit', result.stderr)
+                    self.assertNotIn('Version check passed', result.stdout)
+
+    def test_strict_clean_default_and_explicit_candidate_in_linked_worktree(self):
+        with tempfile.TemporaryDirectory() as other:
+            checkout = Path(other) / 'linked worktree'
+            self.git('worktree', 'add', '-qb', 'feature', str(checkout))
+            self.write('README.md', 'docs only\n')
+            candidate = self.commit('main advanced')
+            self.git('branch', 'candidate', candidate)
+            clean = self.strict('--base', 'main', repo=checkout, GIT_DIR=str(self.repo / '.git'))
+            self.assertEqual(clean.returncode, 0, clean.stderr)
+            self.assertIn(f'base={candidate} head={self.base}', clean.stdout)
+
+            (checkout / 'untracked.txt').write_text('untracked\n')
+            dirty = self.strict('--base', 'main', repo=checkout)
+            self.assertNotEqual(dirty.returncode, 0)
+            self.assertIn('uncommitted changes', dirty.stderr)
+            (checkout / 'untracked.txt').unlink()
+            (checkout / 'scripts/weave.py').write_text('print("dirty")\n')
+            dirty = self.strict('--base', 'main', repo=checkout)
+            self.assertNotEqual(dirty.returncode, 0)
+            self.assertIn('uncommitted changes', dirty.stderr)
+
+            explicit = self.strict('--base', self.base, '--head', 'candidate', repo=checkout)
+            self.assertEqual(explicit.returncode, 0, explicit.stderr)
+            self.assertIn(f'base={self.base} head={candidate}', explicit.stdout)
+
+    def test_strict_rejects_commits_without_a_merge_base(self):
+        self.git('checkout', '-q', '--orphan', 'unrelated')
+        candidate = self.commit('unrelated history')
+        result = self.strict('--base', self.base, '--head', 'unrelated')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'base={self.base} head={candidate}', result.stdout)
+        self.assertIn('git merge-base', result.stderr)
+        self.assertNotIn('Version check passed', result.stdout)
+
+    def test_strict_rereads_a_reused_candidate_ref(self):
+        self.git('branch', 'baseline', self.base)
+        self.git('branch', 'candidate', self.base)
+        args = ('--base', 'baseline', '--head', 'candidate')
+        passed = self.strict(*args)
+        self.assertEqual(passed.returncode, 0, passed.stderr)
+        self.assertIn(f'head={self.base}', passed.stdout)
+
+        self.write('scripts/weave.py', 'print(2)\n')
+        unbumped = self.commit('runtime change without bump')
+        self.git('branch', '-f', 'candidate', unbumped)
+        failed = self.strict(*args)
+        self.assertEqual(failed.returncode, 1)
+        self.assertIn(f'head={unbumped}', failed.stdout)
+        self.assertIn('Bump the version', failed.stdout)
+
+        self.write_versions('0.2.1')
+        bumped = self.commit('release version bump')
+        self.git('branch', '-f', 'candidate', bumped)
+        passed = self.strict(*args)
+        self.assertEqual(passed.returncode, 0, passed.stderr)
+        self.assertIn(f'head={bumped}', passed.stdout)
+        self.assertIn('Version check passed: 0.2.1', passed.stdout)
 
 
 if __name__ == '__main__':

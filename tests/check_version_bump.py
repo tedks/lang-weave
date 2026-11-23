@@ -7,6 +7,8 @@
                                                        with HEAD), .claude-plugin/plugin.json's version changed too
   ... --head REF                                       check REF instead of the working tree (CI, tests)
   ... --repo DIR                                       the repository (default: the one this file is in)
+  ... --strict --base REF [--head REF]                  release acceptance; resolve both commits locally
+                                                       (with no --head, require a clean worktree and use HEAD)
 
 `claude plugin update` only delivers a new copy when plugin.json's version changes, so a shipped change without a
 bump never reaches anyone who already installed. Python 3.9+, standard library only. Exit 1 on a failed check.
@@ -39,7 +41,7 @@ def git(repo, *args, check=True, text=True):
     result = subprocess.run(['git', '-C', str(repo), *args], capture_output=True, text=text)
     if check and result.returncode:
         error = result.stderr if text else os.fsdecode(result.stderr)
-        raise RuntimeError(f'git {" ".join(args)}: {error.strip()}')
+        raise RuntimeError(f'git {" ".join(args)}: {error.strip() or f"exited {result.returncode}"}')
     return result
 
 
@@ -119,8 +121,9 @@ def check(repo, base=None, head=None):
     merge_base = git(repo, 'merge-base', base, head or 'HEAD').stdout.strip()
     # A move out of a runtime path is a shipped deletion even when its new
     # path is developer-only. List both sides instead of a detected rename.
-    diff = ['diff', '--no-renames', '--name-only', merge_base] + ([head] if head else [])
-    changed = [p for p in git(repo, *diff).stdout.splitlines() if shipped(p)]
+    diff = ['diff', '--no-renames', '--name-only', '-z', merge_base] + ([head] if head else []) + ['--']
+    paths = os.fsdecode(git(repo, *diff, text=False).stdout).split('\0')
+    changed = [path for path in paths if shipped(path)]
     if not changed:
         notes.append('No shipped files changed: no version bump needed.')
         return problems, notes
@@ -138,13 +141,44 @@ def check(repo, base=None, head=None):
     return problems, notes
 
 
+def release_refs(repo, base, head):
+    """Resolve the live comparison once, before reading any version files."""
+    if base is None:
+        raise ValueError('--strict requires --base REF')
+    # Git hook environments may point at another checkout, index or object
+    # database. Resolve strictly against the repository the operator chose.
+    for name in list(os.environ):
+        if name.startswith('GIT_'):
+            del os.environ[name]
+    os.environ.update(GIT_NO_REPLACE_OBJECTS='1', GIT_NO_LAZY_FETCH='1', GIT_OPTIONAL_LOCKS='0')
+
+    def commit(option, ref):
+        revision = git(repo, 'rev-parse', '--verify', '--end-of-options', f'{ref}^{{commit}}', check=False)
+        if not ref or revision.returncode:
+            raise ValueError(f'{option} {ref!r} does not resolve to a local commit in {repo}')
+        return revision.stdout.strip()
+
+    base = commit('--base', base)
+    if head is not None:
+        return base, commit('--head', head)
+    status = git(repo, '-c', 'core.fsmonitor=false', 'status',
+                 '--porcelain=v1', '--untracked-files=normal', '--ignore-submodules=none').stdout
+    if status:
+        raise ValueError(f'{repo} has uncommitted changes. Use --head REF to check a committed candidate explicitly.')
+    return base, commit('HEAD', 'HEAD')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--base', help='compare with this ref (merge base with HEAD)')
     parser.add_argument('--head', help='check this ref instead of the working tree')
     parser.add_argument('--repo', default=str(Path(__file__).resolve().parent.parent))
+    parser.add_argument('--strict', action='store_true', help='require a local base and compare committed snapshots')
     args = parser.parse_args(argv)
     try:
+        if args.strict:
+            args.base, args.head = release_refs(args.repo, args.base, args.head)
+            print(f'Checking release versions: base={args.base} head={args.head}')
         problems, notes = check(args.repo, args.base, args.head)
     except (RuntimeError, ValueError) as error:
         print(f'version check failed to run: {error}', file=sys.stderr)
