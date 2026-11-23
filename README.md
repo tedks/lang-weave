@@ -122,22 +122,22 @@ nix develop --command bazel test --spawn_strategy=linux-sandbox \
   //:fsrs_test //:package_boundary_test //:version_classifier_test
 ```
 
-On a feature branch, compare the committed candidate with its base. For release acceptance, use the previous release tag as the base. Changes to shipped files require a version bump, and the extension, plugin and Bazel module versions must agree.
+On a feature branch, compare the committed candidate with `origin/main`. For release acceptance, use the previous release tag as the base. Changes to shipped files require a version bump, and the extension, plugin and Bazel module versions must agree.
 
 ```sh
 nix develop --command bazel run //:release_version_check -- --base origin/main
 ```
 
-Build the unpacked beta ZIP from the committed `HEAD`. The packager takes an absolute output directory that it creates itself.
+Build the beta ZIP for Chrome's **Load unpacked** install from the committed `HEAD`. The packager takes an absolute output directory that it creates itself.
 
 ```sh
 release_dir=$(mktemp -d)
 nix develop --command bazel run //:beta_zip -- "$release_dir/beta"
 ```
 
-Run `//:beta_install_test` with that ZIP and a local Chromium executable to exercise installation in a disposable profile. The browser checks use synthetic responses and run without an API key. The [Bazel guide](docs/bazel-fsrs.md) gives the commands for installation, updates and the 13 supplementary Chromium scenarios in `//:supplementary_browser_test`. The [curriculum build guide](docs/CURRICULUM-PIPELINE.md) documents the offline candidate-vocabulary pipeline.
+For an install test in a disposable profile, pass the absolute path to the generated `beta/lang-weave-<version>.zip` as `LANG_WEAVE_BETA_ZIP` and the path to a Chromium or Chrome for Testing executable as `LANG_WEAVE_CHROMIUM` through Bazel's `--test_env` flags on `//:beta_install_test`. The browser checks use synthetic responses and run without an API key. The [Bazel guide](docs/bazel-fsrs.md) gives the commands for installation, updates and the supplementary Chromium scenarios in `//:supplementary_browser_test`. The [curriculum build guide](docs/CURRICULUM-PIPELINE.md) documents the offline candidate-vocabulary pipeline.
 
-The packager’s separate `--store` build for the Chrome Web Store drops the x.com content script, web-accessible resources and the `alarms` permission, and bundles the content script into one file. See the [Store engineering notes](docs/STORE-ENGINEERING-MISSION.md) and [listing screenshots](docs/store-assets/README.md).
+The Chrome Web Store variant uses the `--store` flag in [extension/scripts/package.mjs](extension/scripts/package.mjs). It disables the extension's self-update check, drops the x.com content script, web-accessible resources and the `alarms` permission, and bundles the content script into one file. See the [Store engineering notes](docs/STORE-ENGINEERING-MISSION.md) and [listing screenshots](docs/store-assets/README.md).
 
 ![Hovering a woven word shows its meaning](docs/store-assets/02-hover.png)
 
