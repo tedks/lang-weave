@@ -47,3 +47,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T05:31:32-00:00
+  who: Ted Smith
+  what: commented
+  comment: Draft tedks/lang-weave#74. The early 0.15.0 ZIP from 82e4a448e3477ad5095b449d925dc0471c7979e5
+    passed the installed popup route, both bundled languages, repeated exact occurrence,
+    mouse/keyboard flip, no-match and clear in a generated Chromium profile. All storage
+    and permissions were unchanged during the exercise and the smoke observed no outbound
+    HTTP(S). Exact final gates and council pending.
