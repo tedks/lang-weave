@@ -10,7 +10,7 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-10-30T19:59:48-00:00
 references: []
@@ -38,3 +38,7 @@ log_events:
     an existing review without interrupting its current question/answer. Explicit
     Practice now should bring the requested word into that tab. Preserve other user-opened
     tabs, existing card/ticket safety, profile boundaries, and current permissions."
+- time: 2026-11-23T05:42:05-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
