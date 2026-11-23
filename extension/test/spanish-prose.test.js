@@ -16,7 +16,7 @@ const examples = [
   ['The door scraped against the worn stone step.', 'The door', 'la puerta', 'La puerta'],
   ['An open hatch faced a garden beside the old mill.', 'garden', 'el jardín', 'jardín'],
   ['A narrow beam crossed the sky just past dusk.', 'the sky', 'el cielo', 'el cielo'],
-  ['Their telescope followed the moon through the night.', 'the moon', 'la luna', 'la luna'],
+  ['Their telescope followed the moon over the harbor.', 'the moon', 'la luna', 'la luna'],
 ];
 
 const gradualWords = (text, words, saved) => selectWorkingSet({ batch: [{ id: 'paragraph', text }], words,
@@ -63,6 +63,7 @@ test('promoted noun compounds stay whole in Beginner reading and local practice'
     ['They moved next door well before sunrise yesterday.', 'door', 'la puerta'],
     ['They saw the night sky through the clear panels.', 'sky', 'el cielo'],
     ['The moon rocks arrived in a padded crate.', 'The moon', 'la luna'],
+    ['They set a special table only once in a blue moon.', 'moon', 'la luna'],
     ['We were over the moon when the shipment finally arrived.', 'the moon', 'la luna'],
   ];
   for (const [text, o, f] of cases) {
@@ -71,6 +72,19 @@ test('promoted noun compounds stay whole in Beginner reading and local practice'
     expect(validateSwaps(1, proposal, L1_WORDS, 'es', { text })).toEqual([]);
     expect(offline.some(({ word }) => word === f)).toBe(false);
     expect(validateSwaps(2, proposal, L2_WORDS, 'es', { text })).toMatchObject([{ word: f }]);
+  }
+});
+
+test('joined English words do not supply short anchors for the promoted nouns', () => {
+  const cases = [
+    ['A thin envelope lay on the doorstep this morning.', 'door', 'la puerta'],
+    ['The gardener picked a handful of ripe tomatoes.', 'garden', 'el jardín'],
+    ['The skyline faded behind several layers of cloud.', 'sky', 'el cielo'],
+    ['She crossed the narrow courtyard alone in moonlight.', 'moon', 'la luna'],
+  ];
+  for (const [text, o, f] of cases) {
+    expect(validateSwaps(1, [{ o, f }], L1_WORDS, 'es', { text })).toEqual([]);
+    expect(paragraphMatches(text, 'es', 1).flatMap(({ senses }) => senses).some(({ word }) => word === f)).toBe(false);
   }
 });
 

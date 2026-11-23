@@ -421,6 +421,7 @@ export function applySwapAt(node, offset, swap, language) {
 }
 
 // Applies validated swaps [{o, f, g, h, ctx}] to root. Returns the number placed.
+// Live reading supplies its effective level. The curated Welcome demo uses the default guards.
 export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es', level = 2) {
   const flat = flatten(root);
   const sourceOptions = { beginnerSpanish: language === 'es' && level <= 1 };
