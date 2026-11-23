@@ -21,15 +21,13 @@ const beginnerCases = [
     'Leah watched the moon sink beyond the rooftops.', 'the moon',
   ], negative: ['Leah wrote “the moon” at the top of a blank page.', 'the moon'] },
 ];
-const compoundCases = [
-  { form: 'la ventana', gloss: 'the window', rendered: 'La ventana', positive: [
-    'The window creaked under a sudden gust.', 'The window',
-  ], negative: ['The window panes rattled under a sudden gust.', 'The window'] },
+const windowPanes = { form: 'la ventana', gloss: 'the window', rendered: 'La ventana', positive: [
+  'The window creaked under a sudden gust.', 'The window',
+], negative: ['The window panes rattled under a sudden gust.', 'The window'] };
+const expandedCases = [
   { form: 'el río', gloss: 'the river', rendered: 'El río', positive: [
     'The river curved beneath an old stone arch.', 'The river',
   ], negative: ['The river valley curved beneath distant hills.', 'The river'] },
-];
-const expandedCases = [
   { form: 'la noche', gloss: 'the night', rendered: 'La noche', positive: [
     'The night smelled of lilacs and cedar.', 'The night',
   ], negative: ['The night sky glowed above the northern ridge.', 'The night'] },
@@ -38,7 +36,8 @@ const host = 'prose.example';
 const origin = `https://${host}`;
 
 for (const [gradual, level] of [[false, 1], [true, 1], [false, 2], [true, 2]]) {
-  const cases = [...compoundCases, ...(level === 1 ? beginnerCases : expandedCases)];
+  // Five due cards pause fresh introductions. Each tier uses its own fresh profile.
+  const cases = [windowPanes, ...(level === 1 ? beginnerCases : expandedCases)];
   const routes = new Map(cases.map((example, index) => [`${origin}/reading/${index}`, example]));
   const profile = await mkdtemp(join(tmpdir(), 'lang-weave-prose-'));
   let context;
