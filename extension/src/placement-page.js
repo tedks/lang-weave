@@ -53,10 +53,14 @@ export function mountPlacement(panel) {
   const beginnerExamples = samples.querySelector('[data-placement-beginner]');
   const expandedExamples = samples.querySelector('[data-placement-expanded]');
   const [beginner, expanded] = placementSamples();
+  const isOpen = () => panel.open && !panel.hidden;
   let snapshot;
-  let busy = false;
-  let reopenPending = false;
-  let languageChanges = 0;
+  let saveEpoch;
+  let opening = 0;
+  let readGeneration = 0;
+  let saving = false;
+  let confirmPending = false;
+  let notice;
 
   function showExamples(container, words) {
     container.hidden = words.length === 0;
@@ -102,12 +106,12 @@ export function mountPlacement(panel) {
     score.removeAttribute('aria-invalid');
     scoreStatus.textContent = '';
     showFirst(1);
-    if (wasFocused && panel.open && !panel.hidden) trigger.focus();
+    if (wasFocused && isOpen()) trigger.focus();
   }
 
   scoreForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!snapshot || scoreForm.hidden) return;
+    if (!isOpen() || scoreForm.hidden) return;
     const hint = duolingoPreview(score.value);
     showFirst(hint);
     if (hint === null && score.value.trim()) {
@@ -122,101 +126,133 @@ export function mountPlacement(panel) {
       : hint === 1 ? t('placement_score_beginner') : '';
   });
 
-  async function load() {
-    snapshot = null;
-    fieldset.disabled = true;
-    hideScore();
-    const languageAtRead = languageChanges;
-    const current = await chrome.runtime.sendMessage({ type: 'placement' });
-    if (current?.available === false) {
-      status.textContent = t('placement_spanish_only');
-      retry.hidden = true;
-      return;
-    }
-    if (!current?.available) throw new Error('Placement unavailable');
-    snapshot = current;
-    scoreForm.hidden = languageChanges !== languageAtRead || !(beginner.length && expanded.length);
-    choice.value = String(current.choice);
-    if (choice.selectedOptions[0]?.disabled) choice.value = '0';
-    fieldset.disabled = false;
-    retry.hidden = true;
-    status.textContent = '';
+  function announce(key, ...values) {
+    notice = key;
+    status.textContent = key ? t(key, ...values) : '';
   }
 
   function showError() {
-    status.textContent = t('placement_error');
-    retry.hidden = !!snapshot;
+    announce('placement_error');
+    retry.hidden = !!snapshot?.available;
   }
 
-  function finishOperation() {
-    busy = false;
-    if (reopenPending) {
-      reopenPending = false;
-      if (panel.open) void refresh();
+  function showSnapshot(current) {
+    const selected = Number(choice.value);
+    const dirty = snapshot && selected !== snapshot.choice;
+    const option = choice.options[current.choice];
+    const saved = option.disabled ? 0 : current.choice;
+    const recovering = !retry.hidden;
+    snapshot = { ...current, choice: saved };
+    retry.hidden = true;
+    fieldset.disabled = !current.available;
+    if (!current.available) {
+      confirmPending = false;
+      hideScore();
+      announce('placement_spanish_only');
+      return;
     }
+    scoreForm.hidden = !(beginner.length && expanded.length);
+    if (!dirty) choice.value = String(saved);
+    // Refresh the displayed saved choice without granting a dirty draft a new
+    // epoch. A rejected Save can do so with an explicit second-save prompt.
+    if (!dirty || selected === saved || confirmPending) saveEpoch = current.epoch;
+    const label = choice.options[saved].textContent;
+    if (confirmPending) announce('placement_changed', label);
+    else if (dirty && saveEpoch !== current.epoch) announce('placement_competing', label);
+    else if (recovering || notice === 'placement_spanish_only' || notice === 'placement_competing' ||
+             (notice === 'placement_changed' && (!dirty || selected === saved))) announce('');
+    confirmPending = false;
   }
 
   async function refresh() {
-    if (busy) return;
-    busy = true;
-    try { await load(); }
-    catch { showError(); }
-    finally { finishOperation(); }
+    if (saving || !isOpen()) return;
+    const generation = ++readGeneration;
+    const isCurrent = () => isOpen() && generation === readGeneration;
+    try {
+      const current = await chrome.runtime.sendMessage({ type: 'placement' });
+      if (!isCurrent()) return;
+      if (typeof current?.available !== 'boolean') throw new Error('Placement unavailable');
+      showSnapshot(current);
+    } catch {
+      if (isCurrent()) {
+        if (confirmPending || fieldset.disabled) showError();
+        confirmPending = false;
+      }
+    }
   }
 
   panel.addEventListener('toggle', () => {
-    if (!panel.open) {
-      reopenPending = false;
-      hideScore();
-    } else if (busy) reopenPending = true;
-    else void refresh();
+    opening++;
+    readGeneration++;
+    snapshot = null;
+    confirmPending = false;
+    fieldset.disabled = true;
+    retry.hidden = true;
+    hideScore();
+    announce('');
+    void refresh();
   });
-  chrome.storage?.onChanged?.addListener(({ settings }, area) => {
+  chrome.storage?.onChanged?.addListener(({ settings, spanishPlacement, epoch }, area) => {
+    if (area !== 'local') return;
     const before = settings?.oldValue?.language ?? DEFAULT_SETTINGS.language;
     const after = settings?.newValue?.language ?? DEFAULT_SETTINGS.language;
-    if (area !== 'local' || before === after) return;
-    languageChanges++;
-    hideScore();
+    if (before !== after) {
+      if (snapshot) snapshot = { ...snapshot, available: false };
+      fieldset.disabled = true;
+      confirmPending = false;
+      hideScore();
+    }
+    if (before !== after || spanishPlacement || epoch) void refresh();
+  });
+  choice.addEventListener('change', () => {
+    if (!snapshot?.available || Number(choice.value) !== snapshot.choice) return;
+    saveEpoch = snapshot.epoch;
+    if (notice === 'placement_competing' || notice === 'placement_changed') announce('');
   });
   retry.addEventListener('click', async () => {
+    const view = opening;
     const wasFocused = document.activeElement === retry;
     await refresh();
     const focused = document.activeElement;
-    if (snapshot && panel.open && (focused === retry || wasFocused && focused === document.body)) choice.focus();
+    if (isOpen() && view === opening && snapshot?.available &&
+        (focused === retry || wasFocused && focused === document.body)) choice.focus();
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (busy || !snapshot) return;
+    if (!isOpen() || saving || !snapshot?.available) return;
     const selected = Number(choice.value);
     if (choice.selectedOptions[0]?.disabled) return;
+    const view = opening;
+    const isSameOpening = () => isOpen() && view === opening;
     const previousFocus = document.activeElement;
-    busy = true;
+    saving = true;
+    readGeneration++;
+    confirmPending = false;
     fieldset.disabled = true;
-    status.textContent = '';
+    announce('');
     try {
-      const result = await chrome.runtime.sendMessage({ type: 'placement', choice: selected, epoch: snapshot.epoch });
+      const result = await chrome.runtime.sendMessage({ type: 'placement', choice: selected, epoch: saveEpoch });
+      if (!isSameOpening()) return;
       if (result?.ok) {
-        snapshot = result;
-        status.textContent = t('placement_saved');
+        snapshot = { ...result, choice: selected, available: snapshot.available };
+        saveEpoch = result.epoch;
+        announce('placement_saved');
       } else if (result?.ok === false) {
-        const previousChoice = snapshot.choice;
-        await load();
-        if (snapshot) {
-          if (snapshot.choice === previousChoice) choice.value = String(selected);
-          status.textContent = t('placement_changed');
-        }
+        confirmPending = snapshot.available;
       } else showError();
-    } catch { showError(); }
+    } catch {
+      if (isSameOpening()) showError();
+    }
     finally {
-      fieldset.disabled = !snapshot;
+      saving = false;
       // Chromium can drop focus when disabling a focused form control.
-      if (panel.open && fieldset.contains(previousFocus) &&
+      if (isSameOpening()) fieldset.disabled = !snapshot?.available;
+      if (isSameOpening() && !fieldset.disabled && fieldset.contains(previousFocus) &&
           (document.activeElement === document.body || document.activeElement === previousFocus)) {
-        if (snapshot) previousFocus.focus();
-        else if (!retry.hidden) retry.focus();
-        else trigger.focus();
+        previousFocus.focus();
       }
-      finishOperation();
+      // Read after settlement to pick up writes and panel openings during the save.
+      void refresh();
     }
   });
 }

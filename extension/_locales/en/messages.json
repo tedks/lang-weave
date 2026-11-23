@@ -481,9 +481,25 @@
     "message": "Spanish starting point saved on this device.",
     "description": "Confirmation after saving or clearing the Spanish placement preference."
   },
+  "placement_competing": {
+    "message": "Saved starting point: $CHOICE$. Your selection is unsaved.",
+    "description": "Shows the saved preference alongside an unsaved selection after an outside change.",
+    "placeholders": {
+      "CHOICE": {
+        "content": "$1",
+        "example": "Expanded"
+      }
+    }
+  },
   "placement_changed": {
-    "message": "Settings changed while this was open. Choose your Spanish starting point again.",
-    "description": "A stale placement choice was rejected."
+    "message": "Saved starting point: $CHOICE$. Review your selection and save again to keep it.",
+    "description": "A stale save was rejected. Shows the current preference and asks for confirmation.",
+    "placeholders": {
+      "CHOICE": {
+        "content": "$1",
+        "example": "Expanded"
+      }
+    }
   },
   "placement_retry": {
     "message": "Reload placement",

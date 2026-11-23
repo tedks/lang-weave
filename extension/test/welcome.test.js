@@ -239,7 +239,6 @@ test('welcome page renders its notes and choice results as the exact English', a
     expect(score.value).toBe('');
     expect(window.document.activeElement).toBe(placement.firstElementChild);
     targetChanged({ language: 'gn-PY-x-weave' }, { language: 'es' });
-    placement.dispatchEvent(new window.Event('toggle'));
     await wait(() => !scoreForm.hidden);
     expect(scoreForm.hidden).toBe(false);
     const placementStatus = placement.querySelector('[data-placement-status]');
@@ -251,8 +250,8 @@ test('welcome page renders its notes and choice results as the exact English', a
     expect($('placementChoice').value).toBe('2');
     placementSave = { ok: false };
     submit.click();
-    await wait(() => text(placementStatus).startsWith('Settings changed'));
-    expect(text(placementStatus)).toBe('Settings changed while this was open. Choose your Spanish starting point again.');
+    await wait(() => text(placementStatus).includes('save again'));
+    expect(text(placementStatus)).toBe('Saved starting point: Use my reading level setting. Review your selection and save again to keep it.');
     expect($('placementChoice').value).toBe('2');
     let finishSave;
     placementSave = new Promise((resolve) => { finishSave = resolve; });
@@ -269,6 +268,7 @@ test('welcome page renders its notes and choice results as the exact English', a
     await wait(() => !scoreForm.hidden);
     expect(scoreForm.hidden).toBe(false);
     expect($('placementChoice').value).toBe('2');
+    expect(text(placementStatus)).toBe('');
     expect(placementMessages.at(-1)).toEqual({ type: 'placement' });
     placementRead = undefined;
     placementReady = false;
@@ -282,6 +282,40 @@ test('welcome page renders its notes and choice results as the exact English', a
     finishRead({ available: true, choice: 0, epoch: 'local' });
     await wait(() => retry.hidden);
     expect(retry.hidden).toBe(true);
+    expect(window.document.activeElement).toBe($('openSettings'));
+
+    // A response from before collapsing the details cannot reveal either form
+    // or overwrite a newer opening. Mock only the worker's delivery timing.
+    const togglePlacement = (open) => {
+      placement.open = open;
+      placement.dispatchEvent(new window.Event('toggle'));
+    };
+    const fieldset = placement.querySelector('fieldset');
+    const flush = () => new Promise((done) => setTimeout(done, 0));
+    const holdRead = () => {
+      let deliver;
+      placementRead = new Promise((resolve) => { deliver = resolve; });
+      togglePlacement(true);
+      return deliver;
+    };
+    togglePlacement(false);
+    const deliverWhileClosed = holdRead();
+    togglePlacement(false);
+    deliverWhileClosed(savedPlacement);
+    await flush();
+    expect(scoreForm.hidden).toBe(true);
+    expect(fieldset.disabled).toBe(true);
+    expect($('placementChoice').value).toBe('0');
+    const deliverAfterReopen = holdRead();
+    togglePlacement(false);
+    placementRead = { available: true, choice: 1, epoch: 'latest' };
+    togglePlacement(true);
+    await wait(() => !fieldset.disabled);
+    expect(scoreForm.hidden).toBe(false);
+    expect($('placementChoice').value).toBe('1');
+    deliverAfterReopen(savedPlacement);
+    await flush();
+    expect($('placementChoice').value).toBe('1');
     expect(window.document.activeElement).toBe($('openSettings'));
     expect($('suggestX').hidden).toBe(false);
     $('onlySites').click();
