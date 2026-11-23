@@ -1,0 +1,21 @@
+id: spanish-ordinary-prompt-headroom
+title: Measure Expanded ordinary prompt headroom before the next Spanish batch
+desc: 'PR #58 adds seven original Beginner nouns and keeps the existing Expanded prompt
+  bounds. The measured ordinary/all-new prompts are 7,167/7,354 JavaScript characters,
+  leaving 33/46 under the current 7,200/7,400 test limits. Before another batch, measure
+  the ordinary prompt and the real gradual request independently and decide how to
+  accommodate growth without a silent budget increase. This is a follow-up to curriculum-growth,
+  separate from the existing adaptive serialization performance issue.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T03:28:43-00:00
+references: []
+log_events:
+- time: 2026-11-23T03:28:43-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
