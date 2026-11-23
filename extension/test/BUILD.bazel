@@ -27,6 +27,7 @@ filegroup(
     srcs = [
         "backup-fixture.js",
         "curriculum.test.js",
+        "engine.test.js",
         "guarani.test.js",
         "language-worker.test.js",
         "languages.test.js",

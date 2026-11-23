@@ -4,6 +4,11 @@ import { requestSwaps, timeoutFor } from '../src/engine.js';
 import { DEFAULT_SETTINGS } from '../src/settings.js';
 import { createCache, memoryStorage } from '../src/cache.js';
 import { hashKey } from '../src/hash.js';
+import { capSwaps, possibleSpanishPromptWords, validateSwaps, wordsForLevel } from '../src/levels.js';
+import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA, unknownBudget } from '../src/prompt.js';
+import { cleanPack } from '../src/languages.js';
+import { GUARANI_PACK } from '../src/guarani.js';
+import { GUARANI_STARTER } from '../src/language-name.js';
 
 const geminiReply = (tweets) => ({
   ok: true,
@@ -142,6 +147,87 @@ describe('engine', () => {
       expect(repeat.retryAfterMs).toBe(fallbackDaily ? 3596000 : 60000);
     }
   });
+  test('ordinary Spanish sends only possible words and validates a fixed reply against the whole pool', async () => {
+    const batch = [
+      { id: 'a', text: 'I (really) think that the sweater dried.' },
+      { id: 'b', text: 'We said oK and later read a bit. The only visitor took a seat.' },
+    ];
+    const words = wordsForLevel(2).map((word) => ({ ...word, status: 'active' }));
+    const shownToday = ['creo que'];
+    const reply = [
+      { id: 'a', swaps: [{ o: 'I (really) think that', f: 'creo que' },
+        { o: 'the sweater', f: 'el sueter' }, { o: 'dried', f: 'la maleta' }] },
+      { id: 'b', swaps: [{ o: 'oK', f: 'de acuerdo' }, { o: 'a bit', f: 'un poco' },
+        { o: 'only', f: 'solamente' }, { o: 'only', f: 'solo' }] },
+    ];
+    const sent = [];
+    const result = await requestSwaps({ apiKey: 'synthetic', model: 'gemini-3.5-flash-lite',
+      level: 2, language: 'es', words, shownToday, batch, fetchImpl: async (_url, init) => {
+        sent.push(JSON.parse(init.body));
+        return geminiReply(reply);
+      } });
+    expect(sent).toHaveLength(1);
+    const system = sent[0].systemInstruction.parts[0].text;
+    expect(system).toContain('creo que = I think that');
+    expect(system).toContain('el suéter = the sweater');
+    expect(system).toContain('de acuerdo = okay / agreed');
+    expect(system).toContain('un poco = a little');
+    expect(system).toContain('solamente = only');
+    expect(system).toContain('solo = alone / only');
+    expect(system).not.toContain('la maleta = the suitcase');
+    expect(system.indexOf('el suéter =')).toBeLessThan(system.indexOf('creo que =')); // shown word last
+    expect(system).toContain('Keep English noun compounds intact');
+    expect(system).toContain('Zero Spanish in passages about health');
+    expect(system.length).toBeLessThan(buildSystemPrompt(2, words, shownToday).length * 0.65);
+    expect(sent[0].contents[0].parts[0].text).toBe(buildUserContent(batch));
+    expect(sent[0].generationConfig.responseSchema).toEqual(RESPONSE_SCHEMA);
+    const baseline = Object.fromEntries(batch.map(({ id, text }, i) =>
+      [id, capSwaps(2, validateSwaps(2, reply[i].swaps, words, 'es', { text }), text, words)]));
+    expect(baseline.a.map(({ word }) => word)).toEqual(['creo que', 'el suéter']);
+    expect(baseline.b.map(({ word }) => word)).toEqual(['de acuerdo', 'un poco', 'solamente', 'solo']);
+    expect(result.results).toEqual(baseline);
+  });
+
+  test('prompt projection retains ordinary Spanish aliases, inflections, explicit anchors and textless batches', () => {
+    const words = [
+      { fr: 'el objeto', en: 'the an object', hint: 'el ob-HEH-toh' },
+      { fr: 'crecer', en: 'to grow', hint: 'kreh-SEHR' },
+      { fr: 'frase', en: 'elsewhere', hint: 'FRAH-seh', anchors: ['here'] },
+      { fr: 'rojo', en: 'red', hint: 'ROH-hoh' },
+    ];
+    const text = 'Their object was growing here beside a bright window.';
+    expect(validateSwaps(2, [{ o: 'object', f: 'objeto' }, { o: 'growing', f: 'crecer' },
+      { o: 'here', f: 'frase' }], words, 'es', { text }).map(({ word }) => word))
+      .toEqual(['el objeto', 'crecer', 'frase']);
+    expect(possibleSpanishPromptWords(2, words, [{ text }])).toEqual(words.slice(0, 3));
+    expect(possibleSpanishPromptWords(2, words, [{ text }, { text: '' }])).toBe(words);
+  });
+
+  test('gradual Spanish and ordinary Guaraní and generated requests preserve the full request bytes', async () => {
+    const generated = cleanPack({ words: Array.from({ length: 80 }, (_, i) => ({
+      fr: `mot${i}`, en: `word${i}`, hint: 'moh', level: i < 40 ? 1 : 2,
+    })) }, 'fr');
+    const cases = [
+      ['es', wordsForLevel(1).slice(0, 4), true, 'The room fell quiet today.'],
+      [GUARANI_STARTER, GUARANI_PACK.words, false, 'A single large tree stands here.'],
+      ['fr', generated.words, false, 'We copied word1 into the notebook today.'],
+    ];
+    for (const [language, rows, unknownLimit, text] of cases) {
+      const batch = [{ id: 'a', text }];
+      const words = rows.map((word) => ({ ...word, status: 'active' }));
+      const shownToday = [words[0].fr];
+      const body = buildRequest({ system: buildSystemPrompt(2, words, shownToday, language, 'light',
+        unknownLimit ? unknownBudget(batch) : null), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
+      const sent = [];
+      await requestSwaps({ apiKey: 'synthetic', model: 'gemini-3.5-flash-lite',
+        level: 2, language, words, shownToday, density: 'light', batch, unknownLimit, fetchImpl: async (_url, init) => {
+          sent.push(init.body);
+          return geminiReply([{ id: 'a', swaps: [] }]);
+        } });
+      expect(sent).toEqual([JSON.stringify(body)]);
+    }
+  });
+
   test('caps density per sentence, one use per word, learning words kept before known filler', async () => {
     const words = [
       { fr: 'grande', en: 'big', hint: 'grahn', status: 'active' },

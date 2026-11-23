@@ -150,6 +150,29 @@ export function glossMatches(original, en, { inflections = true } = {}) {
   return false;
 }
 
+// An accepted source anchor is an exact substring of a passage. cleanEn
+// lowercases it and removes or separates text, without joining ASCII letter runs.
+// Keep a row if any allowed gloss could have supplied its ASCII runs in one
+// passage. This overestimates eligibility deliberately: the full validator
+// still decides placement, including punctuation, boundaries and context.
+export function possibleSpanishPromptWords(level, words, batch) {
+  // The validator can be called without text, where it skips placement checks.
+  if (!batch.length || batch.some(({ text }) => !text)) return words;
+  const texts = batch.map(({ text }) => text.toLowerCase());
+  const { exact } = indexFor(level, words);
+  const possible = new Set();
+  for (const hit of exact.values()) {
+    if (possible.has(hit.word)) continue;
+    // Use the same full and bare target aliases and the same gloss rules as validation.
+    // Explicit anchors are uncommon and can safely stay in the prompt.
+    if (hit.anchors || [...legacyGlossForms(hit.en, { inflections: legacyInflects(hit) })].some((form) => {
+      const runs = form.match(/[a-z]+/g) || [];
+      return texts.some((text) => runs.every((run) => text.includes(run)));
+    })) possible.add(hit.word);
+  }
+  return words.filter(({ fr }) => possible.has(fr));
+}
+
 // Fail closed: keep only swaps whose Spanish is on the supplied or bundled vocabulary list
 // and whose English matches that word's gloss.
 // Canonicalizes accents, fills gloss and hint from the list, matches capitalization of the original.
