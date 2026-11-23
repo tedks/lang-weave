@@ -1,0 +1,20 @@
+id: reading-browser-regressions-0155
+title: Restore real Chromium regression coverage after reading and catalog changes
+desc: The 0.15.5 public ZIP passed ten of thirteen additional original Chromium scenarios.
+  Review counts still expect the previous Beginner catalog while gradual recall and
+  gloss scenarios modify host DOM then assume trusted interactions. Preserve legitimate
+  recall, gloss geometry and accessibility tests, and positively assert how host edits
+  are handled. Re-run through Nix+Bazel against the released ZIP.
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T07:54:01-00:00
+references: []
+log_events:
+- time: 2026-11-23T07:54:01-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
