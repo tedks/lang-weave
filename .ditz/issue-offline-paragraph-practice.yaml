@@ -68,3 +68,11 @@ log_events:
     choices in 293 and 64. The result is specific to these books. Verify both manual
     rendering and unchanged normal website refusal. Narrow-width evidence also showed
     a need for wrapping selected sense/context; the lead is already handling it."
+- time: 2026-11-23T05:58:56-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Ready for CTO acceptance in tedks/lang-weave#74 at 0bd895edd680d59135eeb75d3b95997aea27b071
+    (0.15.0, separate version commit). All exact Nix/Bazel gates, the installed unmodified
+    ZIP exercise, and formal council are green. Sol and Opus CLEAN, Google quota-empty.
+    Dialogue is local-only and the default web quote guards remain tested. Exact evidence:
+    https://github.com/tedks/lang-weave/pull/74#issuecomment-7092899150'
