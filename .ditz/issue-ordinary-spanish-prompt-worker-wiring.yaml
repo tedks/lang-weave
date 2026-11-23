@@ -1,0 +1,22 @@
+id: ordinary-spanish-prompt-worker-wiring
+title: Pin the worker contract for ordinary Spanish prompt compaction
+desc: 'PR #63 rebased council found that the engine captures ordinary and gradual
+  requests directly, while the worker tests separately cover authorization and model
+  dispatch. Add a synthetic worker-level body capture that proves all-active ordinary
+  Spanish requests are compacted and gradual requests retain their existing body,
+  starting from the normal reading.js entry and a real placement-derived candidate
+  pool. No runtime change or live model traffic is required. This is additional guard
+  coverage after the 0.13.2 rebase.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T04:11:39-00:00
+references: []
+log_events:
+- time: 2026-11-23T04:11:39-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
