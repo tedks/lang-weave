@@ -39,13 +39,27 @@ export function readingDates(record, wordIds) {
   return [...days];
 }
 
+function retainReadingDays(dates, today) {
+  if (dates.length <= MAX_READING_DAYS) return dates;
+  const start = new Date(`${today}T12:00:00`);
+  start.setDate(start.getDate() - (MAX_READING_DAYS - 1));
+  const first = localDay(start);
+  // On upgrade or clock rollback, keep the whole visible window before using remaining
+  // room for the most recently observed dates outside it.
+  const keep = new Set(dates.filter((day) => day >= first && day <= today));
+  for (let i = dates.length - 1; i >= 0 && keep.size < MAX_READING_DAYS; i--) keep.add(dates[i]);
+  return dates.filter((day) => keep.has(day));
+}
+
 // Caller serializes read-modify-write operations. Keep only the latest 500 events.
-export async function queueEvents(storage, events, day = localDay(), { wordIds = [], canWrite = () => true } = {}) {
+export async function queueEvents(storage, events, day = localDay(),
+  { wordIds = [], canWrite = () => true, receivedDay = day } = {}) {
   const obj = await storage.get([PENDING_KEY, SENT_KEY, READING_DAYS_KEY]);
   const stored = obj[READING_DAYS_KEY];
-  let dates = validReadingDays(stored) ? stored : readingDates(obj, wordIds);
+  let dates = readingDates(obj, wordIds);
   const pending = Array.isArray(obj[PENDING_KEY]) ? [...obj[PENDING_KEY]] : [];
   const oldSent = obj[SENT_KEY];
+  const updateSent = receivedDay === day || oldSent?.day === day;
   const sent = { day, words: oldSent?.day === day && Array.isArray(oldSent.words)
     ? oldSent.words.filter((word) => typeof word === 'string') : [] };
   for (const e of events || []) {
@@ -57,6 +71,7 @@ export async function queueEvents(storage, events, day = localDay(), { wordIds =
       dates = [...dates.filter((date) => date !== day), day];
     }
     if (e.kind !== 'flip') {
+      if (!updateSent && pending.some((item) => item?.word === word && item.kind === e.kind && item.day === day)) continue;
       const tag = e.kind === 'seen' ? word : `peek:${word}`;
       if (sent.words.includes(tag)) continue;
       sent.words.push(tag);
@@ -64,8 +79,11 @@ export async function queueEvents(storage, events, day = localDay(), { wordIds =
     pending.push({ word, kind: e.kind, day });
   }
   if (!canWrite()) return null;
-  await storage.set({ [PENDING_KEY]: pending.slice(-MAX_EVENTS), [SENT_KEY]: sent,
-    ...(dates.length && dates !== stored ? { [READING_DAYS_KEY]: dates.slice(-MAX_READING_DAYS) } : {}) });
+  dates = retainReadingDays(dates, receivedDay);
+  const changed = dates.length && (!validReadingDays(stored) || stored.length !== dates.length ||
+    dates.some((date, i) => date !== stored[i]));
+  await storage.set({ [PENDING_KEY]: pending.slice(-MAX_EVENTS), ...(updateSent ? { [SENT_KEY]: sent } : {}),
+    ...(changed ? { [READING_DAYS_KEY]: dates } : {}) });
   return pending.length;
 }
 

@@ -38,7 +38,10 @@ test('visible target faces count once per local day, including a page left open 
       if (msg.type === 'config') return config;
       if (msg.type === 'swaps') return { results: Object.fromEntries(msg.items.map(({ key }) => [key,
         [{ o: 'and', f: 'y', g: 'and', h: '', word: 'y' }]])) };
-      if (msg.type === 'event' && msg.event === 'seen') seen.push(localDay());
+      if (msg.type === 'event' && msg.event === 'seen') {
+        expect(msg.day).toBe(localDay());
+        seen.push(msg.day);
+      }
       return { ok: true };
     } } },
   });
@@ -56,7 +59,9 @@ test('visible target faces count once per local day, including a page left open 
     state = 'hidden'; observe(1);
     state = 'visible'; cssVisible = false; visibilityChange();
     expect(seen).toEqual([]);
-    cssVisible = true; visibilityChange(); observe(1);
+    cssVisible = true; tick(); // Visibility changes, but geometry and document visibility stay put.
+    expect(seen).toEqual(['2026-10-20']);
+    observe(1);
     expect(seen).toEqual(['2026-10-20']);
 
     now = new RealDate(2026, 9, 21, 0, 1).getTime();

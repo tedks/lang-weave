@@ -103,7 +103,7 @@ function record(span, event) {
   if (event === 'seen' && (document.visibilityState === 'hidden' || !span.isConnected || !visibleWords.has(span) ||
       span.classList.contains('fw-en') || span.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false)) return;
   if (daily) events.add(id);
-  void send({ type: 'event', word, event, revision }).then((r) => {
+  void send({ type: 'event', word, event, revision, ...(event === 'seen' ? { day: today } : {}) }).then((r) => {
     if (!r?.ok && daily) events.delete(id);
   }).catch(() => { if (daily) events.delete(id); });
 }
@@ -583,12 +583,13 @@ function retryIntro(ticket, word, revision, gen) {
   if (attempts > 3) { abandonIntro(ticket, word, revision); return; }
   setTimeout(() => { if (gen === generation && alive()) seenVisible(); }, attempts * 1000);
 }
-function seenVisible() {
+function seenVisible({ acknowledge = true } = {}) {
   if (document.visibilityState === 'hidden') return;
   for (const span of visibleWords) {
     if (!span.isConnected || isPractice(span)) continue;
     const ticket = introductionTicket(span);
     if (ticket) {
+      if (!acknowledge) continue;
       if (!introInflight.has(ticket) && on()) {
         introInflight.add(ticket);
         const gen = generation, revision = config.revision, word = swapWord(span);
@@ -890,7 +891,11 @@ const navTimer = setInterval(() => {
     page = location.href;
     titleSensitive = sensitive;
     if (config) update(config, true);
-  } else if (day !== today) seenVisible();
+  } else {
+    // Geometry can stay fixed while a word fades in. Recheck settled swaps without changing
+    // introduction acknowledgement or retry timing.
+    seenVisible({ acknowledge: false });
+  }
   day = today;
 }, 1000);
 void send({ type: 'config' }).then(update).catch(() => {});

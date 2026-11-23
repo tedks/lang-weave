@@ -103,7 +103,7 @@ export function todayCounts(scopes, entries, now) {
 // instants only, so after travel past retrievals are re-bucketed into the new zone's
 // dates. Reading dates stay on their original local date. Calendar arithmetic keeps DST days
 // to one entry each. Future entries and reading dates stay outside the display after a rollback.
-export function activity(entries, now, { days = ACTIVITY_DAYS, readingDays = [] } = {}) {
+export function activity(entries, now, days = ACTIVITY_DAYS, readingDays = []) {
   const today = new Date(now);
   const list = Array.from({ length: days }, (_, i) =>
     localDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1 - i))));

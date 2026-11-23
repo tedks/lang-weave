@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { DAY_MS, REVIEW_KEY } from '../src/review.js';
 import { RETRIEVALS_KEY } from '../src/learning-log.js';
 import { PERSONAL_KEY } from '../src/personal.js';
-import { PENDING_KEY, READING_DAYS_KEY, localDay } from '../src/events.js';
+import { PENDING_KEY, READING_DAYS_KEY, SENT_KEY, localDay } from '../src/events.js';
 import { GUARANI_PACK } from '../src/guarani.js';
 import { GUARANI_STARTER } from '../src/language-name.js';
 import { baseline } from './backup-fixture.js';
@@ -13,7 +13,7 @@ const sender = (page) => ({ id: ID, url: `${BASE}src/${page}.html` });
 const UUID = '0b5e7e4c-1d2a-4c3b-9f8e-1a2b3c4d5e6f';
 
 // Boots the real worker with an in-memory storage and a controllable clock.
-async function boot(name, data, origins = []) {
+async function boot(name, data, origins = [], beforePermissions = () => {}) {
   const RealDate = Date;
   const clock = { now: Date.parse('2026-10-20T15:00:00Z') };
   class Clock extends RealDate {
@@ -38,7 +38,7 @@ async function boot(name, data, origins = []) {
     tabs: { query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins }), onAdded: on(), onRemoved: on() },
+    permissions: { async getAll() { beforePermissions(); return { origins }; }, onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
@@ -49,6 +49,40 @@ async function boot(name, data, origins = []) {
   });
   return { clock, dispatch, restore: () => { globalThis.Date = RealDate; } };
 }
+
+test('a delayed sighting keeps its local date without replacing the next day’s seen counts', async () => {
+  const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const data = { apiKey: 'synthetic-test-key', settings: { enabled: true, newSitesEnabled: true, gradual: false } };
+  const before = new Date(2026, 9, 20, 23, 59).getTime(), after = new Date(2026, 9, 21, 0, 1).getTime();
+  let crossMidnight = false;
+  const { clock, dispatch, restore } = await boot('activity-midnight', data, ['https://example.com/*'], () => {
+    if (crossMidnight) clock.now = after;
+  });
+  const page = { id: ID, tab: { id: 1 }, url: 'https://example.com/article', frameId: 0, documentLifecycle: 'active' };
+  try {
+    clock.now = before;
+    const { revision } = await dispatch({ type: 'config' }, page);
+    const event = (word, day) => dispatch({ type: 'event', event: 'seen', word, day, revision }, page);
+    crossMidnight = true;
+    expect(await event('y', '2026-10-20')).toEqual({ ok: true });
+    expect(clock.now).toBe(after);
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-20']);
+    expect(data[PENDING_KEY].at(-1)).toEqual({ word: 'y', kind: 'seen', day: '2026-10-20' });
+    expect(data.learningExposures.words.y.slice(-2)).toEqual(['2026-10-20', '2026-10-20']);
+
+    expect(await event('pero', '2026-10-21')).toEqual({ ok: true });
+    expect(await event('con', '2026-10-20')).toEqual({ ok: true });
+    expect(await event('con', '2026-10-20')).toEqual({ ok: true });
+    for (const invalid of [null, '2026-10-19', '2026-10-22', '2026-10-21T00:00:00Z']) {
+      expect(await event('con', invalid)).toEqual({ ok: false });
+    }
+    expect(data[PENDING_KEY].filter((entry) => entry.word === 'con')).toEqual([{ word: 'con', kind: 'seen', day: '2026-10-20' }]);
+    expect(data[SENT_KEY]).toEqual({ day: '2026-10-21', words: ['pero'] });
+    const activity = await dispatch({ type: 'progress' }, sender('popup'));
+    expect(activity.today.seen).toBe(1);
+    expect(activity.practisedThisWeek).toBe(2);
+  } finally { restore(); Object.assign(globalThis, saved); }
+});
 
 test('accepted reading days and reviews are unioned within the active pack and personal language', async () => {
   const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };

@@ -339,6 +339,15 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
 
   // Events stay local and bounded. Sightings are not evidence of mastery; no automatic promotion.
   async function record(msg, sender) {
+    let observation;
+    if (msg.event === 'seen') {
+      const received = new Date();
+      const receivedDay = localDay(received);
+      const day = Object.hasOwn(msg, 'day') ? msg.day : receivedDay;
+      received.setDate(received.getDate() - 1);
+      if (day !== receivedDay && day !== localDay(received)) return { ok: false };
+      observation = { day, receivedDay };
+    }
     return locked(async () => {
       const consent = worker.permissionGeneration;
       const ctx = await context();
@@ -348,17 +357,17 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
           (sender.documentLifecycle && sender.documentLifecycle !== 'active'))) return { ok: false };
       const found = resolveWord(ctx, msg.word);
       if (!found) return { ok: false };
-      return applyEvent(ctx, found, msg.event, sender, consent);
+      return applyEvent(ctx, found, msg.event, sender, consent, observation);
     });
   }
   // One reading event for a resolved word. The caller holds the lock and has checked revision and
   // site access; `consent` is the permission generation it checked them under.
-  async function applyEvent(ctx, { word, personal }, event, sender, consent) {
+  async function applyEvent(ctx, { word, personal }, event, sender, consent, observation) {
     const wordIds = personal ? ctx.personal.entries.filter((entry) => entry.language === ctx.language).map((entry) => entry.id)
       : ctx.legacyAllWords.map((word) => word.fr);
     const written = await queueEvents(personal ? personalScope(ctx.language) : scopedStorage(chromeStorage, ctx.scope),
-      [{ word: personal?.id || word.fr, kind: event }], localDay(),
-      { wordIds, canWrite: () => worker.permissionGeneration === consent });
+      [{ word: personal?.id || word.fr, kind: event }], observation?.day ?? localDay(),
+      { wordIds, receivedDay: observation?.receivedDay, canWrite: () => worker.permissionGeneration === consent });
     if (written === null) return { ok: false };
     // Exposure aggregates for the learning log, at the same point as the reading events. The
     // event write yielded, so recheck consent before this separate write. A flip is a reveal
@@ -370,7 +379,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
           const now = Date.now(), day = localDay(new Date(now));
           const { legacy, personal: own } = await adaptiveReviewState(ctx, day, now);
           const card = personal ? own.state.cards[personal.id] : legacy.state.cards[word.fr];
-          if (countCardEncounter(card, event, day, now)) {
+          if (countCardEncounter(card, event, observation?.day ?? day, now)) {
             const fresh = await context();
             if (fresh.revision !== ctx.revision || !activeOn(fresh, sender.url) ||
                 worker.permissionGeneration !== consent) return { ok: false };
@@ -378,7 +387,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
             else await legacy.scoped.set({ [REVIEW_KEY]: legacy.state });
           }
         }
-        await logExposure(ctx, !!personal, personal?.id || word.fr, event, Date.now());
+        await logExposure(ctx, !!personal, personal?.id || word.fr, event, observation?.day ?? localDay());
       }
     }
     return { ok: true };

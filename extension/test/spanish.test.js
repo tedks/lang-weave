@@ -134,3 +134,12 @@ test('reading dates share the event write, survive queue eviction and keep the m
   expect((await store.getAll())[READING_DAYS_KEY].at(-1)).toBe('2026-10-01');
   expect((await store.getAll())[READING_DAYS_KEY]).toContain('2026-10-31');
 });
+
+test('older accepted dates survive event eviction even when the scope already has reading dates', async () => {
+  const store = memoryStorage({ [READING_DAYS_KEY]: ['2026-10-15'],
+    [PENDING_KEY]: [{ word: 'y', kind: 'seen', day: '2026-10-18' }] });
+  await queueEvents(store, Array.from({ length: 500 }, () => ({ word: 'y', kind: 'flip' })), '2026-10-20', { wordIds: ['y'] });
+  const data = await store.getAll();
+  expect(data[PENDING_KEY].some((event) => event.kind === 'seen')).toBe(false);
+  expect(data[READING_DAYS_KEY]).toEqual(['2026-10-15', '2026-10-18']);
+});

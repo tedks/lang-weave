@@ -14,7 +14,7 @@ import { languageName } from './languages.js';
 import { PERSONAL_KEY } from './personal.js';
 import { entryId } from './catalog.js';
 import { personalReview } from './review-state.js';
-import { verifiedWords, wordStage, stageCounts, todayCounts, activity, practisedThisWeek,
+import { verifiedWords, wordStage, stageCounts, todayCounts, activity, practisedThisWeek, ACTIVITY_DAYS,
   measurements } from './progress.js';
 import { measurementsSkipped } from './measurement-skips.js';
 
@@ -55,7 +55,7 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
     const ownCounts = reviewCounts(own.state, own.words, now);
     const readingDays = [...readingDates(snap.a, ctx.legacyAllWords.map((word) => word.fr)),
       ...readingDates(snap.b, snap.personalEntries.map((entry) => entry.id))];
-    const strip = activity(entries, now, { readingDays });
+    const strip = activity(entries, now, ACTIVITY_DAYS, readingDays);
     const labels = new Map(snap.personalEntries.map((entry) => [entry.id, entry.target]));
     const learningWords = ids.filter((id) => cards[id] && !cards[id].familiar);
     return {
