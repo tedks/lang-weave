@@ -19,7 +19,7 @@ type: feature
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-11-23T05:03:26-00:00
 references: []
@@ -43,3 +43,7 @@ log_events:
     and give the reader a choice among specific occurrences. Show an actionable no-match
     path for pasted Guaran\xED text; a bounded explicit word list can guide editing.
     Private reproduction and pinned source blobs are under paragraph-coverage.path."
+- time: 2026-11-23T05:23:58-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
