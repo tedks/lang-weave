@@ -1,0 +1,21 @@
+id: spanish-placement-small-pool-fallback
+title: Explain placement fallback if a future Spanish pool is empty
+desc: 'The shipped Spanish Beginner and Expanded pools both have verified samples.
+  PR #60 council noted a future edge: if a pool becomes empty and a saved choice points
+  to it, the form shows the regular reading-level preference as the available choice
+  and waits for explicit save. Explain the fallback in the live status and test the
+  form with a disabled restored choice before introducing a Spanish pack without both
+  pools. The existing release test covers small and empty sample construction.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T03:59:31-00:00
+references: []
+log_events:
+- time: 2026-11-23T03:59:31-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
