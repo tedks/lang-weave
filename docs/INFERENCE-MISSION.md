@@ -41,7 +41,9 @@ State: PR #42 on branch `inference-step` at 0.12.21, rebased on `origin/main` `5
    - Opening never moves focus.
    - Keyboard (trusted events only):
      - Arrows and 1–4 move to a choice, and Enter confirms through the button's own click.
-     - Tab from the focused word enters the choices. Tab advances through the panel. Shift+Tab from the first choice or Tab from Dismiss returns focus to the word.
+     - Tab returns focus to the word.
+
+       In 0.15.15 (verified November 23, 2026), Tab from the focused word enters the choices and advances through the panel. Shift+Tab from the first choice or Tab from Dismiss returns focus to the word.
      - Escape closes the panel and returns focus. A dismissed word does not reopen until the pointer or focus leaves it.
    - A trusted choice reveals `word · gloss` with "Right:" or "Not quite:". If the worker refused the answer, the meaning is still shown, unjudged and unrecorded.
    - These close it without recording: Escape, a click away, Dismiss, focus moving to another element (a window blur does not), a full dwell on another word, scrolling the word out of view, or the setting turning off.
