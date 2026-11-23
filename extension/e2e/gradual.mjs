@@ -1,27 +1,20 @@
 // Isolated real MV3 Chromium with a synthetic Gemini reply and throwaway profile.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 import { closedShadow } from './closed-shadow.js';
-import { cleanPack } from '../src/languages.js';
-import { initialState, intervalDays } from '../src/fsrs.js';
+const { cleanPack } = await import(pathToFileURL(join(extensionRoot, 'src', 'languages.js')).href);
+const { initialState, intervalDays } = await import(pathToFileURL(join(extensionRoot, 'src', 'fsrs.js')).href);
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-gradual-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push(...manifest.optional_host_permissions); // test grant only
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: true,
     // A restarted MV3 worker loses the synthetic fetch; DNS must then fail
     // closed instead of sending the throwaway prompt to the real endpoint.
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
@@ -37,6 +30,10 @@ try {
     await chrome.storage.local.set({ settings: { ...settings, gradual: true, inlineRecall: true,
       newWordsPerDay: 1, newSitesEnabled: true }, apiKey: 'synthetic-gradual-key', consentShown: true });
     globalThis.calls = [];
+    globalThis.inlineActions = [];
+    chrome.runtime.onMessage.addListener(({ type }) => {
+      if (['inlineBegin', 'inlineReveal', 'inlineRate'].includes(type)) globalThis.inlineActions.push(type);
+    });
     const original = fetch;
     globalThis.fetch = async (url, init) => {
       if (!String(url).startsWith('https://generativelanguage.googleapis.com/')) return original(url, init);
@@ -59,6 +56,7 @@ try {
     <form><p>Private form text and the idea stay here.</p><input value="private"></form>
     <p contenteditable="true">Editable the idea stays here.</p>
   </main></body></html>`;
+  await grantReadingSite(browser, worker);
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: route.request().url().endsWith('/offscreen')
       ? '<main><div style="height:900px"></div><p id="offscreen">We discussed the question with friends every week.</p></main>' : html }));
@@ -114,12 +112,34 @@ try {
     span.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   });
   assert.equal(await recall.locator('.fw-recall').count(), 0); // page script cannot open a ticket
-  await due.evaluate((span) => span.setAttribute('data-en', 'forged cue'));
+  const recallEffects = () => worker.evaluate(async () => ({
+    storage: await chrome.storage.local.get(['recallReview', 'learningRetrievals']),
+    actions: globalThis.inlineActions,
+    modelCalls: globalThis.calls.length,
+  }));
+  const beforeDirtyCue = await recallEffects();
+  await due.evaluate((span) => {
+    span.setAttribute('data-en', 'forged cue');
+    window.recallInput = [];
+    for (const type of ['click', 'keydown']) {
+      span.addEventListener(type, (event) => window.recallInput.push([event.type, event.isTrusted]), { once: true });
+    }
+  });
   await due.click();
+  await due.press('Enter');
+  assert.deepEqual(await page.evaluate(() => window.recallInput), [['click', true], ['keydown', true]]);
+  assert.equal(await recall.locator('.fw-recall').count(), 0, 'edited cue must reject even trusted input');
+  assert.deepEqual(await recallEffects(), beforeDirtyCue, 'edited cue must create no ticket, retrieval or model call');
+  assert.equal(await due.getAttribute('data-en'), 'forged cue', 'the host edit stays in place');
+
+  await page.reload();
+  await due.waitFor();
+  assert.equal(await due.getAttribute('title'), 'Open inline recall');
+  await due.press('Enter');
   await recall.locator('.fw-recall').waitFor();
   assert.match(await recall.locator('.fw-recall').textContent(), /Recall the translation/);
-  await due.evaluate((span) => span.setAttribute('data-en', 'the idea'));
   await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
+  assert.deepEqual((await recallEffects()).actions, [...beforeDirtyCue.actions, 'inlineBegin']);
   assert.equal(await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).evaluate((el) => el.getRootNode().activeElement === el), true);
   await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).clickUntrusted();
   assert.equal(await recall.locator('.fw-recall button', { hasText: 'Easy' }).count(), 0);
@@ -157,6 +177,19 @@ try {
   await due.click();
   await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
   await recall.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
+  const beforeDirtyRating = await recallEffects();
+  assert.equal(beforeDirtyRating.actions.at(-1), 'inlineReveal');
+  await due.evaluate((span) => span.setAttribute('data-en', 'forged after reveal'));
+  await recall.locator('.fw-recall button', { hasText: 'Easy' }).click();
+  await recall.locator('.fw-recall').waitFor({ state: 'detached' });
+  assert.deepEqual(await recallEffects(), beforeDirtyRating, 'edited span must reject a rating without writing or sending');
+  console.log('Recall ownership: trusted click and Enter on the edited cue send no inline action; edited post-reveal rating closes with no effects.');
+
+  await page.reload();
+  await due.waitFor();
+  await due.click();
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await recall.locator('.fw-recall button', { hasText: 'Easy' }).waitFor();
   const canFailWrite = await worker.evaluate(() => {
     const original = chrome.storage.local.set;
     const failOnce = (...args) => {
@@ -187,7 +220,6 @@ try {
   assert.equal(concurrent.length, 2, 'two tabs hold independent inline tickets');
   assert.equal(new Set(concurrent.map(({ tabId }) => tabId)).size, 2);
   const callsBeforeRating = (await worker.evaluate(() => globalThis.calls)).length;
-  await due.evaluate((span) => span.setAttribute('data-en', 'forged after reveal'));
   await recall.locator('.fw-recall button', { hasText: 'Easy' }).click();
   await recall.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));

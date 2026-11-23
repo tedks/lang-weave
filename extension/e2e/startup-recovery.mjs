@@ -1,24 +1,17 @@
 // A granted page is already open when a fresh MV3 worker restores registration.
 // The fixture removes the dynamic registration before navigation to reproduce Chromium's raw-wake gap.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-startup-recovery-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 let browser;
 try {
-  for (const path of ['src', 'icons', '_locales'])
-    await cp(join(root, path), join(extension, path), { recursive: true });
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push('https://reading.example/*'); // isolated grant only
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: true,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND', '--proxy-server=127.0.0.1:9'],
   });
@@ -44,6 +37,7 @@ try {
       { headers: { 'Content-Type': 'application/json' } });
     };
   });
+  await grantReadingSite(browser, worker);
   const first = await browser.newPage();
   await first.goto('https://reading.example/prime');
   await first.locator('#reading .fw-word').waitFor(); // positive control: this grant and cache work

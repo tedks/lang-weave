@@ -1,22 +1,20 @@
 // Real MV3 Chromium, synthetic pages and Gemini only. No API key, account or paid calls.
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, dirname, isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join, isAbsolute } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 
 const beginnerSpanishWords = 48;
 const firstReviewBatch = 5;
 const spanishAfterIntroduction = `3 due · ${beginnerSpanishWords - firstReviewBatch} available to add`;
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const source = process.env.SPANISH_WEAVE_TEST_EXTENSION || root;
+const source = process.env.SPANISH_WEAVE_TEST_EXTENSION || extensionRoot;
 if (!isAbsolute(source)) throw new Error('SPANISH_WEAVE_TEST_EXTENSION must be an absolute extension directory');
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-smoke-'));
-const extension = join(scratch, 'extension');
+const extension = source;
 let context;
 const originHits = [];
 const proxyHits = [];
@@ -43,21 +41,12 @@ async function listen(server) {
 try {
   const originPort = await listen(origin);
   const proxyPort = await listen(proxy);
-  await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  // Chrome refuses to load without the icons a manifest names; a pre-0.12.7 source names none. Copy exactly
-  // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
-  const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
-  if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
-  if (declared.default_locale) await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
-  const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
-  // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
-  manifest.host_permissions.push(...manifest.optional_host_permissions);
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
+  const manifest = JSON.parse(await readFile(join(extension, 'manifest.json'), 'utf8'));
   const launchArgs = [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
     '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND, MAP probe.weave.test 127.0.0.1',
     `--proxy-server=127.0.0.1:${proxyPort}`];
   context = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: true,
     // An MV3 worker restart loses the synthetic fetch. Block real Gemini
     // dispatch at the browser level even if that happens during this flow.
     args: launchArgs,
@@ -108,6 +97,8 @@ try {
     <pre>private code and secrets stay here</pre>
     <p lang="es">Leemos libros y disfrutamos de las tardes tranquilas.</p>
   </main></body></html>`;
+  await grantReadingSite(context, worker);
+  await grantReadingSite(context, worker, 'https://mail.google.com/*');
   await context.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   await context.route('https://mail.google.com/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const page = await context.newPage();
@@ -245,10 +236,11 @@ try {
   // Probe its browser-level network denial, which also survives worker restarts.
   await context.close();
   context = await chromium.launchPersistentContext(join(scratch, 'fresh-profile'), {
-    channel: 'chromium', headless: true, args: launchArgs,
+    ...chromiumBinary, headless: true, args: launchArgs,
   });
   const freshWorker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   assert.equal(await freshWorker.evaluate(() => 'smokeCalls' in globalThis), false);
+  await grantReadingSite(context, freshWorker, 'http://127.0.0.1/*');
   // The owned origin is a positive control; a non-loopback hostname must
   // fail through the local rejecting proxy, with no request reaching origin.
   const probe = await freshWorker.evaluate(async (port) => {

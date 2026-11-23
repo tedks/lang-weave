@@ -114,6 +114,23 @@ via `--test_env=LANG_WEAVE_REVIEW_XDOTOOL=/path/to/xdotool`.
 It uses no real account or key. The focused Bun target covers language,
 backup and resource-manifest regressions without npm test dependencies.
 
+The supplementary Chromium gate runs 13 scenarios serially against the
+same extracted ZIP and prints its SHA-256. It uses throwaway profiles,
+synthetic pages and provider replies, and profile-scoped Chrome permission
+grants. Personal capture dispatches a synthetic menu event to the registered
+listener. Portability loads the unchanged candidate as the destination and
+uses a separate keyless source fixture. To rehearse an actual legacy export,
+pass `--test_env=PORTABILITY_OLD_EXTENSION=/absolute/path/to/unpacked-0.11.x`.
+
+```sh
+nix develop --command bazel test //:supplementary_browser_test --nocache_test_results \
+  --test_env=LANG_WEAVE_BETA_ZIP=/absolute/path/to/the-release.zip \
+  --test_env=LANG_WEAVE_CHROMIUM=/absolute/path/to/chromium --test_output=all
+```
+
+For a focused rerun, pass one or more arguments such as
+`--test_arg=smoke --test_arg=gradual --test_arg=gloss`.
+
 The separate `//:reading_reload_test` gate uses Chrome's native **Load unpacked**
 and permission prompt in a disposable 1500×920 X11 desktop with a window
 manager. Pass the exact candidate ZIP and Chromium path as above, plus

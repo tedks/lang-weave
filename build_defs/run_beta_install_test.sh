@@ -24,6 +24,31 @@ done
 # Chromium uses a Unix socket whose path cannot fit under the Bazel test directory.
 export TMPDIR=/tmp
 export DO_NOT_TRACK=1
+if [[ "${3:-}" == --supplementary ]]; then
+    shift 3
+    cases=(smoke adaptive again badge gradual guess highlights key-rejection personal startup-recovery gloss quota-status portability)
+    if [[ $# -eq 0 ]]; then
+        set -- "${cases[@]}"
+    fi
+    for name in "$@"; do
+        if [[ " ${cases[*]} " != *" $name "* || -z "$name" || "$name" == *' '* ]]; then
+            echo "Unknown supplementary browser scenario: $name" >&2
+            exit 2
+        fi
+    done
+    sha256sum "$LANG_WEAVE_BETA_ZIP"
+    failed=0
+    for name in "$@"; do
+        echo "BEGIN scenario $name"
+        if "$bun_path" "$runfiles_root/extension/e2e/$name.mjs"; then
+            echo "END PASS $name"
+        else
+            echo "END FAIL $name"
+            failed=1
+        fi
+    done
+    exit "$failed"
+fi
 if [[ -n "${3:-}" ]]; then
     exec "$bun_path" "${runfiles_root}/$3"
 fi

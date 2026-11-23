@@ -1,16 +1,14 @@
 // Real Chromium MV3/storage/popup with synthetic provider responses and an owned rejecting network sink.
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-quota-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 const profile = join(scratch, 'profile');
 const sinkHits = [];
 const modelSinkHits = () => sinkHits.filter((hit) => hit.includes('generativelanguage.googleapis.com'));
@@ -37,16 +35,10 @@ let browser;
 try {
   const originPort = await listen(origin);
   const sinkPort = await listen(sink);
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push(...manifest.optional_host_permissions); // isolated test grant
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   const args = [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
     '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND, MAP probe.weave.test 127.0.0.1',
     `--proxy-server=127.0.0.1:${sinkPort}`];
-  const launch = () => chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, args });
+  const launch = () => chromium.launchPersistentContext(profile, { ...chromiumBinary, headless: true, args });
   const route = (context) => context.route('https://reading.example/**', (request) => request.fulfill({
     contentType: 'text/html', body: `<!doctype html><title>Ordinary reading</title><main><p>
       We read books and enjoy quiet evenings every week.
@@ -80,6 +72,8 @@ try {
     if (!settings) throw new Error('worker never wrote its startup settings');
     await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-quota-key', consentShown: true });
   });
+  await grantReadingSite(browser, worker);
+  await grantReadingSite(browser, worker, 'http://127.0.0.1/*');
   const page = await browser.newPage();
   await page.goto('https://reading.example/first');
   await assert.doesNotReject(async () => {

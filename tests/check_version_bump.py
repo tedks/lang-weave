@@ -34,10 +34,24 @@ SHIPPED = ('.claude-plugin/', 'scripts/', 'hooks/', 'commands/', 'skills/', 'age
 # the known harness entry points are exempt. New e2e files fail closed.
 NOT_SHIPPED = ('extension/test/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
                'extension/bun.lockb')
-E2E_HARNESSES = ('extension/e2e/smoke.mjs', 'extension/e2e/gradual.mjs',
-                 'extension/e2e/again.mjs', 'extension/e2e/adaptive.mjs',
-                 'extension/e2e/highlights.mjs', 'extension/e2e/badge.mjs',
-                 'extension/e2e/welcome.mjs', 'extension/e2e/reading-reload.mjs')
+E2E_HARNESSES = (
+    'extension/e2e/adaptive.mjs',
+    'extension/e2e/again.mjs',
+    'extension/e2e/badge.mjs',
+    'extension/e2e/browser.mjs',
+    'extension/e2e/gloss.mjs',
+    'extension/e2e/gradual.mjs',
+    'extension/e2e/guess.mjs',
+    'extension/e2e/highlights.mjs',
+    'extension/e2e/key-rejection.mjs',
+    'extension/e2e/personal.mjs',
+    'extension/e2e/portability.mjs',
+    'extension/e2e/quota-status.mjs',
+    'extension/e2e/reading-reload.mjs',
+    'extension/e2e/smoke.mjs',
+    'extension/e2e/startup-recovery.mjs',
+    'extension/e2e/welcome.mjs',
+)
 ZERO = re.compile(r'^0+$')  # GitHub's "before" SHA for a new branch
 
 
