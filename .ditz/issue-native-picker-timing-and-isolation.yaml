@@ -1,0 +1,23 @@
+id: native-picker-timing-and-isolation
+title: Harden timing and diagnostics of the native Chrome folder picker
+desc: 'Follow-up to #92''s five minor council observations. Evaluate preserving the
+  old 30s manager budget for slow installs and treating a chooser that closes between
+  X11 coordinate checks as complete before rechecking Chrome''s manager. The existing
+  focus guard fails closed and the current three browsers pass. Both callers already
+  create XDG_CONFIG_HOME in their disposable scratch; consider making that invariant
+  explicit in the helper. Consider clearer early diagnosis of missing xclip while
+  preserving the documented PATH default and absolute override. Exact initial failures
+  and all three versioned receipts are recorded on #92.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:51:13-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:51:13-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
