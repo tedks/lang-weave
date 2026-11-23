@@ -1,18 +1,7 @@
 import { localize, t } from './i18n.js';
-import { L1_WORDS } from './vocabulary.js';
-import { applySwaps, toggle, isSwap } from './text.js';
 import { declaredMatches } from './sites.js';
 import { mountPlacement } from './placement-page.js';
-
-// Keep the example fixed and sense-safe. Each entry must come from the bundled Beginner pack.
-const DEMO_ENGLISH = ['Today', 'with', 'and', 'important', 'always', 'because', 'difficult', 'but', 'possible'];
-export function demoSwaps() {
-  return DEMO_ENGLISH.map((source) => {
-    const word = L1_WORDS.find(({ en }) => en === source.toLowerCase());
-    if (!word) throw new Error(`Missing Beginner demo word: ${source}`);
-    return { o: source, f: word.fr, g: word.en, h: word.hint, ctx: '' };
-  });
-}
+import { mountWelcomeDemo } from './welcome-demo.js';
 
 export function chooseSitePolicy(all, { request, save }) {
   // request() must be the first action on the all-sites click to retain Chrome's user gesture.
@@ -32,50 +21,7 @@ if (typeof document !== 'undefined') {
   if (placementPanel) mountPlacement(placementPanel);
 }
 if (typeof document !== 'undefined' && document.getElementById('demo')) {
-  const demo = document.getElementById('demo');
-  applySwaps(demo, demoSwaps());
-  let tipTimer;
-  let tipBox;
-  const hideTip = () => { clearTimeout(tipTimer); tipTimer = undefined; tipBox?.remove(); tipBox = undefined; };
-  const showTip = (span) => {
-    if (!span.isConnected) return;
-    const box = document.createElement('div');
-    box.className = 'fw-gloss fw-gloss-on';
-    box.setAttribute('aria-hidden', 'true');
-    box.textContent = `${span.dataset.fr} · ${span.dataset.tip}`;
-    document.documentElement.append(box);
-    const rect = span.getBoundingClientRect();
-    const size = box.getBoundingClientRect();
-    box.style.setProperty('left', `${Math.max(8, Math.min(rect.left, innerWidth - size.width - 8))}px`, 'important');
-    box.style.setProperty('top', `${Math.max(8, rect.top - size.height - 8)}px`, 'important');
-    tipBox = box;
-  };
-  demo.addEventListener('pointerover', (event) => {
-    const span = event.target.closest?.('.fw-word');
-    if (!span || !isSwap(span)) return;
-    hideTip();
-    tipTimer = setTimeout(() => showTip(span), 700);
-  });
-  demo.addEventListener('pointerout', hideTip);
-  demo.addEventListener('focusin', (event) => {
-    const span = event.target.closest?.('.fw-word');
-    if (!span || !isSwap(span)) return;
-    hideTip();
-    tipTimer = setTimeout(() => showTip(span), 700);
-  });
-  demo.addEventListener('focusout', hideTip);
-  const flip = (event) => {
-    const span = event.target.closest?.('.fw-word');
-    if (!span || !isSwap(span)) return;
-    hideTip();
-    toggle(span);
-  };
-  demo.addEventListener('click', flip);
-  demo.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    flip(event);
-  });
+  void mountWelcomeDemo(document.getElementById('demo'), document.getElementById('demoLanguage'));
 
   const status = document.getElementById('choiceStatus');
   const buttons = [document.getElementById('onlySites'), document.getElementById('allSites')];

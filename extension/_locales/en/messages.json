@@ -916,23 +916,27 @@
     "description": "First-run welcome page: browser tab title and main heading."
   },
   "welcome_intro": {
-    "message": "Learn Spanish a little at a time while reading English pages.",
+    "message": "Learn a language a little at a time while reading English pages.",
     "description": "First-run welcome page: introduction under the main heading."
   },
   "welcome_demo_heading": {
-    "message": "1. See it in a sentence",
+    "message": "1. Try a reading sample",
     "description": "First-run welcome page: heading of step 1. Keep the number."
   },
+  "welcome_demo_language": {
+    "message": "Sample language",
+    "description": "First-run welcome page: label for the local reading sample selector."
+  },
   "welcome_demo_help": {
-    "message": "Hover over an underlined word for its meaning. Click it to flip between Spanish and English. This sample uses bundled words and stays on your device.",
-    "description": "First-run welcome page: how to use the sample sentence above it."
+    "message": "Hover over or focus an underlined word for its meaning. Click it or press Enter or Space to flip it. This bundled sample stays on your device. Choose your reading language in Settings.",
+    "description": "First-run welcome page: how to use the sample passage above it."
   },
   "welcome_privacy_heading": {
     "message": "2. Choose where it may read",
     "description": "First-run welcome page: heading of step 2. Keep the number."
   },
   "welcome_privacy_sends": {
-    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
+    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses words that fit the context in the reading language you select in Settings. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
     "description": "First-run welcome page: what is sent to Google's Gemini API when Lang Weave is on for a site."
   },
   "welcome_privacy_free_key": {
@@ -944,7 +948,7 @@
     "description": "First-run welcome page: notice about the Gemini API age requirement."
   },
   "welcome_privacy_conditions": {
-    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini; adding a language sends a vocabulary-generation request. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
+    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Generating a vocabulary pack in Settings sends a separate request to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
     "description": "First-run welcome page: conditions before any page text is sent, and which sites start off."
   },
   "welcome_only_sites": {

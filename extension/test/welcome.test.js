@@ -2,9 +2,12 @@ import { test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
 import { readFileSync } from 'node:fs';
 import { openWelcome } from '../src/update.js';
+import { GUARANI_PACK } from '../src/guarani.js';
+import { GUARANI_STARTER } from '../src/language-name.js';
 import { L1_WORDS } from '../src/vocabulary.js';
 import { applySwaps, toggle } from '../src/text.js';
-import { demoSwaps, chooseSitePolicy } from '../src/welcome.js';
+import { demoSwaps } from '../src/welcome-demo.js';
+import { chooseSitePolicy } from '../src/welcome.js';
 import { hashKey } from '../src/hash.js';
 
 test('welcome and options state the 18+ Gemini API requirement', () => {
@@ -46,6 +49,12 @@ test('demo selects fixed real Beginner words and uses page swap markup and flip'
   expect(span.textContent).toBe('Today');
   expect(toggle(span)).toBe(false);
   expect(span.textContent).toBe('hoy');
+  const guarani = demoSwaps(GUARANI_STARTER);
+  expect(guarani.map((s) => [s.o, s.f])).toEqual([
+    ['rain', 'ama'], ['tree', 'yvyra'], ['butterfly', 'panambi'], ['flower', 'yvoty'], ['sun', 'kuarahy'],
+  ]);
+  expect(guarani.every((s) => GUARANI_PACK.words.some((w) =>
+    w.level === 1 && w.fr === s.f && w.en === s.g && w.hint === s.h))).toBe(true);
   win.close();
 });
 
