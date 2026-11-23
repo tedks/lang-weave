@@ -28,3 +28,11 @@ log_events:
     seat, tree house, soup spoon, movie star, song lyrics, breakfast table and river
     valley when evaluating the remaining common cases. Keep the independently scoped
     false-positive and regression checks in this issue.'
+- time: 2026-11-23T05:44:28-00:00
+  who: Ted Smith
+  what: commented
+  comment: "PR #74 exercises the shared finite guard in explicit offline practice.
+    It preserves joined hyphens, possessives and listed compounds. Include the Guaran\xED
+    school (for students) candidate in a \u201Cschool bus\u201D contrast if this issue
+    extends the shared guard. The learner currently chooses whether a catalog sense
+    fits."
