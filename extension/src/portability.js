@@ -425,9 +425,12 @@ function storageEntries(all) {
     if (!LEARNING_SUFFIXES.includes(suffix)) fail('unknown learning key');
     (scopes[scope] ||= {})[SCOPE_FIELDS[suffix]] = value;
   }
-  const es = scopes.es ||= {};
+  const es = {};
   for (const [key, field] of Object.entries(SCOPE_FIELDS))
     if (Object.hasOwn(all, key)) es[field] = all[key];
+  // Keep the usual Spanish entry when there is room. An accepted full file that has no
+  // Spanish data must still export within the scope limit after restore.
+  if (Object.keys(es).length || Object.keys(scopes).length < MAX_SCOPES) scopes.es = es;
   return scopes;
 }
 // Fit the log into LOG_BUDGET_BYTES of compact JSON: first every scope's exposure aggregates,

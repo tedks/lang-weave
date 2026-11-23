@@ -133,6 +133,16 @@ test('reading-day backups reject non-dates, duplicates, over-limit lists and fie
   }
 });
 
+test('a full schema 3 file with no Spanish data re-exports without an extra scope', () => {
+  const file = JSON.parse(createBackup({}, '0.13.3'));
+  file.schemaVersion = 3;
+  file.state.scopes = Object.fromEntries(Array.from({ length: 80 }, (_, i) => [
+    `lang:de:${i.toString(16).padStart(16, '0')}`, { readingDays: ['2026-10-25'] },
+  ]));
+  const restored = learningPatch(parseBackup(JSON.stringify(file)), {});
+  expect(parseBackup(createBackup(restored, '0.13.3')).state.scopes).toEqual(file.state.scopes);
+});
+
 test('initialized empty target is fresh; meaningful or unknown target state conflicts', () => {
   const base = { settings: { enabled: true, newSitesEnabled: null, language: 'es' }, keyEpoch: 'existing',
     recallReview: { version: 1, cards: {}, current: null, inline: null,
