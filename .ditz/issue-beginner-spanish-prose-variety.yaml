@@ -23,3 +23,14 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T07:25:29-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #80 exact 0.15.4 head a95817f51720b053f6d8db796cf82d78c420330e reconciled
+    to landed #79 0f4198c3556023c4055520d6a6075b422f507815. All exact Nix+Bazel source,
+    strict version, installed Chromium, and native recovery checks pass. Fixed sample
+    adds choice in 43/300 offline paragraphs and 16/300 currently admissible occurrences
+    by passage in either reading mode. Actual synthetic Chromium renders four forms
+    per mode. OpenAI and Anthropic are clean on exact head. Google is quota-limited
+    past cutoff; PR remains draft under the required three-seat review unless explicitly
+    excepted. Await normal merge before closing.'
