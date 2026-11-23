@@ -75,26 +75,29 @@ async function openParagraph(context, entry, url) {
 
 // Hold one real worker response, leaving the installed UI and storage events live.
 async function holdPlacementResponse(page, save) {
-  await page.evaluate((save) => {
+  const gate = await page.evaluateHandle((save) => {
     const send = chrome.runtime.sendMessage.bind(chrome.runtime);
-    const held = new Promise((release) => { window.releasePlacement = release; });
+    const gate = { reached: false };
+    const held = new Promise((release) => { gate.release = release; });
     chrome.runtime.sendMessage = async (message, ...args) => {
       if (message?.type !== 'placement' || Object.hasOwn(message, 'choice') !== save) return send(message, ...args);
       chrome.runtime.sendMessage = send;
       const result = await send(message, ...args);
-      document.documentElement.dataset.placementHeld = 'true';
+      gate.reached = true;
       if (await held) throw new Error('Fixture: placement reply lost');
       return result;
     };
+    return gate;
   }, save);
   return {
-    wait: () => page.locator('html[data-placement-held]').waitFor({ state: 'attached' }),
-    release: (fail = false) => page.evaluate(async (fail) => {
-      window.releasePlacement(fail);
-      delete window.releasePlacement;
-      delete document.documentElement.dataset.placementHeld;
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }, fail),
+    wait: () => page.waitForFunction((gate) => gate.reached, gate, { polling: 50 }),
+    release: async (fail = false) => {
+      await gate.evaluate(async ({ release }, fail) => {
+        release(fail);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }, fail);
+      await gate.dispose();
+    },
   };
 }
 
