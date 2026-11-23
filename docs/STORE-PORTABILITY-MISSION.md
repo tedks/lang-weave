@@ -2,7 +2,7 @@
 
 State: implementation verified on `store-progress-portability`, based on accepted `0230718`; PR #15 awaits root acceptance and normal merge. This is not deployed. Issue: `store-progress-portability`. This record contains no personal browsing data.
 
-**November 2026 update.** Restoring the original bundled Paraguayan Guaraní selection or its nature-word progress requires Lang Weave 0.12.26 or later. Progress on home and school words requires 0.14.2 or later. [Guaraní backup version table](guarani-starter.md#restoring-a-backup)
+**November 2026 update.** Restoring the original bundled Paraguayan Guaraní selection or its nature-word progress requires Lang Weave 0.12.26 or later. Progress on home and school words requires 0.14.2 or later. Progress on the six everyday prose words requires 0.15.2 or later for a complete restore. [Guaraní backup version table](guarani-starter.md#restoring-a-backup)
 
 Schema 3 files add scoped reading-day dates and require 0.13.3 or later to
 restore. Exports without reading dates still use schema 2. See the
