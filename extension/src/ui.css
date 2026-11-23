@@ -54,6 +54,7 @@ html.ui-compact {
 #placement details summary { cursor: pointer; }
 #placement fieldset { border: 1px solid var(--ui-border); min-inline-size: 0; }
 #placement select { font: inherit; max-width: 100%; margin: .25rem; }
+#placement input { font: inherit; width: 6ch; margin: .25rem; }
 @media (prefers-color-scheme: dark) {
-  #placement select { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
+  #placement select, #placement input { color: var(--ui-control-text); background: var(--ui-control-bg); border: 1px solid var(--ui-control-border); }
 }

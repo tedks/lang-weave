@@ -133,10 +133,12 @@ test('welcome page renders its notes and choice results as the exact English', a
   let placementReady = false;
   let placementRead;
   let placementSave = { error: 'Local placement write failed' };
+  const placementMessages = [];
   globalThis.chrome = {
     runtime: { getManifest: () => ({ content_scripts: [] }), openOptionsPage: async () => {},
       sendMessage: async (msg) => {
         if (msg.type === 'placement') {
+          placementMessages.push(msg);
           if (Object.hasOwn(msg, 'choice')) return placementSave;
           if (placementRead) return placementRead;
           return placementReady ? { available: true, choice: 0, epoch: 'local' } : {};
@@ -159,7 +161,7 @@ test('welcome page renders its notes and choice results as the exact English', a
     placement.dispatchEvent(new window.Event('toggle'));
     const retry = placement.querySelector('[data-placement-retry]');
     await wait(() => !retry.hidden);
-    expect(text(placement.querySelector('[role="status"]'))).toBe('Could not load or save Spanish placement. Try again.');
+    expect(text(placement.querySelector('[data-placement-status]'))).toBe('Could not load or save Spanish placement. Try again.');
     expect(text(retry)).toBe('Reload placement');
     placementReady = true;
     retry.focus();
@@ -167,8 +169,23 @@ test('welcome page renders its notes and choice results as the exact English', a
     await wait(() => window.document.activeElement === $('placementChoice'));
     expect(window.document.activeElement).toBe($('placementChoice'));
     expect(retry.hidden).toBe(true);
-    const placementStatus = placement.querySelector('[role="status"]');
-    const submit = placement.querySelector('button[type="submit"]');
+    const score = $('duolingoScore');
+    const preview = placement.querySelector('[data-placement-score] button');
+    const samples = placement.querySelector('.placement-samples');
+    const messagesBeforePreview = placementMessages.slice();
+    score.value = '30';
+    preview.click();
+    expect(samples.firstElementChild.hasAttribute('data-placement-expanded')).toBe(true);
+    expect(score.value).toBe('');
+    expect($('placementChoice').value).toBe('0');
+    expect(placementMessages).toEqual(messagesBeforePreview);
+    score.value = '1e2';
+    preview.click();
+    expect(score.getAttribute('aria-invalid')).toBe('true');
+    expect(samples.firstElementChild.hasAttribute('data-placement-beginner')).toBe(true);
+    expect(placementMessages).toEqual(messagesBeforePreview);
+    const placementStatus = placement.querySelector('[data-placement-status]');
+    const submit = placement.querySelector('[data-placement-choice] button[type="submit"]');
     $('placementChoice').value = '2';
     submit.click();
     await wait(() => text(placementStatus).startsWith('Could not load or save'));

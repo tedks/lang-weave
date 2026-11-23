@@ -66,11 +66,32 @@ try {
   await placementTrigger.focus();
   await placementTrigger.press('Enter');
   await placement.getByRole('heading', { name: 'Beginner', exact: true }).waitFor();
+  const startingPoint = placement.getByRole('combobox', { name: 'Spanish starting point' });
+  const score = placement.getByRole('textbox', { name: 'Duolingo Score for your Spanish course (optional)' });
+  await score.waitFor();
+  const beforeScore = await worker.evaluate(() => chrome.storage.local.get(null));
+  const scoreStatus = placement.locator('#placementScoreStatus');
+  await score.fill('161');
+  await score.press('Enter');
+  await scoreStatus.getByText('Enter a whole number from 0 to 160, or leave this blank.').waitFor();
+  assert.equal(await score.getAttribute('aria-invalid'), 'true');
+  await score.fill('29');
+  await score.press('Enter');
+  await scoreStatus.getByText('Look at the Beginner examples first.').waitFor();
+  assert.equal(await placement.getByRole('heading').first().textContent(), 'Beginner');
+  await score.fill('30');
+  await score.press('Enter');
+  await scoreStatus.getByText('Try the Expanded examples first.').waitFor();
+  assert.equal(await placement.getByRole('heading').first().textContent(), 'Expanded');
+  assert.equal(await score.inputValue(), '');
+  await score.press('Enter'); // a blank Score returns to ordinary preview
+  assert.equal(await placement.getByRole('heading').first().textContent(), 'Beginner');
+  assert.equal(await startingPoint.inputValue(), '0');
+  assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get(null)), beforeScore, 'preview does not write storage');
   assert.equal(await placement.locator('[lang="es"]').filter({ hasText: /^sin$/ }).first().isVisible(), true);
   const meanings = placement.getByText('Check Expanded meanings', { exact: true });
   await meanings.press('Enter');
   await placement.locator('[lang="en"]').filter({ hasText: /still/ }).waitFor();
-  const startingPoint = placement.getByRole('combobox', { name: 'Spanish starting point' });
   await startingPoint.selectOption({ label: 'Expanded' });
   const saveStartingPoint = placement.getByRole('button', { name: 'Save starting point' });
   await saveStartingPoint.press('Space');
@@ -134,6 +155,13 @@ try {
   await options.locator('#language').selectOption({ value: 'gn-PY-x-weave' });
   await options.locator('#wordInfo').getByText(/Paraguayan Guaraní/).waitFor();
   assert.equal(await settingsPlacement.isHidden(), true);
+  const guaraniWelcome = await context.newPage();
+  await guaraniWelcome.goto(welcomeUrl);
+  await guaraniWelcome.locator('#placement > summary').press('Enter');
+  await guaraniWelcome.getByText('Choose Spanish in Settings to use this check.').waitFor();
+  assert.equal(await guaraniWelcome.locator('#duolingoScore').isHidden(), true);
+  await guaraniWelcome.close();
+  console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
 
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#language').getByText(/Paraguayan Guaraní/).waitFor();
