@@ -515,4 +515,5 @@ export const EN = Object.freeze({
   paragraph_expanded: "Vocabulary tier: Expanded",
   paragraph_empty: "Enter a short English paragraph or use the example.",
   paragraph_no_matches: "No matching words at this tier. Try the example or edit your paragraph and find words again.",
+  paragraph_retry: "Find words again to refresh your choices.",
 });

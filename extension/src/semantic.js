@@ -104,9 +104,9 @@ const nameToken = (t, text) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)
   !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start);
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
-export function sourceIssue(text, from, to, original) {
+export function sourceIssue(text, from, to, original, { allowQuoted = false } = {}) {
   if (allCaps(original) || allCaps(String(text).slice(from, to))) return 'allCaps';
-  if (quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
+  if (!allowQuoted && quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
   const ts = tokens(text);
   const first = ts.findIndex((t) => t.start === from);
   const last = ts.findIndex((t) => t.end === to);

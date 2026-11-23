@@ -2,7 +2,7 @@ import { localize, t } from './i18n.js';
 import { GUARANI_STARTER, bundledLanguage, languageName } from './language-name.js';
 import { MAX_PARAGRAPH_LENGTH, PARAGRAPH_EXAMPLES, paragraphLevel, paragraphMatches } from './paragraph-matches.js';
 import { cleanSettings } from './settings.js';
-import { applySwapAt, isSwap, revert, toggle } from './text.js';
+import { applySwapAt, isSwap, revert, sentenceStart, toggle } from './text.js';
 
 const sentences = new Intl.Segmenter('en', { granularity: 'sentence' });
 
@@ -11,6 +11,18 @@ function occurrenceLabel(text, { start, end }, index) {
   const word = text.slice(start, end).replace(/\s+/g, ' ');
   const right = text.slice(end, end + 22).replace(/\s+/g, ' ');
   return `${index + 1}. ${start > 22 ? '…' : ''}${left}[${word}]${right}${end + 22 < text.length ? '…' : ''}`;
+}
+
+function sentenceBounds(text, { start, end }) {
+  // Treat pasted line wraps as spaces for segmentation while keeping source offsets.
+  const searchable = text.replace(/[\r\n\u2028\u2029]/g, ' ');
+  let from = 0;
+  for (const { index } of sentences.segment(searchable)) {
+    if (!index || !sentenceStart(searchable, index)) continue; // e.g. after Dr.
+    if (index >= end) return [from, index];
+    if (index <= start) from = index;
+  }
+  return [from, text.length];
 }
 
 export async function mountParagraph(doc, storage) {
@@ -69,6 +81,7 @@ export async function mountParagraph(doc, storage) {
   const supported = bundledLanguage(settings.language);
   language.value = supported ? settings.language : 'es';
   $('languageNote').hidden = supported;
+  if (!supported) language.setAttribute('aria-describedby', 'level languageNote');
   function showTier() {
     $('level').textContent = level() === 1 ? t('paragraph_beginner') : t('paragraph_expanded');
   }
@@ -93,8 +106,8 @@ export async function mountParagraph(doc, storage) {
     if (!choice) return;
     const target = doc.createElement('span');
     target.lang = languageTag();
-    target.textContent = choice.target;
-    senseContext.append(target, ` · ${choice.gloss}`);
+    target.textContent = choice.f;
+    senseContext.append(target, ` · ${choice.g}`);
   }
   function showSenses() {
     const selected = chosenOccurrence();
@@ -102,12 +115,12 @@ export async function mountParagraph(doc, storage) {
     occurrenceContext.replaceChildren();
     if (selected) {
       const { start, end } = selected;
-      const { index, segment } = sentences.segment(matchedText).containing(start);
+      const [from, to] = sentenceBounds(matchedText, selected);
       const mark = doc.createElement('mark');
       mark.textContent = matchedText.slice(start, end);
-      occurrenceContext.append(matchedText.slice(index, start), mark, matchedText.slice(end, index + segment.length));
+      occurrenceContext.append(matchedText.slice(from, start), mark, matchedText.slice(end, to));
     }
-    sense.replaceChildren(...choices.map(({ target, gloss }, index) => option(`${target} · ${gloss}`, index)));
+    sense.replaceChildren(...choices.map(({ f, g }, index) => option(`${f} · ${g}`, index)));
     showSenseContext();
   }
   occurrence.addEventListener('change', showSenses);
@@ -135,11 +148,18 @@ export async function mountParagraph(doc, storage) {
     const match = chosenOccurrence();
     const choice = chosenSense();
     if (!choice) return;
-    if (source.value !== matchedText) { clearMatches(); source.focus(); return; }
     clearPreview();
-    preview.textContent = matchedText;
-    const span = applySwapAt(preview.firstChild, match.start, choice.swap, languageTag());
-    if (!span) { clearMatches(); return; }
+    let span;
+    if (source.value === matchedText) {
+      preview.textContent = matchedText;
+      span = applySwapAt(preview.firstChild, match.start, choice, languageTag());
+    }
+    if (!span) {
+      clearMatches();
+      status.textContent = t('paragraph_retry');
+      source.focus();
+      return;
+    }
     $('result').hidden = false;
     span.focus();
   });

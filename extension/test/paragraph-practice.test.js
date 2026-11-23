@@ -2,18 +2,20 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { Window } from 'happy-dom';
 import { GUARANI_STARTER } from '../src/language-name.js';
+import { validateSwaps } from '../src/levels.js';
 import { MAX_PARAGRAPH_LENGTH, PARAGRAPH_EXAMPLES, paragraphLevel, paragraphMatches } from '../src/paragraph-matches.js';
 import { mountParagraph } from '../src/paragraph-page.js';
+import { applySwaps } from '../src/text.js';
 
 const spans = (text, language = 'es', level = 2) => paragraphMatches(text, language, level).map(({ start, end, senses }) =>
-  [text.slice(start, end), senses.map(({ swap }) => swap.f)]);
+  [text.slice(start, end), senses.map(({ f }) => f)]);
 
 test('each identical occurrence keeps its own offset and competing catalog senses', () => {
   const text = 'Admission is free. Admission is free.';
   const matches = paragraphMatches(text, 'es', 2);
   expect(matches.map(({ start, end }) => [start, end])).toEqual([[13, 17], [32, 36]]);
   for (const { senses } of matches) {
-    expect(senses.map(({ target, gloss }) => [target, gloss])).toEqual([
+    expect(senses.map(({ word, g }) => [word, g])).toEqual([
       ['libre', 'free (unrestricted)'], ['gratis', 'free (no cost)'],
     ]);
   }
@@ -32,17 +34,39 @@ test('articles, case, whitespace, accents, overlapping phrases and gloss alterna
   expect(spans('Little birds chirp.')).toEqual([]);
   expect(spans('I don’t know.')).toContainEqual(['I don’t know', ['no sé']]);
   expect(spans('The weather cleared.')).toContainEqual(['The weather', ['El tiempo']]);
-  expect(paragraphMatches('The weather cleared.', 'es', 2)[0].senses[0].gloss).toBe('the weather');
+  expect(paragraphMatches('The weather cleared.', 'es', 2)[0].senses[0].g).toBe('the weather');
 });
 
-test('quotes, names, all caps and joined or protected compound forms stay out of the choices', () => {
-  const text = 'WINDOW. “The window rattled.” The window frame broke. A window‑shade snapped. A window’s latch clicked. I met River. The river rose.';
+test('names, all caps and joined or protected compound forms stay out of the choices', () => {
+  const text = 'WINDOW. The window frame broke. A window‑shade snapped. A window’s latch clicked. I met River. The river rose.';
   expect(spans(text, 'es', 1)).toEqual([['The river', ['El río']]]);
   expect(spans('🪟 𐐀window. The window\u0301 stuck. The window stuck.', 'es', 1)).toEqual([['The window', ['La ventana']]]);
   expect(spans('An office chair held a book review. My chair held a book.', GUARANI_STARTER, 1)).toEqual([
     ['chair', ['apyka']], ['book', ['aranduka']],
   ]);
   expect(spans('Thank\nyou.', 'es', 1)).toEqual([]);
+  expect(spans('I opened the window—it was cold.', 'es', 1)).toEqual([['the window', ['la ventana']]]);
+});
+
+test('manual practice accepts quoted dialogue while validation and web DOM placement still protect it', () => {
+  const text = '“The window stuck.” Then I said, "try the window again." He said, “The window frame is broken.”';
+  expect(spans(text, 'es', 1)).toEqual([['The window', ['La ventana']], ['the window', ['la ventana']]]);
+  expect(spans('“I met River.” “The window’s latch caught.”', 'es', 1)).toEqual([]);
+  expect(spans('“A book,” she said. He replied, "the book is in my room."', GUARANI_STARTER, 1)).toEqual([
+    ['book', ['aranduka']], ['book', ['aranduka']], ['room', ['koty']],
+  ]);
+  const swaps = [
+    { o: 'The window', f: 'La ventana', g: 'the window', ctx: '“The window stuck.”' },
+    { o: 'the window', f: 'la ventana', g: 'the window', ctx: '"try the window again."' },
+  ];
+  expect(validateSwaps(1, swaps, undefined, 'es', { text })).toEqual([]);
+  const window = new Window();
+  try {
+    const passage = window.document.createElement('p');
+    passage.textContent = text;
+    expect(applySwaps(passage, swaps)).toBe(0);
+    expect(passage.textContent).toBe(text);
+  } finally { window.close(); }
 });
 
 test('the effective tier follows Spanish placement in Spanish and the shared reading level elsewhere', () => {
@@ -59,7 +83,7 @@ test('the effective tier follows Spanish placement in Spanish and the shared rea
 
 test('both original examples have distinct Beginner options including Guaraní home and school vocabulary', () => {
   const exampleForms = (language) => new Set(paragraphMatches(PARAGRAPH_EXAMPLES[language], language, 1)
-    .flatMap(({ senses }) => senses.map(({ target }) => target)));
+    .flatMap(({ senses }) => senses.map(({ word }) => word)));
   const spanish = exampleForms('es');
   for (const word of ['hoy', 'la ventana', 'el desayuno', 'el árbol', 'el río', 'la sopa', 'pero', 'la canción']) {
     expect(spanish.has(word)).toBe(true);
@@ -86,6 +110,7 @@ test('the exercise reads only preferences and discards every view on edit, reset
   });
   try {
     expect($('languageNote').hidden).toBe(false);
+    expect($('language').getAttribute('aria-describedby')).toBe('level languageNote');
     expect($('language').value).toBe('es');
     expect($('level').textContent).toContain('Expanded');
     expect($('source').getAttribute('spellcheck')).toBe('false');
@@ -123,6 +148,14 @@ test('the exercise reads only preferences and discards every view on edit, reset
     $('practice').click();
     expect($('choices').hidden).toBe(true);
     expect(doc.activeElement).toBe($('source'));
+    expect($('status').textContent).toBe('Find words again to refresh your choices.');
+
+    $('source').value = 'We waited for Dr. Smith by\nthe window. The tree grew.';
+    $('find').click();
+    $('occurrence').selectedIndex = [...$('occurrence').options].findIndex((option) => option.textContent.includes('[the window]'));
+    $('occurrence').dispatchEvent(new window.Event('change'));
+    expect($('occurrenceContext').textContent.trim()).toBe('We waited for Dr. Smith by\nthe window.');
+    expect($('occurrenceContext').querySelector('mark').textContent).toBe('the window');
 
     $('language').value = GUARANI_STARTER;
     $('language').dispatchEvent(new window.Event('change'));

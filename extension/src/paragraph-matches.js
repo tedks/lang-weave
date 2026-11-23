@@ -1,4 +1,4 @@
-import { englishAnchors } from './catalog.js';
+import { englishAnchors, packWords } from './catalog.js';
 import { GUARANI_PACK } from './guarani.js';
 import { GUARANI_STARTER, bundledLanguage } from './language-name.js';
 import { resolveLevel, validateSwaps, wordsForLevel } from './levels.js';
@@ -16,7 +16,7 @@ export function paragraphLevel(settings, spanishPlacement, language) {
 
 const DEFINITE_SPANISH = /^(?:el|la|los|las) /;
 const WORD = '[\\p{L}\\p{M}\\p{N}_]';
-const JOINER = "['\\p{Pd}]";
+const JOINER = "['\\-\\u2010\\u2011]";
 function anchorPattern(anchor) {
   const literal = anchor.split(' ').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\S\\r\\n\\u2028\\u2029]+');
   return new RegExp(`(?<!${WORD})(?<!${WORD}${JOINER})${literal}(?!${WORD}|${JOINER}${WORD})`, 'giu');
@@ -26,13 +26,13 @@ function anchorPattern(anchor) {
 // Keep offsets in the original paragraph, including its original whitespace and apostrophes.
 export function paragraphMatches(text, language, level) {
   if (text.length > MAX_PARAGRAPH_LENGTH || !bundledLanguage(language)) return [];
-  const words = language === 'es' ? wordsForLevel(level) : GUARANI_PACK.words.filter((word) => word.level <= level);
+  const words = language === 'es' ? wordsForLevel(level) : packWords(GUARANI_PACK, level);
   const searchable = text.replace(/[’‘`]/g, "'");
   const occurrences = new Map();
   const blocked = new Map();
   for (const word of words) {
+    const definite = language === 'es' && DEFINITE_SPANISH.test(word.fr);
     for (const sense of word.en.split(/\s*[/;,]\s*/)) {
-      const definite = language === 'es' && DEFINITE_SPANISH.test(word.fr);
       const anchors = englishAnchors({ en: sense }, { bare: definite });
       if (definite && anchors.length === 1) anchors.unshift(`the ${anchors[0]}`);
       const ends = new Set();
@@ -44,13 +44,14 @@ export function paragraphMatches(text, language, level) {
           if (ends.has(end)) continue;
           const source = text.slice(start, end);
           const key = `${start}:${end}`;
-          if (!blocked.has(key)) blocked.set(key, sourceIssue(text, start, end, source));
+          // The learner picks the exact words and sense, including in dialogue.
+          if (!blocked.has(key)) blocked.set(key, sourceIssue(text, start, end, source, { allowQuoted: true }));
           if (blocked.get(key)) continue;
           const [swap] = validateSwaps(level, [{ o: source, f: word.fr }], [{ ...word, en: sense }], language);
           if (!swap) continue;
           ends.add(end);
           if (!occurrences.has(key)) occurrences.set(key, { start, end, senses: [] });
-          occurrences.get(key).senses.push({ target: word.fr, gloss: sense, swap });
+          occurrences.get(key).senses.push(swap);
         }
       }
     }

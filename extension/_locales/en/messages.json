@@ -3208,5 +3208,9 @@
   "paragraph_no_matches": {
     "message": "No matching words at this tier. Try the example or edit your paragraph and find words again.",
     "description": "Shown when the catalog offers no eligible matches."
+  },
+  "paragraph_retry": {
+    "message": "Find words again to refresh your choices.",
+    "description": "Shown when a saved practice choice no longer fits the text in the editor."
   }
 }

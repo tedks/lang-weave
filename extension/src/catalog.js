@@ -7,6 +7,10 @@ export function catalogEntries(words, scope) {
   return words.map((word) => ({ id: word.entryId || entryId(scope, word), word }));
 }
 
+export function packWords(pack, level) {
+  return pack.words.filter((word) => level > 1 || word.level === 1);
+}
+
 export function englishAnchors(word, { bare = true } = {}) {
   if (Array.isArray(word.anchors)) return [...new Set(word.anchors.map((anchor) => anchor.normalize('NFC')
     .toLocaleLowerCase('en').replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()).filter(Boolean))];
