@@ -44,6 +44,7 @@ E2E_HARNESSES = (
     'extension/e2e/guess.mjs',
     'extension/e2e/highlights.mjs',
     'extension/e2e/key-rejection.mjs',
+    'extension/e2e/legacy-gloss-upgrade.mjs',
     'extension/e2e/personal.mjs',
     'extension/e2e/portability.mjs',
     'extension/e2e/quota-status.mjs',

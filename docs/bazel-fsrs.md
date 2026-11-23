@@ -141,6 +141,12 @@ manager. Pass the exact candidate ZIP and Chromium path as above, plus
 real alarm after 30 seconds. A second transition changes only the fixture
 manifest version to exercise two generations of the candidate source.
 
+The `//:legacy_gloss_upgrade_test` gate keeps one disposable Chrome profile and
+unpacked extension path across a closed-browser upgrade. Pass the same candidate
+ZIP and Chromium variables plus `--test_env=LANG_WEAVE_PRIOR_ZIP=/absolute/path/to/lang-weave-0.15.7.zip`.
+It pins the public 0.15.7 digest, reproduces the cached **his → hola** proposal,
+and checks the new reading revision, historical card, and fictional site grant.
+
 ## Python and release version gates
 
 `//:inherited_python_test` runs the full `unittest discover -s tests` suite
