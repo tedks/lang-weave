@@ -1,0 +1,20 @@
+id: browser-floor-fixtures-nov23
+title: Synchronize supplemental real-browser fixtures across Chrome versions
+desc: Fix supplementary browser fixture readiness against real Chromium at the support
+  floor and current stable, and diagnose the gradual fixture's intermittent offscreen-state
+  failure. Preserve all product assertions, the anonymous public 0.15.7 ZIP and existing
+  fixture permission scopes. Validate individual cases and all 13 together on Chrome
+  140 and 158 with 155 as the control.
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T08:52:17-00:00
+references: []
+log_events:
+- time: 2026-11-23T08:52:17-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
