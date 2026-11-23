@@ -4,6 +4,8 @@ import { MAX_PARAGRAPH_LENGTH, PARAGRAPH_EXAMPLES, paragraphLevel, paragraphMatc
 import { cleanSettings } from './settings.js';
 import { applySwapAt, isSwap, revert, toggle } from './text.js';
 
+const sentences = new Intl.Segmenter('en', { granularity: 'sentence' });
+
 function occurrenceLabel(text, { start, end }, index) {
   const left = text.slice(Math.max(0, start - 22), start).replace(/\s+/g, ' ');
   const word = text.slice(start, end).replace(/\s+/g, ' ');
@@ -18,6 +20,8 @@ export async function mountParagraph(doc, storage) {
   const source = $('source');
   const occurrence = $('occurrence');
   const sense = $('sense');
+  const occurrenceContext = $('occurrenceContext');
+  const senseContext = $('senseContext');
   const preview = $('preview');
   const status = $('status');
   let matches = [];
@@ -33,6 +37,8 @@ export async function mountParagraph(doc, storage) {
     matchedText = '';
     occurrence.replaceChildren();
     sense.replaceChildren();
+    occurrenceContext.replaceChildren();
+    senseContext.replaceChildren();
     $('choices').hidden = true;
     status.textContent = '';
     clearPreview();
@@ -77,14 +83,35 @@ export async function mountParagraph(doc, storage) {
     source.focus();
   });
 
+  const languageTag = () => language.value === GUARANI_STARTER ? 'gn-PY' : 'es';
   const chosenOccurrence = () => matches[occurrence.selectedIndex];
-  function showSenses() {
+  const chosenSense = () => chosenOccurrence()?.senses[sense.selectedIndex];
+  function showSenseContext() {
     clearPreview();
-    const choices = chosenOccurrence()?.senses ?? [];
+    const choice = chosenSense();
+    senseContext.replaceChildren();
+    if (!choice) return;
+    const target = doc.createElement('span');
+    target.lang = languageTag();
+    target.textContent = choice.target;
+    senseContext.append(target, ` · ${choice.gloss}`);
+  }
+  function showSenses() {
+    const selected = chosenOccurrence();
+    const choices = selected?.senses ?? [];
+    occurrenceContext.replaceChildren();
+    if (selected) {
+      const { start, end } = selected;
+      const { index, segment } = sentences.segment(matchedText).containing(start);
+      const mark = doc.createElement('mark');
+      mark.textContent = matchedText.slice(start, end);
+      occurrenceContext.append(matchedText.slice(index, start), mark, matchedText.slice(end, index + segment.length));
+    }
     sense.replaceChildren(...choices.map(({ target, gloss }, index) => option(`${target} · ${gloss}`, index)));
+    showSenseContext();
   }
   occurrence.addEventListener('change', showSenses);
-  sense.addEventListener('change', clearPreview);
+  sense.addEventListener('change', showSenseContext);
   $('find').addEventListener('click', () => {
     clearMatches();
     const text = source.value;
@@ -106,13 +133,12 @@ export async function mountParagraph(doc, storage) {
   });
   $('practice').addEventListener('click', () => {
     const match = chosenOccurrence();
-    const choice = match?.senses[sense.selectedIndex];
+    const choice = chosenSense();
     if (!choice) return;
     if (source.value !== matchedText) { clearMatches(); source.focus(); return; }
     clearPreview();
     preview.textContent = matchedText;
-    const tag = language.value === GUARANI_STARTER ? 'gn-PY' : 'es';
-    const span = applySwapAt(preview.firstChild, match.start, choice.swap, tag);
+    const span = applySwapAt(preview.firstChild, match.start, choice.swap, languageTag());
     if (!span) { clearMatches(); return; }
     $('result').hidden = false;
     span.focus();

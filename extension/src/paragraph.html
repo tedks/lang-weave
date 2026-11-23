@@ -20,7 +20,9 @@
   textarea { display: block; width: 100%; min-height: 9rem; resize: vertical; }
   .muted { color: var(--ui-muted); }
   .actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: .9rem; }
-  #preview { padding: 1rem; border-left: 4px solid #397d77; background: var(--ui-bg); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.12rem; }
+  #occurrenceContext, #senseContext, #preview { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #occurrenceContext, #senseContext { margin-top: .4rem; }
+  #preview { padding: 1rem; border-left: 4px solid #397d77; background: var(--ui-bg); font-size: 1.12rem; }
 </style>
 </head>
 <body>
@@ -46,10 +48,12 @@
   <section id="choices" aria-labelledby="choicesHeading" hidden>
     <h2 id="choicesHeading" data-i18n="paragraph_choices">Choose a word to practice</h2>
     <p class="muted" data-i18n="paragraph_sense_help">Check that the catalog meaning fits your sentence.</p>
-    <p><label for="occurrence" data-i18n="paragraph_occurrence">Occurrence in your paragraph</label>
-    <select id="occurrence"></select></p>
-    <p><label for="sense" data-i18n="paragraph_sense">Catalog word and meaning</label>
-    <select id="sense"></select></p>
+    <label for="occurrence" data-i18n="paragraph_occurrence">Occurrence in your paragraph</label>
+    <select id="occurrence" aria-describedby="occurrenceContext"></select>
+    <p id="occurrenceContext" lang="en" dir="auto"></p>
+    <label for="sense" data-i18n="paragraph_sense">Catalog word and meaning</label>
+    <select id="sense" aria-describedby="senseContext"></select>
+    <p id="senseContext" lang="en"></p>
     <button id="practice" type="button" aria-describedby="practiceNote" data-i18n="paragraph_practice">Practice this word</button>
     <p id="practiceNote" class="muted" data-i18n="paragraph_transient">This exercise is temporary. Your words, reviews and reading progress stay as they are.</p>
     <div id="result" hidden>

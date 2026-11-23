@@ -92,6 +92,7 @@ async function checkParagraph(context, worker, id) {
     chrome.runtime.onConnect.addListener((port) => { observe(port.sender); });
   });
   const page = await openParagraph(context, popup, `${base}paragraph.html`);
+  await page.setViewportSize({ width: 320, height: 700 });
   const source = page.getByRole('textbox', { name: 'Short English paragraph' });
   const find = page.getByRole('button', { name: 'Find words' });
   const occurrence = page.getByRole('combobox', { name: 'Occurrence in your paragraph' });
@@ -112,6 +113,8 @@ async function checkParagraph(context, worker, id) {
   assert.deepEqual((await occurrence.locator('option').allTextContents()).map((label) => label.match(/\[(.*?)\]/)[1]),
     ['window', 'the river', 'The window']);
   await occurrence.selectOption('2');
+  assert.equal((await page.locator('#occurrenceContext').textContent()).trim(), 'The window stood open.');
+  assert.equal(await page.locator('#occurrenceContext mark').textContent(), 'The window');
   await practice.press('Enter');
   const word = preview.getByRole('button', { name: 'La ventana', exact: true });
   assert.equal(await word.evaluate((el) => el === document.activeElement), true);
@@ -131,6 +134,13 @@ async function checkParagraph(context, worker, id) {
   const teacher = occurrence.locator('option').filter({ hasText: /\[teacher\]/ });
   await occurrence.selectOption(await teacher.getAttribute('value'));
   assert.equal(await sense.locator('option:checked').textContent(), 'mbo’ehára · teacher (at school)');
+  assert.equal(await page.locator('#senseContext').textContent(), 'mbo’ehára · teacher (at school)');
+  assert.equal(await page.locator('#senseContext [lang]').getAttribute('lang'), 'gn-PY');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth &&
+    ['occurrenceContext', 'senseContext'].every((id) => {
+      const context = document.getElementById(id);
+      return context.scrollWidth <= context.clientWidth && getComputedStyle(context).whiteSpace === 'pre-wrap';
+    })), true);
   await practice.click();
   const guaraniWord = preview.getByRole('button', { name: 'mbo’ehára', exact: true });
   assert.equal(await guaraniWord.getAttribute('lang'), 'gn-PY');
@@ -262,6 +272,7 @@ try {
   const meanings = page.getByRole('combobox', { name: 'Catalog word and meaning' });
   assert.deepEqual(await meanings.locator('option').allTextContents(), ['libre · free (unrestricted)', 'gratis · free (no cost)']);
   await meanings.selectOption({ label: 'gratis · free (no cost)' });
+  assert.equal(await page.locator('#senseContext').textContent(), 'gratis · free (no cost)');
   await page.getByRole('button', { name: 'Practice this word' }).press('Space');
   assert.equal(await page.locator('#preview').textContent(), 'Admission is free. Admission is gratis.');
   await page.goBack();

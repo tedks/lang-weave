@@ -97,7 +97,11 @@ test('the exercise reads only preferences and discards every view on edit, reset
     expect(doc.activeElement).toBe($('occurrence'));
     $('occurrence').selectedIndex = 1;
     $('occurrence').dispatchEvent(new window.Event('change'));
+    expect($('occurrenceContext').textContent.trim()).toBe('Admission is free.');
+    expect($('occurrenceContext').querySelector('mark').textContent).toBe('free');
     $('sense').selectedIndex = 1;
+    $('sense').dispatchEvent(new window.Event('change'));
+    expect($('senseContext').textContent).toBe('gratis · free (no cost)');
     $('practice').click();
     const word = $('preview').querySelector('[role="button"]');
     expect(word.textContent).toBe('gratis');
@@ -109,6 +113,8 @@ test('the exercise reads only preferences and discards every view on edit, reset
     $('source').dispatchEvent(new window.Event('input'));
     expect($('choices').hidden).toBe(true);
     expect($('sense').options.length).toBe(0);
+    expect($('occurrenceContext').textContent).toBe('');
+    expect($('senseContext').textContent).toBe('');
     expect($('preview').textContent).toBe('');
     expect(doc.querySelector('.fw-descriptions').textContent).toBe('');
     $('find').click();
