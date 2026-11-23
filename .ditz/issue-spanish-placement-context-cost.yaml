@@ -1,0 +1,22 @@
+id: spanish-placement-context-cost
+title: Measure retained-word lookup overhead for Spanish placement
+desc: 'PR #60 council round 2 noticed that after a Spanish learner selects or restores
+  a Beginner starting pool, each applicable worker context reads recallReview to preserve
+  already introduced Expanded cards. It uses the existing schedule validation against
+  only the catalog forms and performs no review-state cleanup, log access or writes.
+  Measure representative warmed worker context/reading dispatch times with a large
+  Spanish history before considering caching. Preserve same-lock visibility, correct
+  cache eligibility and unrelated review tickets if optimization proves useful.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T03:44:16-00:00
+references: []
+log_events:
+- time: 2026-11-23T03:44:16-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
