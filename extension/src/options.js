@@ -4,6 +4,7 @@ import { resolveLevel } from './levels.js';
 import { MODELS } from './gemini.js';
 import { weekLine, headline } from './progress-text.js';
 import { mountPlacement } from './placement-page.js';
+import { hasSiteAccess } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 localize();
@@ -85,7 +86,9 @@ async function refresh() {
     const row = document.createElement('div');
     row.className = 'row';
     const label = document.createElement('span');
-    label.textContent = enabled ? t('options_site_on', name) : t('options_site_off', name);
+    const hasAccess = hasSiteAccess(`https://${name}/`, c.origins) || hasSiteAccess(`http://${name}/`, c.origins);
+    label.textContent = !enabled ? t('options_site_off', name)
+      : hasAccess ? t('options_site_on', name) : t('options_site_access_needed', name);
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = t('options_site_reset');

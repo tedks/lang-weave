@@ -1,17 +1,20 @@
 // Content-script registration for granted origins, and the permission-change epoch.
 import { activeOn } from './worker-context.js';
 import { isZeroFrench } from './levels.js';
+import { validSiteHost } from './settings.js';
+
+const LOADER_FILE = 'src/content-loader.js';
 
 // The hosts where the manifest itself injects the loader. Only loader entries count: an unrelated manifest
 // script must not stop the loader reaching a granted host. Always a list, possibly empty: updateContentScripts
 // leaves an omitted property unchanged, so leaving it out could keep a stale exclusion from an earlier registration.
 export const declaredMatches = () => [...new Set((chrome.runtime.getManifest().content_scripts ?? [])
-  .filter((cs) => (cs.js ?? []).includes('src/content-loader.js')).flatMap((cs) => cs.matches ?? []))];
+  .filter((cs) => (cs.js ?? []).includes(LOADER_FILE)).flatMap((cs) => cs.matches ?? []))];
 
 export function createSites({ store, locked, worker, broadcast, context }) {
   // Granted origins (all sites, or one at a time from the popup) decide where the content script is injected.
-  // Hosts the manifest itself injects into are excluded so no page gets the loader twice: X in the unpacked
-  // build, where it works without a grant. The Store build declares no content script (scripts/package.mjs
+  // Hosts the manifest itself injects into are excluded so no page gets the loader twice: X and Twitter in
+  // the unpacked build. The Store build declares no content script (scripts/package.mjs
   // STORE_DELTAS), so there a granted X is registered like any other site.
   let registrations = Promise.resolve();
   const recoveredTabs = new Set(); // one recovery attempt per tab in this worker life
@@ -27,13 +30,40 @@ export function createSites({ store, locked, worker, broadcast, context }) {
         if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: ['weave-sites'] });
         return;
       }
-      const script = { id: 'weave-sites', matches, js: ['src/content-loader.js'], css: ['src/content.css'], runAt: 'document_idle',
+      const script = { id: 'weave-sites', matches, js: [LOADER_FILE], css: ['src/content.css'], runAt: 'document_idle',
         excludeMatches: declaredMatches(), persistAcrossSessions: true };
       if (existing.length) await chrome.scripting.updateContentScripts([script]);
       else await chrome.scripting.registerContentScripts([script]);
     });
     registrations = p.catch(() => {});
     return p;
+  }
+  async function setReadingSite({ tabId, url, enabled, requestAccess }, save) {
+    if (typeof url !== 'string' || !Number.isSafeInteger(tabId) ||
+        tabId < 0 || typeof enabled !== 'boolean') return { ok: false };
+    const parsed = URL.parse(url);
+    const host = parsed?.hostname.replace(/\.$/, '');
+    if (!parsed || !/^https?:$/.test(parsed.protocol) || !validSiteHost(host)) return { ok: false };
+    const permission = { origins: [`${parsed.protocol}//${host}/*`] };
+    // A Chrome permission prompt closes the popup. Handle its result here, starting
+    // the request synchronously while the popup message still carries the gesture.
+    if (enabled && requestAccess === true && !(await chrome.permissions.request(permission))) return { ok: false };
+    if (enabled && !(await chrome.permissions.contains(permission))) return { ok: false };
+    await save({ siteOverride: { host, enabled } });
+    if (!enabled) return { ok: true };
+    try {
+      // Complete registration for later tabs and inject into the original open tab.
+      await registerSites();
+      if ((await chrome.tabs.get(tabId)).url !== url) return { ok: true };
+      const [frame] = await chrome.scripting.executeScript({ target: { tabId },
+        func: (expected) => location.href === expected, args: [url] });
+      if (frame?.result !== true || !frame.documentId) return { ok: true };
+      // A reload or navigation during injection must not target the replacement page.
+      const target = { tabId, documentIds: [frame.documentId] };
+      await chrome.scripting.insertCSS({ target, files: ['src/content.css'] });
+      await chrome.scripting.executeScript({ target, files: [LOADER_FILE] });
+      return { ok: true };
+    } catch { return { ok: true, reload: true }; }
   }
   async function recoverOpenTabs() {
     if (!context) return; // registration-only callers need no tab recovery
@@ -68,7 +98,7 @@ export function createSites({ store, locked, worker, broadcast, context }) {
       try {
         await chrome.scripting.insertCSS({ target: { tabId: id }, files: ['src/content.css'] });
         if (!(await eligible())) return;
-        await chrome.scripting.executeScript({ target: { tabId: id }, files: ['src/content-loader.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: id }, files: [LOADER_FILE] });
       } catch { /* A closed or newly ungranted tab is no longer eligible. */ }
     };
     // A tab-heavy session must not start a burst of storage reads and script
@@ -89,5 +119,5 @@ export function createSites({ store, locked, worker, broadcast, context }) {
       await store.set({ epoch: crypto.randomUUID() });
     }).catch(() => {}).then(() => registerSites()).then(() => broadcast('retry')).catch(() => {});
   };
-  return { registerSites, recoverOpenTabs, permissionsChanged };
+  return { registerSites, recoverOpenTabs, permissionsChanged, setReadingSite };
 }

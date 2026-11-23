@@ -181,6 +181,7 @@ export const EN = Object.freeze({
   options_key_saved_placeholder: "saved (paste to replace)",
   options_site_on: "$1: on",
   options_site_off: "$1: off",
+  options_site_access_needed: "Open $1 and turn on site access in the Lang Weave popup.",
   options_site_reset: "Reset",
   options_no_exceptions: "None",
   options_error_generic: "Could not do that",

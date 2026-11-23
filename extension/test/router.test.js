@@ -6,7 +6,8 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
   // progress (0.12.10): read-only local progress summary for the popup Today line and options.
-  popup: ['progress', 'recoverBudget', 'save', 'status'],
+  // Only the toolbar popup can forward a click to the site-permission handler.
+  popup: ['progress', 'recoverBudget', 'save', 'setReadingSite', 'status'],
   options: ['addLanguage', 'clearCache', 'placement', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
   welcome: ['placement', 'save'],
   // My words (0.12.10): its own page entry. personalArchive is the capture page's existing handler.
@@ -144,7 +145,7 @@ test('unmodified sender decisions equal the pre-split boolean', () => withChrome
       !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   // Messages added after the split have no pre-split decision; PINNED covers them.
-  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement'];
+  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement', 'setReadingSite'];
   for (const sender of senders) for (const type of TYPES.filter((type) => !added.includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);
@@ -161,6 +162,7 @@ test('worker listener dispatches exactly the pinned messages per surface and not
   globalThis.setTimeout = (fn, ms, ...rest) => (ms >= 10000 ? 0 : realTimeout(fn, ms, ...rest));
   const data = { settings: { enabled: true, newSitesEnabled: true } };
   const listeners = [];
+  const requests = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
@@ -178,7 +180,8 @@ test('worker listener dispatches exactly the pinned messages per surface and not
     tabs: { get: async () => ({ id: 1, title: 'Reading', url: SENDERS.page.url }), query: async () => [],
       sendMessage: async () => {}, create: async () => ({ id: 9 }) },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on() },
+    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on(),
+      request: async (permission) => { requests.push(permission); return false; } },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
       unregisterContentScripts: async () => {}, registerContentScripts: async () => {} },
   };
@@ -195,6 +198,13 @@ test('worker listener dispatches exactly the pinned messages per surface and not
   try {
     await import('../src/background.js?router');
     expect(listeners).toHaveLength(1);
+    const siteChoice = { type: 'setReadingSite', tabId: 1, url: SENDERS.page.url, enabled: true, requestAccess: true };
+    expect(await dispatch(siteChoice, SENDERS.page)).toBe(false);
+    expect(requests).toEqual([]);
+    const popupChoice = dispatch(siteChoice, SENDERS.popup);
+    expect(requests).toEqual([{ origins: ['https://example.com/*'] }]);
+    expect(await popupChoice).toBe(true);
+    expect(data.settings.siteOverrides).toEqual({});
     for (const [name, sender] of Object.entries(SENDERS)) {
       const accepted = [];
       for (const type of TYPES) if (await dispatch({ type }, sender)) accepted.push(type);
