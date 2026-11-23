@@ -26,3 +26,13 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T09:57:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Separate runtime PR #91 ready at ee2e89e542b8db4c5277c157a827be01d413d222
+    for 0.15.11. The unchanged Chrome 140 Guess test went from 0/2 to 2/2 for both
+    Enter and Space after the fix. Combined with #88 at 51aedf7df5b3a8b35586afb59314adc06e8849f2,
+    the final candidate passed all 13 real cases on 140, 155, and 158. Source and
+    version gates passed. OpenAI and Anthropic clean after the fix delta. Google quota
+    exhausted. Integration and release remain with the coordinating owner. Receipt:
+    https://github.com/tedks/lang-weave/pull/91#issuecomment-7097287300'
