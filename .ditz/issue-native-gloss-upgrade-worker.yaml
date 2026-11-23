@@ -1,0 +1,19 @@
+id: native-gloss-upgrade-worker
+title: Qualify the historical Spanish cache upgrade on minimum and stable Chrome
+desc: The installed Spanish legacy-gloss upgrade gate passes Chromium 155 and times
+  out waiting for a service worker on official Chrome 140 and 158 with public 0.15.7
+  and 0.15.10 ZIPs. Trace install vs reload and preserve the historical cache, grant,
+  card and rendering assertions.
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:43:00-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:43:00-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
