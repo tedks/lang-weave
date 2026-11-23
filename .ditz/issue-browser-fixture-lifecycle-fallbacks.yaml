@@ -1,0 +1,25 @@
+id: browser-fixture-lifecycle-fallbacks
+title: Revisit fallback behavior if browser fixtures still see stale workers or concurrent
+  storage
+desc: 'Nonblocking council findings for PR #88. If Playwright reports a distinct replacement
+  worker while an evaluation on a now-stale listed worker never settles, consider
+  a bounded per-candidate evaluation strategy. Current evidence shows Playwright reusing
+  the wrapper, with the new execution context becoming bound. If another real Gradual
+  writer overlaps a direct raw test reset, trace that writer and isolate it or use
+  a worker-serialized fixture operation. Closing Review before Options changes removes
+  the demonstrated writer, waiting for the seen count settles the subsequent encounter,
+  and the reservation/card assertions reject a mismatch. Avoid per-poll timeout machinery
+  or a product-only test hook without a reproducible remaining failure.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:23:42-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:23:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
