@@ -46,6 +46,7 @@ test('Beginner keeps whole compounds, quotes, names and plural or indefinite phr
     ['Mina introduced Sky to her new hiking group.', 'Sky', 'el cielo'],
     ['THE DOOR scraped against the worn stone step.', 'THE DOOR', 'la puerta'],
     ['The chair wobbled on the broken kitchen tiles.', 'The chair', 'la silla'],
+    ['A sky-blue flag hung above the open rafters.', 'sky', 'el cielo'],
   ];
   for (const [text, o, f] of cases) expect(validateSwaps(1, [{ o, f }], L1_WORDS, 'es', { text })).toEqual([]);
 });
@@ -57,8 +58,10 @@ test('promoted noun compounds stay whole in Beginner reading and local practice'
     ['The garden door stuck against a fallen branch.', 'The garden', 'el jardín'],
     ['The garden door stuck against a fallen branch.', 'door', 'la puerta'],
     ['The garden books cover several kinds of seed.', 'The garden', 'el jardín'],
+    ['They moved next door well before sunrise yesterday.', 'door', 'la puerta'],
     ['They saw the night sky through the clear panels.', 'sky', 'el cielo'],
     ['The moon rocks arrived in a padded crate.', 'The moon', 'la luna'],
+    ['We were over the moon when the shipment finally arrived.', 'the moon', 'la luna'],
   ];
   for (const [text, o, f] of cases) {
     const offline = paragraphMatches(text, 'es', 1).flatMap(({ senses }) => senses);

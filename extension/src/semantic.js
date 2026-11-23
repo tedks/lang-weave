@@ -94,9 +94,9 @@ const NOUN_COMPOUNDS = [
 // and other-language matchers keep their established guard list.
 const BEGINNER_SPANISH_COMPOUNDS = [
   'back door', 'entrance door', 'front door', 'garden door', 'screen door', 'side door',
-  'door frame', 'door knob', 'door lock', 'flower garden', 'vegetable garden',
+  'door frame', 'door knob', 'door lock', 'door to door', 'next door', 'flower garden', 'vegetable garden',
   'garden book', 'garden fence', 'garden gate', 'garden hose', 'garden party', 'garden shed', 'garden wall',
-  'night sky', 'sky blue', 'moon base', 'moon landing', 'moon phase', 'moon rock',
+  'night sky', 'sky blue', 'moon base', 'moon landing', 'moon phase', 'moon rock', 'moon over', 'over the moon',
 ];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));
