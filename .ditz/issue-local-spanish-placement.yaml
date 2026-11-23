@@ -8,8 +8,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T03:18:23-00:00
 references: []
 log_events:
@@ -30,3 +30,9 @@ log_events:
     Chromium ZIP smoke. Formal council CLEAN for OpenAI and Anthropic; Google quota
     limited. Track passive refresh, conditional history-read cost and future missing-pool
     explanation separately. Issue awaits CTO integration.'
+- time: 2026-11-23T04:02:03-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'CTO accepted and normally merged PR #60 at 6b9d659c8ea3a770a36b21cb8e5302121f4245fc.
+    Root verified the combined-tree installed Chromium and strict version gates and
+    exact feature tests.'
