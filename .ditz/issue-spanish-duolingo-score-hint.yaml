@@ -8,8 +8,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T04:02:43-00:00
 references: []
 log_events:
@@ -21,3 +21,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T04:55:50-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Normally merged as PR #67 at bfe69205c1b41ffa7bee0d1b414aa3cd6ae6f1dd
+    with a tree identical to reviewed d6685ea265964e7d003e9fa36d1b699e39d225c6. Exact
+    full Bazel 460/460, focused/inherited, strict version, isolated installed Chromium,
+    and formal council passed. Evidence: https://github.com/tedks/lang-weave/pull/67#issuecomment-7091964573.'
