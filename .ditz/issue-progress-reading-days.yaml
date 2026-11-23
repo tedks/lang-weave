@@ -30,3 +30,12 @@ log_events:
     and accepts schemas 1 and 2. Exact council and validation evidence: https://github.com/tedks/lang-weave/pull/66#issuecomment-7091511196.
     The 0.14.0 writer, union and UI are staged separately in PR #69. The issue remains
     in progress across the staged source landings.'
+- time: 2026-11-23T04:48:39-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'The 0.14.0 writer is ready for CTO integration at cdc7bb9abb53d16f0cbd0cb8fe5193753c233dc8
+    (PR #69). On this exact head the full Linux-sandbox Bun suite passed 459 tests;
+    the candidate ZIP and downloaded public 0.13.3-beta.1 ZIP round-tripped identical
+    scoped reading dates and FSRS/retrieval state via the installed backup UI. All
+    local release gates passed and the formal council is clean from responding seats;
+    Google was attempted and quota-limited. https://github.com/tedks/lang-weave/pull/69#issuecomment-7091879080'
