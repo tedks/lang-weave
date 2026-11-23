@@ -83,18 +83,18 @@ async function holdPlacementResponse(page, save) {
       chrome.runtime.sendMessage = send;
       const result = await send(message, ...args);
       document.documentElement.dataset.placementHeld = 'true';
-      await held;
+      if (await held) throw new Error('Fixture: placement reply lost');
       return result;
     };
   }, save);
   return {
     wait: () => page.locator('html[data-placement-held]').waitFor({ state: 'attached' }),
-    release: () => page.evaluate(async () => {
-      window.releasePlacement();
+    release: (fail = false) => page.evaluate(async (fail) => {
+      window.releasePlacement(fail);
       delete window.releasePlacement;
       delete document.documentElement.dataset.placementHeld;
       await new Promise((resolve) => setTimeout(resolve, 0));
-    }),
+    }, fail),
   };
 }
 
@@ -281,8 +281,13 @@ try {
   const heldOpening = await holdPlacementResponse(page, false);
   await placementTrigger.press('Enter');
   await heldOpening.wait();
+  await placement.evaluate((panel) => {
+    panel.addEventListener('toggle', () => {
+      if (!panel.open) panel.dataset.placementClosed = 'true';
+    }, { once: true });
+  });
   await placementTrigger.press('Enter');
-  await placement.locator('[data-placement-score][hidden]').waitFor({ state: 'attached' });
+  await page.locator('#placement[data-placement-closed]').waitFor({ state: 'attached' });
   await heldOpening.release();
   assert.equal(await placement.evaluate((panel) => panel.open), false);
   assert.equal(await placement.locator('[data-placement-score]').getAttribute('hidden'), '');
@@ -335,7 +340,7 @@ try {
   const otherSave = otherPlacement.getByRole('button', { name: 'Save starting point' });
   const savedText = 'Spanish starting point saved on this device.';
   const stored = () => worker.evaluate(() => chrome.storage.local.get(['spanishPlacement', 'epoch']));
-  const waitForChoice = (surface, value) => surface.locator(`#placementChoice option[value="${value}"]:checked`)
+  const waitForChoice = (surface, value) => surface.locator(`#placement[open]:not([hidden]) option[value="${value}"]:checked`)
     .waitFor({ state: 'attached' });
 
   await score.fill('30');
@@ -351,8 +356,19 @@ try {
   assert.equal(await score.inputValue(), '160');
   assert.equal(await placement.getByRole('heading').first().textContent(), 'Expanded');
 
-  const heldPassive = await holdPlacementResponse(page, false);
+  const lostReply = await holdPlacementResponse(page, false);
   await otherChoice.selectOption('0');
+  await otherSave.click();
+  await lostReply.wait();
+  await lostReply.release(true);
+  await placement.getByText('Could not load or save Spanish placement. Try again.', { exact: true }).waitFor();
+  assert.equal(await startingPoint.inputValue(), '2');
+  assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
+  await placement.getByRole('button', { name: 'Reload placement' }).click();
+  await waitForChoice(page, 0);
+
+  const heldPassive = await holdPlacementResponse(page, false);
+  await otherChoice.selectOption('2');
   await otherSave.click();
   await heldPassive.wait();
   await otherChoice.selectOption('1');
@@ -370,9 +386,14 @@ try {
   await otherSave.click();
   await otherPlacement.getByText(savedText, { exact: true }).waitFor();
   assert.equal((await stored()).spanishPlacement, 0);
+  const heldAfterSave = await holdPlacementResponse(page, false);
   await heldSave.release();
+  await heldAfterSave.wait();
+  assert.equal(await startingPoint.isDisabled(), true);
+  assert.equal(await placement.getByText(savedText, { exact: true }).count(), 0);
+  await heldAfterSave.release();
   await waitForChoice(page, 0);
-  await placement.getByText(savedText, { exact: true }).waitFor();
+  assert.equal(await placement.getByText(savedText, { exact: true }).count(), 0);
 
   await startingPoint.selectOption('2');
   await startingPoint.focus();
@@ -523,8 +544,10 @@ try {
   await draft.selectOption('0'); // adopt the saved preference without writing
   assert.equal(await guaraniWelcome.locator('[data-placement-status]').textContent(), '');
   assert.deepEqual(await stored(), afterRoundTrip);
+  await draft.focus();
   await options.locator('#language').selectOption('gn-PY-x-weave');
   await openScore.waitFor({ state: 'hidden' });
+  assert.equal(await languagePreview.evaluate((summary) => summary === document.activeElement), true);
   await languagePreview.press('Enter');
   await guaraniWelcome.locator('#placement:not([open])').waitFor();
   await languagePreview.press('Enter');

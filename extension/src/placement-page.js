@@ -59,8 +59,8 @@ export function mountPlacement(panel) {
   let opening = 0;
   let readGeneration = 0;
   let saving = false;
-  let confirmPending = false;
-  let draftNotice = false;
+  let pendingSave;
+  let notice;
 
   function showExamples(container, words) {
     container.hidden = words.length === 0;
@@ -126,30 +126,38 @@ export function mountPlacement(panel) {
       : hint === 1 ? t('placement_score_beginner') : '';
   });
 
-  function announce(message, describesDraft = false) {
-    draftNotice = describesDraft;
+  function announce(message, kind) {
+    notice = kind;
     if (status.textContent !== message) status.textContent = message;
   }
 
-  function showError() {
-    announce(t('placement_error'));
-    retry.hidden = !!snapshot?.available;
+  function restoreSaveFocus(previousFocus) {
+    // Chromium can drop focus when disabling a focused form control.
+    if (!previousFocus || !fieldset.contains(previousFocus) ||
+        (document.activeElement !== document.body && document.activeElement !== previousFocus)) return;
+    if (!fieldset.disabled) previousFocus.focus();
+    else if (!retry.hidden) retry.focus();
+    else trigger.focus();
   }
 
   function showSnapshot(current) {
     const selected = Number(choice.value);
-    const dirty = snapshot && selected !== snapshot.choice;
+    const previousChoice = snapshot?.choice;
+    const dirty = snapshot && selected !== previousChoice;
     const wasUnavailable = snapshot?.available === false;
-    const option = choice.options[current.choice];
-    const saved = option.disabled ? 0 : current.choice;
+    const option = [...choice.options].find(({ value, disabled }) => Number(value) === current.choice && !disabled)
+      ?? choice.options[0];
+    const saved = Number(option.value);
     const recovering = !retry.hidden;
+    const settled = pendingSave;
+    pendingSave = undefined;
     snapshot = { ...current, choice: saved };
     retry.hidden = true;
     fieldset.disabled = !current.available;
     if (!current.available) {
-      confirmPending = false;
       hideScore();
       announce(t('placement_spanish_only'));
+      restoreSaveFocus(settled?.focus);
       return;
     }
     scoreForm.hidden = !(beginner.length && expanded.length);
@@ -157,12 +165,15 @@ export function mountPlacement(panel) {
     // Refresh the displayed saved choice without granting a dirty draft a new
     // epoch. A rejected Save can do so with an explicit second-save prompt.
     const clean = !dirty || selected === saved;
-    if (clean || confirmPending) saveEpoch = current.epoch;
-    const label = choice.options[saved].textContent;
-    if (confirmPending) announce(t('placement_changed', label), true);
-    else if (!clean && saveEpoch !== current.epoch) announce(t('placement_competing', label), true);
-    else if (recovering || wasUnavailable || (draftNotice && clean)) announce('');
-    confirmPending = false;
+    if (clean || settled?.kind === 'conflict') saveEpoch = current.epoch;
+    const label = option.textContent;
+    if (settled?.kind === 'saved' && selected === saved) announce(t('placement_saved'), 'saved');
+    else if (settled?.kind === 'conflict') announce(t('placement_changed', label), 'draft');
+    else if (settled?.kind === 'error') announce(t('placement_error'));
+    else if (!clean && saveEpoch !== current.epoch) announce(t('placement_competing', label), 'draft');
+    else if (recovering || wasUnavailable || (notice === 'draft' && clean) ||
+             (notice === 'saved' && saved !== previousChoice)) announce('');
+    restoreSaveFocus(settled?.focus);
   }
 
   async function refresh() {
@@ -176,8 +187,12 @@ export function mountPlacement(panel) {
       showSnapshot(current);
     } catch {
       if (isCurrent()) {
-        if (confirmPending || fieldset.disabled) showError();
-        confirmPending = false;
+        announce(t('placement_error'));
+        retry.hidden = false;
+        if (pendingSave) {
+          restoreSaveFocus(pendingSave.focus);
+          pendingSave.focus = undefined;
+        }
       }
     }
   }
@@ -186,7 +201,7 @@ export function mountPlacement(panel) {
     opening++;
     readGeneration++;
     snapshot = null;
-    confirmPending = false;
+    pendingSave = undefined;
     fieldset.disabled = true;
     retry.hidden = true;
     hideScore();
@@ -198,17 +213,19 @@ export function mountPlacement(panel) {
     const before = settings?.oldValue?.language ?? DEFAULT_SETTINGS.language;
     const after = settings?.newValue?.language ?? DEFAULT_SETTINGS.language;
     if (before !== after) {
+      const choiceFocused = fieldset.contains(document.activeElement);
       if (snapshot) snapshot = { ...snapshot, available: false };
       fieldset.disabled = true;
-      confirmPending = false;
+      pendingSave = undefined;
       hideScore();
+      if (choiceFocused && isOpen()) trigger.focus();
     }
     if (before !== after || spanishPlacement || epoch) void refresh();
   });
   choice.addEventListener('change', () => {
     if (!snapshot?.available || Number(choice.value) !== snapshot.choice) return;
     saveEpoch = snapshot.epoch;
-    if (draftNotice) announce('');
+    if (notice === 'draft') announce('');
   });
   retry.addEventListener('click', async () => {
     const view = opening;
@@ -220,39 +237,32 @@ export function mountPlacement(panel) {
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!isOpen() || saving || !snapshot?.available) return;
+    if (!isOpen() || fieldset.disabled || !snapshot?.available) return;
     const selected = Number(choice.value);
     if (choice.selectedOptions[0]?.disabled) return;
     const view = opening;
     const isSameOpening = () => isOpen() && view === opening;
-    const previousFocus = document.activeElement;
+    const focus = document.activeElement;
     saving = true;
     readGeneration++;
-    confirmPending = false;
     fieldset.disabled = true;
     announce('');
     try {
       const result = await chrome.runtime.sendMessage({ type: 'placement', choice: selected, epoch: saveEpoch });
       if (!isSameOpening()) return;
       if (result?.ok) {
+        // This draft was saved. A fresh read decides whether it is still current.
         snapshot = { ...result, choice: selected, available: snapshot.available };
-        saveEpoch = result.epoch;
-        announce(t('placement_saved'));
-      } else if (result?.ok === false) {
-        confirmPending = snapshot.available;
-      } else showError();
+        if (snapshot.available) pendingSave = { kind: 'saved', focus };
+      } else if (snapshot.available) {
+        pendingSave = { kind: result?.ok === false ? 'conflict' : 'error', focus };
+      }
     } catch {
-      if (isSameOpening()) showError();
+      if (isSameOpening() && snapshot.available) pendingSave = { kind: 'error', focus };
     }
     finally {
       saving = false;
-      // Chromium can drop focus when disabling a focused form control.
-      if (isSameOpening()) fieldset.disabled = !snapshot?.available;
-      if (isSameOpening() && !fieldset.disabled && fieldset.contains(previousFocus) &&
-          (document.activeElement === document.body || document.activeElement === previousFocus)) {
-        previousFocus.focus();
-      }
-      // Read after settlement to pick up writes and panel openings during the save.
+      // Wait to present the result until writes and reopenings during the save are reflected.
       void refresh();
     }
   });
