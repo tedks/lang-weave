@@ -83,6 +83,14 @@ async function checkParagraph(context, worker, id) {
     session: await chrome.storage.session.get(null), permissions: await chrome.permissions.getAll(),
   }));
   assert.equal(before.local.apiKey, undefined);
+  await worker.evaluate(() => {
+    self.paragraphWorkerCalls = 0;
+    const observe = (sender) => {
+      if (sender?.url === chrome.runtime.getURL('src/paragraph.html')) self.paragraphWorkerCalls++;
+    };
+    chrome.runtime.onMessage.addListener((_message, sender) => { observe(sender); });
+    chrome.runtime.onConnect.addListener((port) => { observe(port.sender); });
+  });
   const page = await openParagraph(context, popup, `${base}paragraph.html`);
   const source = page.getByRole('textbox', { name: 'Short English paragraph' });
   const find = page.getByRole('button', { name: 'Find words' });
@@ -138,6 +146,7 @@ async function checkParagraph(context, worker, id) {
     session: await chrome.storage.session.get(null), permissions: await chrome.permissions.getAll(),
   }));
   assert.deepEqual(after, before, 'paragraph practice leaves storage and permissions untouched');
+  assert.equal(await worker.evaluate(() => self.paragraphWorkerCalls), 0);
   await page.close();
   await popup.close();
   console.log('PASS: installed popup routes to keyless Spanish and Guaraní paragraph practice, exact selection and flipping, plain text, no-match recovery and clear, unchanged storage and grants.');
@@ -242,6 +251,24 @@ try {
   assert.equal(placed.apiKey, undefined);
   assert.equal(placed.recallReview, undefined);
   assert.deepEqual(placed.settings, before.settings, 'placement leaves the regular settings intact');
+  const practiceUrl = `chrome-extension://${id}/src/paragraph.html`;
+  await page.getByRole('link', { name: 'Practice a paragraph' }).click();
+  await page.waitForURL(practiceUrl);
+  await page.getByText('Vocabulary tier: Expanded').waitFor();
+  const practiceSource = page.getByRole('textbox', { name: 'Short English paragraph' });
+  await practiceSource.fill('Admission is free. Admission is free.');
+  await page.getByRole('button', { name: 'Find words' }).click();
+  await page.getByRole('combobox', { name: 'Occurrence in your paragraph' }).selectOption('1');
+  const meanings = page.getByRole('combobox', { name: 'Catalog word and meaning' });
+  assert.deepEqual(await meanings.locator('option').allTextContents(), ['libre · free (unrestricted)', 'gratis · free (no cost)']);
+  await meanings.selectOption({ label: 'gratis · free (no cost)' });
+  await page.getByRole('button', { name: 'Practice this word' }).press('Space');
+  assert.equal(await page.locator('#preview').textContent(), 'Admission is free. Admission is gratis.');
+  await page.goBack();
+  await page.goForward();
+  await page.locator('#language:enabled').waitFor();
+  assert.equal(await practiceSource.inputValue(), '');
+  assert.equal(await page.locator('#choices').isHidden(), true);
   await page.close(); // a learner may close welcome before choosing
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
@@ -318,6 +345,10 @@ try {
   await languagePreview.press('Enter');
   await guaraniWelcome.getByText('Choose Spanish in Settings to use this check.').waitFor();
   assert.equal(await openScore.isHidden(), true);
+  await guaraniWelcome.getByRole('link', { name: 'Practice a paragraph' }).click();
+  await guaraniWelcome.waitForURL(practiceUrl);
+  await guaraniWelcome.locator('#language:enabled').waitFor();
+  assert.equal(await guaraniWelcome.getByRole('combobox', { name: 'Practice language' }).inputValue(), 'gn-PY-x-weave');
   await guaraniWelcome.close();
   console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
 
@@ -363,6 +394,13 @@ try {
   await reopened.reload();
   await reopened.locator('#demo').getByRole('button', { name: 'hoy', exact: true }).waitFor();
   assert.equal(await pickerFor(reopened).inputValue(), 'es');
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY');
+  await reopened.getByRole('link', { name: 'Practice a paragraph' }).click();
+  await reopened.waitForURL(practiceUrl);
+  await reopened.getByText(/Offline practice supports the two bundled languages/).waitFor();
+  const practiceLanguage = reopened.getByRole('combobox', { name: 'Practice language' });
+  assert.equal(await practiceLanguage.inputValue(), 'es');
+  await practiceLanguage.selectOption({ label: 'Paraguayan Guaraní' });
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('settings'))).settings.language, 'gn-PY');
 
   assert.deepEqual(networkRequests, []);

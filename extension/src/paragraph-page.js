@@ -21,6 +21,7 @@ export async function mountParagraph(doc, storage) {
   const preview = $('preview');
   const status = $('status');
   let matches = [];
+  let matchedText = '';
   // The source and every derived view are transient even when Chrome keeps the page alive for back/forward.
   function clearPreview() {
     revert(preview);
@@ -29,6 +30,7 @@ export async function mountParagraph(doc, storage) {
   }
   function clearMatches() {
     matches = [];
+    matchedText = '';
     occurrence.replaceChildren();
     sense.replaceChildren();
     $('choices').hidden = true;
@@ -78,7 +80,8 @@ export async function mountParagraph(doc, storage) {
   const chosenOccurrence = () => matches[occurrence.selectedIndex];
   function showSenses() {
     clearPreview();
-    sense.replaceChildren(...chosenOccurrence().senses.map(({ target, gloss }, index) => option(`${target} · ${gloss}`, index)));
+    const choices = chosenOccurrence()?.senses ?? [];
+    sense.replaceChildren(...choices.map(({ target, gloss }, index) => option(`${target} · ${gloss}`, index)));
   }
   occurrence.addEventListener('change', showSenses);
   sense.addEventListener('change', clearPreview);
@@ -95,6 +98,7 @@ export async function mountParagraph(doc, storage) {
       status.textContent = t('paragraph_no_matches');
       return;
     }
+    matchedText = text;
     occurrence.replaceChildren(...matches.map((match, index) => option(occurrenceLabel(text, match, index), index)));
     showSenses();
     $('choices').hidden = false;
@@ -104,8 +108,9 @@ export async function mountParagraph(doc, storage) {
     const match = chosenOccurrence();
     const choice = match?.senses[sense.selectedIndex];
     if (!choice) return;
+    if (source.value !== matchedText) { clearMatches(); source.focus(); return; }
     clearPreview();
-    preview.textContent = source.value;
+    preview.textContent = matchedText;
     const tag = language.value === GUARANI_STARTER ? 'gn-PY' : 'es';
     const span = applySwapAt(preview.firstChild, match.start, choice.swap, tag);
     if (!span) { clearMatches(); return; }
