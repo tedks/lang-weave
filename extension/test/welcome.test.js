@@ -58,6 +58,42 @@ test('demo selects fixed real Beginner words and uses page swap markup and flip'
   win.close();
 });
 
+test('every reading sample uses the expected Beginner English senses and hints', () => {
+  const senses = [
+    ['es', 0, ['today', 'with', 'and', 'important', 'always', 'because', 'difficult', 'but', 'possible']],
+    ['es', 1, ['the sweater', 'the bracelet', 'the suitcase', 'tomorrow']],
+    ['es', 2, ['the soup', 'the window', 'the song', 'the river']],
+    [GUARANI_STARTER, 0, ['rain', 'tree', 'butterfly', 'flower', 'sun']],
+    [GUARANI_STARTER, 1, ['teacher (at school)', 'book (printed volume)', 'paper (writing material)', 'room (indoors)', 'chair (seat)']],
+    [GUARANI_STARTER, 2, ['night (after dark)', 'moon', 'road (route for travel)', 'wind', 'door (movable barrier)']],
+  ];
+  for (const [language, index, glosses] of senses) {
+    const words = language === 'es' ? L1_WORDS : GUARANI_PACK.words.filter((word) => word.level === 1);
+    const swaps = demoSwaps(language, index);
+    expect(swaps.map((s) => s.g)).toEqual(glosses);
+    for (const swap of swaps) {
+      expect(words.some((word) => word.fr === swap.f && word.en === swap.g && word.hint === swap.h)).toBe(true);
+    }
+  }
+});
+
+test('the original Welcome markup can still switch between its two default passages', async () => {
+  const win = new Window();
+  try {
+    win.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
+    win.document.getElementById('demoPassage').remove();
+    const demo = win.document.getElementById('demo');
+    const language = win.document.getElementById('demoLanguage');
+    await mountWelcomeDemo(demo, language);
+    expect(demo.querySelector('.fw-word').textContent).toBe('hoy');
+    language.value = GUARANI_STARTER;
+    language.dispatchEvent(new win.Event('change'));
+    expect(demo.querySelector('.fw-word').textContent).toBe('ama');
+  } finally {
+    win.close();
+  }
+});
+
 test('site choice requests all-site permission before save; denial saves nothing; only-sites saves false', async () => {
   const calls = [];
   const request = async () => { calls.push('request'); return false; };

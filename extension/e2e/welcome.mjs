@@ -340,6 +340,8 @@ try {
   await checkSample(page, { ...guarani, firstSource: 'night', targets: ['pyhare', 'jasy', 'tape', 'yvytu', 'okẽ'],
     source: 'At night we watched the moon rise over the road. A gust of wind rattled the door before dawn.' });
   assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get(null)), sampleState);
+  assert.deepEqual(await worker.evaluate(() => chrome.permissions.getAll()), permissions);
+  assert.deepEqual(networkRequests, []);
   console.log('PASS: all six bundled passages rendered, revealed their original English and retained local learning data.');
   const practiceUrl = `chrome-extension://${id}/src/paragraph.html`;
   const fromSample = await openParagraph(context, page, `${practiceUrl}#gn-PY-x-weave`);
