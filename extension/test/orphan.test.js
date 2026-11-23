@@ -2,8 +2,8 @@ import { test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
 
 // After the extension reloads itself, content scripts in open tabs are cut off (chrome.runtime.id is gone and
-// sendMessage throws). They must go quiet: no throws from event handlers, no more requests, woven words kept.
-test('an orphaned content script stays quiet and leaves the page as it is', async () => {
+// sendMessage throws). They go quiet and retire the unchanged markup they own.
+test('an orphaned content script stays quiet and restores its own English', async () => {
   const win = new Window({ url: 'https://example.com/article' });
   const keys = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval'];
   const saved = Object.fromEntries(keys.map((k) => [k, globalThis[k]]));
@@ -33,7 +33,8 @@ test('an orphaned content script stays quiet and leaves the page as it is', asyn
   const onError = (e) => errors.push(String(e?.reason || e?.message || e));
   process.on('unhandledRejection', onError);
   try {
-    win.document.body.innerHTML = '<main><p id="a">I enjoy cats and dogs every single day here.</p></main>';
+    win.document.body.innerHTML = '<main><p id="a">I enjoy cats and dogs every single day here.</p>' +
+      '<p id="b"><span class="fw-word" data-en="forged source">visible site text</span></p></main>';
     await import('../src/content.js?orphan');
     await wait();
     const span = win.document.querySelector('#a .fw-word');
@@ -57,7 +58,9 @@ test('an orphaned content script stays quiet and leaves the page as it is', asyn
     p.textContent = 'They walk home and talk about the long week.';
     await wait();
     expect(sent).toBe(after); // quiet from then on
-    expect(win.document.querySelector('#a .fw-word')?.textContent).toBe('et'); // woven text stays
+    expect(win.document.querySelector('#a .fw-word')).toBeNull();
+    expect(win.document.querySelector('#a').textContent).toBe('I enjoy cats and dogs every single day here.');
+    expect(win.document.querySelector('#b .fw-word').textContent).toBe('visible site text');
   } finally {
     process.off('unhandledRejection', onError);
     await win.happyDOM.close();

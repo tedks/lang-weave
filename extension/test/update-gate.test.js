@@ -59,6 +59,29 @@ test('worker wake detects NEW without reloading, then the normal check may reloa
   expect(calls.at(-1)).toBe('reload');
 }));
 
+test('the outgoing worker asks top-frame content to retire before it reloads', () => withGlobals(async () => {
+  const { calls, update } = fakeChrome({ version: '1.0.0' }, '1.0.1');
+  const prepared = Promise.withResolvers();
+  const ack = Promise.withResolvers();
+  globalThis.chrome.tabs = {
+    query: async () => [{ id: 7 }, { id: 13 }, { id: -1 }],
+    sendMessage: async (id, message, target) => {
+      expect(message).toEqual({ type: 'prepareReadingReload' });
+      expect(target).toEqual({ frameId: 0 });
+      calls.push(id);
+      if (id === 13) throw new Error('tab closed');
+      prepared.resolve();
+      return ack.promise;
+    },
+  };
+  const refreshing = update.checkUpdate();
+  await prepared.promise;
+  expect(calls).toEqual(['fetch:chrome-extension://gate-test/manifest.json', 7, 13]);
+  ack.resolve({ ok: true });
+  expect(await refreshing).toBe('1.0.1');
+  expect(calls.at(-1)).toBe('reload');
+}));
+
 test('a failed action refresh does not hide a waiting update from status', () => withGlobals(async () => {
   const { data, update } = fakeChrome({ version: '1.0.0' }, '1.0.1', () => { throw new Error('tab closed'); });
   data[RELOADED_KEY] = '1.0.1';

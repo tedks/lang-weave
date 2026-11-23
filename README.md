@@ -27,6 +27,8 @@ Chrome 140 or newer is required. This is an unpacked beta from GitHub Releases. 
 
 **Fleet installs.** The dotfiles installer stages the approved version in `${XDG_DATA_HOME:-$HOME/.local/share}/lang-weave/extension`. On machines with the updater enabled, it checks the fleet pin hourly. To see which build you are actually reading with, open `chrome://extensions` in that Chrome profile, turn on **Developer mode**, and check the Lang Weave entry’s version and ID. Open **Details** to check its unpacked folder. If the ID matches the one above and the folder is the fleet folder, click **Reload**, then refresh the page you were reading. If Chrome still shows a pre-0.12.0 entry, follow the migration steps below to carry your progress across.
 
+**Reading during a fleet update.** Lang Weave can resume on fresh passages in an open reading tab. Words left by 0.15.2 or earlier may stop responding until you refresh that page yourself. Starting with 0.15.3, the outgoing version restores the unchanged words it wove before it updates, and the new version can weave them again under your existing site settings.
+
 ### Upgrading from before 0.12.0
 
 Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.12.0 arrives as a new extension with empty storage, and your progress moves across once, through a Learning backup. Skip this if you never loaded an earlier version.

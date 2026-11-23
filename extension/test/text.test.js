@@ -2,7 +2,7 @@ import { describe, test, expect, jest } from 'bun:test';
 import { Window } from 'happy-dom';
 import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
   introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, restoreDescriptions,
-  swapDescription } from '../src/text.js';
+  swapDescription, retireSwaps } from '../src/text.js';
 import { readable, selector, TWEET, PROSE } from '../src/page.js';
 
 const win = new Window();
@@ -188,6 +188,40 @@ describe('applySwaps', () => {
 });
 
 describe('revert and toggle', () => {
+  test('retirement restores unchanged owned faces and leaves live edits and lookalikes in place', () => {
+    const live = new Window();
+    try {
+      const doc = live.document;
+      doc.body.innerHTML = '<p>We read and enjoy books at home.</p><p>They write and walk home each day.</p>';
+      const [unchanged, edited] = doc.querySelectorAll('p');
+      applySwaps(unchanged, [S({ o: 'and', f: 'y' })]);
+      applySwaps(edited, [S({ o: 'and', f: 'y' })]);
+      const own = unchanged.querySelector('.fw-word');
+      const edit = edited.querySelector('.fw-word');
+      const forged = own.cloneNode(true);
+      forged.dataset.en = 'not the source';
+      const next = own.nextSibling;
+      next.data = ' enjoy new books every evening.';
+      edit.replaceChildren(doc.createTextNode('y')); // same text, different site-owned node
+      const siteNode = edit.firstChild;
+      doc.body.append(forged);
+      retireSwaps(doc);
+      expect(unchanged.textContent).toBe('We read and enjoy new books every evening.');
+      expect(unchanged.lastChild).toBe(next);
+      expect(own.isConnected).toBe(false);
+      expect(edit.firstChild).toBe(siteNode);
+      expect(forged.textContent).toBe('y');
+      expect(forged.dataset.en).toBe('not the source');
+      expect(readable(edited, 'https://reading.example/')).toBe(true); // same-world edit still has private ownership
+      const newWorld = doc.createElement('p');
+      newWorld.append('These are unrelated site words around ', forged, ' with more reading here.');
+      doc.body.append(newWorld);
+      expect(readable(newWorld, 'https://reading.example/')).toBe(false);
+    } finally {
+      live.happyDOM.abort();
+    }
+  });
+
   test('a framework replacing its original text node does not regain stale split suffixes', () => {
     const el = tweet('<span>cats and dogs and birds</span>');
     const original = el.querySelector('span').firstChild;

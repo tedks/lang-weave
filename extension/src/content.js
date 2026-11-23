@@ -2,7 +2,8 @@
 // handle the delayed gloss, click/Enter flip and seen/peek/flip events. Every async reply belongs to one config generation.
 import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
-  finishIntroduction, pruneDescriptions, restoreDescriptions, revealGuessMeaning, isGuessPending, SWAP_CLASS } from './text.js';
+  finishIntroduction, pruneDescriptions, restoreDescriptions, revealGuessMeaning, isGuessPending, hasUnownedSwaps,
+  retireSwaps, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -59,19 +60,17 @@ let guessHostCount = 0;
 let guessQuiet = null; // a word just dismissed: no tip or panel until the pointer or focus leaves it
 const plainToday = new Set(); // revision:day:word that the worker answered with the plain gloss
 const GUESS_EDITABLE = 'form, input, textarea, select, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]';
-// After the extension reloads itself for an update, this copy is cut off from the worker. It then goes quiet:
-// no more requests or errors, woven words stay as they are, and a page reload brings in the new copy.
+// Chrome gives an upgraded extension a new isolated world. This world alone
+// can restore its unchanged swaps, even if Chrome invalidated it without notice.
 let orphaned = false;
+let reloadHold = null;
 const alive = () => { try { return !orphaned && !!chrome.runtime?.id; } catch { return false; } };
 function orphan() {
   if (orphaned) return;
   orphaned = true;
-  generation++;
-  observer?.disconnect(); observer = null;
-  near?.disconnect(); visible?.disconnect();
-  clearTimeout(timer); timer = null; clearInterval(navTimer); hideTip();
-  closeCue(); closeGuess();
-  pending.clear(); inflight.clear();
+  clearTimeout(reloadHold);
+  clearInterval(navTimer);
+  stop({ retiring: true });
 }
 const send = (msg) => {
   if (!alive()) { orphan(); return Promise.reject(new Error('Lang Weave was reloaded')); }
@@ -82,7 +81,8 @@ const send = (msg) => {
     return Promise.reject(e);
   }
 };
-const on = () => !orphaned && window.top === window && config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
+const on = () => !orphaned && window.top === window && reloadHold === null && alive() &&
+  config?.hasKey && !config.paused && !isZeroFrench(document.title) &&
   siteEnabled(config.settings, location.href) && hasSiteAccess(location.href, config.origins);
 const targets = () => selector(location.href);
 // Only real user input on spans this extension made; pages can't forge flips, peeks or seen events.
@@ -784,8 +784,8 @@ function start() {
   observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   track(document.documentElement);
 }
-function stop() {
-  if (config?.settings.gradual && alive()) {
+function stop({ retiring = false } = {}) {
+  if (!retiring && config?.settings.gradual && alive()) {
     const tickets = new Map();
     for (const root of tracked) for (const span of root.querySelectorAll(`span.${SWAP_CLASS}`)) {
       const ticket = introductionTicket(span);
@@ -807,11 +807,15 @@ function stop() {
   closeCue();
   churn = new WeakMap();
   introRetries = new WeakMap();
-  for (const el of tracked) { revert(el); keys.delete(el); }
+  if (retiring) retireSwaps(document);
+  for (const el of tracked) {
+    if (!retiring) revert(el);
+    keys.delete(el);
+  }
   tracked.clear(); visibleWords.clear(); deferredSightings.clear();
 }
 function update(next, retry = false) {
-  if (!next?.settings || !next.revision) return;
+  if (reloadHold !== null || !next?.settings || !next.revision) return;
   if (!retry && next.revision === config?.revision) {
     // Guess first is outside the revision (it changes no swap): take it without repainting.
     if (config && (next.settings.guessFirst === true) !== (config.settings.guessFirst === true)) {
@@ -851,6 +855,24 @@ document.addEventListener('contextmenu', () => {
 // The worker targets the exact top-frame document. Recheck consent/title and the live selection here;
 // menu selectionText alone is stale, untrusted input and is never sufficient to authorize capture.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type === 'prepareReadingReload') {
+    if (sender.id !== chrome.runtime.id || sender.url !== `chrome-extension://${chrome.runtime.id}/src/background.js`) return false;
+    if (reloadHold === null) {
+      // A bounded hold also lets this world resume if Chrome declines to reload.
+      reloadHold = setTimeout(() => {
+        reloadHold = null;
+        void send({ type: 'config' }).then((next) => update(next, true)).catch(() => {});
+      }, 5000);
+      stop({ retiring: true });
+    }
+    reply({ ok: true });
+    return false;
+  }
+  if (msg?.type === 'readingReloadHint') {
+    if (sender.id === chrome.runtime.id && sender.url === `chrome-extension://${chrome.runtime.id}/src/popup.html`)
+      reply({ ambiguous: hasUnownedSwaps(document) });
+    return false;
+  }
   if (msg?.type === 'personalCaptureAlive') {
     const ok = sender.id === chrome.runtime.id && capturePageAllowed({
       url: location.href, title: document.title, settings: config?.settings, origins: config?.origins,
@@ -895,6 +917,7 @@ window.addEventListener('online', () => { void send({ type: 'config' }).then((c)
 let page = location.href;
 let day = localDay();
 const navTimer = setInterval(() => {
+  if (!alive()) { orphan(); return; }
   const today = localDay();
   const sensitive = isZeroFrench(document.title);
   if (page !== location.href || titleSensitive !== sensitive || config?.settings.gradual && day !== today) {

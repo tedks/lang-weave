@@ -16,6 +16,7 @@ const spanGroups = new WeakMap();
 // word list from attributes nor pass off its own span as a swap.
 const owned = new WeakMap();
 const sourceEnglish = new WeakMap();
+const paintedFaces = new WeakMap();
 const displaySwap = new WeakMap();
 const pendingGuess = new WeakSet();
 const practice = new WeakSet();
@@ -35,6 +36,12 @@ let pruned = false; // once any description is taken out, added subtrees are sca
 let descriptionPrefix = '';
 let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
+// Ownership lives in the WeakMap. Markup only identifies an ambiguous passage.
+export const hasUnownedSwaps = (root) =>
+  Array.from(root.querySelectorAll(`span.${SWAP_CLASS}`)).some((span) => !isSwap(span));
+
+const faceNodes = (span) => Array.from(span.childNodes).flatMap((node) => [node, ...node.childNodes]);
+const rememberFace = (span) => paintedFaces.set(span, { markup: span.outerHTML, nodes: faceNodes(span) });
 export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
 export const isGuessPending = (span) => pendingGuess.has(span);
@@ -63,6 +70,7 @@ export function setPracticeCue(span, active) {
     span.removeAttribute('title');
     span.removeAttribute('aria-label');
   }
+  rememberFace(span);
   return true;
 }
 function bcp47(language) {
@@ -198,6 +206,7 @@ export function finishIntroduction(span) {
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
   showTarget(span, display.f, display);
+  rememberFace(span);
   return true;
 }
 
@@ -220,6 +229,7 @@ export function finishPractice(span, answer, familiar = false) {
   span.setAttribute('data-tip', tipFor(display));
   span.dataset.fwStatus = familiar ? 'known' : 'active';
   showTarget(span, display.f, display);
+  rememberFace(span);
   return true;
 }
 
@@ -247,7 +257,7 @@ export function flatten(root) {
         } else if (tag === 'BR') {
           push(null, '\n', false);
         } else if (owned.has(child)) {
-          push(null, child.getAttribute('data-en') || child.textContent, false);
+          push(null, sourceEnglish.get(child), false);
         } else {
           walk(child, blocked || SKIP_TAGS.has(tag) || child.matches('[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="button"],[hidden],[aria-hidden="true"],[translate="no"],.notranslate'));
         }
@@ -372,6 +382,7 @@ function wrap(place, swap, language) {
     practice.add(span);
     span.classList.add('fw-practice');
   }
+  rememberFace(span);
   const group = splitGroups.get(node) || { node, pieces: new Set() };
   group.prefix = node.data;
   group.pieces.add(span); group.pieces.add(suffix);
@@ -447,6 +458,21 @@ export function revert(root) {
   return spans.length;
 }
 
+// Retiring a world must leave surrounding nodes, live edits and foreign markup
+// alone. Replace only a still-unchanged wrapper using its privately held source.
+export function retireSwaps(doc) {
+  for (const span of doc.querySelectorAll('span')) {
+    const face = paintedFaces.get(span);
+    if (!face ||
+        span.parentElement?.closest('form, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) continue;
+    const nodes = faceNodes(span);
+    if (nodes.length !== face.nodes.length || nodes.some((node, i) => node !== face.nodes[i]) ||
+        span.outerHTML !== face.markup) continue;
+    undescribe(span);
+    span.replaceWith(doc.createTextNode(sourceEnglish.get(span)));
+  }
+}
+
 // Click: flip one swap between the selected target language and English.
 export function toggle(span, language = 'Spanish') {
   const showEn = !span.classList.contains('fw-en');
@@ -456,5 +482,6 @@ export function toggle(span, language = 'Spanish') {
     span.removeAttribute('aria-label');
     describe(span, t('swap_show_language', language));
   } else showTarget(span, span.getAttribute('data-fr'), displaySwap.get(span));
+  rememberFace(span);
   return showEn;
 }

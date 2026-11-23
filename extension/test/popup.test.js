@@ -18,7 +18,7 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
   const events = [];
   let failSave = false;
   const state = { enabled: true, due: 3, available: 7, access: false, grant: false, siteOverride: null, progressFails: false, consentShown: true,
-    isolationUnavailable: false };
+    isolationUnavailable: false, readingUpdated: false, ambiguous: false };
   const today = { day: '2026-10-30', introduced: 2, seen: 14, peeked: 3, flipped: 0, reviewed: 5 };
   const pageUrl = 'https://example.com/article';
   globalThis.chrome = {
@@ -30,6 +30,7 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
             siteOverrides: state.siteOverride === null ? {} : { 'example.com': state.siteOverride } },
           language: 'es', hasKey: true, origins: state.access ? ['https://example.com/*'] : [],
         }, review: { due: state.due, new: state.available }, budgetWarning: '', consentShown: state.consentShown,
+          readingUpdated: state.readingUpdated,
           modelStatus: state.isolationUnavailable ? { category: 'key_isolation_unavailable' } : null };
         if (msg.type === 'progress') {
           if (state.progressFails) throw new Error('Progress unavailable');
@@ -54,6 +55,10 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
       } },
     windows: { getCurrent: async () => ({ id: 23 }) },
     tabs: { query: async () => [{ id: 5, url: pageUrl }],
+      sendMessage: async (id, msg, target) => {
+        expect([id, msg, target]).toEqual([5, { type: 'readingReloadHint' }, { frameId: 0 }]);
+        return { ambiguous: state.ambiguous };
+      },
       create: async ({ url }) => { events.push(url); return { id: 9 }; } },
   };
   try {
@@ -94,6 +99,14 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
     await waitFor(() => !$('siteEnabled').disabled);
     expect(events).toEqual([siteChoice]);
     expect($('siteName').textContent).toBe('On for example.com');
+    expect($('readingReload').hidden).toBe(true);
+    state.readingUpdated = true; state.ambiguous = true;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => !$('readingReload').hidden);
+    expect($('readingReload').textContent).toMatch(/refresh this page when you’re ready/);
+    state.ambiguous = false;
+    $('enabled').dispatchEvent(new window.Event('change'));
+    await waitFor(() => $('readingReload').hidden);
     $('primary').click();
     await waitFor(() => events.some((event) => event.type === 'openReview'));
     expect(events.at(-1)).toEqual({ type: 'openReview', windowId: 23 });
