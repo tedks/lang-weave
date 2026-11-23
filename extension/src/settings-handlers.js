@@ -207,10 +207,14 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       if (!current.available || current.epoch !== msg.epoch) return { ok: false };
       if (current.choice === msg.choice) return { ok: true, ...current };
       const epoch = crypto.randomUUID();
+      // Keep an explicit 0 after clearing, so words already introduced during
+      // placement stay reviewable under the restored reading level.
       await store.set({ spanishPlacement: msg.choice, epoch });
       return { ok: true, ...current, choice: msg.choice, epoch };
     });
-    if (result.ok && result.epoch !== msg.epoch) await broadcast();
+    // The preference is already committed. A failed tab notification must
+    // not turn it into a failed save; reader requests still check the epoch.
+    if (result.ok && result.epoch !== msg.epoch) await broadcast().catch(() => {});
     return result;
   }
 

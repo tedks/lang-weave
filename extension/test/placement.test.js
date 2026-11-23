@@ -38,6 +38,8 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
   const send = (msg, surface) => new Promise((reply) => {
     if (!listeners[0](msg, surface ? sender(surface) : page, reply)) reply(undefined);
   });
+  let failBroadcast = false;
+  let failedBroadcast = false;
   globalThis.chrome = {
     storage: { local: {
       async setAccessLevel() {},
@@ -50,7 +52,13 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     } },
     runtime: { id, getURL: (path) => extension + path, getManifest: () => ({ version: '0.13.0' }),
       onMessage: on(listeners), onInstalled: on(), onStartup: on() },
-    tabs: { get: async () => ({ id: 1, title: 'Reading', url: page.url }), query: async () => [], sendMessage: async () => {} },
+    tabs: { get: async () => ({ id: 1, title: 'Reading', url: page.url }),
+      query: async () => {
+        if (!failBroadcast) return [];
+        failedBroadcast = true;
+        throw new Error('Could not list tabs');
+      },
+      sendMessage: async () => {} },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
@@ -72,8 +80,14 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     const prompt = request.systemInstruction.parts[0].text;
     prompts.push(prompt);
     await holdResponse?.();
-    const passages = JSON.parse(request.contents[0].parts[0].text.replace(/^Passages:\n/, '')).map(({ id }) =>
-      ({ id, swaps: prompt.includes('a veces = sometimes') ? [{ o: 'sometimes', f: 'a veces', ctx: 'We sometimes catch' }] : [] }));
+    const passages = JSON.parse(request.contents[0].parts[0].text.replace(/^Passages:\n/, '')).map(({ id, text }) => {
+      const swaps = [];
+      if (prompt.includes('a veces = sometimes') && text.startsWith('We sometimes catch'))
+        swaps.push({ o: 'sometimes', f: 'a veces', ctx: 'We sometimes catch' });
+      if (prompt.includes('la ventana = the window') && text.startsWith('The window looks'))
+        swaps.push({ o: 'The window', f: 'la ventana', ctx: 'The window looks' });
+      return { id, swaps };
+    });
     return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
   };
   const preview = (surface = 'options') => send({ type: 'placement' }, surface);
@@ -93,7 +107,11 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect(storage.spanishPlacement).toBeUndefined();
     expect(await send({ type: 'placement', choice: 2, epoch: initial.epoch })).toBeUndefined();
     expect(await apply('2', initial)).toEqual({ ok: false });
+    failBroadcast = true;
     expect(await apply(2, initial, 'welcome')).toMatchObject({ ok: true, choice: 2 });
+    failBroadcast = false;
+    expect(failedBroadcast).toBe(true);
+    expect(await preview()).toMatchObject({ available: true, choice: 2 });
     expect(await apply(1, initial)).toEqual({ ok: false });
     expect(storage.settings).toEqual(settings);
     expect(storage.recallReview).toEqual(legacy);
@@ -144,7 +162,8 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     expect(Object.values((await ask(revised.revision, 'That documentary explores the world beyond our doorstep.')).results))
       .toEqual([[]]);
     expect(prompts).toHaveLength(2);
-    await ask(revised.revision, windowText);
+    const windowResult = await ask(revised.revision, windowText);
+    expect(Object.values(windowResult.results).flat()).toMatchObject([{ word: 'la ventana', status: 'due' }]);
     expect(prompts.at(-1)).toContain('la ventana = the window');
     const repeated = await ask(revised.revision, 'We sometimes catch up by writing friendly letters.');
     expect(Object.values(repeated.results).flat()).toMatchObject([{ word: 'a veces', status: 'due' }]);
@@ -165,6 +184,9 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
     heldWindow.release();
     expect(await pendingWindow).toMatchObject({ stale: true });
     expect((await config()).revision).toBe(revised.revision);
+    const requestsAfterReset = prompts.length;
+    expect(Object.values((await ask(revised.revision, windowText)).results)).toEqual([[]]);
+    expect(prompts).toHaveLength(requestsAfterReset);
     expect(await send({ type: 'inlineReveal', ticket: cue.ticket, revision: revised.revision }))
       .toMatchObject({ answer: { fr: 'la pregunta' } });
 
