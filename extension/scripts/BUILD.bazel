@@ -8,3 +8,13 @@ filegroup(
     ],
     visibility = ["//:__pkg__"],
 )
+
+filegroup(
+    name = "suite_scripts",
+    srcs = [
+        "icons.mjs",
+        "messages.mjs",
+        ":packager",
+    ],
+    visibility = ["//:__pkg__"],
+)

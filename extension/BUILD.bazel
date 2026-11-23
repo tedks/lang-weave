@@ -14,6 +14,7 @@ filegroup(
 
 exports_files(
     [
+        "design/icon.svg",
         "e2e/welcome.mjs",
         "manifest.json",
     ],

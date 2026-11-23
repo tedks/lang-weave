@@ -31,9 +31,7 @@ Store release.
 they are Linux x86_64 only. `//:version_classifier_test` has no platform input
 and carries no platform constraint. All three carry Bazel's Linux sandbox
 network block. Remote execution must separately prove worker architecture,
-archive execution, and isolation before it is qualified. The existing
-standalone `bun install --frozen-lockfile` and `bun test` workflow remains
-independent and still covers the broader extension.
+archive execution, and isolation before it is qualified.
 
 The binary needs an AVX2-capable x86_64 worker and a glibc-compatible runtime.
 The runner copies its three declared source and fixture inputs from Bazel's
@@ -49,6 +47,32 @@ SHA-256 in `MODULE.bazel` guards it instead.
 After a reviewed `MODULE.bazel` change, regenerate the lock with
 `nix develop --command bazel mod deps --lockfile_mode=update`, review the
 diff and commit it with the change.
+
+## Full extension regressions
+
+```sh
+nix develop --command bazel test --spawn_strategy=linux-sandbox //:extension_test
+```
+
+This Linux x86-64 target runs Bun's discovery over `extension/test/`,
+including the happy-dom tests, the dev and Store ZIP fixture tests, and the
+curriculum and lexicon regressions. For fresh counts, add
+`--nocache_test_results --test_output=all` and read Bun's summary. Bazel
+reports the entire suite as one test target.
+
+On first fetch or a lockfile change, Bazel uses the pinned Bun to install
+from `extension/package.json` and `extension/bun.lock` in an external
+repository. The install uses the public npm registry, freezes the lock and
+skips lifecycle scripts. The test action copies the resolved modules and
+declared source files into its sandbox and runs Bun with networking and
+automatic installs disabled. No local `node_modules` is needed.
+
+The tests need the source layout, including licenses and data outside
+`extension/`. They run without Git metadata. The packaging tests build
+their own ZIPs from those inputs. `//:beta_zip` needs the Git checkout to
+archive the committed `HEAD` and `//:beta_install_test` takes an existing
+release ZIP and a Chromium executable. The full Git-based version check
+and the other browser gates are tracked in `bazel-graph-remaining-gates`.
 
 ## Unpacked beta gates
 
