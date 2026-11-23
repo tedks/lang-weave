@@ -916,7 +916,7 @@
     "description": "First-run welcome page: browser tab title and main heading."
   },
   "welcome_intro": {
-    "message": "Learn a language a little at a time while reading English pages.",
+    "message": "Learn another language while reading English pages.",
     "description": "First-run welcome page: introduction under the main heading."
   },
   "welcome_demo_heading": {
@@ -936,7 +936,7 @@
     "description": "First-run welcome page: heading of step 2. Keep the number."
   },
   "welcome_privacy_sends": {
-    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses words that fit the context in the reading language you select in Settings. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
+    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini uses that context to choose words in the reading language you select in Settings. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
     "description": "First-run welcome page: what is sent to Google's Gemini API when Lang Weave is on for a site."
   },
   "welcome_privacy_free_key": {

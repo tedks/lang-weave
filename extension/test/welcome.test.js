@@ -6,7 +6,7 @@ import { GUARANI_PACK } from '../src/guarani.js';
 import { GUARANI_STARTER } from '../src/language-name.js';
 import { L1_WORDS } from '../src/vocabulary.js';
 import { applySwaps, toggle } from '../src/text.js';
-import { demoSwaps } from '../src/welcome-demo.js';
+import { demoSwaps, mountWelcomeDemo } from '../src/welcome-demo.js';
 import { chooseSitePolicy } from '../src/welcome.js';
 import { hashKey } from '../src/hash.js';
 
@@ -72,6 +72,34 @@ test('site choice requests all-site permission before save; denial saves nothing
   calls.length = 0;
   expect(await chooseSitePolicy(true, { request: async () => { calls.push('request'); return true; }, save })).toBe(true);
   expect(calls).toEqual(['request', 'save:true']);
+});
+
+test('the local sample remains usable when the saved language cannot be read', async () => {
+  const oldChrome = globalThis.chrome;
+  const win = new Window();
+  win.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
+  const demo = win.document.getElementById('demo');
+  const picker = win.document.getElementById('demoLanguage');
+  const reads = [];
+  const writes = [];
+  globalThis.chrome = { storage: { local: {
+    async get(key) { reads.push(key); throw new Error('storage unavailable'); },
+    async set(value) { writes.push(value); },
+  } } };
+  try {
+    await mountWelcomeDemo(demo, picker);
+    expect(picker.disabled).toBe(false);
+    expect(picker.value).toBe('es');
+    expect(demo.querySelector('.fw-word').textContent).toBe('hoy');
+    picker.value = GUARANI_STARTER;
+    picker.dispatchEvent(new win.Event('change'));
+    expect(demo.querySelector('.fw-word').textContent).toBe('ama');
+    expect(reads).toEqual(['settings']);
+    expect(writes).toEqual([]);
+  } finally {
+    globalThis.chrome = oldChrome;
+    win.close();
+  }
 });
 
 test('fresh profile blocks reading Gemini dispatch until welcome save, while an existing profile remains allowed', async () => {
