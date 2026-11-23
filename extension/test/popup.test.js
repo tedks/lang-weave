@@ -69,7 +69,6 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
     expect($('enabled').getAttribute('aria-label')).toBe('Lang Weave enabled');
     expect($('openWelcome').textContent).toBe('Read a sample');
     expect($('openWelcome').getAttribute('href')).toBe('welcome.html');
-    expect($('welcomeRoute').hidden).toBe(false);
     expect($('enabledLabel').getAttribute('aria-hidden')).toBe('true');
     expect($('enabledLabel').textContent).toBe('On');
     expect($('siteName').textContent).toBe('Turn on for this site');
@@ -139,14 +138,13 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
     $('enabled').checked = true;
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('operation').textContent === 'Finish setup in the welcome page');
-    expect($('welcomeRoute').hidden).toBe(false);
     expect($('openWelcome').textContent).toBe('Review privacy choices');
     $('openWelcome').click();
     await waitFor(() => events.includes('chrome-extension://fw-popup/src/welcome.html'));
     $('enabled').checked = false;
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('enabled').checked === false);
-    expect($('welcomeRoute').hidden).toBe(false); // still reachable while the switch is off
+    expect($('openWelcome').textContent).toBe('Review privacy choices'); // also reachable while off
     failSave = true;
     $('enabled').checked = true;
     $('enabled').dispatchEvent(new window.Event('change'));

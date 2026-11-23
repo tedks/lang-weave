@@ -548,7 +548,7 @@ try {
   await page.close(); // a learner may close welcome before choosing
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup.html`);
-  await popup.locator('#welcomeRoute').waitFor({ state: 'visible' });
+  await popup.getByRole('link', { name: 'Review privacy choices', exact: true }).waitFor();
   await popup.locator('#operation').getByText(/Finish setup/).waitFor();
   const options = await context.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
@@ -668,6 +668,7 @@ try {
   assert.equal(await guaraniPractice.getByRole('combobox', { name: 'Practice language' }).inputValue(), 'gn-PY-x-weave');
   await guaraniPractice.close();
   await guaraniWelcome.close();
+  console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
 
   // Returning learners can open a bundled reading directly from the toolbar popup.
   await popup.reload();
@@ -676,6 +677,7 @@ try {
   const beforeOpeningSample = await worker.evaluate(async () => ({
     local: await chrome.storage.local.get(null), permissions: await chrome.permissions.getAll(),
   }));
+  const pagesBeforeSample = context.pages().length;
   const sampleTab = context.waitForEvent('page');
   await sampleLink.press('Enter');
   const returnedSample = await sampleTab;
@@ -686,9 +688,25 @@ try {
   assert.deepEqual(await worker.evaluate(async () => ({
     local: await chrome.storage.local.get(null), permissions: await chrome.permissions.getAll(),
   })), beforeOpeningSample);
+  assert.equal(context.pages().length, pagesBeforeSample + 1);
   await returnedSample.close();
-  console.log('PASS: the returning popup opens all three Guaraní readings by keyboard, preserving local data and permissions.');
-  console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
+  console.log('PASS: keyboard activation in the returning popup opens one Welcome tab with Guaraní selected and three passages listed, preserving local data and permissions.');
+
+  const offlinePopup = await context.newPage();
+  await offlinePopup.addInitScript(() => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = (...args) => args[0]?.type === 'status'
+      ? Promise.reject(new Error('Popup status unavailable in this test')) : send(...args);
+  });
+  await offlinePopup.goto(popup.url());
+  await offlinePopup.locator('#notice').getByText('Popup status unavailable in this test', { exact: true }).waitFor();
+  const fallbackTab = context.waitForEvent('page');
+  await offlinePopup.getByRole('link', { name: 'Read a sample', exact: true }).click();
+  const fallbackSample = await fallbackTab;
+  await fallbackSample.waitForURL(welcomeUrl);
+  await fallbackSample.locator('#demo').getByRole('button', { name: 'ama', exact: true }).waitFor();
+  await fallbackSample.close();
+  await offlinePopup.close();
 
   await reopened.reload();
   await reopened.locator('#demo').getByRole('button', { name: 'ama', exact: true }).waitFor();
