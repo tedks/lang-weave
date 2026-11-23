@@ -22,3 +22,16 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T08:36:17-00:00
+  who: Ted Smith
+  what: commented
+  comment: "PR #83 is qualified at dee606d5b65adba6c7f4956839253441e1bae669 on base
+    14cc4d07126143d0c3cda5290178b5d2b1f1b99d. Thirteen supplementary Chromium scenarios
+    passed serially on the anonymous public 0.15.7 ZIP, byte-identical to the rebuilt
+    candidate (SHA-256 4afe0dd5a7b5bc01d801219657088e7ddcdbfa9e86de2063ffb745636677247c).
+    The published 0.15.5 archive also passed all 13, with expected-red controls for
+    the three prior failures. Exact final strict Bun was 498/498. Standard install,
+    package/version and targeted source gates passed. The test-only diff preserves
+    #84\u2019s Guess assertions. CTO owns integration.\nPR marked ready after the
+    formal council check. Sol and Opus cleared the exact head. The actual Google review
+    attempt hit its quota. Integration remains pending."
