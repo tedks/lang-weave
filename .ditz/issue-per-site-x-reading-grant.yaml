@@ -47,3 +47,13 @@ log_events:
     still save a successful choice. Focused 47/47 and headed ZIP evidence at a68e2e6
     cover recovery, denial, ordinary-site access, fresh tabs, unrelated origins and
     browser revocation. Final 0.14.4 composition and formal review remain pending.'
+- time: 2026-11-23T05:20:52-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #72 is ready at c1e4aad972c02e10f7f8db1152a5bc9282451185, based on
+    the landed 0.14.3 tree. Exact-headed Chromium validated native per-site denial,
+    a persisted X grant with a visible word in a fresh second tab and a reading day,
+    equivalent Twitter and ordinary-site behavior, isolation, and revocation. 470
+    extension, 99 focused and 102 inherited tests passed, with clean OpenAI and Anthropic
+    council and Google quota-empty. Exact evidence: https://github.com/tedks/lang-weave/pull/72#issuecomment-7092315588.
+    CTO owns combined beta integration.'
