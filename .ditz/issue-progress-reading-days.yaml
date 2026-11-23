@@ -9,8 +9,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-10-30T19:51:08-00:00
 references: []
 log_events:
@@ -39,3 +39,11 @@ log_events:
     scoped reading dates and FSRS/retrieval state via the installed backup UI. All
     local release gates passed and the formal council is clean from responding seats;
     Google was attempted and quota-limited. https://github.com/tedks/lang-weave/pull/69#issuecomment-7091879080'
+- time: 2026-11-23T04:50:16-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'The 0.13.3 compatibility reader landed in #66 at b93eff978e5d982ced9c53b771705524236398bd
+    and was published as v0.13.3-beta.1. The 0.14.0 reading days writer landed in
+    #69 at fe54463da592b7f6c4adac53ea247b532f6867b7, with tree equal to reviewed and
+    tested cdc7bb9abb53d16f0cbd0cb8fe5193753c233dc8. Exact gates and installed cross-version
+    backup evidence: https://github.com/tedks/lang-weave/pull/69#issuecomment-7091879080'
