@@ -127,12 +127,11 @@ test('package: two builds are byte-identical; --store applies only the delta tab
   expect(JSON.parse(stored.data.toString())).toEqual(storeManifest(JSON.parse(plain.data.toString())));
   expect(readZip(s.bytes).map((e) => e.name)).toEqual([...readZip(a.bytes).map((e) => e.name), 'src/content-bundle.js'].sort());
   for (const e of readZip(s.bytes)) {
-    if (!['manifest.json', 'src/content-bundle.js', 'src/sites.js', 'src/popup.js'].includes(e.name))
+    if (!['manifest.json', 'src/content-bundle.js', 'src/sites.js'].includes(e.name))
       expect(Buffer.compare(e.data, readZip(a.bytes).find((x) => x.name === e.name).data)).toBe(0);
   }
   const storeFiles = Object.fromEntries(readZip(s.bytes).map((e) => [e.name, e.data.toString()]));
-  expect(storeFiles['src/sites.js']).toContain("js: ['src/content-bundle.js']");
-  expect(storeFiles['src/popup.js']).toContain("files: ['src/content-bundle.js']");
+  expect(storeFiles['src/sites.js']).toContain("const LOADER_FILES = ['src/content-bundle.js']");
   expect(storeFiles['src/content-bundle.js']).toContain('src/content.js');
   expect(Buffer.compare(s.bytes, build({ store: true }).bytes)).toBe(0);
 

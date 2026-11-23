@@ -56,15 +56,6 @@ async function run(fn) {
   try { await fn(); } catch (e) { $('notice').textContent = e.message || t('popup_error_generic'); }
 }
 
-// The registered content script only reaches pages loaded after a grant; this covers the open tab.
-async function inject() {
-  if (!tab?.id || !host) return;
-  try {
-    await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['src/content.css'] });
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content-loader.js'] });
-  } catch { $('notice').textContent = t('popup_error_reload'); }
-}
-
 $('enabled').addEventListener('change', (e) => run(async () => {
   $('enabledLabel').textContent = e.target.checked ? t('popup_switch_on') : t('popup_switch_off');
   try { await send({ type: 'save', settings: { enabled: e.target.checked } }); }
@@ -72,19 +63,15 @@ $('enabled').addEventListener('change', (e) => run(async () => {
 }));
 $('siteEnabled').addEventListener('change', (e) => run(async () => {
   if (!host || !tab?.url || !status) return;
-  const enabled = e.target.checked;
   e.target.disabled = true;
   try {
-    if (enabled && !hasSiteAccess(tab.url, status.config.origins)) {
-      // Start the request in the click handler, before any await loses the gesture.
-      const accepted = await chrome.permissions.request({ origins: [`${new URL(tab.url).protocol}//${host}/*`] });
-      if (!accepted) return;
-    }
-    await send({ type: 'save', siteOverride: { host, enabled } });
+    // Send directly from the click so the worker can request access in this gesture.
+    const result = await send({ type: 'setReadingSite', tabId: tab.id, url: tab.url,
+      enabled: e.target.checked, requestAccess: !hasSiteAccess(tab.url, status.config.origins) });
+    if (result?.reload) $('notice').textContent = t('popup_error_reload');
   } finally {
     await refresh();
   }
-  if (enabled && hasSiteAccess(tab.url, status.config.origins)) await inject();
 }));
 $('cancelBudget').addEventListener('click', () => { $('budgetRecovery').hidden = true; });
 $('recoverBudget').addEventListener('click', () => run(async () => {

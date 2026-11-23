@@ -588,20 +588,13 @@ export function packageExtension({
     const exposed = manifest.web_accessible_resources?.[0]?.resources;
     if (manifest.web_accessible_resources?.length !== 1 || !sameSet(exposed, order))
       throw new PackageError('store bundle: web_accessible_resources is not exactly the content import closure');
-    // Only the Store payload changes these injection paths. The source/dev tree keeps
-    // its modular loader, while registration, startup recovery and popup fallback name
-    // the generated classic script directly. Refuse source drift instead of missing a path.
-    for (const [name, before, after] of [
-      ['src/sites.js', "js: ['src/content-loader.js']", "js: ['src/content-bundle.js']"],
-      ['src/sites.js', "files: ['src/content-loader.js']", "files: ['src/content-bundle.js']"],
-      ['src/popup.js', "files: ['src/content-loader.js']", "files: ['src/content-bundle.js']"],
-    ]) {
-      const file = files.find((f) => f.name === name);
-      const source = file?.data.toString('utf8');
-      if (!source || source.split(before).length !== 2)
-        throw new PackageError(`store bundle: expected one ${before} in ${name}`);
-      file.data = Buffer.from(source.replace(before, after), 'utf8');
-    }
+    // Store registration and injection use the generated classic script.
+    const sites = files.find((file) => file.name === 'src/sites.js');
+    const source = sites?.data.toString('utf8');
+    const loader = "const LOADER_FILES = ['src/content-loader.js']";
+    if (!source || source.split(loader).length !== 2)
+      throw new PackageError(`store bundle: expected one ${loader} in src/sites.js`);
+    sites.data = Buffer.from(source.replace(loader, "const LOADER_FILES = ['src/content-bundle.js']"), 'utf8');
     files.push({ name: 'src/content-bundle.js', data: Buffer.from(code, 'utf8') });
     files.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     const shipped = storeManifest(manifest);

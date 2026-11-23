@@ -109,7 +109,8 @@ const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalL
   personalIntroduce, personalExportResult, registerCaptureMenu, captureMenuListener } =
   createCaptureHandlers({ store, locked, worker, captureDrafts, completedCaptures, contentDocuments,
     context, broadcast, reviewState });
-const { registerSites, recoverOpenTabs, permissionsChanged } = createSites({ store, locked, worker, broadcast, context });
+const { registerSites, recoverOpenTabs, permissionsChanged, setReadingSite } =
+  createSites({ store, locked, worker, broadcast, context });
 // The first routed reply must not run ahead of restoring a granted site's
 // content script after an MV3 worker wake. Restore already-open pages separately
 // so a page loaded before any routed reply does not wait for a user reload.
@@ -135,6 +136,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     status, clearCache, removeKey, testKey,
     recoverBudget: () => recoverBudget(msg),
     save: () => save(msg),
+    setReadingSite: () => setReadingSite(msg, (choice) => sitesReady.then(() => save(choice))),
     placement: () => placement(msg),
     addLanguage: () => addLanguage(msg),
     removeLanguage: () => removeLanguage(msg),
@@ -162,7 +164,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     learningImport: () => learningImport(msg, sender),
   };
   if (!handlers[msg.type] || !surfaceAllows(surfaces, msg.type)) return false;
-  sitesReady.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
+  const handler = handlers[msg.type];
+  // The popup's gesture reaches the service worker's synchronous message listener.
+  const result = msg.type === 'setReadingSite' ? handler() : sitesReady.then(handler);
+  result.then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
 

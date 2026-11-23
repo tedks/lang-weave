@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS = {
 // build since 0.2 writes settings at its first startup, so only a new install's storage is still empty.
 export const FRESH_INSTALL_SETTINGS = Object.freeze({ gradual: true, newWordsPerDay: 5 });
 
+export const validSiteHost = (host) => /^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(host);
+
 export function cleanSettings(s = {}) {
   const d = { ...DEFAULT_SETTINGS, siteOverrides: {} };
   if (typeof s.enabled === 'boolean') d.enabled = s.enabled;
@@ -40,7 +42,7 @@ export function cleanSettings(s = {}) {
   // and a build that predates the setting still reads its settings. Absent means off.
   if (s.guessFirst === true) d.guessFirst = true;
   for (const [host, enabled] of Object.entries(s.siteOverrides || {})) {
-    if (/^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(host) && typeof enabled === 'boolean') d.siteOverrides[host] = enabled;
+    if (validSiteHost(host) && typeof enabled === 'boolean') d.siteOverrides[host] = enabled;
   }
   return d;
 }

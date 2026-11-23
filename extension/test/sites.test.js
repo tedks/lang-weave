@@ -60,6 +60,53 @@ test('reading context requires an explicit grant for static origins even when ge
   } finally { globalThis.chrome = saved; }
 });
 
+test('site choice requests a single scheme and host before saving, then injects only into its original tab', async () => {
+  const saved = globalThis.chrome;
+  const calls = [];
+  const chosen = { tabId: 12, url: 'https://x.com/reader/status/123', enabled: true, requestAccess: true };
+  let allow = false;
+  let liveUrl = chosen.url;
+  const permission = { origins: ['https://x.com/*'] };
+  globalThis.chrome = {
+    runtime: { getManifest: () => dev },
+    permissions: {
+      request: async (props) => { calls.push(['request', props]); return allow; },
+      contains: async (props) => { calls.push(['contains', props]); return allow; },
+      getAll: async () => ({ origins: [] }),
+    },
+    tabs: { get: async () => ({ url: liveUrl }) },
+    scripting: {
+      getRegisteredContentScripts: async () => [],
+      insertCSS: async ({ target }) => { calls.push(['css', target.tabId]); },
+      executeScript: async ({ target }) => { calls.push(['script', target.tabId]); },
+    },
+  };
+  const save = async ({ siteOverride }) => calls.push(['save', siteOverride]);
+  const { setReadingSite } = createSites({});
+  try {
+    const denied = setReadingSite(chosen, save);
+    expect(calls).toEqual([['request', permission]]);
+    expect(await denied).toEqual({ ok: false });
+    expect(calls).toEqual([['request', permission]]);
+    calls.length = 0;
+    expect(await setReadingSite({ ...chosen, url: 'https://*/*' }, save)).toEqual({ ok: false });
+    expect(await setReadingSite({ ...chosen, requestAccess: false }, save)).toEqual({ ok: false });
+    expect(calls).toEqual([['contains', permission]]);
+    calls.length = 0;
+    allow = true;
+    expect(await setReadingSite(chosen, save)).toEqual({ ok: true });
+    expect(calls).toEqual([['request', permission], ['contains', permission],
+      ['save', { host: 'x.com', enabled: true }], ['css', 12], ['script', 12]]);
+    calls.length = 0;
+    liveUrl = 'https://example.com/article';
+    expect(await setReadingSite({ ...chosen, requestAccess: false }, save)).toEqual({ ok: true });
+    expect(calls).toEqual([['contains', permission], ['save', { host: 'x.com', enabled: true }]]);
+    calls.length = 0;
+    expect(await setReadingSite({ ...chosen, enabled: false }, save)).toEqual({ ok: true });
+    expect(calls).toEqual([['save', { host: 'x.com', enabled: false }]]);
+  } finally { globalThis.chrome = saved; }
+});
+
 test('dev manifest: a granted X stays with the manifest content script, never registered twice', async () => {
   const [[kind, [script]]] = await register(dev, { origins: granted });
   expect(kind).toBe('register');

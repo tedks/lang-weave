@@ -6,7 +6,8 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
   // progress (0.12.10): read-only local progress summary for the popup Today line and options.
-  popup: ['progress', 'recoverBudget', 'save', 'status'],
+  // Only the toolbar popup can forward a click to the site-permission handler.
+  popup: ['progress', 'recoverBudget', 'save', 'setReadingSite', 'status'],
   options: ['addLanguage', 'clearCache', 'placement', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
   welcome: ['placement', 'save'],
   // My words (0.12.10): its own page entry. personalArchive is the capture page's existing handler.
@@ -144,7 +145,7 @@ test('unmodified sender decisions equal the pre-split boolean', () => withChrome
       !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
   // Messages added after the split have no pre-split decision; PINNED covers them.
-  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement'];
+  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement', 'setReadingSite'];
   for (const sender of senders) for (const type of TYPES.filter((type) => !added.includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);

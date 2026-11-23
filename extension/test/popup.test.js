@@ -10,7 +10,7 @@ const waitFor = async (predicate) => {
   throw new Error('Popup did not update');
 };
 
-test('popup shows one action and grants this site before saving or injecting', async () => {
+test('popup shows one action and sends a site choice in the click gesture', async () => {
   const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
   const window = new Window({ url: 'chrome-extension://fw-popup/src/popup.html' });
   window.document.write(readFileSync(new URL('../src/popup.html', import.meta.url), 'utf8'));
@@ -36,25 +36,23 @@ test('popup shows one action and grants this site before saving or injecting', a
           // Deliberately different from status.review: the button must follow this reply.
           return { due: state.due, new: state.available, today, practisedThisWeek: 3, verifiedKnown: 1 };
         }
+        if (msg.type === 'setReadingSite') {
+          events.push(msg);
+          if (!state.grant) return { ok: false };
+          state.access = true;
+          state.siteOverride = msg.enabled;
+          return { ok: true };
+        }
         if (msg.type === 'save') {
           events.push('save');
           if (failSave) throw new Error('Save failed');
           if (msg.settings) state.enabled = msg.settings.enabled;
-          if (msg.siteOverride) state.siteOverride = msg.siteOverride.enabled;
           return { ok: true };
         }
         throw new Error('Unexpected message');
       } },
     tabs: { query: async () => [{ id: 5, url: pageUrl }],
       create: async ({ url }) => { events.push(url); return { id: 9 }; } },
-    permissions: { request: async (details) => {
-      expect(details).toEqual({ origins: ['https://example.com/*'] });
-      events.push('permission');
-      state.access = state.grant;
-      return state.grant;
-    } },
-    scripting: { insertCSS: async () => { events.push('css'); },
-      executeScript: async () => { events.push('script'); } },
   };
   try {
     await import('../src/popup.js?status-go');
@@ -80,18 +78,19 @@ test('popup shows one action and grants this site before saving or injecting', a
     $('openWords').click();
     await waitFor(() => events.includes('chrome-extension://fw-popup/src/words.html'));
     events.length = 0;
+    const siteChoice = { type: 'setReadingSite', tabId: 5, url: pageUrl, enabled: true, requestAccess: true };
     $('siteEnabled').checked = true;
     $('siteEnabled').dispatchEvent(new window.Event('change'));
-    expect(events).toEqual(['permission']); // request starts in the gesture
+    expect(events).toEqual([siteChoice]); // the worker receives the gesture
     await waitFor(() => !$('siteEnabled').disabled);
     expect($('siteEnabled').checked).toBe(false);
-    expect(events).toEqual(['permission']); // denial saves nothing and injects nothing
+    expect(events).toEqual([siteChoice]);
     state.grant = true;
     events.length = 0;
     $('siteEnabled').checked = true;
     $('siteEnabled').dispatchEvent(new window.Event('change'));
-    await waitFor(() => events.includes('script'));
-    expect(events.slice(0, 4)).toEqual(['permission', 'save', 'css', 'script']);
+    await waitFor(() => !$('siteEnabled').disabled);
+    expect(events).toEqual([siteChoice]);
     expect($('siteName').textContent).toBe('On for example.com');
     $('primary').click();
     await waitFor(() => events.includes('chrome-extension://fw-popup/src/review.html'));
