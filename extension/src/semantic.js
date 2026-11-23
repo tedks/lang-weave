@@ -63,7 +63,10 @@ export function quotedRanges(text) {
 export function sentenceStart(text, index, { allowDialogue = false } = {}) {
   const before = String(text).slice(0, index);
   // An attributed quotation can start its own sentence in manual practice.
-  if (allowDialogue && /(?:[,:]|\b(?:said|asked|replied|answered|wrote|whispered|shouted))\s*["'“‘„«]\s*$/iu.test(before)) return true;
+  if (allowDialogue) {
+    const opener = /(?:[,:]|\b(?:said|asked|replied|answered|wrote|whispered|shouted))\s*(["'“‘„«]\s*)$/iu.exec(before);
+    if (opener && quotedRanges(text).some(([start, end]) => start === index - opener[1].length && index < end)) return true;
+  }
   if (/\b(?:Mr|Mrs|Ms|Dr|Prof|St|Rev|Gen|Sen|e\.g|i\.e)\.\s*$/iu.test(before)) return false;
   return /(?:^|[\n.!?…]["'”’)\]»]*)[\s"'“‘(\[«]*$/u.test(before);
 }

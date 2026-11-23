@@ -55,7 +55,11 @@ test('manual practice accepts quoted dialogue while validation and web DOM place
   expect(spans('She said, “The window stuck.” He asked, "The window frame too?"', 'es', 1))
     .toEqual([['The window', ['La ventana']]]);
   expect(spans('She said "Water is cold."', GUARANI_STARTER, 1)).toEqual([['Water', ['Y']]]);
+  expect(spans('She said, " Water is cold."', GUARANI_STARTER, 1)).toEqual([['Water', ['Y']]]);
   expect(spans('I got an autograph from “River Song”.', 'es', 1)).toEqual([]);
+  for (const spoken of ['"Come in," River said.', "'Come in,' River said.", '"Come in,"River said.']) {
+    expect(spans(spoken, 'es', 1)).toEqual([]);
+  }
   expect(spans('“A book,” she said. He replied, "the book is in my room."', GUARANI_STARTER, 1)).toEqual([
     ['book', ['aranduka']], ['book', ['aranduka']], ['room', ['koty']],
   ]);
@@ -164,6 +168,12 @@ test('the exercise reads only preferences and discards every view on edit, reset
       expect($('occurrenceContext').textContent.trim()).toBe(sentence);
       expect($('occurrenceContext').querySelector('mark').textContent).toBe('the window');
     }
+    // When a lone capital could be an initial, keep the adjacent text rather than cut the sentence short.
+    $('source').value = 'We chose plan B. The window opened.';
+    $('find').click();
+    $('occurrence').selectedIndex = [...$('occurrence').options].findIndex((option) => option.textContent.includes('[The window]'));
+    $('occurrence').dispatchEvent(new window.Event('change'));
+    expect($('occurrenceContext').textContent).toBe($('source').value);
 
     $('language').value = GUARANI_STARTER;
     $('language').dispatchEvent(new window.Event('change'));
