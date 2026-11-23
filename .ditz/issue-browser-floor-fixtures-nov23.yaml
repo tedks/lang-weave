@@ -9,8 +9,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T08:52:17-00:00
 references: []
 log_events:
@@ -41,3 +41,7 @@ log_events:
     On 140 the preserved Guess focus assertion is the only failure. Current main including
     #92 composes cleanly. Runtime PR #91 qualifies the combined fixture and runtime
     fixed candidate at 13/13 for all three browsers. Receipt: https://github.com/tedks/lang-weave/pull/88#issuecomment-7097118137'
+- time: 2026-11-23T09:58:58-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: ""
