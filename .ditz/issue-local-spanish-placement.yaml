@@ -1,0 +1,19 @@
+id: local-spanish-placement
+title: Offer optional offline Spanish vocabulary placement
+desc: Offer real bundled vocabulary examples and an explicit starting preference on
+  Welcome and Settings for returning Spanish learners. Preserve existing review history,
+  settings and non-Spanish packs. No Duolingo account, external scores, model calls
+  or permissions for placement. Exercise the actual reader path and unpacked install.
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T03:18:23-00:00
+references: []
+log_events:
+- time: 2026-11-23T03:18:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
