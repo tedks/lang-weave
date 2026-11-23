@@ -20,7 +20,7 @@ import { allCaps, sourceIssue } from './semantic.js';
 import { anchorCollisionKey, englishAnchors } from './catalog.js';
 
 // Candidate packs must resolve every English surface form to exactly one row.
-// The bundled 226 predate this gate and have two known collisions (only, free);
+// The original bundled 226 predate this gate and have two known collisions (only, free);
 // they remain unchanged until the curriculum review makes a product decision.
 export function assertPackAnchors(words) {
   if (!Array.isArray(words)) throw new Error('pack must be an array');

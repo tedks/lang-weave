@@ -1,7 +1,7 @@
 // Neutral Spanish starter vocabulary. `fr` is the inherited target-word wire field.
 const W = (fr, en, hint, band) => ({ fr, en, hint, band });
 
-export const L1_WORDS = [
+const BEGINNER_CORE = [
   W('y', 'and', 'ee', 0),
   W('pero', 'but', 'PEH-roh', 0),
   W('o', 'or', 'oh', 0),
@@ -33,6 +33,19 @@ export const L1_WORDS = [
   W('mañana', 'tomorrow', 'mah-NYAH-nah', 0),
   W('nunca', 'never', 'NOON-kah', 0),
 ];
+
+// Clothing and packing nouns. Band 0 is assigned by level, as for the original Beginner list.
+const BEGINNER_CLOTHING = [
+  W('el suéter', 'the sweater', 'el SWEH-tehr', 0),
+  W('la blusa', 'the blouse', 'lah BLOO-sah', 0),
+  W('la sandalia', 'the sandal', 'lah sahn-DAH-lyah', 0),
+  W('la pantufla', 'the slipper', 'lah pahn-TOO-flah', 0),
+  W('la pulsera', 'the bracelet', 'lah pool-SEH-rah', 0),
+  W('la corbata', 'the necktie', 'lah kor-BAH-tah', 0),
+  W('la maleta', 'the suitcase', 'lah mah-LEH-tah', 0),
+];
+
+export const L1_WORDS = [...BEGINNER_CORE, ...BEGINNER_CLOTHING];
 
 export const L2_EXTRA = [
   W('si', 'if', 'see', 1),
@@ -234,5 +247,6 @@ export const L2_EXTRA = [
   W('el zapato', 'the shoe', 'el sah-PAH-toh', 3),
 ];
 
-export const L2_WORDS = [...L1_WORDS, ...L2_EXTRA];
+// Keep the original Expanded sequence before the newer Beginner entries.
+export const L2_WORDS = [...BEGINNER_CORE, ...L2_EXTRA, ...BEGINNER_CLOTHING];
 export function wordsForLevel(level) { return level <= 1 ? L1_WORDS : L2_WORDS; }

@@ -13,6 +13,7 @@ filegroup(
     name = "release_cases",
     srcs = [
         "backup-fixture.js",
+        "curriculum.test.js",
         "guarani.test.js",
         "language-worker.test.js",
         "languages.test.js",
@@ -21,6 +22,7 @@ filegroup(
         "portability.test.js",
         "portability-v2.test.js",
         "router.test.js",
+        "spanish.test.js",
         "web-accessible.test.js",
     ],
     visibility = ["//:__pkg__"],
