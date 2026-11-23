@@ -111,6 +111,7 @@ export function mountPlacement(panel) {
     if (busy || !snapshot) return;
     const selected = Number(choice.value);
     if (choice.selectedOptions[0]?.disabled) return;
+    const previousFocus = document.activeElement;
     busy = true;
     fieldset.disabled = true;
     status.textContent = '';
@@ -119,11 +120,25 @@ export function mountPlacement(panel) {
       if (result?.ok) {
         snapshot = result;
         status.textContent = t('placement_saved');
-      } else {
+      } else if (result?.ok === false) {
+        const previousChoice = snapshot.choice;
         await load();
-        if (snapshot) status.textContent = t('placement_changed');
-      }
+        if (snapshot) {
+          if (snapshot.choice === previousChoice) choice.value = String(selected);
+          status.textContent = t('placement_changed');
+        }
+      } else showError();
     } catch { showError(); }
-    finally { fieldset.disabled = !snapshot; busy = false; }
+    finally {
+      fieldset.disabled = !snapshot;
+      busy = false;
+      // Chromium can drop focus when disabling a focused form control.
+      if (panel.open && fieldset.contains(previousFocus) &&
+          (document.activeElement === document.body || document.activeElement === previousFocus)) {
+        if (snapshot) previousFocus.focus();
+        else if (!retry.hidden) retry.focus();
+        else panel.querySelector('summary').focus();
+      }
+    }
   });
 }

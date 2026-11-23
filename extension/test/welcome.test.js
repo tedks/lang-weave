@@ -130,9 +130,17 @@ test('welcome page renders its notes and choice results as the exact English', a
   globalThis.document = window.document;
   let grant = true;
   let saveOk = true;
+  let placementReady = false;
+  let placementSave = { error: 'Local placement write failed' };
   globalThis.chrome = {
     runtime: { getManifest: () => ({ content_scripts: [] }), openOptionsPage: async () => {},
-      sendMessage: async (msg) => (saveOk ? { ok: true } : { ok: false }) },
+      sendMessage: async (msg) => {
+        if (msg.type === 'placement') {
+          if (Object.hasOwn(msg, 'choice')) return placementSave;
+          return placementReady ? { available: true, choice: 0, epoch: 'local' } : {};
+        }
+        return { ok: saveOk };
+      } },
     permissions: { request: async () => grant },
   };
   const wait = async (predicate) => { for (let i = 0; i < 100 && !predicate(); i++) await new Promise((done) => setTimeout(done, 0)); };
@@ -140,8 +148,34 @@ test('welcome page renders its notes and choice results as the exact English', a
     await import('../src/welcome.js?welcome-english');
     const $ = (id) => window.document.getElementById(id);
     const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
-    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(2)'))).toBe('Reading level controls which bundled words can appear; Beginner is a good start.');
-    expect(text($('learnHeading').parentElement.querySelector('p:nth-of-type(3)'))).toBe('Gradual learning is on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. Settings shows whether it is on for you, changes the pace or turns it off.');
+    const learn = $('learnHeading').parentElement;
+    expect(text(learn.querySelector('[data-i18n="welcome_level_note"]'))).toBe('Reading level controls which bundled words can appear; Beginner is a good start.');
+    expect(text(learn.querySelector('[data-i18n="welcome_gradual_note"]'))).toBe('Gradual learning is on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. Settings shows whether it is on for you, changes the pace or turns it off.');
+    const placement = $('placement');
+    expect(placement.open).toBe(false);
+    placement.open = true;
+    placement.dispatchEvent(new window.Event('toggle'));
+    const retry = placement.querySelector('[data-placement-retry]');
+    await wait(() => !retry.hidden);
+    expect(text(placement.querySelector('[role="status"]'))).toBe('Could not load or save Spanish placement. Try again.');
+    expect(text(retry)).toBe('Reload placement');
+    placementReady = true;
+    retry.click();
+    await wait(() => window.document.activeElement === $('placementChoice'));
+    expect(window.document.activeElement).toBe($('placementChoice'));
+    expect(retry.hidden).toBe(true);
+    const placementStatus = placement.querySelector('[role="status"]');
+    const submit = placement.querySelector('button[type="submit"]');
+    $('placementChoice').value = '2';
+    submit.click();
+    await wait(() => text(placementStatus).startsWith('Could not load or save'));
+    expect(text(placementStatus)).toBe('Could not load or save Spanish placement. Try again.');
+    expect($('placementChoice').value).toBe('2');
+    placementSave = { ok: false };
+    submit.click();
+    await wait(() => text(placementStatus).startsWith('Settings changed'));
+    expect(text(placementStatus)).toBe('Settings changed while this was open. Choose your Spanish starting point again.');
+    expect($('placementChoice').value).toBe('2');
     expect($('suggestX').hidden).toBe(false);
     $('onlySites').click();
     await wait(() => $('choiceStatus').textContent !== '');

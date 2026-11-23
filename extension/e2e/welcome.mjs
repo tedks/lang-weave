@@ -72,8 +72,10 @@ try {
   await placement.locator('[lang="en"]').filter({ hasText: /still/ }).waitFor();
   const startingPoint = placement.getByRole('combobox', { name: 'Spanish starting point' });
   await startingPoint.selectOption({ label: 'Expanded' });
-  await placement.getByRole('button', { name: 'Save starting point' }).press('Space');
+  const saveStartingPoint = placement.getByRole('button', { name: 'Save starting point' });
+  await saveStartingPoint.press('Space');
   await placement.getByRole('status').getByText('Spanish starting point saved on this device.').waitFor();
+  assert.equal(await saveStartingPoint.evaluate((button) => button === document.activeElement), true);
   const placed = await worker.evaluate(() => chrome.storage.local.get(['settings', 'spanishPlacement', 'consentShown', 'apiKey', 'recallReview']));
   assert.equal(placed.spanishPlacement, 2);
   assert.equal(placed.consentShown, false);
@@ -107,6 +109,7 @@ try {
   await review.locator('#language').getByText('Spanish').waitFor();
   await review.locator('#introduce').click();
   await review.locator('#prompt').getByText('if', { exact: true }).waitFor();
+  const expandedCounts = await review.locator('#counts').textContent();
   const placedHistory = await worker.evaluate(() => chrome.storage.local.get('recallReview'));
   const settingsPlacement = options.locator('#placement');
   await options.locator('#levelOverride:disabled').waitFor();
@@ -118,6 +121,8 @@ try {
   await settingsChoice.selectOption({ label: 'Beginner' });
   await settingsPlacement.getByRole('button', { name: 'Save starting point' }).click();
   await options.locator('#levelInfo').getByText('L1').waitFor();
+  await review.waitForFunction((counts) => document.getElementById('counts').textContent !== counts, expandedCounts);
+  await review.locator('#prompt').getByText('if', { exact: true }).waitFor();
   assert.deepEqual(await worker.evaluate(() => chrome.storage.local.get('recallReview')), placedHistory);
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText('si', { exact: true }).waitFor();

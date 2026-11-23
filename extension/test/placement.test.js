@@ -11,6 +11,8 @@ test('placement examples use real forms and meanings, including tiny and empty p
   expect(expanded).toHaveLength(4);
   expect(beginner.every((word) => L1_WORDS.includes(word))).toBe(true);
   expect(expanded.every((word) => L2_EXTRA.includes(word))).toBe(true);
+  const forms = [...L1_WORDS, ...L2_EXTRA].map(({ fr }) => fr);
+  expect(new Set(forms).size).toBe(forms.length);
   const basic = { fr: 'hoy', en: 'today' };
   const extra = { fr: 'el árbol', en: 'the tree' };
   expect(placementSamples([basic, basic], [basic, extra])).toEqual([[basic], [extra]]);

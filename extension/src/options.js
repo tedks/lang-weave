@@ -44,7 +44,7 @@ async function refresh() {
   $('levelInfo').textContent = t('options_level_value', effective);
   $('levelOverride').value = String(s.levelOverride || 0);
   $('levelOverride').disabled = !!s.spanishPlacement;
-  $('levelHint').textContent = t(s.spanishPlacement ? 'placement_level_hint' : 'options_level_hint');
+  $('levelHint').textContent = s.spanishPlacement ? t('placement_level_hint') : t('options_level_hint');
   if (s.spanishPlacement) placementSummary.setAttribute('aria-describedby', 'levelHint');
   else placementSummary.removeAttribute('aria-describedby');
   placementPanel.hidden = c.language !== 'es';
