@@ -96,6 +96,8 @@ The gloss appears after a 700 ms pause, so you have a beat to recall the word fi
 - Across one request, new, due and learning swaps are capped near 2% of the words read, with a minimum of one, whatever the density.
 - A pile of five or more due or weak words pauses new introductions.
 
+**Guess first** is an optional setting for gradual learning. Turn it on in **Settings** to try guessing a word’s English meaning while you read. On early encounters with a learning word, hover or focus the woven word and pause for the choices. Click a meaning, or press **Tab** to enter the choices and **Enter** to answer. **Escape** or **Dismiss** closes the choices without recording a guess. To see the English directly, click the word or press **Enter** while the word has focus.
+
 **Inline recall** is off by default and needs gradual learning. A due word then shows as English with a dashed underline and a small ?, at most two at a time. Activating one lets you reveal the target word and rate your recall without leaving the page.
 
 **Reviews** need no key and no network. The popup's main button opens the recall page when words are due or available. It shows the English meaning, you say the target word, reveal it, and rate **Again**, **Hard**, **Medium** or **Easy**. Space or Enter reveals, and 1 to 4 rate. With gradual learning on, **Already know** is a claim that counts as verified only after one later check. **Add 5 new words** brings in up to five bundled words from your reading level. Sightings, hints and flips while reading never count as recall.
@@ -145,6 +147,6 @@ See [AGENTS.md](AGENTS.md), [design boundaries](docs/DESIGN.md), [mission eviden
 
 ## Next
 
-Planned, and not built yet, in [the roadmap](docs/ROADMAP.md): a Chrome Web Store listing, Firefox support, a larger and reviewed vocabulary, typed or multiple-choice recall, and optional audio. A site takeover screen and Duolingo level import remain follow-up ideas. Duolingo integration needs a supported method or an export. It must not collect a password or browser session token.
+Planned, and not built yet, in [the roadmap](docs/ROADMAP.md): a Chrome Web Store listing, Firefox support, a larger and reviewed vocabulary, typed or multiple-choice answers in scheduled reviews, and optional audio. A site takeover screen and Duolingo level import remain follow-up ideas. Duolingo integration needs a supported method or an export. It must not collect a password or browser session token.
 
 The original CLI hooks, slash commands, ready-made French blocks and native-host scripts are retained for upstream comparison. They remain French-oriented and are outside this fork's browser product. See the [upstream reference](docs/UPSTREAM.md).
