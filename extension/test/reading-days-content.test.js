@@ -3,7 +3,7 @@ import { Window } from 'happy-dom';
 import { localDay } from '../src/events.js';
 
 test('visible target faces count once per local day, including a page left open across midnight', async () => {
-  const win = new Window({ url: 'https://example.test/article' });
+  const win = new Window({ url: 'https://example.com/article' });
   const names = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver',
     'setTimeout', 'clearTimeout', 'setInterval', 'Date'];
   const previous = Object.fromEntries(names.map((name) => [name, globalThis[name]]));

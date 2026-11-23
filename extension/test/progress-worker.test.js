@@ -63,8 +63,8 @@ test('accepted reading days and reviews are unioned within the active pack and p
     [PERSONAL_KEY]: { version: 1, revision: 1, history: {}, entries: [{ uuid: UUID, id: personalId,
       language: 'es', source: 'shimmer', target: 'brillar', sense: 'a faint shine', direction: 'en-to-target',
       archived: false, provenance: 'manual', createdAt: 1 }] } };
-  const { clock, dispatch, restore } = await boot('activity-days', data, ['https://example.test/*']);
-  const page = { id: ID, tab: { id: 1 }, url: 'https://example.test/article', frameId: 0, documentLifecycle: 'active' };
+  const { clock, dispatch, restore } = await boot('activity-days', data, ['https://example.com/*']);
+  const page = { id: ID, tab: { id: 1 }, url: 'https://example.com/article', frameId: 0, documentLifecycle: 'active' };
   const popup = sender('popup'), options = sender('options');
   const progress = () => dispatch({ type: 'progress' }, popup);
   const cfg = () => dispatch({ type: 'config' }, page);
@@ -80,7 +80,7 @@ test('accepted reading days and reviews are unioned within the active pack and p
     expect(start.today.reviewed).toBe(1);
     const es = await cfg();
     expect(await seen('y', es.revision, { ...page, documentLifecycle: 'prerender' })).toEqual({ ok: false });
-    expect(await seen('y', es.revision, { ...page, url: 'https://ungranted.test/article' })).toEqual({ ok: false });
+    expect(await seen('y', es.revision, { ...page, url: 'https://ungranted.example.com/article' })).toEqual({ ok: false });
     expect(data[READING_DAYS_KEY]).toEqual(['2026-10-33']);
     expect(await seen('y', es.revision)).toEqual({ ok: true });
     expect(await seen('brillar', es.revision)).toEqual({ ok: true });
