@@ -74,7 +74,7 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
         failedBroadcast = true;
         throw new Error('Could not list tabs');
       },
-      sendMessage: async () => {} },
+      sendMessage: async () => {}, create: async ({ windowId }) => ({ id: 2, windowId }) },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
