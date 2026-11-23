@@ -109,13 +109,14 @@ test('a whole-phrase translation stays valid and the new compound rules apply on
   for (const level of [1, 2]) {
     expect(validateSwaps(level, whole, words, 'es', { text })).toMatchObject(whole);
   }
+  const door = 'We wiped the door hinge this morning.';
   for (const [language, word] of [[GUARANI_STARTER, 'okẽ'], ['fr', 'porte']]) {
-    const text = 'We wiped the door hinge this morning.';
     const proposed = [{ o: 'door', f: word }];
-    expect(validateSwaps(1, proposed, [{ en: 'door', fr: word, hint: '' }], language, { text })).toMatchObject(proposed);
-    expect(paragraphMatches(text, GUARANI_STARTER, 1).flatMap(({ senses }) => senses))
-      .toContainEqual(expect.objectContaining({ o: 'door', word: 'okẽ' }));
+    expect(validateSwaps(1, proposed, [{ en: 'door', fr: word, hint: '' }], language, { text: door })).toMatchObject(proposed);
   }
+  expect(paragraphMatches(door, GUARANI_STARTER, 1).flatMap(({ senses }) => senses))
+    .toContainEqual(expect.objectContaining({ o: 'door', word: 'okẽ' }));
+  expect(paragraphMatches(door, 'fr', 1)).toEqual([]);
 });
 
 test.each([1, 2])('Spanish tier %i validates provider placements after ordinary or gradual selection', async (level) => {
