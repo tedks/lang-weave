@@ -152,14 +152,22 @@ try {
   await options.locator('#levelOverride:enabled').waitFor();
   console.log('PASS: optional Spanish placement from Welcome, keyboard access, revision and clearing in Settings, and existing review retained.');
 
+  const guaraniWelcome = await context.newPage();
+  await guaraniWelcome.goto(welcomeUrl);
+  const languagePreview = guaraniWelcome.locator('#placement > summary');
+  await languagePreview.press('Enter');
+  const openScore = guaraniWelcome.locator('#duolingoScore');
+  await openScore.fill('160');
   await options.locator('#language').selectOption({ value: 'gn-PY-x-weave' });
   await options.locator('#wordInfo').getByText(/Paraguayan Guaraní/).waitFor();
   assert.equal(await settingsPlacement.isHidden(), true);
-  const guaraniWelcome = await context.newPage();
-  await guaraniWelcome.goto(welcomeUrl);
-  await guaraniWelcome.locator('#placement > summary').press('Enter');
+  await openScore.waitFor({ state: 'hidden' });
+  assert.equal(await openScore.inputValue(), '');
+  await languagePreview.press('Enter');
+  await guaraniWelcome.locator('#placement:not([open])').waitFor();
+  await languagePreview.press('Enter');
   await guaraniWelcome.getByText('Choose Spanish in Settings to use this check.').waitFor();
-  assert.equal(await guaraniWelcome.locator('#duolingoScore').isHidden(), true);
+  assert.equal(await openScore.isHidden(), true);
   await guaraniWelcome.close();
   console.log('PASS: optional Spanish course Score orders real examples by keyboard, with no preview storage writes and Spanish-only scope.');
 

@@ -53,6 +53,7 @@ export function mountPlacement(panel) {
   const [beginner, expanded] = placementSamples();
   let snapshot;
   let busy = false;
+  let languageChanges = 0;
 
   function showExamples(container, words) {
     container.hidden = words.length === 0;
@@ -82,18 +83,23 @@ export function mountPlacement(panel) {
   choice.querySelector('[value="2"]').disabled = expanded.length === 0;
   localize(panel);
 
+  function showFirst(hint) {
+    const first = hint === 2 ? expandedExamples : beginnerExamples;
+    if (samples.firstElementChild !== first) samples.prepend(first);
+  }
+
   function clearScore() {
     score.value = '';
     score.removeAttribute('aria-invalid');
     scoreStatus.textContent = '';
-    samples.prepend(beginnerExamples);
+    showFirst(1);
   }
 
   scoreForm.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!snapshot || scoreForm.hidden) return;
     const hint = duolingoPreview(score.value);
-    samples.prepend(hint === 2 ? expandedExamples : beginnerExamples);
+    showFirst(hint);
     if (hint === null && score.value.trim()) {
       score.setAttribute('aria-invalid', 'true');
       scoreStatus.textContent = t('placement_score_invalid');
@@ -111,6 +117,7 @@ export function mountPlacement(panel) {
     fieldset.disabled = true;
     scoreForm.hidden = true;
     clearScore();
+    const languageAtRead = languageChanges;
     const current = await chrome.runtime.sendMessage({ type: 'placement' });
     if (current?.available === false) {
       status.textContent = t('placement_spanish_only');
@@ -119,7 +126,7 @@ export function mountPlacement(panel) {
     }
     if (!current?.available) throw new Error('Placement unavailable');
     snapshot = current;
-    scoreForm.hidden = !(beginner.length && expanded.length);
+    scoreForm.hidden = languageChanges !== languageAtRead || !(beginner.length && expanded.length);
     choice.value = String(current.choice);
     if (choice.selectedOptions[0]?.disabled) choice.value = '0';
     fieldset.disabled = false;
@@ -143,6 +150,12 @@ export function mountPlacement(panel) {
   panel.addEventListener('toggle', () => {
     if (panel.open) void refresh();
     else clearScore();
+  });
+  chrome.storage?.onChanged?.addListener(({ settings }, area) => {
+    if (area !== 'local' || settings?.oldValue?.language === settings?.newValue?.language) return;
+    languageChanges++;
+    scoreForm.hidden = true;
+    clearScore();
   });
   retry.addEventListener('click', async () => {
     const wasFocused = document.activeElement === retry;
