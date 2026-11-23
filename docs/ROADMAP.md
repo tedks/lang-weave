@@ -89,7 +89,7 @@ Rulings needed: Gemini consumer-use interpretation and territory (filed), Store 
 | context-variety | Prefer a site or topic unlike a word's recent ones (a salted host-hash bucket count needs a privacy ruling); rotating example sentences in review. | M |
 | receptive-productive | Track reading knowledge and production knowledge separately; start receptive, add productive once stable. | M |
 | curriculum-growth | Grow the 226-word pack toward the 2–3k high-frequency families that give useful coverage, frequency-weighted by what the user reads, with native-speaker review (ditz `spanish-curriculum-review`, `licensed-spanish-catalog-import`). | L |
-| inference-step | Opt-in guess-first step on first encounters: three or four candidate meanings before the answer. | M |
+| inference-step | Shipped. **Guess first** offers a choice of English meanings on early encounters while reading. See the [learning guide](../README.md#learning) for controls. | M |
 
 ### M5. Business
 
