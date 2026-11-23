@@ -83,6 +83,8 @@ export async function mountParagraph(doc, storage) {
   language.append(...['es', GUARANI_STARTER].map((code) => option(languageName(code), code)));
   const supported = bundledLanguage(settings.language);
   language.value = supported ? settings.language : 'es';
+  const sampleLanguage = doc.location.hash.slice(1);
+  if (bundledLanguage(sampleLanguage)) language.value = sampleLanguage;
   $('languageNote').hidden = supported;
   if (!supported) language.setAttribute('aria-describedby', 'level languageNote');
   function showTier() {

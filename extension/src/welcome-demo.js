@@ -90,6 +90,11 @@ export async function mountWelcomeDemo(demo, picker) {
   catch { /* Spanish is the default if the preference cannot be loaded. */ }
   picker.value = savedLanguage === GUARANI_STARTER ? GUARANI_STARTER : 'es';
   render();
-  picker.addEventListener('change', render);
+  const practiceLink = doc.getElementById('practiceParagraph');
+  picker.addEventListener('change', () => {
+    // A sample choice applies to this link only. The plain link follows Settings at open time.
+    if (practiceLink) practiceLink.hash = picker.value === GUARANI_STARTER ? GUARANI_STARTER : 'es';
+    render();
+  });
   picker.disabled = false;
 }
