@@ -195,7 +195,7 @@ describe('engine', () => {
       { fr: 'frase', en: 'elsewhere', hint: 'FRAH-seh', anchors: ['here'] },
       { fr: 'rojo', en: 'red', hint: 'ROH-hoh' },
     ];
-    const text = 'Their object was growing here beside a bright window.';
+    const text = 'Our object was growing here beside a bright window.';
     expect(validateSwaps(2, [{ o: 'object', f: 'objeto' }, { o: 'growing', f: 'crecer' },
       { o: 'here', f: 'frase' }], words, 'es', { text }).map(({ word }) => word))
       .toEqual(['el objeto', 'crecer', 'frase']);
@@ -211,7 +211,7 @@ describe('engine', () => {
     expect(possibleSpanishPromptWords(2, collision, [{ text }])).toEqual(collision);
   });
 
-  test('every accepted legacy gloss form in the bundled catalog remains possible', () => {
+  test('accepted legacy gloss forms for each Expanded row remain possible', () => {
     let accepted = 0;
     for (const word of wordsForLevel(2)) {
       const words = [word];
@@ -225,6 +225,26 @@ describe('engine', () => {
       }
     }
     expect(accepted).toBeGreaterThan(1000);
+  });
+
+  test('source spans accepted against the full Expanded catalog keep their rows in the prompt', () => {
+    const words = wordsForLevel(2);
+    const passages = [
+      'The book was on a chair near our window. We found a suitcase nearby.',
+      'I (really) think that there’s room for a little more. We said oK before leaving.',
+      'Somebody likes an idea and somebody else found a small solution today.',
+    ];
+    for (const text of passages) {
+      const tokens = [...text.matchAll(/[^\s.!?]+/g)];
+      const replies = tokens.flatMap((start, index) => tokens.slice(index, index + 5).flatMap((end) => {
+        const o = text.slice(start.index, end.index + end[0].length);
+        return words.map(({ fr: f }) => ({ o, f }));
+      }));
+      const selected = new Set(possibleSpanishPromptWords(2, words, [{ text }]).map(({ fr }) => fr));
+      const accepted = validateSwaps(2, replies, words, 'es', { text });
+      expect(accepted.length).toBeGreaterThan(3);
+      for (const { word, o } of accepted) expect(selected.has(word), `${o} -> ${word}`).toBe(true);
+    }
   });
 
   test('the default Spanish path handles an empty projection and a missing candidate list', async () => {

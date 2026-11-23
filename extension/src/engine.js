@@ -11,10 +11,11 @@ export const PRIMARY_TIMEOUT_MS = 8000;
 export const timeoutFor = (m, models, timeoutMs) =>
   models.length > 1 && m === models[0] ? Math.min(timeoutMs || 20000, PRIMARY_TIMEOUT_MS) : timeoutMs;
 
-export async function requestSwaps({ apiKey, model, level, batch, words, language = 'es', density = 'normal', unknownLimit = false, shownToday, fetchImpl, timeoutMs, cooldown = new Map(), cooldownKinds = new Map(), now = Date.now, onFailure }) {
+export async function requestSwaps({ apiKey, model, level, batch, words, language, density = 'normal', unknownLimit = false, shownToday, fetchImpl, timeoutMs, cooldown = new Map(), cooldownKinds = new Map(), now = Date.now, onFailure }) {
   // The worker supplies unknownLimit for every gradual request and all-active rows for ordinary reading.
-  const promptWords = !unknownLimit && language === 'es' && words?.every((word) => word.status === 'active')
-    ? possibleSpanishPromptWords(level, words, batch) : words;
+  const ordinarySpanish = !unknownLimit && (language === undefined || language === 'es') &&
+    words?.every((word) => word.status === 'active');
+  const promptWords = ordinarySpanish ? possibleSpanishPromptWords(level, words, batch) : words;
   const body = buildRequest({ system: buildSystemPrompt(level, promptWords, shownToday, language, density,
     unknownLimit ? unknownBudget(batch) : null), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
   const candidates = [model];
