@@ -8,8 +8,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T07:04:49-00:00
 references: []
 log_events:
@@ -30,3 +30,7 @@ log_events:
     Welcome, while normal links follow Settings and generated packs keep the bundled
     fallback. 497 full extension cases, 116 focused, 102 inherited Python and installed
     Chromium passed. Pulled release ZIP digest d0260d320de9b65876875fa9c7df7985143a2c966b1c6f602ec223b5d4d4181e."
+- time: 2026-11-23T07:37:34-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: ""
