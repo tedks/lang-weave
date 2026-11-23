@@ -1,0 +1,25 @@
+id: native-extension-directory-chooser
+title: Make the native Load unpacked upgrade fixture select the test directory across
+  supported Chrome versions
+desc: "The native Load unpacked GTK directory chooser in the reading-reload Bazel
+  test does not reliably accept a typed absolute directory with the official Chrome
+  for Testing 140.0.7339.207 and 158.0.8127.36. A disposable profile's first chooser
+  stayed open on both and version 0.15.2 never installed. On 158 a profile-local GTK
+  bookmark containing only the intended extension directory let the real manager install
+  exactly that directory and complete public 0.15.2 \u2192 0.15.6 \u2192 0.15.7 with
+  unchanged grants and learning state. Verify the minimum and 155 control, preserve
+  exact ID/path checks and both update transitions. Keep the harness on a generated
+  native X display."
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:08:17-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:08:17-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
