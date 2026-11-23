@@ -37,6 +37,21 @@ test('Spanish articles stay with whole noun phrases and never double English det
   expect(validateSwaps(2, [{ o: 'and', f: 'et' }])).toEqual([]);
 });
 
+test.each([
+  ['hola', 'his', 'A traveler dropped his gloves outside the station.', 'hi', 'A traveler said hi after boarding.'],
+  ['nuevo', 'news', 'We heard the news over breakfast.', 'new', 'Her bicycle still looks new after the trip.'],
+  ['incluso', 'evening', 'They stayed until evening to watch the birds.', 'Even', 'Even the quiet guests laughed at the joke.'],
+  ['como', 'likes', 'My cousin likes riding past the orchard.', 'as', 'We worked as guides during the summer.'],
+  ['por favor', 'pleased', 'She looked pleased with the arrangement.', 'Please', 'Please leave the parcels beside the bench.'],
+  ['gratis', 'freed', 'The gardener freed a moth from the curtain.', 'free', 'Admission is free until the end of August.'],
+  ['rápido', 'fasting', 'The visitors began fasting before the festival.', 'fast', 'The train felt fast on the open plain.'],
+  ['también', 'toos', 'The editor crossed out two repeated toos.', 'too', 'She came too after the concert.'],
+  ['otro', 'others', 'The others followed the lights through the fog.', 'another', 'We heard another owl after midnight.'],
+])('%s keeps the gloss or synonym and rejects a misleading suffix surface', (f, bad, negative, good, positive) => {
+  expect(validateSwaps(2, [{ o: bad, f }], undefined, 'es', { text: negative })).toEqual([]);
+  expect(validateSwaps(2, [{ o: good, f }], undefined, 'es', { text: positive })).toMatchObject([{ o: good }]);
+});
+
 test('fork identity and permissions cannot collide with or contact the French companion', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
   // The name is a chrome.i18n message; the default locale must resolve it to the fork's own name.

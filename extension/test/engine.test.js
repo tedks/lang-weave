@@ -212,19 +212,19 @@ describe('engine', () => {
   });
 
   test('accepted legacy gloss forms for each Expanded row remain possible', () => {
-    let accepted = 0;
     for (const word of wordsForLevel(2)) {
+      let accepted = 0;
       const words = [word];
       for (const form of legacyGlossForms(word.en, { inflections: legacyInflects(word) })) {
         for (const o of new Set([form, form.replaceAll("'", '’'), form.replace(' ', ' (briefly) ')])) {
-          const text = `A reader saw ${o} before lunch today.`;
+          const text = `A reader saw ${o} beside the oldest willow.`;
           if (!validateSwaps(2, [{ o, f: word.fr }], words, 'es', { text }).length) continue;
           expect(possibleSpanishPromptWords(2, words, [{ text }]), `${word.fr}: ${o}`).toEqual(words);
           accepted++;
         }
       }
+      expect(accepted, word.fr).toBeGreaterThan(0);
     }
-    expect(accepted).toBeGreaterThan(1000);
   });
 
   test('source spans accepted against the full Expanded catalog keep their rows in the prompt', () => {
