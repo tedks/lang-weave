@@ -10,8 +10,8 @@ type: feature
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T03:19:09-00:00
 references: []
 log_events:
@@ -33,3 +33,9 @@ log_events:
     and Anthropic; Google empty due to quota. Acceptance evidence is recorded at https://github.com/tedks/lang-weave/pull/58#issuecomment-7090848298.
     Source branch pushed; CTO owns merge, release and issue close on integration.
     Follow-up: spanish-ordinary-prompt-headroom.'
+- time: 2026-11-23T03:35:34-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'CTO normally merged PR #58 at b0d5392494aa8c2d68f725c8867fcb4a233e64a2,
+    tree-identical to the tested and council-reviewed head 6c7ac08eb9329eee4a7dde8dac66fe1a55177f4f.
+    0.12.27 release remains with the CTO.'
