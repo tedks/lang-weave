@@ -244,5 +244,6 @@ test('reading validation keeps the listed Guaraní diacritics and rejects unlist
     { o: 'teacher', f: 'mbo’ehára', g: 'teacher (at school)', h: '' },
   ]);
   expect(validate('teacher', 'mbo’ehara')).toEqual([]);
+  expect(validate('teacher', "mbo'ehára")).toEqual([]);
   expect(validate('instructor', 'mbo’ehára')).toEqual([]);
 });

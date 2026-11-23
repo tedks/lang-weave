@@ -266,6 +266,7 @@ try {
   await teacherReview.locator('#answer').getByText('mbo’ehára', { exact: true }).waitFor();
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('apiKey'))).apiKey, undefined);
   await teacherReview.close();
+  await words.close();
   console.log('PASS: new everyday Guaraní appears in My words and opens keyless Review on the original catalog.');
 
   // Simulate a previously generated pack for the same locale without using Gemini.
