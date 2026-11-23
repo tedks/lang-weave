@@ -60,7 +60,7 @@ export function mountPlacement(panel) {
   let readGeneration = 0;
   let saving = false;
   let confirmPending = false;
-  let notice;
+  let draftNotice = false;
 
   function showExamples(container, words) {
     container.hidden = words.length === 0;
@@ -126,19 +126,20 @@ export function mountPlacement(panel) {
       : hint === 1 ? t('placement_score_beginner') : '';
   });
 
-  function announce(key, ...values) {
-    notice = key;
-    status.textContent = key ? t(key, ...values) : '';
+  function announce(message, describesDraft = false) {
+    draftNotice = describesDraft;
+    if (status.textContent !== message) status.textContent = message;
   }
 
   function showError() {
-    announce('placement_error');
+    announce(t('placement_error'));
     retry.hidden = !!snapshot?.available;
   }
 
   function showSnapshot(current) {
     const selected = Number(choice.value);
     const dirty = snapshot && selected !== snapshot.choice;
+    const wasUnavailable = snapshot?.available === false;
     const option = choice.options[current.choice];
     const saved = option.disabled ? 0 : current.choice;
     const recovering = !retry.hidden;
@@ -148,19 +149,19 @@ export function mountPlacement(panel) {
     if (!current.available) {
       confirmPending = false;
       hideScore();
-      announce('placement_spanish_only');
+      announce(t('placement_spanish_only'));
       return;
     }
     scoreForm.hidden = !(beginner.length && expanded.length);
     if (!dirty) choice.value = String(saved);
     // Refresh the displayed saved choice without granting a dirty draft a new
     // epoch. A rejected Save can do so with an explicit second-save prompt.
-    if (!dirty || selected === saved || confirmPending) saveEpoch = current.epoch;
+    const clean = !dirty || selected === saved;
+    if (clean || confirmPending) saveEpoch = current.epoch;
     const label = choice.options[saved].textContent;
-    if (confirmPending) announce('placement_changed', label);
-    else if (dirty && saveEpoch !== current.epoch) announce('placement_competing', label);
-    else if (recovering || notice === 'placement_spanish_only' || notice === 'placement_competing' ||
-             (notice === 'placement_changed' && (!dirty || selected === saved))) announce('');
+    if (confirmPending) announce(t('placement_changed', label), true);
+    else if (!clean && saveEpoch !== current.epoch) announce(t('placement_competing', label), true);
+    else if (recovering || wasUnavailable || (draftNotice && clean)) announce('');
     confirmPending = false;
   }
 
@@ -207,7 +208,7 @@ export function mountPlacement(panel) {
   choice.addEventListener('change', () => {
     if (!snapshot?.available || Number(choice.value) !== snapshot.choice) return;
     saveEpoch = snapshot.epoch;
-    if (notice === 'placement_competing' || notice === 'placement_changed') announce('');
+    if (draftNotice) announce('');
   });
   retry.addEventListener('click', async () => {
     const view = opening;
@@ -236,7 +237,7 @@ export function mountPlacement(panel) {
       if (result?.ok) {
         snapshot = { ...result, choice: selected, available: snapshot.available };
         saveEpoch = result.epoch;
-        announce('placement_saved');
+        announce(t('placement_saved'));
       } else if (result?.ok === false) {
         confirmPending = snapshot.available;
       } else showError();
