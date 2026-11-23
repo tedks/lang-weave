@@ -37,11 +37,26 @@ let descriptionPrefix = '';
 let descriptionCount = 0;
 export const isSwap = (span) => owned.has(span);
 // Ownership lives in the WeakMap. Markup only identifies an ambiguous passage.
-export const hasUnownedSwaps = (root) =>
-  Array.from(root.querySelectorAll(`span.${SWAP_CLASS}`)).some((span) => !isSwap(span));
+export const hasUnownedSwaps = (root, selector = `span.${SWAP_CLASS}`) =>
+  Array.from(root.querySelectorAll(selector)).some((span) => !isSwap(span));
 
 const faceNodes = (span) => Array.from(span.childNodes).flatMap((node) => [node, ...node.childNodes]);
 const rememberFace = (span) => paintedFaces.set(span, { markup: span.outerHTML, nodes: faceNodes(span) });
+export function isIntactSwap(span) {
+  const face = paintedFaces.get(span);
+  if (!face || !isSwap(span) || span.outerHTML !== face.markup) return false;
+  const nodes = faceNodes(span);
+  return nodes.length === face.nodes.length && nodes.every((node, i) => node === face.nodes[i]);
+}
+
+// Transient hover and guess UI are ours only while the previous face is intact.
+export function decorateSwap(span, decorate) {
+  if (!isIntactSwap(span)) return false;
+  decorate();
+  rememberFace(span);
+  return true;
+}
+
 export const swapWord = (span) => owned.get(span) || '';
 export const swapEnglish = (span) => sourceEnglish.get(span) || '';
 export const isGuessPending = (span) => pendingGuess.has(span);
@@ -49,7 +64,7 @@ export const isPractice = (span) => practice.has(span);
 export const isPracticeCue = (span) => cuedPractice.has(span);
 // A due word can wait for a viewport cue slot without changing its review ticket.
 export function setPracticeCue(span, active) {
-  if (!practice.has(span) || !owned.has(span) || !span.isConnected) return false;
+  if (!practice.has(span) || !span.isConnected || !isIntactSwap(span)) return false;
   if (cuedPractice.has(span) === active && span.classList.contains('fw-practice-cue') === active) return false;
   if (active) cuedPractice.add(span);
   else cuedPractice.delete(span);
@@ -165,7 +180,7 @@ function showTarget(span, text, display) {
     t('swap_description', display ? tipFor(display) : span.getAttribute('data-tip')));
 }
 export function revealGuessMeaning(span) {
-  if (!owned.has(span) || !pendingGuess.has(span)) return;
+  if (!pendingGuess.has(span) || !isIntactSwap(span)) return;
   pendingGuess.delete(span);
   if (!span.classList.contains('fw-en')) {
     const display = displaySwap.get(span);
@@ -184,7 +199,7 @@ export function replaceIntroductionTicket(span, oldTicket, nextTicket) {
   return true;
 }
 export function dropIntroduction(span) {
-  if (!owned.has(span) || !span.isConnected || !introductions.has(span)) return false;
+  if (!span.isConnected || !introductions.has(span) || !isIntactSwap(span)) return false;
   const en = sourceEnglish.get(span);
   if (!en || !span.parentNode) return false;
   const node = span.ownerDocument.createTextNode(en);
@@ -196,7 +211,7 @@ export function dropIntroduction(span) {
   return true;
 }
 export function finishIntroduction(span) {
-  if (!owned.has(span) || !span.isConnected || !introductions.has(span)) return false;
+  if (!span.isConnected || !introductions.has(span) || !isIntactSwap(span)) return false;
   const display = displaySwap.get(span);
   if (!display?.f) return false;
   introductions.delete(span);
@@ -213,7 +228,7 @@ export function finishIntroduction(span) {
 // After a saved inline rating, keep the existing woven word in place. A full
 // page repaint would force a new model request under the changed card policy.
 export function finishPractice(span, answer, familiar = false) {
-  if (!practice.has(span) || !owned.has(span) || !span.isConnected ||
+  if (!practice.has(span) || !span.isConnected || !isIntactSwap(span) ||
       !answer || answer.fr !== owned.get(span) || typeof answer.en !== 'string') return false;
   const en = sourceEnglish.get(span);
   const display = displaySwap.get(span);
@@ -428,7 +443,13 @@ export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
 
 // Removes every swap under root and merges the split text nodes back, restoring the original node.
 export function revert(root) {
-  const spans = Array.from(root.querySelectorAll(`span.${SWAP_CLASS}`)).filter(isSwap);
+  const spans = Array.from(root.querySelectorAll(`span.${SWAP_CLASS}`)).filter((span) => {
+    if (!isSwap(span)) return false;
+    // A site's own edits must survive the next observer pass as well as an update.
+    if (isIntactSwap(span)) return true;
+    forgetSwap(span);
+    return false;
+  });
   const groups = new Set(spans.map((span) => spanGroups.get(span)).filter(Boolean));
   for (const group of groups) {
     if (group.node.data !== group.prefix && group.node.parentNode) {
@@ -440,7 +461,7 @@ export function revert(root) {
     undescribe(span);
     const parent = span.parentNode;
     if (!parent) continue;
-    const en = sourceEnglish.get(span) ?? span.getAttribute('data-en') ?? span.textContent;
+    const en = sourceEnglish.get(span);
     const prev = span.previousSibling;
     const next = span.nextSibling;
     if (
@@ -458,40 +479,47 @@ export function revert(root) {
   return spans.length;
 }
 
+function forgetSwap(span) {
+  spanGroups.get(span)?.pieces.delete(span);
+  owned.delete(span);
+  paintedFaces.delete(span);
+  introductions.delete(span);
+  practice.delete(span);
+  cuedPractice.delete(span);
+  described.delete(span);
+  descriptions.get(span)?.remove();
+  descriptions.delete(span);
+}
+
 // Retiring a world must leave surrounding nodes, live edits and foreign markup
 // alone. Replace only a still-unchanged wrapper using its privately held source.
 export function retireSwaps(doc) {
   for (const span of doc.querySelectorAll('span')) {
-    const face = paintedFaces.get(span);
-    if (!face || !isSwap(span)) continue;
-    const nodes = faceNodes(span);
-    if (nodes.length === face.nodes.length && nodes.every((node, i) => node === face.nodes[i]) &&
-        span.outerHTML === face.markup &&
+    if (!isSwap(span)) continue;
+    if (isIntactSwap(span) &&
         !span.parentElement?.closest('form, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) {
       undescribe(span);
       span.replaceWith(doc.createTextNode(sourceEnglish.get(span)));
     }
     // A failed browser reload can resume this world. It must still leave
     // abandoned page edits untouched, and it has no old introduction authority.
-    owned.delete(span);
-    paintedFaces.delete(span);
-    introductions.delete(span);
-    practice.delete(span);
-    cuedPractice.delete(span);
-    described.delete(span);
-    descriptions.delete(span);
+    forgetSwap(span);
   }
+  const host = descriptionHosts.get(doc);
+  if (host && !host.childNodes.length) host.remove();
 }
 
 // Click: flip one swap between the selected target language and English.
 export function toggle(span, language = 'Spanish') {
+  if (!isIntactSwap(span)) return null;
   const showEn = !span.classList.contains('fw-en');
+  const display = displaySwap.get(span);
   span.classList.toggle('fw-en', showEn);
   if (showEn) {
     showEnglish(span, sourceEnglish.get(span) ?? span.getAttribute('data-en'));
     span.removeAttribute('aria-label');
     describe(span, t('swap_show_language', language));
-  } else showTarget(span, span.getAttribute('data-fr'), displaySwap.get(span));
+  } else showTarget(span, display.f, display);
   rememberFace(span);
   return showEn;
 }

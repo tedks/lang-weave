@@ -49,9 +49,9 @@ async function refresh() {
     : ['site_off', 'sensitive'].includes(state) ? t('popup_state_site_off')
     : state === 'needs_site' ? t('popup_state_needs_site')
     : statusLabel(status.modelStatus) || t('popup_state_on');
-  $('readingReload').hidden = !(status.readingUpdated && access && s.enabled && siteOn(s, host) &&
+  $('readingReload').hidden = !(access && state !== 'paused' && siteOn(s, host) &&
     await chrome.tabs.sendMessage(tab.id, { type: 'readingReloadHint' }, { frameId: 0 })
-      .then((reply) => reply?.ambiguous === true, () => true));
+      .then((reply) => reply?.ambiguous === true, () => status.readingUpdated === true));
 }
 
 async function run(fn) {

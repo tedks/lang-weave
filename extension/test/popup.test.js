@@ -100,7 +100,8 @@ test('popup shows one action and sends a site choice in the click gesture', asyn
     expect(events).toEqual([siteChoice]);
     expect($('siteName').textContent).toBe('On for example.com');
     expect($('readingReload').hidden).toBe(true);
-    state.readingUpdated = true; state.ambiguous = true;
+    // Chrome's own Reload does not set the automatic update marker.
+    state.ambiguous = true;
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => !$('readingReload').hidden);
     expect($('readingReload').textContent).toMatch(/refresh this page when you’re ready/);

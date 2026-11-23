@@ -3,7 +3,7 @@
 import { flatten, applySwaps, revert, toggle, isSwap, isPractice, isPracticeCue, swapWord,
   finishPractice, setPracticeCue, introductionTicket, replaceIntroductionTicket, dropIntroduction,
   finishIntroduction, pruneDescriptions, restoreDescriptions, revealGuessMeaning, isGuessPending, hasUnownedSwaps,
-  retireSwaps, SWAP_CLASS } from './text.js';
+  decorateSwap, isIntactSwap, retireSwaps, SWAP_CLASS } from './text.js';
 import { hashKey } from './hash.js';
 import { siteEnabled, hasSiteAccess } from './settings.js';
 import { selector, readable } from './page.js';
@@ -144,7 +144,7 @@ export function placeTip(span, box) {
 // The gloss appears only after a short dwell; reaching it counts as a peek (the reader needed the meaning).
 function hideTip(keepFocus = false) {
   clearTimeout(tipTimer); tipTimer = null;
-  tipTarget?.classList.remove('fw-tip');
+  if (tipTarget) decorateSwap(tipTarget, () => tipTarget.classList.remove('fw-tip'));
   tipTarget = null;
   tipHovered = false;
   tipFocused = false;
@@ -306,7 +306,7 @@ async function openCue(span) {
   revealButton.focus();
 }
 function tipEligible(span) {
-  return span?.isConnected && isSwap(span) && on() && alive() && !isPractice(span) &&
+  return span?.isConnected && isIntactSwap(span) && on() && !isPractice(span) &&
     !introductionTicket(span) && !span.classList.contains('fw-en') && !!span.getAttribute('data-tip');
 }
 function startTip(span, peek, delay = TIP_DELAY_MS) {
@@ -324,7 +324,7 @@ function startTip(span, peek, delay = TIP_DELAY_MS) {
 function showPlainTip(span, peek) {
   revealGuessMeaning(span);
   if (!showTip(span)) { hideTip(); return; }
-  span.classList.add('fw-tip');
+  decorateSwap(span, () => span.classList.add('fw-tip'));
   if (peek && tipHovered) record(span, 'peek'); // focus alone never counts
 }
 
@@ -357,7 +357,7 @@ async function beginGuess(span, peek, gen) {
 }
 function guessAlive(state) {
   const { span } = state;
-  return state.gen === generation && state.host?.isConnected !== false && span.isConnected && on() && isSwap(span) && !isPractice(span) &&
+  return state.gen === generation && state.host?.isConnected !== false && span.isConnected && on() && isIntactSwap(span) && !isPractice(span) &&
     !introductionTicket(span) && !span.classList.contains('fw-en') && guessMode() && guessPlace(span);
 }
 function closeGuess(focusWord = false) {
@@ -365,8 +365,10 @@ function closeGuess(focusWord = false) {
   const { host, root, span } = guess;
   const returnFocus = focusWord && (root.activeElement || document.activeElement === span);
   guess = null;
-  span.removeAttribute('aria-controls');
-  span.removeAttribute('aria-expanded');
+  decorateSwap(span, () => {
+    span.removeAttribute('aria-controls');
+    span.removeAttribute('aria-expanded');
+  });
   host.remove();
   if (returnFocus && span.isConnected) { guessQuiet = span; span.focus(); }
 }
@@ -424,8 +426,10 @@ function openGuess(span, ticket, choices) {
   shell.root.addEventListener('keydown', guessKey, true);
   shell.root.addEventListener('focusout', guessFocusOut, true);
   shell.host.id = `fw-guess-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}-${++guessHostCount}`;
-  span.setAttribute('aria-controls', shell.host.id);
-  span.setAttribute('aria-expanded', 'true');
+  if (!decorateSwap(span, () => {
+    span.setAttribute('aria-controls', shell.host.id);
+    span.setAttribute('aria-expanded', 'true');
+  })) return;
   document.documentElement.append(shell.host);
   guess = state;
   placeTip(span, shell.host);
@@ -785,6 +789,8 @@ function start() {
   track(document.documentElement);
 }
 function stop({ retiring = false } = {}) {
+  // The update handshake runs under the worker's write lock. An unacknowledged
+  // reservation never consumes a saved introduction and expires on its own.
   if (!retiring && config?.settings.gradual && alive()) {
     const tickets = new Map();
     for (const root of tracked) for (const span of root.querySelectorAll(`span.${SWAP_CLASS}`)) {
@@ -832,14 +838,14 @@ function update(next, retry = false) {
 function reveal(e) {
   if (!e.isTrusted) return;
   const span = swapFor(e);
-  if (!span || !on() || introductionTicket(span)) return;
+  if (!span || !on() || !isIntactSwap(span) || introductionTicket(span)) return;
   if (e.type === 'keydown' && !['Enter', ' '].includes(e.key)) return;
   if (isPractice(span) && !isPracticeCue(span)) return;
   e.preventDefault(); e.stopPropagation();
   hideTip(); closeGuess();
   if (isPractice(span)) { void openCue(span); return; }
-  if (toggle(span, languageName(config.language))) record(span, 'flip');
-  else record(span, 'seen');
+  const english = toggle(span, languageName(config.language));
+  if (english !== null) record(span, english ? 'flip' : 'seen');
   observer?.takeRecords();
 }
 chrome.runtime.onMessage.addListener((msg) => {
@@ -870,7 +876,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
   if (msg?.type === 'readingReloadHint') {
     if (sender.id === chrome.runtime.id && sender.url === `chrome-extension://${chrome.runtime.id}/src/popup.html`)
-      reply({ ambiguous: hasUnownedSwaps(document) });
+      // An ambiguous old shape warrants a hint only. The page supplies no source or ownership.
+      reply({ ambiguous: hasUnownedSwaps(document, `span.${SWAP_CLASS}[data-fw-split="1"][data-en]`) });
     return false;
   }
   if (msg?.type === 'personalCaptureAlive') {

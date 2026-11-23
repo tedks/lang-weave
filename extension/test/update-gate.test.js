@@ -82,6 +82,16 @@ test('the outgoing worker asks top-frame content to retire before it reloads', (
   expect(calls.at(-1)).toBe('reload');
 }));
 
+test('an unresponsive reading tab does not block the automatic update', () => withGlobals(async () => {
+  const { calls, update } = fakeChrome({ version: '1.0.0' }, '1.0.1');
+  globalThis.chrome.tabs = {
+    query: async () => [{ id: 7 }],
+    sendMessage: () => new Promise(() => {}),
+  };
+  expect(await update.checkUpdate()).toBe('1.0.1');
+  expect(calls.at(-1)).toBe('reload');
+}));
+
 test('a failed action refresh does not hide a waiting update from status', () => withGlobals(async () => {
   const { data, update } = fakeChrome({ version: '1.0.0' }, '1.0.1', () => { throw new Error('tab closed'); });
   data[RELOADED_KEY] = '1.0.1';

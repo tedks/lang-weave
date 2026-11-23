@@ -167,7 +167,16 @@ try {
       const [{ result, documentId }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id }, args: [mark], func: (mark) => {
           const prior = Symbol.for('lang-weave.reload-test-outgoing');
-          if (mark) globalThis[prior] = true;
+          if (mark) {
+            globalThis[prior] = true;
+            const word = document.querySelector('#story .fw-word');
+            const retirement = new MutationObserver(() => {
+              if (word.isConnected) return;
+              retirement.disconnect();
+              document.documentElement.dataset.reloadTestRetired = String(!!chrome.runtime?.id);
+            });
+            retirement.observe(word.parentNode, { childList: true });
+          }
           return { prior: globalThis[prior] === true, loader: !!globalThis[Symbol.for('lang-weave.content-loader')] };
         },
       });
@@ -224,6 +233,9 @@ try {
   const sent = await worker.evaluate(() => JSON.stringify(globalThis.readingFixture));
   assert.match(sent, /They paint pictures and talk/);
   assert.doesNotMatch(sent, /forged source|We read books/);
+  // The old word alone must trigger the hint, including without the auto-update marker.
+  await page.evaluate(() => forged.remove());
+  await worker.evaluate(() => chrome.storage.local.remove('reloadedFor'));
   const popup = await openPopup();
   await popup.locator('#readingReload').getByText(/refresh this page when you’re ready/).waitFor();
   await popup.close();
@@ -238,8 +250,14 @@ try {
   await flip(word);
   await upgrade(next, nextVersion);
   assert.equal(await page.evaluate(() => outgoingWord.isConnected), false);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.reloadTestRetired), 'true',
+    'the outgoing world restored the word while its runtime was still valid');
   await flip(word);
   assert.equal(await word.count(), 1);
+  const recovered = await openPopup();
+  await recovered.getByText('On for reading.example', { exact: true }).waitFor();
+  assert.equal(await recovered.locator('#readingReload').isVisible(), false);
+  await recovered.close();
   console.log(`PASS: ${candidate.version} → ${nextVersion} (same source, fixture manifest version). The old owned wrapper is gone, the same page weaves again, and existing edits and approvals survived.`);
 
   const controls = await openPopup();

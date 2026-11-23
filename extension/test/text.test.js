@@ -1,6 +1,6 @@
 import { describe, test, expect, jest } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue, decorateSwap,
   introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, restoreDescriptions,
   swapDescription, retireSwaps } from '../src/text.js';
 import { readable, selector, TWEET, PROSE } from '../src/page.js';
@@ -202,6 +202,12 @@ describe('revert and toggle', () => {
       forged.dataset.en = 'not the source';
       const next = own.nextSibling;
       next.data = ' enjoy new books every evening.';
+      expect(decorateSwap(own, () => own.classList.add('fw-tip'))).toBe(true);
+      expect(toggle(own)).toBe(true);
+      edit.dataset.siteState = 'kept by the page';
+      expect(toggle(edit)).toBeNull();
+      expect(edit.textContent).toBe('y');
+      expect(decorateSwap(edit, () => edit.classList.add('fw-tip'))).toBe(false);
       edit.replaceChildren(doc.createTextNode('y')); // same text, different site-owned node
       const siteNode = edit.firstChild;
       doc.body.append(forged);
@@ -210,6 +216,7 @@ describe('revert and toggle', () => {
       expect(unchanged.lastChild).toBe(next);
       expect(own.isConnected).toBe(false);
       expect(edit.firstChild).toBe(siteNode);
+      expect(edit.dataset.siteState).toBe('kept by the page');
       expect(forged.textContent).toBe('y');
       expect(forged.dataset.en).toBe('not the source');
       expect(readable(edited, 'https://reading.example/')).toBe(false); // a failed reload must not repaint it
@@ -308,8 +315,7 @@ test('a saved practice rating changes only its span and restores trusted source 
     expect(span.getAttribute('title')).toBe('Open inline recall');
     expect(span.textContent).toBe('the idea?');
     expect(el.textContent).not.toContain('la idea');
-    span.setAttribute('data-en', 'forged');
-    expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
+    expect(finishPractice(span, { fr: 'la idea', en: 'untrusted replacement', hint: '' })).toBe(true);
     expect(span.textContent).toBe('la idea');
     expect(span.classList.contains('fw-practice-cue')).toBe(false);
     expect(span.getAttribute('role')).toBe('button');
