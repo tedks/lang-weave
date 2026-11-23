@@ -1,0 +1,20 @@
+id: popup-bundled-samples
+title: Make bundled reading samples reachable from the popup after onboarding
+desc: "The popup hides its only Welcome route after consent, so returning learners
+  cannot find the built-in Spanish and Guaran\xED passages. Keep a visible, keyboard-accessible
+  route after onboarding, retain the privacy link before choosing, use the existing
+  bundled-language selection and offline Welcome document, preserve popup dimensions,
+  and avoid writing site grants, progress or policy when opening the link."
+type: feature
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T11:16:25-00:00
+references: []
+log_events:
+- time: 2026-11-23T11:16:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
