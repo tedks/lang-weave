@@ -20,3 +20,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T05:09:30-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #71 review at 31977049 confirms eight new finite compound protections
+    used by the promoted Spanish nouns, including plural-head coverage. Probe window
+    seat, tree house, soup spoon, movie star, song lyrics, breakfast table and river
+    valley when evaluating the remaining common cases. Keep the independently scoped
+    false-positive and regression checks in this issue.'
