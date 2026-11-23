@@ -1,0 +1,19 @@
+id: welcome-practice-language
+title: Continue the selected Welcome sample language into offline paragraph practice
+desc: "On a fresh 0.15.2 install, selecting Paraguayan Guaran\xED in the Welcome sample
+  and opening Practice a paragraph starts the exercise in Spanish. Carry an explicitly
+  selected bundled language across that link for this exercise. Popup and direct opens
+  still use the saved preference. Exercise selection must not persist or grant access."
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T07:04:49-00:00
+references: []
+log_events:
+- time: 2026-11-23T07:04:49-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
