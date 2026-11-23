@@ -1,0 +1,74 @@
+{
+  "discovery": {
+    "home": [
+      "The window was open when I came home. I left my sweater on the chair and stepped outside for a moment.",
+      "My neighbor set a plant on the sill. A towel lay beside the sink, where the open window caught the afternoon light.",
+      "I looked under the bed for the missing sock. The pillow was still on the floor, so I put it back before breakfast."
+    ],
+    "meals": [
+      "The soup warmed up while we sliced a loaf. I filled a bowl and took it out to the porch.",
+      "At breakfast I ate a pear and put the rest of the fruit in a basket. Someone left a napkin at each place.",
+      "I brought a sandwich for lunch, but the soup smelled so good that we shared some by the fire."
+    ],
+    "outdoors": [
+      "The rain let up just before our walk. Water dripped from the tree, and a little bird hopped across the path.",
+      "A duck crossed the river near the footbridge. We stopped by a patch of wildflowers until a cloud passed.",
+      "I rode my bike to the beach in the early evening. Nobody was left except a person collecting shells."
+    ],
+    "small errands": [
+      "The library stays open late on Thursdays. I returned a novel, then walked to the bakery before heading home.",
+      "We missed the bus and decided to walk. Halfway there I took a photo of the painted wall behind a little shop.",
+      "On my way back I carried a gift for my sister. The bus arrived just as I reached the stop."
+    ],
+    "learning and work": [
+      "I wrote the answer in the margin with a pencil. My classmate showed me a different way to work it out.",
+      "When we got to the last page, the teacher asked us to put our notes away. I still had a question for later.",
+      "The office was quiet after lunch. I left the letter on a desk, turned off the light and went home."
+    ],
+    "leisure": [
+      "The song came on while we were cleaning the room. My brother knew every line and sang along as he worked.",
+      "I asked my friend to send me the photo from the picnic. She printed a copy for the kitchen wall.",
+      "We watched a movie in the garden after sunset. When the screen went dark, we sat talking for a while."
+    ]
+  },
+  "heldOut": {
+    "home": [
+      "A patch of sunlight crossed the window in the late afternoon. I moved my cup off the sill before it got too warm.",
+      "I put a fresh pillow on the spare bed. Someone had left a scarf on the doorknob, so I took it downstairs."
+    ],
+    "meals": [
+      "Our host served the soup from a big pot. I asked for another spoonful when she came back around.",
+      "After breakfast I cleared away the plates and took a ripe apple out for later. The berries were already gone."
+    ],
+    "outdoors": [
+      "By midday the rain had stopped and the path was drying. We could hear two birds calling from a tree.",
+      "The river was high when we crossed the bridge. We turned back before the footpath reached the woods."
+    ],
+    "small errands": [
+      "A sign at the library said the side entrance was open. I dropped off what I had borrowed and headed to the market.",
+      "While we waited for the bus, my sister sent me a photo of the mural we had passed on the walk over."
+    ],
+    "learning and work": [
+      "I lent Maya a pencil before we took our seats. She gave it back when the last question was done.",
+      "The office was closed when I arrived, so I left an envelope with the person at the front desk."
+    ],
+    "leisure": [
+      "I had never heard the song before, but by the end I could hum part of it. My friend wrote down the name for me.",
+      "We finished the movie just before sunset. Outside, the sky was changing color as we walked home."
+    ]
+  },
+  "contrasts": [
+    { "text": "The window frame needs another coat of paint before we hang the curtains.", "source": "The window" },
+    { "text": "She copied the page number into her notes so she could find the passage later.", "source": "the page" },
+    { "text": "I can book a room before we leave home in the morning.", "source": "book" },
+    { "text": "The recipe says to spoon the mixture into the smaller bowls by the sink.", "source": "spoon" },
+    { "text": "We waited outside the movie theater until our friends arrived after work.", "source": "the movie" },
+    { "text": "After the show we checked the schedule for the late bus.", "source": "the late bus" },
+    { "text": "A river of messages filled the screen by the time we got back.", "source": "river" },
+    { "text": "Someone read “the song” from the printed list and then turned to the next item.", "source": "the song" },
+    { "text": "I will pencil in another meeting before we leave for lunch.", "source": "pencil" },
+    { "text": "The trees leaned toward the path in the strong wind last night.", "source": "The trees" },
+    { "text": "She put a bowl of berries on the table and called everyone in.", "source": "a bowl" },
+    { "text": "We use a software library to change the colors in the preview.", "source": "library" }
+  ]
+}
