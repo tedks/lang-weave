@@ -96,3 +96,12 @@ log_events:
     gates and additional browser/tooling checks remain separate work. Keep this issue
     open for those gaps. Intermittent DOM timing failures from earlier runs are recorded
     under extension-bun-dom-timing.'
+- time: 2026-11-23T03:57:23-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #62 landed at e476a5a7 with the inherited Python and live named-ref
+    gates. Follow-up PR #64 landed at 24309af184a60203b7e8bca05833aaec6547397a and
+    the scoped release-version-check-bazel-module-version issue is fixed. The live
+    checker rejects the real demo mismatch (0.13.1 extension vs 0.12.26 module), accepts
+    the actual release from 0.12.23 to 0.12.24 before MODULE.bazel existed, and passed
+    the merged snapshot at 0.12.27. The umbrella stays open for its remaining gates.'
