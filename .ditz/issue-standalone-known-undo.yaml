@@ -20,3 +20,16 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T11:15:03-00:00
+  who: Ted Smith
+  what: commented
+  comment: "CTO ruling: retain the explicit standalone Already know action and use
+    the existing My words \u2192 Reset \u2192 Confirm reset path for relearning. Reset
+    clears that card\u2019s schedule, review count and familiar flag. Historical measurements
+    remain. Against the public 0.15.15 ZIP a disposable Chrome 140 profile disabled
+    gradual learning, marked a revealed word known via the standalone Review UI, cancelled
+    Reset and verified the unchanged card, then confirmed Reset, verified New with
+    exact same retrieval log, practised the word again and rated Medium. A fresh one-review
+    schedule was created and all earlier log entries and actual permission grants
+    matched. The complete installed gate passed. This is relearning, not restoration
+    of a prior schedule. Private proof: nov23/known-relearn.path."
