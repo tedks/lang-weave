@@ -43,7 +43,7 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 
 ## Controls and privacy
 
-**Popup.** The **On** switch pauses weaving and restores the original text in open pages. The site checkbox controls the current hostname. Below them are a Today line, the days you practised this week with your verified-known count, and one button. The button reads **Review N due words**, **Add words** or **Practice**. Links open **Settings**, **My words** and this section. If a saved introduction date is more than seven days ahead of your clock, the popup offers to reset only that day's introduction budget.
+**Popup.** The **On** switch pauses weaving and restores the original text in open pages. The site checkbox controls the current hostname. Below them are today's counts, practice days in the last seven, and your verified-known count. Reading a visible woven word or doing a review can make the day count. The button reads **Review N due words**, **Add words** or **Practice**. Links open **Settings**, **My words** and this section. If a saved introduction date is more than seven days ahead of your clock, the popup offers to reset only that day's introduction budget.
 
 **Toolbar badge.** The icon says why Lang Weave is or is not working on the current tab, with fixed text and no page or host data. A **!** means setup, a key, or a rejected key needs attention. A **•** means this site needs your OK. A **–** means Lang Weave is not reading here: it is paused, the site is off or sensitive, the model is cooling down, or the daily call limit is reached. Reviews still work then. No mark means it is working. Hover the icon for the reason in words. Where Chrome withholds a tab's address, the tooltip says to open Lang Weave to check the page.
 
@@ -64,6 +64,7 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 - Settings and cached replacement choices. Cached choices contain short English fragments, and about 5,000 are kept. **Clear cache** forgets them without touching learning progress.
 - Review cards and their schedule.
 - Up to 500 word events per target, each a word, a kind (seen, peek or flip) and a date.
+- Up to 30 local dates per pack or personal language when you saw a woven word. These records contain only dates.
 - A learning log. Each review adds a word ID, a time, an outcome and some numbers: response time, days since the last review, the scheduled interval and predicted recall. Each word also keeps counts of sightings and peeks with first and last day. It never holds pages, URLs or text.
 - Coarse per-word encounter counts that guide gradual learning.
 - Up to five generated vocabulary packs and your personal entries.

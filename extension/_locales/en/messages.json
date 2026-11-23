@@ -1119,19 +1119,9 @@
       }
     }
   },
-  "progress_week_one": {
-    "message": "Practised on $COUNT$ day of the last 7",
-    "description": "Weekly practice line, singular. $1 is the number of days. Progress text shared by the popup, settings and My words.",
-    "placeholders": {
-      "COUNT": {
-        "content": "$1",
-        "example": "1"
-      }
-    }
-  },
-  "progress_week_other": {
-    "message": "Practised on $COUNT$ days of the last 7",
-    "description": "Weekly practice line, plural. $1 is the number of days. Progress text shared by the popup, settings and My words.",
+  "progress_week": {
+    "message": "Practised on $COUNT$ of the last 7 days (reading or review activity)",
+    "description": "Weekly practice line shared by the popup, settings and My words. $1 is the number of days with either reading or review activity.",
     "placeholders": {
       "COUNT": {
         "content": "$1",
@@ -2176,7 +2166,7 @@
     }
   },
   "words_strip_label": {
-    "message": "Days with reviews in the last 30 days: $COUNT$",
+    "message": "$COUNT$ of the last 30 days with reading or review activity",
     "description": "Screen-reader label of the 30-day activity strip on My words.",
     "placeholders": {
       "COUNT": {
@@ -2186,8 +2176,8 @@
     }
   },
   "words_strip_day_one": {
-    "message": "$DAY$: $COUNT$ review",
-    "description": "Tooltip of one day in the activity strip, singular. $2 is the date, $1 the number of reviews that day.",
+    "message": "$DAY$ · $COUNT$ review event",
+    "description": "One day in the activity strip, singular. $2 is the date, $1 the number of ratings or claims that day.",
     "placeholders": {
       "DAY": {
         "content": "$2",
@@ -2200,8 +2190,8 @@
     }
   },
   "words_strip_day_other": {
-    "message": "$DAY$: $COUNT$ reviews",
-    "description": "Tooltip of one day in the activity strip, plural. $2 is the date, $1 the number of reviews that day.",
+    "message": "$DAY$ · $COUNT$ review events",
+    "description": "One day in the activity strip, plural. $2 is the date, $1 the number of ratings or claims that day.",
     "placeholders": {
       "DAY": {
         "content": "$2",
@@ -2210,6 +2200,16 @@
       "COUNT": {
         "content": "$1",
         "example": "2"
+      }
+    }
+  },
+  "words_strip_reading": {
+    "message": "$SUMMARY$ · read a woven word",
+    "description": "Activity strip summary of a day that also included reading. $1 contains the date and the number of review events.",
+    "placeholders": {
+      "SUMMARY": {
+        "content": "$1",
+        "example": "2026-10-30 · 0 review events"
       }
     }
   },

@@ -18,7 +18,7 @@ export function todayLine(today) {
   return parts.length ? t('progress_today', parts.join(' · ')) : t('progress_today_none');
 }
 
-export const weekLine = (days) => tn('progress_week', days);
+export const weekLine = (days) => t('progress_week', days);
 
 export const headline = (count) => count ? tn('progress_headline', count) : t('progress_headline_none');
 

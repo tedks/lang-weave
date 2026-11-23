@@ -68,7 +68,7 @@ test('popup shows one action and grants this site before saving or injecting', a
     $('enabled').dispatchEvent(new window.Event('change'));
     await waitFor(() => $('operation').textContent === 'This site needs your OK');
     expect($('today').textContent).toBe('Today: 2 introduced · 14 seen · 3 peeked · 5 reviewed');
-    expect($('week').textContent).toBe('Practised on 3 days of the last 7 · 1 word verified known');
+    expect($('week').textContent).toBe('Practised on 3 of the last 7 days (reading or review activity) · 1 word verified known');
     expect($('openWords').getAttribute('href')).toBe('words.html');
     $('openSettings').click();
     await waitFor(() => events.includes('options-tab'));
