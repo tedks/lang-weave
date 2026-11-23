@@ -47,7 +47,7 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 
 **Toolbar badge.** The icon says why Lang Weave is or is not working on the current tab, with fixed text and no page or host data. A **!** means setup, a key, or a rejected key needs attention. A **•** means this site needs your OK. A **–** means Lang Weave is not reading here: it is paused, the site is off or sensitive, the model is cooling down, or the daily call limit is reached. Reviews still work then. No mark means it is working. Hover the icon for the reason in words. Where Chrome withholds a tab's address, the tooltip says to open Lang Weave to check the page.
 
-**Keyboard.** Alt+Shift+W pauses or resumes Lang Weave on the current site, but only when the tab is active and the site already has access. It toggles a site that is on, or one you turned off yourself. A site that starts off needs the popup. Alt+Shift+R opens review. Both are suggestions that you can change at `chrome://extensions/shortcuts`.
+**Keyboard.** Alt+Shift+W pauses or resumes Lang Weave on the current site, but only when the tab is active and the site already has access. It toggles a site that is on, or one you turned off yourself. A site that starts off needs the popup. The Open Lang Weave review shortcut resumes an existing review tab. If Chrome reserves the suggested Alt+Shift+R for Reading mode, assign a shortcut at `chrome://extensions/shortcuts`.
 
 **Settings.** The options page holds:
 - **Learning:** language, reading level, gradual learning, new words per day, translation density and inline recall.

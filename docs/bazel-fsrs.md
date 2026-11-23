@@ -106,6 +106,11 @@ The browser test checks the manifest and license files against the checkout,
 then loads the extracted ZIP as-is and checks first-run setup,
 the interactive local demo, the stable extension ID and per-site consent.
 It also selects bundled Paraguayan Guaraní and reviews a word offline.
+The My words check exercises the packaged popup, review-tab reuse after a
+worker restart, and deliberate card selection and rating. To also test the
+native keyboard shortcut and window focus, supply a disposable X11 display
+with a window manager via `--test_env=DISPLAY` and an absolute xdotool path
+via `--test_env=LANG_WEAVE_REVIEW_XDOTOOL=/path/to/xdotool`.
 It uses no real account or key. The focused Bun target covers language,
 backup and resource-manifest regressions without npm test dependencies.
 

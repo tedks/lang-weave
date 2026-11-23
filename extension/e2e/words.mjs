@@ -114,20 +114,31 @@ try {
   if (shortcutTool) {
     // Send the real browser accelerator using the dedicated disposable X
     // display; a renderer keyboard event cannot invoke chrome.commands.
-    assert.equal(await worker.evaluate(async () => (await chrome.commands.getAll())
-      .find((command) => command.name === 'open-review').shortcut), 'Alt+Shift+R');
+    const reviewShortcut = () => worker.evaluate(async () => (await chrome.commands.getAll())
+      .find((command) => command.name === 'open-review').shortcut);
+    let binding = await reviewShortcut();
+    if (!binding) {
+      // New Chromium versions reserve Alt+Shift+R for Reading mode.
+      const shortcuts = await browser.newPage();
+      await shortcuts.goto('chrome://extensions/shortcuts');
+      const input = shortcuts.locator('.command-entry').filter({ hasText: 'Open Lang Weave review' }).locator('cr-shortcut-input');
+      await input.getByRole('button', { name: /edit/i }).click();
+      await input.getByRole('textbox').press('Control+Shift+Y');
+      binding = await until(reviewShortcut, (value) => value === 'Ctrl+Shift+Y', 'the fixture review shortcut to bind');
+      await shortcuts.close();
+    }
     const title = 'Lang Weave review shortcut fixture';
     await popup.evaluate((title) => { document.title = title; }, title);
     execFileSync(shortcutTool, ['search', '--sync', '--onlyvisible', '--name', title, 'windowactivate', '--sync'],
       { timeout: 4000 });
     await until(focusedWindow, (id) => id === otherWindow.id, 'the shortcut source window to focus');
-    execFileSync(shortcutTool, ['key', '--clearmodifiers', 'alt+shift+r'], { timeout: 4000 });
+    execFileSync(shortcutTool, ['key', '--clearmodifiers', binding.toLowerCase()], { timeout: 4000 });
     await until(focusedWindow, (id) => id === reviewWindow, 'the browser shortcut to focus the review window');
     assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
     assert.equal(await answer.textContent(), rated);
     assert.equal(await answer.isVisible(), true);
     assert.deepEqual((await stored()).recallReview.current, firstOffer);
-    console.log('PASS: Alt+Shift+R resumes the revealed card in the existing review window.');
+    console.log(`PASS: the native Open Review shortcut (${binding}) resumes the revealed card in the existing review window.`);
   }
   await review.locator('[data-rating="medium"]').click();
   let data = await until(stored, (d) => d.learningRetrievals?.retrievals.length === 1, 'first rating');
