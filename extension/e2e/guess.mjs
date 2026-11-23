@@ -243,6 +243,10 @@ try {
   assert.equal(await o.textContent(), 'or');
   await o.click();
   assert.equal(await o.textContent(), 'o');
+  await page.mouse.move(5, 5);
+  await o.hover();
+  await page.locator('.fw-gloss-on').waitFor();
+  assert.equal(await panel.count(), 0);
   assert.equal((await log()).length, 2);
 
   // My words: the measurement with its not-enough-data state.
@@ -267,6 +271,13 @@ try {
   await httpPage.keyboard.press('Escape');
   await httpPanel.waitFor({ state: 'detached' });
   await httpPage.close();
+
+  // A fresh occurrence can still offer a guess. Disable Guess first on that live page.
+  await page.reload();
+  await o.hover();
+  await panel.waitFor();
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached' });
 
   // Settings off: no new model call or repaint, and a hover is the plain gloss again.
   const callsBefore = (await worker.evaluate(() => globalThis.calls)).length;
