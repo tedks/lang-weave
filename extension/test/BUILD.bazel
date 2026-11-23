@@ -1,6 +1,19 @@
 package(default_visibility = ["//visibility:private"])
 
 filegroup(
+    name = "suite_cases",
+    srcs = glob(
+        ["**"],
+        allow_empty = False,
+        exclude = [
+            "BUILD",
+            "BUILD.bazel",
+        ],
+    ),
+    visibility = ["//:__pkg__"],
+)
+
+filegroup(
     name = "fsrs_cases",
     srcs = [
         "fsrs.test.js",

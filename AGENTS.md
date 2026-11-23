@@ -17,8 +17,8 @@ In a fresh clone, run `gh repo set-default tedks/lang-weave` and verify `gh repo
 ## Environment and gates
 
 The extension loads directly from `extension/`; nothing needs building to load it.
-Bazel 8.7.0 comes from the root `flake.nix`. `nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test` runs the original three Bazel targets. The unpacked ZIP, targeted extension regressions, and Chromium install smoke have separate targets. See `docs/bazel-fsrs.md` for the commands.
-The gates listed below are not yet in the Bazel graph. Agents counted their standalone runs as validation evidence for PR #50 (tedks/lang-weave#50) only, by CTO ruling; that exception does not carry forward. Future agent validation follows the Bazel-only rule in the shared agent configuration. Where a needed gate has no Bazel target, close the gap through ditz `bazel-graph-remaining-gates` or seek a new ruling, rather than falling back to a standalone run.
+Bazel 8.7.0 comes from the root `flake.nix`. `nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test` runs the original three Bazel targets. Run the full extension Bun suite with `nix develop --command bazel test --spawn_strategy=linux-sandbox //:extension_test`. The unpacked ZIP, targeted extension regressions, and Chromium install smoke have separate targets. See `docs/bazel-fsrs.md` for the commands.
+Agent validation follows the Bazel-only rule in the shared agent configuration. The CTO's exception for standalone evidence applied to PR #50 (tedks/lang-weave#50) only. Where a needed gate has no Bazel target, close the gap through ditz `bazel-graph-remaining-gates` or seek a new ruling.
 `BUILD` and `BUILD.bazel` files under `extension/` are left out of both ZIPs and exempt from the version check.
 Standalone entrypoints, kept for people who work in this repo without Bazel or the parent workspace (they are not agent validation evidence):
 - `bun install --frozen-lockfile && bun test` inside `extension/`.
