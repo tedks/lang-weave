@@ -20,8 +20,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T03:36:20-00:00
 references: []
 log_events:
@@ -82,3 +82,10 @@ log_events:
     in 28.7 s, the focused release suite passed 86/86 in 12 files, and inherited Python
     passed 102/102. The live release classifier accepted the diff with no version
     bump because only test files changed. Leave in progress for CTO integration.'
+- time: 2026-11-23T04:27:53-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: PR tedks/lang-weave#65 merged at 84483b91916605e789285d4a39507b1d16891ca8.
+    Exact candidate passed all six strict Linux sandbox targets, including 451 Bun
+    and 102 Python cases. CTO reproduced all 454 Bun cases on tower0 on the combined
+    reader and DOM tree.
