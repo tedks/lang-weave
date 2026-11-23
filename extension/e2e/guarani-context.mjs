@@ -109,9 +109,11 @@ for (const [gradual, level] of [[false, 1], [true, 1], [false, 2], [true, 2]]) {
     const page = await context.newPage();
     for (const [url, { o, f, positive, negative }] of routes) {
       await page.goto(url);
-      const word = page.locator('#positive .fw-word');
+      // A gradual introduction starts in English until the worker confirms its ticket.
+      const word = page.locator('#positive .fw-word[data-fr]');
       await word.waitFor({ timeout: 10000 });
       assert.equal(await word.getAttribute('data-en'), o);
+      assert.equal(await word.getAttribute('data-fr'), f);
       assert.equal(await word.textContent(), f);
       assert.equal(await page.locator('#positive').textContent(), positive.replace(o, f));
       await word.press('Enter');
