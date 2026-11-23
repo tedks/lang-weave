@@ -20,3 +20,14 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T09:03:00-00:00
+  who: Ted Smith
+  what: commented
+  comment: "CTO reproduced on the public 0.15.7 ZIP in real Chrome. An offline synthetic
+    provider was offered hola by the ordinary Expanded Spanish request and proposed
+    his \u2192 hola. The worker accepted and cached it, and the actual page painted
+    \u201CThe visitor packed hola bag before sunrise.\u201D The parallel hello \u2192
+    hola control painted correctly. Local paragraph practice did not offer his in
+    either tier. Fresh profile and explicitly granted synthetic origin. Scope the
+    repair to legacy Spanish matching and preserve correct forms; confirm whether
+    cached prior entries need read-time revalidation."
