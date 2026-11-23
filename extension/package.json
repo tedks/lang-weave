@@ -1,6 +1,6 @@
 {
   "name": "lang-weave",
-  "version": "0.15.15",
+  "version": "0.16.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "type": "module",

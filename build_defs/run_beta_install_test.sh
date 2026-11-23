@@ -26,7 +26,7 @@ export TMPDIR=/tmp
 export DO_NOT_TRACK=1
 if [[ "${3:-}" == --supplementary ]]; then
     shift 3
-    cases=(smoke adaptive again badge gradual guess highlights key-rejection personal startup-recovery gloss quota-status portability)
+    cases=(smoke adaptive again badge gradual guess highlights key-rejection personal startup-recovery gloss quota-status portability measurement-backup)
     if [[ $# -eq 0 ]]; then
         set -- "${cases[@]}"
     fi

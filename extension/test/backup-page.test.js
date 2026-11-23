@@ -223,7 +223,7 @@ test('preview and outcome copy keep the exact English, with and without the opti
       'Exported by Lang Weave 0.12.18.',
       'Languages: es, fr · Generated packs: 1 · Review cards: 5 · Personal entries: 2.',
       'Learning preferences: language es, level 2, gradual true, new words/day 3, density heavy, inline recall true, target recall 0.9.',
-      'Learning measurements: 40 logged reviews, exposure counts for 9 words. This backup includes reading-day dates.']);
+      'Learning measurements: 40 logged reviews and guesses, exposure counts for 9 words. This backup includes reading-day dates.']);
     expect($('notice').textContent).toBe('Preview validated. Import requires your confirmation and a fresh target check.');
     $('preview').click();
     await tick();
@@ -231,7 +231,7 @@ test('preview and outcome copy keep the exact English, with and without the opti
       'Exported by Lang Weave ?.',
       'Languages: none · Generated packs: ? · Review cards: ? · Personal entries: 0.',
       'Learning preferences: language ?, level ?, gradual ?, new words/day ?, density ?, inline recall ?.',
-      "Learning measurements: 7 logged reviews, exposure counts for 3 words. Left out, because the exporter's size limit was reached, the words are not in this backup's word lists or personal vocabulary, or they are guess-first answers, which backups do not carry yet: 4 reviews or guesses and exposure counts for 1 words."]);
+      'Learning measurements: 7 logged reviews and guesses, exposure counts for 3 words. Left out: 4 reviews or guesses and exposure counts for 1 words. Size limits and vocabulary checks can leave measurements out. Backups made before 0.16.0 may also have left out Guess first answers or some generated-form measurements.']);
     $('confirm').checked = true;
     $('confirm').dispatchEvent(new ui.window.Event('change'));
     $('import').click();

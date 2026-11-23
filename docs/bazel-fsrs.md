@@ -114,7 +114,7 @@ via `--test_env=LANG_WEAVE_REVIEW_XDOTOOL=/path/to/xdotool`.
 It uses no real account or key. The focused Bun target covers language,
 backup and resource-manifest regressions without npm test dependencies.
 
-The supplementary Chromium gate runs 13 scenarios serially against the
+The supplementary Chromium gate runs 14 scenarios serially against the
 same extracted ZIP and prints its SHA-256. It uses throwaway profiles,
 synthetic pages and provider replies, and profile-scoped Chrome permission
 grants. Personal capture dispatches a synthetic menu event to the registered
@@ -130,6 +130,14 @@ nix develop --command bazel test //:supplementary_browser_test --nocache_test_re
 
 For a focused rerun, pass one or more arguments such as
 `--test_arg=smoke --test_arg=gradual --test_arg=gloss`.
+
+The `measurement-backup` scenario exports formats 2 and 3 through the installed
+backup page and restores both into fresh profiles. To also exercise the
+historical readers with those same files, pass
+`--test_env=LANG_WEAVE_FORMAT_2_READER=/path/to/unpacked-0.12.22` and
+`--test_env=LANG_WEAVE_FORMAT_3_READER=/path/to/unpacked-0.13.3`. The final
+0.12.22 source is commit `37b060dc`. The 0.13.3 reader ZIP was built from
+commit `883552e2`. [0.13.3 beta release](https://github.com/tedks/lang-weave/releases/tag/v0.13.3-beta.1)
 
 The separate `//:reading_reload_test` gate uses Chrome's native **Load unpacked**
 and permission prompt in a disposable 1500×920 X11 desktop with a window
