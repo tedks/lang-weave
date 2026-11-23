@@ -39,6 +39,7 @@ filegroup(
         "router.test.js",
         "spanish-everyday-corpus.json",
         "spanish-everyday.test.js",
+        "spanish-prose.test.js",
         "spanish.test.js",
         "web-accessible.test.js",
     ],

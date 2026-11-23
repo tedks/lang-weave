@@ -22,7 +22,7 @@ const additions = () => L2_WORDS.slice(OLD_EXPANDED);
 const clothing = () => L1_WORDS.slice(BEGINNER_CORE, FORMER_BEGINNER);
 
 test('the original Beginner and Expanded entries retain their forms, glosses, hints and order', () => {
-  expect(L1_WORDS).toHaveLength(44);
+  expect(L1_WORDS).toHaveLength(48);
   expect(L2_WORDS).toHaveLength(233);
   expect(createHash('sha256').update(JSON.stringify(L1_WORDS.slice(0, FORMER_BEGINNER))).digest('hex'))
     .toBe('16c616741e36f3b789e0c16c517b737700c331aeb4d021ab73e1510b7af44e61');
@@ -183,7 +183,7 @@ test('curated nouns preserve sense, article, number, accent and safe source plac
   expect(one('The book reviews were short.', 'The book', 'el libro')).toBeUndefined();
   expect(one('The kitchen table is small.', 'The kitchen', 'la cocina')).toBeUndefined();
   expect(one('The office chairs are new.', 'The office', 'la oficina')).toBeUndefined();
-  expect(validateSwaps(1, [{ o: 'the door', f: 'la puerta' }])).toEqual([]);
+  expect(validateSwaps(1, [{ o: 'the chair', f: 'la silla' }])).toEqual([]);
 });
 
 test('an Expanded upgrade retains Spanish ratings, budget and events without crossing generated-pack scopes', async () => {

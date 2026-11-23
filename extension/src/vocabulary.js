@@ -250,8 +250,15 @@ const EXPANDED_ADDITIONS = [
 const BEGINNER_PROMOTIONS = new Set([
   'la ventana', 'el desayuno', 'la sopa', 'el árbol', 'el río', 'la canción', 'la película',
 ]);
-export const L1_WORDS = [...BEGINNER_CORE, ...BEGINNER_CLOTHING,
-  ...EXPANDED_ADDITIONS.filter(({ fr }) => BEGINNER_PROMOTIONS.has(fr)).map((word) => ({ ...word, band: 0 }))];
-export const L2_EXTRA = EXPANDED_ADDITIONS.filter(({ fr }) => !BEGINNER_PROMOTIONS.has(fr));
+const BEGINNER_PROSE_PROMOTIONS = new Set(['el jardín', 'el cielo', 'la puerta', 'la luna']);
+const atBeginnerBand = (word) => ({ ...word, band: 0 });
+const EARLIER_BEGINNER = [...BEGINNER_CORE, ...BEGINNER_CLOTHING,
+  ...EXPANDED_ADDITIONS.filter(({ fr }) => BEGINNER_PROMOTIONS.has(fr)).map(atBeginnerBand)];
+const EARLIER_EXPANDED_EXTRA = EXPANDED_ADDITIONS.filter(({ fr }) => !BEGINNER_PROMOTIONS.has(fr));
+export const L1_WORDS = [...EARLIER_BEGINNER,
+  ...EARLIER_EXPANDED_EXTRA.filter(({ fr }) => BEGINNER_PROSE_PROMOTIONS.has(fr)).map(atBeginnerBand)];
+export const L2_EXTRA = EARLIER_EXPANDED_EXTRA.filter(({ fr }) => !BEGINNER_PROSE_PROMOTIONS.has(fr));
+// Explicit Expanded placement keeps its established order and introduction bands.
+export const EXPANDED_PLACEMENT_WORDS = [...EARLIER_EXPANDED_EXTRA, ...EARLIER_BEGINNER];
 export const L2_WORDS = [...BEGINNER_CORE, ...EXPANDED_ADDITIONS, ...BEGINNER_CLOTHING];
 export function wordsForLevel(level) { return level <= 1 ? L1_WORDS : L2_WORDS; }

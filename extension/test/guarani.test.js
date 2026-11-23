@@ -239,7 +239,7 @@ test('the starter is selectable without a key and its reviews round trip alongsi
     expect(data[storageKey(`gn:${gn.version}`, 'recallReview')]).toEqual(generatedHistory);
     expect(data[bundledKey]).toEqual(bundledHistory);
     expect((await select('es')).ok).toBe(true);
-    expect(await dispatch('review', { type: 'reviewStatus' })).toMatchObject({ language: 'Spanish', new: 44 });
+    expect(await dispatch('review', { type: 'reviewStatus' })).toMatchObject({ language: 'Spanish', new: 48 });
     expect(await dispatch('words', { type: 'wordPractice', id: 'el suéter', scope: 'es' }))
       .toMatchObject({ ok: true });
     const sweater = (await dispatch('review', { type: 'reviewNext' })).card;
