@@ -1,0 +1,24 @@
+id: legacy-marked-gloss-morphology
+title: Require explicit validated surfaces for future marked legacy glosses
+desc: "PR #89 removes automatic suffixes from unmarked shipped Spanish glosses and
+  their synonyms. It preserves compatibility for explicitly marked single-word generic
+  noun and verb inputs. No current shipped row gains a suffix-only form from that
+  fallback. The generic helper still lacks lexical irregular/number data, so hypothetical
+  inputs such as \u201Cthe man\u201D and \u201Cto be\u201D can mechanically yield
+  inappropriate forms. Prefer exact source-reviewed anchors for newly admitted rows
+  and add an admission/derived-collision integration case before a shipped marked-verb
+  row relies on the fallback. The existing exact-synonym collision gate and positive
+  helper coverage remain."
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:30:41-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:30:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
