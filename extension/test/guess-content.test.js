@@ -107,8 +107,8 @@ async function page(name, { reply = {}, body } = {}) {
     target.dispatchEvent(isTrusted ? trusted(event) : event);
     return event;
   };
-  const click = (target, isTrusted = true) => {
-    const event = new win.MouseEvent('click', { bubbles: true, cancelable: true });
+  const click = (target, isTrusted = true, detail = 1) => {
+    const event = new win.MouseEvent('click', { bubbles: true, cancelable: true, detail });
     target.dispatchEvent(isTrusted ? trusted(event) : event);
   };
   // happy-dom does not mark focus events trusted (as Chrome does for focus()), so deliver them.
@@ -269,6 +269,111 @@ test('keyboard: arrows and 1-4 pick, Tab and Escape return focus, untrusted keys
     expect(p.guessPanel()).toBeNull();
     expect(span.classList.contains('fw-en')).toBe(true);
     expect(p.types()).not.toContain('guessAnswer');
+  } finally { await p.restore(); }
+}, 30000);
+
+test.each([
+  {
+    name: 'keyboard focus falls to the body', detail: 0,
+    move: (_p, span) => span,
+  },
+  {
+    name: 'the choice was clicked with a pointer', detail: 1,
+    move: (p) => p.doc.body,
+  },
+  {
+    name: 'focus moved to a different control in the Guess', detail: 0,
+    move: (_p, _span, panel) => {
+      const dismiss = panel.querySelector('.fw-guess-actions button');
+      dismiss.focus();
+      return dismiss;
+    },
+  },
+  {
+    name: 'focus moved to a control on the page', detail: 0,
+    move: (p) => {
+      const control = p.doc.createElement('button');
+      p.doc.body.append(control);
+      control.focus();
+      return control;
+    },
+  },
+  {
+    name: 'focus moved off the Guess and then back to the body', detail: 0,
+    move: (p) => {
+      const control = p.doc.createElement('button');
+      p.doc.body.append(control);
+      p.focusIn(control);
+      p.focusIn(p.doc.body);
+      return p.doc.body;
+    },
+  },
+  {
+    name: 'focus moved to Dismiss and then back to the body', detail: 0,
+    move: (p, _span, panel) => {
+      p.focusIn(panel.querySelector('.fw-guess-actions button'));
+      p.focusIn(p.doc.body);
+      return p.doc.body;
+    },
+  },
+  {
+    name: 'the window lost focus while the reply was pending', detail: 0,
+    move: (p) => {
+      p.win.dispatchEvent(trusted(new p.win.Event('blur')));
+      return p.doc.body;
+    },
+  },
+  {
+    name: 'the originating word was replaced', detail: 0, closed: true,
+    move: (p, span) => {
+      span.replaceWith(span.cloneNode(true));
+      return p.doc.body;
+    },
+  },
+  {
+    name: 'Guess was turned off', detail: 0, closed: true,
+    move: (p) => {
+      const config = { ...p.config, settings: { ...p.config.settings, guessFirst: false } };
+      for (const listen of p.listeners) listen({ type: 'config', config });
+      return p.doc.body;
+    },
+  },
+])('late Guess answer when $name', async ({ name, detail, move, closed }) => {
+  const reply = Promise.withResolvers();
+  const p = await page(`guess-answer-focus-${name}`, { reply: { answer: () => reply.promise } });
+  try {
+    const span = p.doc.querySelector('.fw-word');
+    p.focusIn(span);
+    await p.advance(750);
+    const panel = p.guessPanel();
+    const choice = panel.querySelector('.fw-guess-choices button');
+    choice.focus();
+    expect(panel.getRootNode().activeElement === choice).toBe(true);
+    // Happy DOM retains the closed-shadow host when blurring the choice.
+    // Model Chromium 140's synchronous focus drop by focusing the body.
+    p.doc.body.tabIndex = -1;
+    const disabled = Object.getOwnPropertyDescriptor(p.win.HTMLButtonElement.prototype, 'disabled');
+    Object.defineProperty(choice, 'disabled', {
+      get: disabled.get,
+      set(value) {
+        disabled.set.call(this, value);
+        if (value) p.doc.body.focus();
+      },
+    });
+    p.click(choice, true, detail);
+    expect(p.doc.activeElement === p.doc.body).toBe(true);
+    const expected = move(p, span, panel);
+    reply.resolve({ ok: true, answer: 0, logged: true });
+    await p.advance(20);
+    expect(p.guessActive() === expected).toBe(true);
+    expect(p.types().filter((type) => type === 'guessAnswer')).toHaveLength(1);
+    expect(p.types()).not.toContain('event:peek');
+    if (closed) {
+      expect(p.guessPanel()).toBeNull();
+      expect(panel.querySelector('.fw-guess-status').textContent).not.toContain('y · and');
+    } else {
+      expect(panel.querySelector('.fw-guess-status').textContent).toBe('Right: y · and · "ee"');
+    }
   } finally { await p.restore(); }
 }, 30000);
 
