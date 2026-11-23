@@ -131,12 +131,14 @@ test('welcome page renders its notes and choice results as the exact English', a
   let grant = true;
   let saveOk = true;
   let placementReady = false;
+  let placementRead;
   let placementSave = { error: 'Local placement write failed' };
   globalThis.chrome = {
     runtime: { getManifest: () => ({ content_scripts: [] }), openOptionsPage: async () => {},
       sendMessage: async (msg) => {
         if (msg.type === 'placement') {
           if (Object.hasOwn(msg, 'choice')) return placementSave;
+          if (placementRead) return placementRead;
           return placementReady ? { available: true, choice: 0, epoch: 'local' } : {};
         }
         return { ok: saveOk };
@@ -160,6 +162,7 @@ test('welcome page renders its notes and choice results as the exact English', a
     expect(text(placement.querySelector('[role="status"]'))).toBe('Could not load or save Spanish placement. Try again.');
     expect(text(retry)).toBe('Reload placement');
     placementReady = true;
+    retry.focus();
     retry.click();
     await wait(() => window.document.activeElement === $('placementChoice'));
     expect(window.document.activeElement).toBe($('placementChoice'));
@@ -176,6 +179,18 @@ test('welcome page renders its notes and choice results as the exact English', a
     await wait(() => text(placementStatus).startsWith('Settings changed'));
     expect(text(placementStatus)).toBe('Settings changed while this was open. Choose your Spanish starting point again.');
     expect($('placementChoice').value).toBe('2');
+    placementReady = false;
+    placement.dispatchEvent(new window.Event('toggle'));
+    await wait(() => !retry.hidden);
+    let finishRead;
+    placementRead = new Promise((resolve) => { finishRead = resolve; });
+    retry.focus();
+    retry.click();
+    $('openSettings').focus();
+    finishRead({ available: true, choice: 0, epoch: 'local' });
+    await wait(() => retry.hidden);
+    expect(retry.hidden).toBe(true);
+    expect(window.document.activeElement).toBe($('openSettings'));
     expect($('suggestX').hidden).toBe(false);
     $('onlySites').click();
     await wait(() => $('choiceStatus').textContent !== '');

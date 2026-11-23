@@ -81,6 +81,7 @@ export function mountPlacement(panel) {
     if (!current?.available) throw new Error('Placement unavailable');
     snapshot = current;
     choice.value = String(current.choice);
+    if (choice.selectedOptions[0]?.disabled) choice.value = '0';
     fieldset.disabled = false;
     retry.hidden = true;
     status.textContent = '';
@@ -103,8 +104,10 @@ export function mountPlacement(panel) {
     if (panel.open) void refresh();
   });
   retry.addEventListener('click', async () => {
+    const wasFocused = document.activeElement === retry;
     await refresh();
-    if (snapshot) choice.focus();
+    const focused = document.activeElement;
+    if (snapshot && panel.open && (focused === retry || wasFocused && focused === document.body)) choice.focus();
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
