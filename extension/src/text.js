@@ -424,7 +424,7 @@ export function applySwapAt(node, offset, swap, language) {
 // Live reading supplies its effective level. The curated Welcome demo uses the default guards.
 export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es', level = 2) {
   const flat = flatten(root);
-  const sourceOptions = { beginnerSpanish: language === 'es' && level <= 1 };
+  const sourceOptions = { language, level };
   const placed = [];
   const used = [];
   for (const swap of swaps) {

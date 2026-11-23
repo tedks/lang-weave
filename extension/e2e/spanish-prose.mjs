@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 const { chromium } = await import(pathToFileURL(process.env.LANG_WEAVE_PLAYWRIGHT).href);
 const extension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
-const cases = [
+const beginnerCases = [
   { form: 'la puerta', gloss: 'the door', rendered: 'La puerta', positive: [
     'The door stuck against the uneven slate threshold.', 'The door',
   ], negative: ['The door frame split beside a loose metal bracket.', 'The door'] },
@@ -21,11 +21,24 @@ const cases = [
     'Leah watched the moon sink beyond the rooftops.', 'the moon',
   ], negative: ['Leah wrote “the moon” at the top of a blank page.', 'the moon'] },
 ];
+const windowPanes = { form: 'la ventana', gloss: 'the window', rendered: 'La ventana', positive: [
+  'The window creaked under a sudden gust.', 'The window',
+], negative: ['The window panes rattled under a sudden gust.', 'The window'] };
+const expandedCases = [
+  { form: 'el río', gloss: 'the river', rendered: 'El río', positive: [
+    'The river curved beneath an old stone arch.', 'The river',
+  ], negative: ['The river valley curved beneath distant hills.', 'The river'] },
+  { form: 'la noche', gloss: 'the night', rendered: 'La noche', positive: [
+    'The night smelled of lilacs and cedar.', 'The night',
+  ], negative: ['The night sky glowed above the northern ridge.', 'The night'] },
+];
 const host = 'prose.example';
 const origin = `https://${host}`;
-const routes = new Map(cases.map((example, index) => [`${origin}/reading/${index}`, example]));
 
-for (const gradual of [false, true]) {
+for (const [gradual, level] of [[false, 1], [true, 1], [false, 2], [true, 2]]) {
+  // Five due cards pause fresh introductions. Each tier uses its own fresh profile.
+  const cases = [windowPanes, ...(level === 1 ? beginnerCases : expandedCases)];
+  const routes = new Map(cases.map((example, index) => [`${origin}/reading/${index}`, example]));
   const profile = await mkdtemp(join(tmpdir(), 'lang-weave-prose-'));
   let context;
   try {
@@ -57,7 +70,7 @@ for (const gradual of [false, true]) {
     assert.equal(initial.spanishPlacement, undefined);
     assert.equal(initial.apiKey, undefined);
     assert.equal(initial.recallReview, undefined);
-    await worker.evaluate(async ({ cases, gradual, host }) => {
+    await worker.evaluate(async ({ cases, gradual, host, level }) => {
       const provider = new Map(cases.flatMap(({ form, gloss, positive, negative }) =>
         [positive, negative].map(([text, o]) => [text, { o, form, gloss }])));
       globalThis.proseRequests = [];
@@ -77,10 +90,12 @@ for (const gradual of [false, true]) {
         return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] });
       };
       const { settings } = await chrome.storage.local.get('settings');
-      await chrome.storage.local.set({ settings: { ...settings, gradual, newSitesEnabled: false,
+      // Leave room for gradual to rank several fresh candidates on the final fixture page.
+      await chrome.storage.local.set({ settings: { ...settings, gradual, newWordsPerDay: 10, newSitesEnabled: false,
         siteOverrides: { [host]: true } },
+        ...(level === 2 ? { spanishPlacement: 2 } : {}),
         apiKey: 'synthetic-prose-key', consentShown: true });
-    }, { cases, gradual, host });
+    }, { cases, gradual, host, level });
     // Chromium's extensions manager records the grant. The extension activates the
     // same optional origin through its permission API in the disposable profile.
     const manager = await context.newPage();
@@ -125,7 +140,7 @@ for (const gradual of [false, true]) {
       assert.equal(await page.locator('#negative').textContent(), negative[0]);
       assert.equal(await page.locator('#negative .fw-word').count(), 0);
     }
-    console.log(`PASS: ${gradual ? 'gradual' : 'ordinary'} Beginner ZIP reading rendered four Spanish forms and left guarded contexts intact`);
+    console.log(`PASS: ${gradual ? 'gradual' : 'ordinary'} ${level === 1 ? 'Beginner' : 'Expanded'} ZIP reading rendered ${cases.length} Spanish forms and rejected the synthetic partial proposals`);
   } finally {
     await context?.close();
     await rm(profile, { recursive: true, force: true });

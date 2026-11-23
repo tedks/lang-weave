@@ -31,7 +31,7 @@ export function paragraphMatches(text, language, level) {
   const searchable = text.replace(/[’‘`]/g, "'");
   const occurrences = new Map();
   const blocked = new Map();
-  const sourceOptions = { allowQuoted: true, beginnerSpanish: language === 'es' && level <= 1 };
+  const sourceOptions = { allowQuoted: true, language, level };
   for (const word of words) {
     const definite = language === 'es' && DEFINITE_SPANISH.test(word.fr);
     for (const sense of word.en.split(/\s*[/;,]\s*/)) {

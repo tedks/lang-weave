@@ -48,6 +48,20 @@ test('names, all caps and joined or protected compound forms stay out of the cho
   expect(spans('I opened the window—it was cold.', 'es', 1)).toEqual([['the window', ['la ventana']]]);
 });
 
+test('trusted web swaps still resolve and guard the exact occurrence before paint', () => {
+  const text = 'We replaced the window panes and opened the window to cool the attic.';
+  const proposal = { o: 'the window', f: 'la ventana', g: 'the window', h: '', ctx: 'replaced the window panes' };
+  const window = new Window();
+  try {
+    for (const level of [1, 2]) {
+      const passage = window.document.createElement('p');
+      passage.textContent = text;
+      expect(applySwaps(passage, [proposal, { ...proposal, ctx: 'opened the window' }], undefined, 'es', level)).toBe(1);
+      expect(passage.textContent).toBe('We replaced the window panes and opened la ventana to cool the attic.');
+    }
+  } finally { window.close(); }
+});
+
 test('manual practice accepts quoted dialogue while validation and web DOM placement still protect it', () => {
   const text = '“The window stuck.” Then I said, "try the window again." He said, “The window frame is broken.”';
   expect(spans(text, 'es', 1)).toEqual([['The window', ['La ventana']], ['the window', ['la ventana']]]);
