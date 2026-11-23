@@ -440,10 +440,12 @@ function openGuess(span, ticket, choices) {
 }
 async function answerGuess(state, index, keyboard) {
   if (guess !== state || state.answered || !guessAlive(state)) return;
+  const choice = state.buttons[index];
+  // Disabling the focused choice can synchronously move focus to the body.
+  const returnFocus = keyboard && state.root.activeElement === choice;
   state.answered = true;
   for (const button of state.buttons) button.disabled = true;
-  const hadFocus = keyboard && !!state.root.activeElement;
-  state.buttons[index].classList.add('fw-guess-chosen');
+  choice.classList.add('fw-guess-chosen');
   plainToday.add(plainKey(state.span)); // one guess a word a day; the worker enforces it too
   let reply = null;
   try { reply = await send({ type: 'guessAnswer', ticket: state.ticket, choice: index, revision: state.revision }); }
@@ -460,7 +462,11 @@ async function answerGuess(state, index, keyboard) {
   state.status.classList.remove('fw-guess-status-opening');
   revealGuessMeaning(state.span);
   placeTip(state.span, state.host);
-  if (hadFocus && state.span.isConnected) { guessQuiet = state.span; state.span.focus(); }
+  if (returnFocus && state.span.isConnected && document.hasFocus() &&
+      (state.root.activeElement === choice || document.activeElement === document.body)) {
+    guessQuiet = state.span;
+    state.span.focus();
+  }
 }
 // Keyboard: with focus on the panel or its word, arrows and 1-4 move to a choice, Enter (the
 // focused button's own click) confirms, Tab returns to the word, Escape closes. Escape elsewhere
