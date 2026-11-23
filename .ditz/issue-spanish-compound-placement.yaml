@@ -11,7 +11,7 @@ type: bugfix
 component: extension
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-10-20T23:20:00-00:00
 references: []
@@ -36,3 +36,7 @@ log_events:
     school (for students) candidate in a \u201Cschool bus\u201D contrast if this issue
     extends the shared guard. The learner currently chooses whether a catalog sense
     fits."
+- time: 2026-11-23T08:28:42-00:00
+  who: Ted Smith
+  what: started
+  comment: ""
