@@ -114,6 +114,16 @@ via `--test_env=LANG_WEAVE_REVIEW_XDOTOOL=/path/to/xdotool`.
 It uses no real account or key. The focused Bun target covers language,
 backup and resource-manifest regressions without npm test dependencies.
 
+The separate `//:reading_reload_test` gate uses Chrome's native **Load unpacked**
+and permission prompt in a disposable 1500×920 X11 desktop with a window
+manager. Pass the exact candidate ZIP and Chromium path as above, plus
+`--test_env=LANG_WEAVE_PRIOR_ZIP=/absolute/path/to/lang-weave-0.15.2.zip`,
+`--test_env=LANG_WEAVE_RELOAD_XDOTOOL=/absolute/path/to/xdotool`,
+`--test_env=DISPLAY` and `--test_env=XAUTHORITY`. The gate pins the public
+0.15.2 asset hash, keeps the same unpacked folder path, and lets Chrome fire a
+real alarm after 30 seconds. A second transition changes only the fixture
+manifest version to exercise two generations of the candidate source.
+
 ## Python and release version gates
 
 `//:inherited_python_test` runs the full `unittest discover -s tests` suite

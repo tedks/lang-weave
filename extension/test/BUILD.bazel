@@ -41,6 +41,7 @@ filegroup(
         "spanish-everyday.test.js",
         "spanish-prose.test.js",
         "spanish.test.js",
+        "update-gate.test.js",
         "web-accessible.test.js",
     ],
     visibility = ["//:__pkg__"],

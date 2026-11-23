@@ -183,6 +183,10 @@ test('a hover dwell opens the choice panel instead of the gloss, and a choice re
     expect(p.doc.querySelector('.fw-gloss')?.textContent).toBe('y · and · "ee"');
     expect(p.types().filter((t) => t === 'guessBegin')).toHaveLength(1);
     expect(p.types()).toContain('event:peek');
+    for (const listen of p.listeners) listen({ type: 'retry', config: { ...p.config, paused: true } });
+    expect(span.isConnected).toBe(false);
+    expect(p.doc.querySelector('#one').textContent).toBe('We read and write every evening.');
+    expect(p.doc.querySelector('.fw-gloss, .fw-guess-host')).toBeNull();
   } finally { await p.restore(); }
 }, 30000);
 

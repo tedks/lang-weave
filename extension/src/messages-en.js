@@ -76,6 +76,7 @@ export const EN = Object.freeze({
   popup_state_on: "On",
   popup_error_generic: "Could not do that",
   popup_error_reload: "Reload this page to start. Chrome blocks extensions on some pages.",
+  popup_reading_reload: "If earlier woven words stopped responding after the update, refresh this page when you’re ready.",
   popup_error_budget_changed: "Budget changed. Refresh and try again.",
   options_title: "Lang Weave · Settings",
   options_heading: "Settings",

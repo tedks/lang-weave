@@ -24,6 +24,9 @@ done
 # Chromium uses a Unix socket whose path cannot fit under the Bazel test directory.
 export TMPDIR=/tmp
 export DO_NOT_TRACK=1
+if [[ -n "${3:-}" ]]; then
+    exec "$bun_path" "${runfiles_root}/$3"
+fi
 "$bun_path" "${runfiles_root}/extension/e2e/welcome.mjs"
 "$bun_path" "${runfiles_root}/extension/e2e/spanish-prose.mjs"
 exec "$bun_path" "${runfiles_root}/extension/e2e/words.mjs"

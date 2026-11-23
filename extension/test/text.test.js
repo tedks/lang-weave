@@ -1,8 +1,8 @@
 import { describe, test, expect, jest } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue,
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue, decorateSwap,
   introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, restoreDescriptions,
-  swapDescription } from '../src/text.js';
+  swapDescription, retireSwaps } from '../src/text.js';
 import { readable, selector, TWEET, PROSE } from '../src/page.js';
 
 const win = new Window();
@@ -188,6 +188,47 @@ describe('applySwaps', () => {
 });
 
 describe('revert and toggle', () => {
+  test('retirement restores unchanged owned faces and leaves live edits and lookalikes in place', () => {
+    const live = new Window();
+    try {
+      const doc = live.document;
+      doc.body.innerHTML = '<p>We read and enjoy books at home.</p><p>They write and walk home each day.</p>';
+      const [unchanged, edited] = doc.querySelectorAll('p');
+      applySwaps(unchanged, [S({ o: 'and', f: 'y' })]);
+      applySwaps(edited, [S({ o: 'and', f: 'y' })]);
+      const own = unchanged.querySelector('.fw-word');
+      const edit = edited.querySelector('.fw-word');
+      const forged = own.cloneNode(true);
+      forged.dataset.en = 'not the source';
+      const next = own.nextSibling;
+      next.data = ' enjoy new books every evening.';
+      expect(decorateSwap(own, () => own.classList.add('fw-tip'))).toBe(true);
+      expect(toggle(own)).toBe(true);
+      edit.dataset.siteState = 'kept by the page';
+      expect(toggle(edit)).toBeNull();
+      expect(edit.textContent).toBe('y');
+      expect(decorateSwap(edit, () => edit.classList.add('fw-tip'))).toBe(false);
+      edit.replaceChildren(doc.createTextNode('y')); // same text, different site-owned node
+      const siteNode = edit.firstChild;
+      doc.body.append(forged);
+      retireSwaps(doc);
+      expect(unchanged.textContent).toBe('We read and enjoy new books every evening.');
+      expect(unchanged.lastChild).toBe(next);
+      expect(own.isConnected).toBe(false);
+      expect(edit.firstChild).toBe(siteNode);
+      expect(edit.dataset.siteState).toBe('kept by the page');
+      expect(forged.textContent).toBe('y');
+      expect(forged.dataset.en).toBe('not the source');
+      expect(readable(edited, 'https://reading.example/')).toBe(false); // a failed reload must not repaint it
+      const newWorld = doc.createElement('p');
+      newWorld.append('These are unrelated site words around ', forged, ' with more reading here.');
+      doc.body.append(newWorld);
+      expect(readable(newWorld, 'https://reading.example/')).toBe(false);
+    } finally {
+      live.happyDOM.abort();
+    }
+  });
+
   test('a framework replacing its original text node does not regain stale split suffixes', () => {
     const el = tweet('<span>cats and dogs and birds</span>');
     const original = el.querySelector('span').firstChild;
@@ -274,8 +315,7 @@ test('a saved practice rating changes only its span and restores trusted source 
     expect(span.getAttribute('title')).toBe('Open inline recall');
     expect(span.textContent).toBe('the idea?');
     expect(el.textContent).not.toContain('la idea');
-    span.setAttribute('data-en', 'forged');
-    expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
+    expect(finishPractice(span, { fr: 'la idea', en: 'untrusted replacement', hint: '' })).toBe(true);
     expect(span.textContent).toBe('la idea');
     expect(span.classList.contains('fw-practice-cue')).toBe(false);
     expect(span.getAttribute('role')).toBe('button');
@@ -496,7 +536,8 @@ describe('lang and description on swapped words', () => {
       toggle(kept.querySelector('.fw-word'));
       expect(hosts()).toHaveLength(1);
       expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('Show Spanish');
-      revert(kept);
+      expect(revert(kept)).toBe(1);
+      expect(kept.textContent).toBe('birds and bees sing in the garden today');
     } finally { p.remove(); kept.remove(); }
   });
 });
