@@ -43,3 +43,11 @@ log_events:
     under cto-fleet-ui-reload.path/events.jsonl and validation.log. Continue to diagnose
     real post-update recovery without trusting page-authored word-like DOM, auto-reloading
     user tabs or reaching a live provider."
+- time: 2026-11-23T06:19:56-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'OpenAI Sol recovery lead taking over this already in-progress issue in
+    recover-open-reading-nov23 from a97f26ba. Keep the real normal-install reproduction
+    as the boundary. 0.15.3 follows #77, with a separate version commit and exact
+    historical-adoption and supported-forward-upgrade evidence. No automatic tab reload
+    or reconstruction from page markers.'
