@@ -11,8 +11,8 @@ type: task
 component: learning
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T03:56:05-00:00
 references: []
 log_events:
@@ -48,3 +48,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T08:15:09-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #82 normal merge 398810bedb50029696931a5b9cd9165a224ae367 contains
+    exact reviewed and tested head de68e056e0283072fe277c5c2bb35d4bf6c9f8f5 for 0.15.6.'
