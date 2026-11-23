@@ -15,8 +15,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T09:35:53-00:00
 references: []
 log_events:
@@ -28,3 +28,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T10:09:14-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged as PR #93 at 72278d52d15be61529ff8bb664227baf67d490e3 with exact
+    reviewed head 8e8e8f325248bee2741220b147e1abb06368f03e. Both bundled tiers now
+    reject the five scoped noun targets in clear English verb positions while preserving
+    supported noun contexts. Six strict gates and the exact Chromium ZIP install passed.'
