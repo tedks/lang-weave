@@ -2,7 +2,7 @@
 // policy from context(); its revision changes whenever anything that affects swaps does.
 import { chromeStorage } from './cache.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
-import { resolveLevel, wordsForLevel } from './levels.js';
+import { resolveLevel, wordsForLevel, L2_EXTRA } from './levels.js';
 import { hashKey } from './hash.js';
 import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
 import { GUARANI_PACK } from './guarani.js';
@@ -10,6 +10,7 @@ import { PACKS_KEY, cleanPacks, packWords } from './languages.js';
 import { scopedStorage } from './scope.js';
 import { englishAnchors } from './catalog.js';
 import { PERSONAL_KEY, cleanPersonal, personalWords, targetAliases } from './personal.js';
+import { cleanReview, REVIEW_KEY } from './review.js';
 
 export const activeOn = (ctx, url) => ctx.hasKey && !ctx.paused && siteEnabled(ctx.settings, url) && hasSiteAccess(url, ctx.origins);
 // Review scheduling only: never part of the reading revision or of what pages receive.
@@ -26,16 +27,27 @@ export function createContext({ store, ready, worker }) {
   // What pages get. The revision changes whenever anything that affects swaps does, so stale replies are dropped.
   async function context() {
     await ready;
-    const data = await store.get(['settings', 'epoch', PACKS_KEY, PERSONAL_KEY,
+    const data = await store.get(['settings', 'epoch', PACKS_KEY, PERSONAL_KEY, 'spanishPlacement',
       ...(!worker.keyIsolationUnavailable ? ['apiKey'] : [])]);
     const saved = cleanSettings(data.settings);
     const packs = cleanPacks(data[PACKS_KEY]);
     if (!bundledLanguage(saved.language) && !packs[saved.language]) saved.language = 'es';
     const settings = { ...saved, newSitesEnabled: newSitesDefault(saved) };
-    const level = resolveLevel(saved).effective;
+    const placement = saved.language === 'es' && [1, 2].includes(data.spanishPlacement) ? data.spanishPlacement : 0;
+    if (placement) settings.spanishPlacement = placement;
+    const level = placement || resolveLevel(saved).effective;
     const pack = saved.language === GUARANI_STARTER ? GUARANI_PACK : packs[saved.language];
     const legacyAllWords = pack ? packWords(pack, 2) : wordsForLevel(2);
-    const legacyWords = level <= 1 ? (pack ? packWords(pack, 1) : wordsForLevel(1)) : legacyAllWords;
+    let legacyWords = level === 1 ? (pack ? packWords(pack, 1) : wordsForLevel(1)) : legacyAllWords;
+    if (placement === 1) {
+      // Placement limits new words. A card already introduced at a higher level
+      // remains available to both reading and review, including on older profiles.
+      const { [REVIEW_KEY]: raw } = await store.get(REVIEW_KEY);
+      const { cards } = cleanReview(raw, legacyAllWords, Date.now(), settings.gradual);
+      legacyWords = [...legacyWords, ...L2_EXTRA.filter(({ fr }) => Object.hasOwn(cards, fr))];
+    } else if (placement === 2) {
+      legacyWords = [...L2_EXTRA, ...wordsForLevel(1)];
+    }
     const personal = cleanPersonal(data[PERSONAL_KEY], settings.gradual);
     const activePersonal = personalWords(personal, saved.language, legacyAllWords);
     const personalAuto = activePersonal.filter(({ reviewOnly }) => !reviewOnly);

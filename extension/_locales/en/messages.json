@@ -405,6 +405,70 @@
     "message": "Generate vocabulary",
     "description": "Settings page: button that generates vocabulary for the new language."
   },
+  "placement_title": {
+    "message": "Try Spanish placement (optional)",
+    "description": "Expandable placement control on Welcome and Settings."
+  },
+  "placement_intro": {
+    "message": "Already studied Spanish, including with Duolingo? Think of what these words mean, then check the meanings. If the Beginner examples feel familiar, try Expanded.",
+    "description": "Self-assessment instructions for Spanish placement."
+  },
+  "placement_beginner": {
+    "message": "Beginner",
+    "description": "The Spanish placement choice for future basic vocabulary."
+  },
+  "placement_expanded": {
+    "message": "Expanded",
+    "description": "The Spanish placement choice that prioritizes additional vocabulary."
+  },
+  "placement_meanings_beginner": {
+    "message": "Check Beginner meanings",
+    "description": "Reveal the English meanings of the Beginner Spanish examples."
+  },
+  "placement_meanings_expanded": {
+    "message": "Check Expanded meanings",
+    "description": "Reveal the English meanings of the Expanded Spanish examples."
+  },
+  "placement_legend": {
+    "message": "Choose a starting point",
+    "description": "Legend above the Spanish placement preference."
+  },
+  "placement_help": {
+    "message": "Beginner starts with the basic words. Expanded gives additional words priority when they fit your reading. Your review history stays intact. You can change this in Settings.",
+    "description": "Explains what the Spanish placement choices do and how to revise them."
+  },
+  "placement_choice": {
+    "message": "Spanish starting point",
+    "description": "Label for the Spanish placement preference."
+  },
+  "placement_default": {
+    "message": "Use my reading level setting",
+    "description": "Clears Spanish placement and follows the usual reading level."
+  },
+  "placement_save": {
+    "message": "Save starting point",
+    "description": "Button to confirm the Spanish placement choice."
+  },
+  "placement_saved": {
+    "message": "Spanish starting point saved on this device.",
+    "description": "Confirmation after saving or clearing the Spanish placement preference."
+  },
+  "placement_changed": {
+    "message": "Settings changed while this was open. Choose your Spanish starting point again.",
+    "description": "A stale placement choice was rejected."
+  },
+  "placement_error": {
+    "message": "Could not load or save Spanish placement. Try again.",
+    "description": "A local placement operation failed."
+  },
+  "placement_spanish_only": {
+    "message": "Choose Spanish in Settings to use this check.",
+    "description": "Placement is unavailable with another language selected."
+  },
+  "placement_level_hint": {
+    "message": "Spanish placement is active. To use this reading level again, choose “Use my reading level setting” in Spanish placement.",
+    "description": "Explains why the regular reading level is disabled while Spanish placement is active."
+  },
   "options_level_info": {
     "message": "Current effective level: $LEVEL$",
     "description": "Settings page: line showing the reading level in effect. $LEVEL$ is the level, for example L1.",

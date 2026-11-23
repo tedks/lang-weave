@@ -189,6 +189,30 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     return { ok: true };
   }
 
+  // Only Welcome and Settings can read or change this device-local Spanish
+  // preference. An older panel cannot overwrite a newer choice or language.
+  async function placement(msg) {
+    const read = () => store.get(['settings', 'epoch', 'spanishPlacement']);
+    const snapshot = (data) => ({
+      available: cleanSettings(data.settings).language === 'es',
+      epoch: data.epoch || '',
+      choice: [1, 2].includes(data.spanishPlacement) ? data.spanishPlacement : 0,
+    });
+    if (!Object.hasOwn(msg, 'choice')) return snapshot(await read());
+    if (![0, 1, 2].includes(msg.choice) || typeof msg.epoch !== 'string') return { ok: false };
+    worker.settingsGeneration++;
+    const result = await locked(async () => {
+      const current = snapshot(await read());
+      if (!current.available || current.epoch !== msg.epoch) return { ok: false };
+      if (current.choice === msg.choice) return { ok: true, ...current };
+      const epoch = crypto.randomUUID();
+      await store.set({ spanishPlacement: msg.choice, epoch });
+      return { ok: true, ...current, choice: msg.choice, epoch };
+    });
+    if (result.ok && result.epoch !== msg.epoch) await broadcast();
+    return result;
+  }
+
   async function testKey() {
     if (worker.keyIsolationUnavailable) return { ok: false, category: 'key_isolation_unavailable' };
     return modelCall(async () => {
@@ -278,5 +302,5 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
       review: await reviewStatus(config),
       update: await checkUpdate() };
   }
-  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status };
+  return { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, placement };
 }

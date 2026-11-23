@@ -21,9 +21,9 @@ export const SURFACES = Object.freeze([
   surface('popup', (sender) => sender.url === chrome.runtime.getURL('src/popup.html'),
     ['status', 'save', 'recoverBudget', 'progress']),
   surface('options', (sender) => sender.url === chrome.runtime.getURL('src/options.html'),
-    ['status', 'save', 'addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey', 'progress']),
+    ['status', 'save', 'addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey', 'progress', 'placement']),
   surface('welcome', (sender) => sender.url === chrome.runtime.getURL('src/welcome.html'),
-    ['save']),
+    ['save', 'placement']),
   // My words: read-only progress and the merged list, plus scope-guarded word actions.
   surface('words', (sender) => sender.url === chrome.runtime.getURL('src/words.html'),
     ['progress', 'wordsList', 'wordPractice', 'wordKnown', 'wordReset', 'personalArchive']),
