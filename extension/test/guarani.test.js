@@ -45,6 +45,12 @@ test('everyday passages that had no candidates now reach home and school words t
       text: 'I arrived early at the school and helped the teacher set out a book and a fresh sheet of paper for each desk.',
       forms: ['mbo’ehao', 'mbo’ehára', 'aranduka', 'kuatia'],
     },
+    {
+      // Lewis Carroll, Alice's Adventures in Wonderland, chapter I.
+      // https://www.gutenberg.org/files/11/11-h/11-h.htm
+      text: 'once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it',
+      forms: ['aranduka'],
+    },
   ];
   for (const { text, forms } of samples) for (const level of [1, 2]) {
     const select = (words) => selectWorkingSet({
