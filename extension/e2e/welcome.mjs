@@ -101,6 +101,17 @@ async function holdPlacementResponse(page, save) {
   };
 }
 
+async function checkKeylessGloss(page, expanded = false) {
+  await page.getByRole('textbox', { name: 'Short English paragraph' })
+    .fill('She said hello and hung his coat on the peg.');
+  await page.getByRole('button', { name: 'Find words' }).click();
+  const options = await page.getByRole('combobox', { name: 'Occurrence in your paragraph' }).locator('option').allTextContents();
+  const choices = options.map((label) => label.match(/\[(.*?)\]/)?.[1]);
+  assert.ok(choices.includes('and'), 'the keyless picker found a valid choice');
+  assert.equal(choices.includes('hello'), expanded);
+  assert.equal(choices.includes('his'), false);
+}
+
 async function checkSpanishCompounds(page, expanded = false) {
   const source = page.getByRole('textbox', { name: 'Short English paragraph' });
   const find = page.getByRole('button', { name: 'Find words' });
@@ -178,6 +189,7 @@ async function checkParagraph(context, worker, id) {
   assert.equal(await language.inputValue(), 'es');
   assert.equal(await language.getAttribute('aria-describedby'), 'level');
   await page.getByText('Vocabulary tier: Beginner').waitFor();
+  await checkKeylessGloss(page);
   await checkSpanishCompounds(page);
   await page.getByRole('button', { name: 'Use example' }).click();
   await find.click();
@@ -486,6 +498,7 @@ try {
   const placementPractice = await openParagraph(context, page, `${practiceUrl}#es`);
   assert.equal(page.url(), welcomeUrl);
   await placementPractice.getByText('Vocabulary tier: Expanded').waitFor();
+  await checkKeylessGloss(placementPractice, true);
   await checkSpanishCompounds(placementPractice, true);
   const practiceSource = placementPractice.getByRole('textbox', { name: 'Short English paragraph' });
   await practiceSource.fill('Admission is free. Admission is free.');

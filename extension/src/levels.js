@@ -16,7 +16,7 @@ export function resolveLevel(settings = {}, stage = 0) {
 export { L1_WORDS, L2_EXTRA, L2_WORDS, wordsForLevel } from './vocabulary.js';
 import { wordsForLevel } from './vocabulary.js';
 import { locate } from './text.js';
-import { allCaps, sourceIssue } from './semantic.js';
+import { allCaps, regularPlural, sourceIssue } from './semantic.js';
 import { anchorCollisionKey, englishAnchors } from './catalog.js';
 
 // Candidate packs must resolve every English surface form to exactly one row.
@@ -91,6 +91,8 @@ export function matchCase(fr, original, language = 'es') {
 // The English a swap replaces must be one of the word's glosses, or a plain inflection of one, so a model
 // slip like "to start" -> entonces is dropped instead of shown.
 const EN_LEAD_RE = /^(?:the|a|an|to)\s+/;
+const EN_NOUN_GLOSS = /^(?:the|a|an) ([a-z]+)$/u;
+const EN_VERB_GLOSS = /^to ([a-z]+)$/u;
 const cleanEn = (s) => String(s).toLowerCase().replace(/[’‘`]/g, "'").replace(/\(.*?\)/g, ' ')
   .replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
 
@@ -127,18 +129,22 @@ export function legacyGlossForms(en, { inflections = true } = {}) {
       forms.add(f);
       for (const syn of SYNONYMS[f] || []) forms.add(syn);
     }
-  }
-  if (!inflections) return forms;
-  const matched = new Set(forms);
-  for (const base of forms) {
-    for (const suffix of ['es', 's', 'ed', 'ing']) matched.add(`${base}${suffix}`);
-    if (base.endsWith('y')) matched.add(`${base.slice(0, -1)}ies`);
-    if (base.endsWith('e')) {
-      matched.add(`${base.slice(0, -1)}ed`);
-      matched.add(`${base.slice(0, -1)}ing`);
+    if (!inflections) continue;
+    // An authored article or infinitive marks a single-word gloss. Synonyms,
+    // unmarked words and fixed phrases do not supply stems.
+    const noun = EN_NOUN_GLOSS.exec(g)?.[1];
+    if (noun) forms.add(regularPlural(noun));
+    const verb = EN_VERB_GLOSS.exec(g)?.[1];
+    if (!verb) continue;
+    // Preserve the legacy spelling fallback for explicitly marked verbs.
+    for (const suffix of ['es', 's', 'ed', 'ing']) forms.add(`${verb}${suffix}`);
+    if (verb.endsWith('y')) forms.add(`${verb.slice(0, -1)}ies`);
+    if (verb.endsWith('e')) {
+      forms.add(`${verb.slice(0, -1)}ed`);
+      forms.add(`${verb.slice(0, -1)}ing`);
     }
   }
-  return matched;
+  return forms;
 }
 
 export function glossMatches(original, en, { inflections = true } = {}) {
