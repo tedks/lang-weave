@@ -9,6 +9,9 @@ import { cleanReview } from '../src/review.js';
 import { policyWords, remaining } from '../src/learning.js';
 import { memoryStorage } from '../src/cache.js';
 import { scopedStorage } from '../src/scope.js';
+import { cleanPersonal, personalWords } from '../src/personal.js';
+import { personalReview } from '../src/review-state.js';
+import { createContext } from '../src/worker-context.js';
 
 const OLD_EXPANDED = 147;
 const FORMER_BEGINNER = 30;
@@ -82,6 +85,34 @@ test('clothing swaps use the listed sense, number, article, and accent', () => {
   expect(swap('The sandals were dry.', 'The sandals', 'la sandalia')).toBeUndefined();
   expect(swap('The teams ended in a tie.', 'tie', 'la corbata')).toBeUndefined();
   expect(swap('She said "the suitcase" twice.', 'the suitcase', 'la maleta')).toBeUndefined();
+});
+
+test('an earlier personal term keeps its review history when a bundled addition collides', async () => {
+  const uuid = '4ad9f9d5-cd0a-4c47-a918-05a20b528109';
+  const id = `personal:es:${uuid}`;
+  const card = { due: 1800000000000, interval: 7, reviews: 3 };
+  const history = { version: 1, cards: { [id]: card } };
+  const saved = { version: 1, entries: [{ uuid, id, language: 'es', source: 'suitcase',
+    target: 'maleta', sense: 'suitcase', direction: 'en-to-target' }], history: { es: history } };
+  const store = memoryStorage({ settings: { gradual: true }, personalVocabularyV1: saved });
+  const before = structuredClone(saved);
+  expect(personalWords(cleanPersonal(saved, true), 'es', L2_WORDS.slice(0, FORMER_EXPANDED))[0].reviewOnly)
+    .toBe(false);
+
+  const previousChrome = globalThis.chrome;
+  globalThis.chrome = { permissions: { getAll: async () => ({ origins: [] }) },
+    runtime: { getManifest: () => ({ version: '0.12.27' }) } };
+  try {
+    const { context } = createContext({ store, ready: Promise.resolve(), worker: {} });
+    const ctx = await context();
+    expect(ctx.activePersonal[0]).toMatchObject({ entry: { id }, reviewOnly: true });
+    expect(ctx.words.some((word) => word.fr === 'la maleta' || word.entryId === id)).toBe(false);
+    expect(ctx.allWords.some((word) => word.fr === 'la maleta')).toBe(true);
+    const review = personalReview(ctx);
+    expect(review.words.some((word) => word.fr === id)).toBe(true);
+    expect(review.state.cards[id]).toEqual(card);
+    expect((await store.getAll()).personalVocabularyV1).toEqual(before);
+  } finally { globalThis.chrome = previousChrome; }
 });
 
 test('new words are bounded, unique and normalized with articles and sound hints', () => {
