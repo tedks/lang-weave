@@ -17,24 +17,30 @@ export async function waitForExtensionWorker(browser, previous) {
   };
   // Chrome 140 can publish the worker target before its extension APIs are bound.
   // Playwright can also keep the same Worker object across an MV3 restart.
+  const timeoutMs = previous ? 10000 : 30000;
+  let waitingFor = 'a matching worker target';
   let timeout, done = false;
   try {
     return await Promise.race([
       (async () => {
         while (!done) {
-          const worker = browser.serviceWorkers().find(matches);
+          // If both targets are briefly listed, prefer the newly attached one.
+          const worker = browser.serviceWorkers().findLast(matches);
           if (worker) {
             try {
-              const ready = await worker.evaluate(({ id, token }) => {
+              waitingFor = 'the worker execution context';
+              const missing = await worker.evaluate(({ id, token }) => {
                 const api = globalThis.chrome;
-                return api?.runtime?.id === id &&
-                  typeof api.runtime.onMessage?.addListener === 'function' &&
-                  typeof api.storage?.local?.get === 'function' &&
-                  typeof api.storage.local.set === 'function' &&
-                  typeof api.permissions?.contains === 'function' &&
-                  (!token || globalThis.fixtureWorkerToken !== token);
+                if (api?.runtime?.id !== id) return 'the extension runtime ID';
+                if (typeof api.runtime.onMessage?.addListener !== 'function') return 'runtime.onMessage';
+                if (typeof api.storage?.local?.get !== 'function' ||
+                    typeof api.storage.local.set !== 'function') return 'storage.local';
+                if (typeof api.permissions?.contains !== 'function') return 'permissions.contains';
+                if (token && globalThis.fixtureWorkerToken === token) return 'a new worker execution context';
+                return null;
               }, { id: new URL(worker.url()).host, token: previous?.token });
-              if (ready) return worker;
+              if (missing === null) return worker;
+              waitingFor = missing;
             } catch (error) {
               // Closing a target or replacing its execution context can interrupt this read.
               if (!/Service worker restarted|Worker was closed|Target page, context or browser has been closed|Execution context was destroyed/i
@@ -47,7 +53,7 @@ export async function waitForExtensionWorker(browser, previous) {
       // Playwright can also wait for a worker execution context before evaluating.
       new Promise((_, reject) => {
         const target = previous ? `replacement for ${previous.url}` : 'Lang Weave background worker';
-        timeout = setTimeout(() => reject(new Error(`Timed out waiting for Chrome APIs in ${target}`)), 10000);
+        timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${waitingFor} in ${target}`)), timeoutMs);
       }),
     ]);
   } finally {
@@ -88,7 +94,8 @@ export async function grantReadingSite(browser, worker, pattern = 'https://readi
     await manager.evaluate(({ id, pattern }) => chrome.developerPrivate.addHostPermission(id, pattern), { id, pattern });
     await controls.goto(`chrome-extension://${id}/src/options.html`);
     assert.equal(await controls.evaluate((pattern) => chrome.permissions.request({ origins: [pattern] }), pattern), true);
-    assert.equal(await worker.evaluate((pattern) => chrome.permissions.contains({ origins: [pattern] }), pattern), true);
+    // Check the same extension permission store from the live requesting page.
+    assert.equal(await controls.evaluate((pattern) => chrome.permissions.contains({ origins: [pattern] }), pattern), true);
     await controls.waitForFunction(async (pattern) => {
       const [script] = await chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] });
       return script?.matches.includes(pattern);

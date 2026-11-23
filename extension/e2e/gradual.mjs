@@ -292,7 +292,10 @@ try {
   };
   const options = await browser.newPage();
   await options.goto(`chrome-extension://${id}/src/options.html`);
+  // The unchecked HTML default is shown until Options loads the saved settings.
+  await options.waitForFunction(() => document.querySelector('#gradual')?.checked === true);
   await options.locator('#gradual').uncheck();
+  await options.waitForFunction(async () => (await chrome.storage.local.get('settings')).settings?.gradual === false);
   await page.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('title') !== 'Open inline recall');
   await popup.locator('#enabled').uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.fw-word').length === 0);
@@ -335,7 +338,7 @@ try {
     await chrome.storage.local.set({ recallReview });
   });
   const readReview = () => worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
-  const openOffscreen = async () => {
+  const openOffscreen = async (stage) => {
     const page = await browser.newPage();
     await page.goto('https://reading.example/offscreen');
     const reserved = page.locator('#offscreen .fw-word');
@@ -345,9 +348,9 @@ try {
       offscreen: span.getBoundingClientRect().top >= window.innerHeight,
       text: span.textContent, translation: span.getAttribute('data-fr'),
     }));
-    assert.equal(face.offscreen, true, 'the question starts below the viewport');
-    assert.equal(face.text, 'the question');
-    assert.equal(face.translation, null);
+    assert.equal(face.offscreen, true, `${stage}: the question starts below the viewport`);
+    assert.equal(face.text, 'the question', `${stage}: the reserved face stays English before scroll`);
+    assert.equal(face.translation, null, `${stage}: a reservation must not expose the translation`);
     const state = await readReview();
     assert.equal(state.learning.count, 1);
     assert.equal(state.cards['la pregunta'], undefined);
@@ -368,7 +371,7 @@ try {
     await page.close();
   };
   await resetQuestion();
-  const offscreen = await openOffscreen();
+  const offscreen = await openOffscreen('expired reservation');
   await worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
     recallReview.learning.pending[0].until = Date.now() - 1000; // recently expired, still eligible for renewal
@@ -376,7 +379,7 @@ try {
   });
   await scrollAndCheckIntroduction(offscreen);
   await resetQuestion();
-  const retry = await openOffscreen();
+  const retry = await openOffscreen('acknowledgement retry');
   await worker.evaluate(() => {
     const original = chrome.storage.local.set;
     chrome.storage.local.set = (...args) => {
