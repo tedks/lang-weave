@@ -1,9 +1,17 @@
 import { test, expect } from 'bun:test';
-import { placementSamples } from '../src/placement.js';
+import { duolingoPreview, placementSamples } from '../src/placement.js';
 import { L1_WORDS, L2_EXTRA } from '../src/vocabulary.js';
 import { GUARANI_STARTER } from '../src/language-name.js';
 import { createBackup, parseBackup } from '../src/portability.js';
 import { hashKey } from '../src/hash.js';
+
+test('the Spanish course Score only chooses a preview order at the published A1/A2 boundary', () => {
+  for (const value of ['0', '0000', '9', '10', '19', '20', '29', '  29  ']) expect(duolingoPreview(value)).toBe(1);
+  for (const value of ['30', '0030', '59', '60', '79', '80', '99', '100', '114', '115', '129', '130', '160'])
+    expect(duolingoPreview(value)).toBe(2);
+  for (const value of ['', ' ', '-1', '+1', '1.5', '30.0', '1e2', '161', '1600', '30 XP'])
+    expect(duolingoPreview(value)).toBeNull();
+});
 
 test('placement examples use real forms and meanings, including tiny and empty pools', () => {
   const [beginner, expanded] = placementSamples();

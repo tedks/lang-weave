@@ -1,9 +1,17 @@
 import { localize, t } from './i18n.js';
-import { placementSamples } from './placement.js';
+import { duolingoPreview, placementSamples } from './placement.js';
+import { DEFAULT_SETTINGS } from './settings.js';
 
 export function mountPlacement(panel) {
   panel.insertAdjacentHTML('beforeend', `
     <p data-i18n="placement_intro"></p>
+    <form data-placement-score hidden autocomplete="off">
+      <label for="duolingoScore" data-i18n="placement_score_label"></label>
+      <input id="duolingoScore" inputmode="numeric" aria-describedby="placementScoreHelp placementScoreStatus">
+      <button type="submit" data-i18n="placement_score_preview"></button>
+      <p id="placementScoreHelp" data-i18n="placement_score_help"></p>
+      <p id="placementScoreStatus" role="status"></p>
+    </form>
     <div class="placement-samples">
       <div data-placement-beginner>
         <h3 data-i18n="placement_beginner"></h3>
@@ -16,7 +24,7 @@ export function mountPlacement(panel) {
         <details><summary data-i18n="placement_meanings_expanded"></summary><ul></ul></details>
       </div>
     </div>
-    <form>
+    <form data-placement-choice>
       <fieldset disabled aria-describedby="placementHelp">
         <legend data-i18n="placement_legend"></legend>
         <p id="placementHelp" data-i18n="placement_help"></p>
@@ -29,17 +37,26 @@ export function mountPlacement(panel) {
         <button type="submit" data-i18n="placement_save"></button>
       </fieldset>
     </form>
-    <p role="status"></p>
+    <p role="status" data-placement-status></p>
     <button type="button" data-placement-retry hidden data-i18n="placement_retry"></button>
   `);
-  const form = panel.querySelector('form');
+  const form = panel.querySelector('[data-placement-choice]');
+  const trigger = panel.firstElementChild;
   const fieldset = form.querySelector('fieldset');
   const choice = form.querySelector('select');
-  const status = panel.querySelector('[role="status"]');
+  const status = panel.querySelector('[data-placement-status]');
   const retry = panel.querySelector('[data-placement-retry]');
+  const scoreForm = panel.querySelector('[data-placement-score]');
+  const score = scoreForm.querySelector('input');
+  const scoreStatus = scoreForm.querySelector('[role="status"]');
+  const samples = panel.querySelector('.placement-samples');
+  const beginnerExamples = samples.querySelector('[data-placement-beginner]');
+  const expandedExamples = samples.querySelector('[data-placement-expanded]');
   const [beginner, expanded] = placementSamples();
   let snapshot;
   let busy = false;
+  let reopenPending = false;
+  let languageChanges = 0;
 
   function showExamples(container, words) {
     container.hidden = words.length === 0;
@@ -63,15 +80,53 @@ export function mountPlacement(panel) {
     appendWords(prompts, false);
     appendWords(answers, true);
   }
-  showExamples(panel.querySelector('[data-placement-beginner]'), beginner);
-  showExamples(panel.querySelector('[data-placement-expanded]'), expanded);
+  showExamples(beginnerExamples, beginner);
+  showExamples(expandedExamples, expanded);
   choice.querySelector('[value="1"]').disabled = beginner.length === 0;
   choice.querySelector('[value="2"]').disabled = expanded.length === 0;
   localize(panel);
 
+  function showFirst(hint) {
+    const first = hint === 2 ? expandedExamples : beginnerExamples;
+    const last = hint === 2 ? beginnerExamples : expandedExamples;
+    if (samples.firstElementChild === first) return;
+    // Leave the focused group in place when a language change resets order.
+    if (first.contains(document.activeElement)) samples.append(last);
+    else samples.prepend(first);
+  }
+
+  function hideScore() {
+    const wasFocused = scoreForm.contains(document.activeElement);
+    scoreForm.hidden = true;
+    score.value = '';
+    score.removeAttribute('aria-invalid');
+    scoreStatus.textContent = '';
+    showFirst(1);
+    if (wasFocused && panel.open && !panel.hidden) trigger.focus();
+  }
+
+  scoreForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!snapshot || scoreForm.hidden) return;
+    const hint = duolingoPreview(score.value);
+    showFirst(hint);
+    if (hint === null && score.value.trim()) {
+      score.setAttribute('aria-invalid', 'true');
+      scoreStatus.textContent = t('placement_score_invalid');
+      score.focus();
+      return;
+    }
+    score.value = '';
+    score.removeAttribute('aria-invalid');
+    scoreStatus.textContent = hint === 2 ? t('placement_score_expanded')
+      : hint === 1 ? t('placement_score_beginner') : '';
+  });
+
   async function load() {
     snapshot = null;
     fieldset.disabled = true;
+    hideScore();
+    const languageAtRead = languageChanges;
     const current = await chrome.runtime.sendMessage({ type: 'placement' });
     if (current?.available === false) {
       status.textContent = t('placement_spanish_only');
@@ -80,6 +135,7 @@ export function mountPlacement(panel) {
     }
     if (!current?.available) throw new Error('Placement unavailable');
     snapshot = current;
+    scoreForm.hidden = languageChanges !== languageAtRead || !(beginner.length && expanded.length);
     choice.value = String(current.choice);
     if (choice.selectedOptions[0]?.disabled) choice.value = '0';
     fieldset.disabled = false;
@@ -92,16 +148,35 @@ export function mountPlacement(panel) {
     retry.hidden = !!snapshot;
   }
 
+  function finishOperation() {
+    busy = false;
+    if (reopenPending) {
+      reopenPending = false;
+      if (panel.open) void refresh();
+    }
+  }
+
   async function refresh() {
     if (busy) return;
     busy = true;
     try { await load(); }
     catch { showError(); }
-    finally { busy = false; }
+    finally { finishOperation(); }
   }
 
   panel.addEventListener('toggle', () => {
-    if (panel.open) void refresh();
+    if (!panel.open) {
+      reopenPending = false;
+      hideScore();
+    } else if (busy) reopenPending = true;
+    else void refresh();
+  });
+  chrome.storage?.onChanged?.addListener(({ settings }, area) => {
+    const before = settings?.oldValue?.language ?? DEFAULT_SETTINGS.language;
+    const after = settings?.newValue?.language ?? DEFAULT_SETTINGS.language;
+    if (area !== 'local' || before === after) return;
+    languageChanges++;
+    hideScore();
   });
   retry.addEventListener('click', async () => {
     const wasFocused = document.activeElement === retry;
@@ -134,14 +209,14 @@ export function mountPlacement(panel) {
     } catch { showError(); }
     finally {
       fieldset.disabled = !snapshot;
-      busy = false;
       // Chromium can drop focus when disabling a focused form control.
       if (panel.open && fieldset.contains(previousFocus) &&
           (document.activeElement === document.body || document.activeElement === previousFocus)) {
         if (snapshot) previousFocus.focus();
         else if (!retry.hidden) retry.focus();
-        else panel.querySelector('summary').focus();
+        else trigger.focus();
       }
+      finishOperation();
     }
   });
 }

@@ -170,10 +170,13 @@ test('welcome page renders its notes and choice results as the exact English', a
   let placementReady = false;
   let placementRead;
   let placementSave = { error: 'Local placement write failed' };
+  let placementStorageChanged;
+  const placementMessages = [];
   globalThis.chrome = {
     runtime: { getManifest: () => ({ content_scripts: [] }), openOptionsPage: async () => {},
       sendMessage: async (msg) => {
         if (msg.type === 'placement') {
+          placementMessages.push(msg);
           if (Object.hasOwn(msg, 'choice')) return placementSave;
           if (placementRead) return placementRead;
           return placementReady ? { available: true, choice: 0, epoch: 'local' } : {};
@@ -181,6 +184,7 @@ test('welcome page renders its notes and choice results as the exact English', a
         return { ok: saveOk };
       } },
     permissions: { request: async () => grant },
+    storage: { onChanged: { addListener: (fn) => { placementStorageChanged = fn; } } },
   };
   const wait = async (predicate) => { for (let i = 0; i < 100 && !predicate(); i++) await new Promise((done) => setTimeout(done, 0)); };
   try {
@@ -196,7 +200,7 @@ test('welcome page renders its notes and choice results as the exact English', a
     placement.dispatchEvent(new window.Event('toggle'));
     const retry = placement.querySelector('[data-placement-retry]');
     await wait(() => !retry.hidden);
-    expect(text(placement.querySelector('[role="status"]'))).toBe('Could not load or save Spanish placement. Try again.');
+    expect(text(placement.querySelector('[data-placement-status]'))).toBe('Could not load or save Spanish placement. Try again.');
     expect(text(retry)).toBe('Reload placement');
     placementReady = true;
     retry.focus();
@@ -204,8 +208,36 @@ test('welcome page renders its notes and choice results as the exact English', a
     await wait(() => window.document.activeElement === $('placementChoice'));
     expect(window.document.activeElement).toBe($('placementChoice'));
     expect(retry.hidden).toBe(true);
-    const placementStatus = placement.querySelector('[role="status"]');
-    const submit = placement.querySelector('button[type="submit"]');
+    const score = $('duolingoScore');
+    const preview = placement.querySelector('[data-placement-score] button');
+    const samples = placement.querySelector('.placement-samples');
+    const messagesBeforePreview = placementMessages.slice();
+    score.value = '30';
+    preview.click();
+    expect(samples.firstElementChild.hasAttribute('data-placement-expanded')).toBe(true);
+    expect(score.value).toBe('');
+    expect($('placementChoice').value).toBe('0');
+    expect(placementMessages).toEqual(messagesBeforePreview);
+    score.value = '1e2';
+    preview.click();
+    expect(score.getAttribute('aria-invalid')).toBe('true');
+    expect(samples.firstElementChild.hasAttribute('data-placement-beginner')).toBe(true);
+    expect(placementMessages).toEqual(messagesBeforePreview);
+    const scoreForm = score.closest('form');
+    const targetChanged = (oldValue, newValue) => placementStorageChanged({ settings: { oldValue, newValue } }, 'local');
+    targetChanged({}, { language: 'es' });
+    expect(scoreForm.hidden).toBe(false);
+    score.focus();
+    targetChanged({ language: 'es' }, { language: 'gn-PY-x-weave' });
+    expect(scoreForm.hidden).toBe(true);
+    expect(score.value).toBe('');
+    expect(window.document.activeElement).toBe(placement.firstElementChild);
+    targetChanged({ language: 'gn-PY-x-weave' }, { language: 'es' });
+    placement.dispatchEvent(new window.Event('toggle'));
+    await wait(() => !scoreForm.hidden);
+    expect(scoreForm.hidden).toBe(false);
+    const placementStatus = placement.querySelector('[data-placement-status]');
+    const submit = placement.querySelector('[data-placement-choice] button[type="submit"]');
     $('placementChoice').value = '2';
     submit.click();
     await wait(() => text(placementStatus).startsWith('Could not load or save'));
@@ -216,6 +248,23 @@ test('welcome page renders its notes and choice results as the exact English', a
     await wait(() => text(placementStatus).startsWith('Settings changed'));
     expect(text(placementStatus)).toBe('Settings changed while this was open. Choose your Spanish starting point again.');
     expect($('placementChoice').value).toBe('2');
+    let finishSave;
+    placementSave = new Promise((resolve) => { finishSave = resolve; });
+    submit.click();
+    placement.open = false;
+    placement.dispatchEvent(new window.Event('toggle'));
+    expect(scoreForm.hidden).toBe(true);
+    placement.open = true;
+    placement.dispatchEvent(new window.Event('toggle'));
+    expect(scoreForm.hidden).toBe(true);
+    const savedPlacement = { available: true, choice: 2, epoch: 'new-epoch' };
+    placementRead = savedPlacement;
+    finishSave({ ok: true, ...savedPlacement });
+    await wait(() => !scoreForm.hidden);
+    expect(scoreForm.hidden).toBe(false);
+    expect($('placementChoice').value).toBe('2');
+    expect(placementMessages.at(-1)).toEqual({ type: 'placement' });
+    placementRead = undefined;
     placementReady = false;
     placement.dispatchEvent(new window.Event('toggle'));
     await wait(() => !retry.hidden);
