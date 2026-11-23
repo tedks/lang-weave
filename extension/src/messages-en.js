@@ -67,6 +67,7 @@ export const EN = Object.freeze({
   popup_settings: "Settings",
   popup_my_words: "My words",
   popup_help: "Help",
+  popup_read_sample: "Read a sample",
   popup_welcome_route: "Review privacy choices",
   popup_state_off: "Off",
   popup_state_needs_setup: "Finish setup in the welcome page",
