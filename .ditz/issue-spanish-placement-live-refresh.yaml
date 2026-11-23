@@ -36,3 +36,11 @@ log_events:
     added, preserve relevant save announcements and cover a close/reopen while the
     initial read is held. The current queue shares settlement logic and already has
     a mutation-checked delayed-Save regression.'
+- time: 2026-11-23T04:55:19-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Score hint council r4 on d6685ea observed a nonblocking lifecycle detail:
+    an initial placement read may resolve after closing and set the empty Score form
+    visible inside the closed details. Opening again clears and refreshes it. Consider
+    guarding visibility by the open state alongside the passive-refresh follow-up.
+    Full exact Chromium smoke passed. Evidence: https://github.com/tedks/lang-weave/pull/67#issuecomment-7091964573.'
