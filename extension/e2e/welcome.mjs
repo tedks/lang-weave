@@ -439,7 +439,11 @@ try {
   await doorReview.locator('#prompt').getByText('door (movable barrier)', { exact: true }).waitFor();
   await doorReview.locator('#reveal').press('Space');
   await doorReview.locator('#answer').getByText('okẽ', { exact: true }).waitFor();
-  assert.equal(await doorReview.locator('#answer [lang="gn-PY"]').getByText('okẽ', { exact: true }).count(), 1);
+  await doorReview.locator('[data-rating="medium"]').press('Enter');
+  await doorReview.waitForFunction(async () => {
+    const key = 'lang:gn-PY-x-weave:0000000000000001:recallReview';
+    return (await chrome.storage.local.get(key))[key]?.cards?.['okẽ']?.reviews === 1;
+  });
   assert.equal((await worker.evaluate(() => chrome.storage.local.get('apiKey'))).apiKey, undefined);
   await doorReview.close();
   await proseWords.close();
