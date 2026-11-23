@@ -19,6 +19,29 @@ const heldOutSwaps = [
   ['leisure', 1, 'the movie', 'la película', 'la película'],
 ];
 
+function spanProbes(text, words) {
+  const tokens = [...text.matchAll(/[\p{L}\p{N}’'-]+/gu)];
+  return tokens.flatMap((start, i) => tokens.slice(i, i + 4).flatMap((end) => {
+    const o = text.slice(start.index, end.index + end[0].length);
+    return words.map(({ fr: f }) => ({ o, f }));
+  }));
+}
+
+test('all seven promotions were reachable in the Expanded discovery pool', () => {
+  const words = wordsForLevel(2);
+  const hits = new Map();
+  for (const text of Object.values(corpus.discovery).flat()) {
+    const possible = possibleSpanishPromptWords(2, words, [{ id: 'paragraph', text }]);
+    const reached = new Set(validateSwaps(2, spanProbes(text, possible), words, 'es', { text })
+      .map(({ word }) => word));
+    for (const form of reached) hits.set(form, (hits.get(form) || 0) + 1);
+  }
+  const promotionCounts = Object.fromEntries(heldOutSwaps.map(([, , , form]) => [form, hits.get(form)]));
+  expect(promotionCounts).toEqual({
+    'la ventana': 2, 'el desayuno': 2, 'la sopa': 2, 'el árbol': 1, 'el río': 1, 'la canción': 1, 'la película': 1,
+  });
+});
+
 test('all seven promotions are reachable on held-out Beginner reading in both modes', () => {
   const words = wordsForLevel(1);
   const before = words.slice(0, FORMER_BEGINNER_SIZE);
@@ -30,11 +53,7 @@ test('all seven promotions are reachable on held-out Beginner reading in both mo
     expect(text.length).toBeLessThanOrEqual(2000);
     expect(isZeroSpanish(text)).toBe(false);
     const batch = [{ id: 'paragraph', text }];
-    const tokens = [...text.matchAll(/[\p{L}\p{N}’'-]+/gu)];
-    const probes = tokens.flatMap((start, i) => tokens.slice(i, i + 4).flatMap((end) => {
-      const o = text.slice(start.index, end.index + end[0].length);
-      return words.map(({ fr: f }) => ({ o, f }));
-    }));
+    const probes = spanProbes(text, words);
     const measure = (catalog) => {
       const valid = new Set(validateSwaps(1, probes, catalog, 'es', { text }).map(({ word }) => word));
       const ordinary = possibleSpanishPromptWords(1, catalog, batch);
@@ -94,6 +113,8 @@ test('standalone senses remain available and newly guarded compounds stay whole'
   const cases = [
     ['I made breakfast while they set the table.', 'I bought breakfast cereal before we left for the weekend.',
       'breakfast', 'breakfast cereal', 'el desayuno'],
+    ['I made breakfast while they set the table.', 'I put breakfast cereals out on the table before the guests arrived.',
+      'breakfast', 'breakfast cereals', 'el desayuno'],
     ['We rested beside the tree before going home.', 'We drew a tree diagram to show how the choices were connected.',
       'tree', 'tree diagram', 'el árbol'],
     ['We rested beside the tree before going home.', 'My aunt drew the family tree from old notes in a drawer.',
