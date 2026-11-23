@@ -46,6 +46,7 @@ test('options works without a tab; settings, exception reset and key removal rou
   let storageChanged;
   let generateFails = false;
   let workerAvailable = false;
+  let delayedStatus;
   let due = 2;
   let isolationUnavailable = false;
   let testCategory = 'key_rejected';
@@ -58,6 +59,7 @@ test('options works without a tab; settings, exception reset and key removal rou
       sendMessage: async (msg) => {
         messages.push({ ...msg, ...(msg.apiKey ? { apiKey: '[redacted]' } : {}) });
         if (msg.type === 'status') {
+          if (delayedStatus) return delayedStatus;
           if (!workerAvailable) throw new Error('Worker unavailable');
           return status();
         }
@@ -86,6 +88,19 @@ test('options works without a tab; settings, exception reset and key removal rou
     workerAvailable = true;
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('wordInfo').textContent === '30 Spanish words');
+    expect($('notice').textContent).toBe('');
+    // A superseded request can reject after the latest refresh has already recovered.
+    let rejectStatus;
+    delayedStatus = new Promise((_, reject) => { rejectStatus = reject; });
+    storageChanged({ settings: {} }, 'local');
+    delayedStatus = null;
+    due = 3;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('reviewInfo').textContent === '3');
+    rejectStatus(new Error('Late worker failure'));
+    await new Promise((done) => setTimeout(done, 0));
+    expect($('notice').textContent).toBe('');
+    due = 2;
     isolationUnavailable = true;
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('keyFeedback').textContent === 'This browser cannot keep the key private. Update Chrome to 140 or newer.');
@@ -114,10 +129,16 @@ test('options works without a tab; settings, exception reset and key removal rou
     $('addLanguage').click();
     await waitFor(() => $('notice').textContent === 'Generation failed');
     expect($('operation').textContent).toBe('');
+    workerAvailable = false;
+    storageChanged({ settings: {} }, 'local');
+    await new Promise((done) => setTimeout(done, 0));
+    expect($('notice').textContent).toBe('Generation failed');
+    workerAvailable = true;
     $('apiKey').value = 'unsaved-draft';
     data.settings.density = 'light';
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('density').value === 'light');
+    expect($('notice').textContent).toBe('Generation failed');
     expect($('apiKey').value).toBe('unsaved-draft');
     due = 5;
     storageChanged({ recallReview: {} }, 'local');

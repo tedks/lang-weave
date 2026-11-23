@@ -15,6 +15,7 @@ const placementSummary = placementPanel.firstElementChild;
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 let status;
 let refreshGeneration = 0;
+let hasActionError = false;
 
 const send = async (msg) => {
   const res = await chrome.runtime.sendMessage(msg);
@@ -24,6 +25,16 @@ const send = async (msg) => {
 
 async function refresh() {
   const generation = ++refreshGeneration;
+  try {
+    await renderSettings(generation);
+    if (generation === refreshGeneration && !hasActionError) $('notice').textContent = '';
+  } catch (e) {
+    if (generation === refreshGeneration && !hasActionError)
+      $('notice').textContent = e.message || t('options_error_refresh');
+  }
+}
+
+async function renderSettings(generation) {
   const next = await send({ type: 'status' });
   const all = await chrome.permissions.contains({ origins: ALL_SITES });
   const progress = await send({ type: 'progress' }).catch(() => null); // informational only
@@ -105,9 +116,15 @@ async function save(msg) {
 }
 
 async function run(fn) {
+  hasActionError = false;
   $('notice').textContent = '';
   $('operation').textContent = '';
-  try { await fn(); } catch (e) { $('notice').textContent = e.message || t('options_error_generic'); }
+  try {
+    await fn();
+  } catch (e) {
+    hasActionError = true;
+    $('notice').textContent = e.message || t('options_error_generic');
+  }
 }
 
 for (const [id, label] of Object.entries(MODELS)) {
@@ -183,7 +200,7 @@ $('openExtensions').addEventListener('click', () => {
 
 const refreshAfterExternalChange = () => {
   $('operation').textContent = '';
-  void refresh().catch((e) => { $('notice').textContent = e.message || t('options_error_refresh'); });
+  void refresh();
 };
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && Object.keys(changes).some((key) =>
@@ -202,4 +219,4 @@ document.defaultView.setInterval(() => {
   if (!document.hidden) refreshAfterExternalChange();
 }, 5 * 60 * 1000);
 
-void run(refresh);
+void refresh();

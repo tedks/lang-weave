@@ -154,13 +154,26 @@ try {
   const offlineOptions = await context.newPage();
   await offlineOptions.addInitScript(() => {
     const send = chrome.runtime.sendMessage.bind(chrome.runtime);
-    chrome.runtime.sendMessage = (...args) => args[0]?.type === 'status'
+    globalThis.simulateStatusOutage = true;
+    chrome.runtime.sendMessage = (...args) => globalThis.simulateStatusOutage && args[0]?.type === 'status'
       ? Promise.reject(new Error('Status unavailable in this test')) : send(...args);
   });
   await offlineOptions.goto(options.url());
   await offlineOptions.locator('#notice').getByText('Status unavailable in this test', { exact: true }).waitFor();
   assert.equal(await offlineOptions.locator('#version').textContent(), manifest.version);
   assert.equal(await offlineOptions.locator('#update').isHidden(), true);
+  const priorSettings = await offlineOptions.evaluate(async () => {
+    globalThis.simulateStatusOutage = false;
+    // Changing the density produces a real storage event even if the fixture already uses light.
+    const { settings } = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...settings, density: settings.density === 'light' ? 'heavy' : 'light' } });
+    return settings;
+  });
+  await offlineOptions.waitForFunction((text) => document.querySelector('#wordInfo').textContent === text,
+    `${beginnerSpanishWords} Spanish words`);
+  assert.equal(await offlineOptions.locator('#notice').textContent(), '');
+  assert.equal(await offlineOptions.locator('#version').textContent(), manifest.version);
+  await offlineOptions.evaluate((settings) => chrome.storage.local.set({ settings }), priorSettings);
   await offlineOptions.close();
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
