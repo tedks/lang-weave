@@ -55,3 +55,16 @@ log_events:
     mouse/keyboard flip, no-match and clear in a generated Chromium profile. All storage
     and permissions were unchanged during the exercise and the smoke observed no outbound
     HTTP(S). Exact final gates and council pending.
+- time: 2026-11-23T05:37:25-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Ruling LW-OFFLINE-DIALOGUE-0537: in the voluntary local exercise, learners
+    may explicitly choose a catalog word in quoted English dialogue. Keep explicit
+    occurrence/sense selection, contextual name/compound/boundary checks, original
+    punctuation and all existing automatic website guard behavior. In the same preselected
+    300 novel paragraphs (208 start with a quotation mark), the actual draft generated
+    any Beginner choice in 119 Spanish and 25 Guaran\xED paragraphs. A private comparison
+    preserving the other checks but permitting quoted text in the manual matcher generated
+    choices in 293 and 64. The result is specific to these books. Verify both manual
+    rendering and unchanged normal website refusal. Narrow-width evidence also showed
+    a need for wrapping selected sense/context; the lead is already handling it."
