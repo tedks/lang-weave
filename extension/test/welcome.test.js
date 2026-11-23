@@ -76,7 +76,7 @@ test('site choice requests all-site permission before save; denial saves nothing
 
 test('the local sample remains usable when the saved language cannot be read', async () => {
   const oldChrome = globalThis.chrome;
-  const win = new Window();
+  const win = new Window({ url: 'chrome-extension://fixture/src/welcome.html' });
   win.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
   const demo = win.document.getElementById('demo');
   const picker = win.document.getElementById('demoLanguage');
