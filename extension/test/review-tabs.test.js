@@ -3,111 +3,190 @@ import { createReviewTabs } from '../src/review-tabs.js';
 
 const base = 'chrome-extension://review-test/';
 const url = base + 'src/review.html';
-const reviewTab = (id, windowId, extra = {}) => ({ id, windowId, url, incognito: false, ...extra });
+const exactFilter = { contextTypes: ['TAB'], documentUrls: [url], frameIds: [0], incognito: false };
+const reviewTab = (id, windowId, extra = {}) => ({
+  id, windowId, status: 'complete', active: false, incognito: false,
+  documentUrl: url, documentId: `document-${id}`, frameId: 0, contextType: 'TAB', ...extra,
+});
 
 function browser(initial, hooks = {}) {
   const tabsById = new Map(initial.map((tab) => [tab.id, tab]));
   const calls = [];
+  const reads = [];
+  const discoveries = [];
   const windows = {
     get: async (id) => ({ id, incognito: id === 2 }),
     getLastFocused: async () => ({ id: 1, incognito: false }),
     update: async (id, change) => { calls.push(['window', id, change]); },
   };
   const tabs = {
-    query: async (query) => {
-      expect(query).toEqual({ url });
-      return [...tabsById.values()].map((tab) => ({ ...tab }));
-    },
     get: async (id) => {
+      reads.push(id);
       hooks.beforeGet?.(tabsById, id);
       const tab = tabsById.get(id);
       if (!tab) throw new Error('No such tab');
-      return { ...tab };
+      // Chrome 140 exposes no own Tab.url, nor a protected pending URL.
+      const { documentUrl, documentId, contextType, frameId, ...visible } = tab;
+      return visible;
     },
     update: async (id, change) => {
       calls.push(['tab', id, change]);
       hooks.beforeUpdate?.(tabsById, id);
       if (!tabsById.has(id)) throw new Error('No such tab');
-      return { ...tabsById.get(id), ...change };
+      Object.assign(tabsById.get(id), change);
     },
     create: async (fields) => {
       calls.push(['create', fields]);
-      await hooks.beforeCreate?.();
-      const tab = reviewTab(99, fields.windowId, { url: undefined, pendingUrl: fields.url });
+      const tab = reviewTab(99, fields.windowId, { active: true });
       tabsById.set(tab.id, tab);
-      return tab;
+      hooks.afterCreate?.(tab);
+      return { id: tab.id, windowId: tab.windowId };
     },
     sendMessage: async (id, payload, target) => {
       calls.push(['message', id, payload, target]);
       hooks.beforeMessage?.(tabsById, id);
-      return { ok: true };
+      const tab = tabsById.get(id);
+      if (!tab || tab.documentId !== target.documentId) throw new Error('No receiving document');
+      return tab.reply === undefined ? { ok: true } : tab.reply;
     },
   };
   const runtime = {
     getURL: (path) => base + path,
     getContexts: async (filter) => {
-      calls.push(['contexts', filter]);
-      return [{ documentId: 'review-document' }];
+      const { tabIds, ...scope } = filter;
+      expect(scope).toEqual(exactFilter);
+      discoveries.push(tabIds);
+      hooks.beforeContexts?.(tabsById, tabIds);
+      return [...tabsById.values()].filter((tab) => tab.documentId &&
+        (!tabIds || tabIds.includes(tab.id)) && tab.documentUrl === url &&
+        !tab.incognito && tab.frameId === 0 && tab.contextType === 'TAB'
+      ).map(({ id, windowId, documentId }) => ({ tabId: id, windowId, documentId }));
     },
   };
-  return { open: createReviewTabs({ tabs, windows, runtime }), calls };
+  return { open: createReviewTabs({ tabs, windows, runtime }), calls, reads, discoveries, tabsById };
 }
 
-test('simultaneous review requests reuse the one pending tab, preserving its document', async () => {
-  const { promise, resolve } = Promise.withResolvers();
-  const { open, calls } = browser([reviewTab(5, 1, { url: url + '#untrusted' })], { beforeCreate: () => promise });
+test('simultaneous review opens create one tab while Chrome has no URL or document context yet', async () => {
+  const pendingRead = Promise.withResolvers();
+  const { open, calls, tabsById } = browser([], {
+    afterCreate: (tab) => Object.assign(tab, { status: 'loading', documentId: undefined }),
+    beforeGet: (tabs, id) => { if (tabs.get(id)?.status === 'loading') pendingRead.resolve(); },
+  });
   const first = open(1);
   const concurrent = open(3);
-  resolve();
+  await pendingRead.promise;
+  expect(calls).toEqual([['create', { url, windowId: 1 }]]);
+  Object.assign(tabsById.get(99), { status: 'complete', documentId: 'new-document' });
   expect(await Promise.all([first, concurrent])).toEqual([{ ok: true }, { ok: true }]);
   expect(calls).toEqual([
-    ['create', { url, windowId: 1 }], ['window', 1, { focused: true }],
-    ['tab', 99, { active: true }], ['window', 1, { focused: true }],
+    ['create', { url, windowId: 1 }], ['window', 1, { focused: true }], ['window', 1, { focused: true }],
   ]);
 });
 
 test('a private origin cannot focus a regular review or start a practice ticket', async () => {
-  const { open, calls } = browser([reviewTab(4, 1), reviewTab(5, 2, { incognito: true })]);
+  const { open, calls, discoveries } = browser([reviewTab(4, 1), reviewTab(5, 2, { incognito: true })]);
   const chooseWord = () => { throw new Error('Private practice reached the queue'); };
   expect(await open(2, chooseWord)).toHaveProperty('error');
   expect(await open(2)).toHaveProperty('error');
   expect(calls).toEqual([]);
+  expect(discoveries).toEqual([]);
 });
 
 test('ordinary Open Review prefers an active review in the source window and only focuses it', async () => {
   const { open, calls } = browser([reviewTab(3, 4, { active: true }), reviewTab(5, 1), reviewTab(6, 1, { active: true })]);
   expect(await open(1)).toEqual({ ok: true });
-  expect(calls).toEqual([['tab', 6, { active: true }], ['window', 1, { focused: true }]]);
+  expect(calls).toEqual([['window', 1, { focused: true }]]);
 });
 
-test('practice skips a navigated page and falls through when the next candidate closes', async () => {
-  const { open, calls } = browser([reviewTab(4, 1), reviewTab(5, 1), reviewTab(6, 3)], {
-    beforeGet: (tabs, id) => {
-      if (id === 4) tabs.get(id).url = 'https://unrelated.example/';
-    },
-    beforeUpdate: (tabs, id) => { if (id === 5) tabs.delete(id); },
-  });
+test('discovery does not read protected, other extension, subframe or private tabs', async () => {
+  const { open, calls, reads } = browser([
+    reviewTab(1, 1, { documentUrl: 'chrome://version/' }),
+    reviewTab(2, 1, { documentUrl: base + 'src/options.html' }),
+    reviewTab(3, 1, { documentUrl: 'chrome-extension://other/src/review.html' }),
+    reviewTab(4, 1, { documentUrl: url + '#other' }),
+    reviewTab(5, 1, { frameId: 2 }),
+    reviewTab(6, 2, { incognito: true }),
+    reviewTab(7, 1, { contextType: 'SIDE_PANEL' }),
+  ]);
+  expect(await open(1)).toEqual({ ok: true });
+  expect(new Set(reads)).toEqual(new Set([99]));
+  expect(calls).toEqual([['create', { url, windowId: 1 }], ['window', 1, { focused: true }]]);
+});
+
+test('practice preserves queue errors and skips a visible pending departure and a closing tab', async () => {
+  const { open, calls, discoveries } = browser([
+    reviewTab(4, 1, { url, pendingUrl: base + 'src/options.html' }), reviewTab(5, 1), reviewTab(6, 3),
+  ], { beforeUpdate: (tabs, id) => { if (id === 5) tabs.delete(id); } });
   const refused = { error: 'Stale scope', stale: true };
   expect(await open(1, () => refused)).toEqual(refused);
   expect(calls).toEqual([]);
+  expect(discoveries).toEqual([]);
   const chosen = { ok: true, introduced: false };
   expect(await open(1, () => { calls.push(['choose']); return chosen; })).toEqual(chosen);
   expect(calls).toEqual([
     ['choose'], ['tab', 5, { active: true }], ['tab', 6, { active: true }], ['window', 3, { focused: true }],
-    ['contexts', { contextTypes: ['TAB'], tabIds: [6], documentUrls: [url], frameIds: [0], incognito: false }],
-    ['message', 6, { type: 'refreshReview' }, { documentId: 'review-document' }],
+    ['message', 6, { type: 'refreshReview' }, { documentId: 'document-6' }],
   ]);
 });
 
-test('a review that navigates before document delivery falls back to one new page', async () => {
-  const { open, calls } = browser([reviewTab(4, 1)], {
-    beforeMessage: (tabs, id) => {
-      tabs.get(id).url = 'https://unrelated.example/';
-      throw new Error('No receiving document');
+test('a hidden pending departure can still expose the old review context without being focused or refreshed', async () => {
+  let reads = 0;
+  const { open, calls } = browser([reviewTab(4, 1, { status: 'loading' })], {
+    beforeGet: (tabs, id) => {
+      // Chrome keeps the old document visible until the protected page commits.
+      if (id === 4 && ++reads === 3) {
+        Object.assign(tabs.get(id), { status: 'complete', documentUrl: 'chrome://version/' });
+      }
     },
+    beforeContexts: (tabs, ids) => {
+      if (ids?.includes(4)) expect(tabs.get(4).status).toBe('complete');
+    },
+  });
+  expect(await open(1, () => ({ ok: true }))).toEqual({ ok: true });
+  expect(calls).toEqual([['create', { url, windowId: 1 }], ['window', 1, { focused: true }]]);
+});
+
+test('a tab that leaves review during activation never receives a window focus or refresh', async () => {
+  const { open, calls } = browser([reviewTab(4, 3)], {
+    beforeUpdate: (tabs, id) => Object.assign(tabs.get(id), { documentUrl: 'chrome://version/', documentId: 'protected' }),
+  });
+  expect(await open(1, () => ({ ok: true }))).toEqual({ ok: true });
+  expect(calls).toEqual([
+    ['tab', 4, { active: true }],
+    ['create', { url, windowId: 1 }], ['window', 1, { focused: true }],
+  ]);
+});
+
+test('navigation before directed delivery leaves practice selected and creates one new review', async () => {
+  const { open, calls } = browser([reviewTab(4, 1)], {
+    beforeMessage: (tabs, id) => Object.assign(tabs.get(id), { documentUrl: base + 'src/words.html', documentId: 'words' }),
   });
   let chosen = 0;
   expect(await open(1, () => { chosen++; return { ok: true }; })).toEqual({ ok: true });
   expect(chosen).toBe(1);
-  expect(calls.filter(([type]) => type === 'create')).toEqual([['create', { url, windowId: 1 }]]);
+  expect(calls.filter(([type]) => type === 'message' || type === 'create')).toEqual([
+    ['message', 4, { type: 'refreshReview' }, { documentId: 'document-4' }],
+    ['create', { url, windowId: 1 }],
+  ]);
+});
+
+test('a same-tab reload updates the targeted document and never opens another tab', async () => {
+  const { open, calls } = browser([reviewTab(4, 1)], {
+    beforeMessage: (tabs, id) => { tabs.get(id).documentId = 'reloaded-document'; },
+  });
+  expect(await open(1, () => ({ ok: true }))).toEqual({ ok: true });
+  expect(calls.filter(([type]) => type === 'message' || type === 'create')).toEqual([
+    ['message', 4, { type: 'refreshReview' }, { documentId: 'document-4' }],
+    ['message', 4, { type: 'refreshReview' }, { documentId: 'reloaded-document' }],
+  ]);
+});
+
+test('an unacknowledged refresh surfaces an error without duplicating a live review', async () => {
+  const { open, calls } = browser([reviewTab(4, 1, { active: true, reply: null })]);
+  await expect(open(1, () => ({ ok: true }))).rejects.toThrow('could not refresh');
+  expect(await open(1)).toEqual({ ok: true });
+  expect(calls).toEqual([
+    ['window', 1, { focused: true }], ['message', 4, { type: 'refreshReview' }, { documentId: 'document-4' }],
+    ['window', 1, { focused: true }],
+  ]);
 });
