@@ -82,8 +82,8 @@ async function page(name, { reply = {}, body } = {}) {
       frames.clear();
     }
   };
-  useDOMClock();
   try {
+    useDOMClock();
     win.document.body.innerHTML = body || '<main><p id="one">We read and write every evening.</p></main>';
     await import(`../src/content.js?${name}`);
     await advanceDOMTime(250);

@@ -41,8 +41,8 @@ export async function hoverScenario(moduleUrl, settings = {}) {
     if (!ids.has(id)) ids.set(id, `fw-d-ID-${ids.size + 1}`);
     return ids.get(id);
   }));
-  useDOMClock();
   try {
+    useDOMClock();
     win.document.body.innerHTML = '<main><p id="one">We read and write every evening.</p></main>';
     await import(moduleUrl);
     await advanceDOMTime(250);
