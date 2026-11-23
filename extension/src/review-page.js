@@ -255,6 +255,13 @@ document.addEventListener('keydown', (event) => {
   document.querySelector(`[data-rating="${rating}"]`)?.click();
 });
 
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.type !== 'refreshReview' || sender.id !== chrome.runtime.id ||
+      sender.url !== chrome.runtime.getURL('src/background.js')) return;
+  loadGeneration++;
+  refresh();
+  reply({ ok: true });
+});
 void run(load);
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !(changes.settings || changes.languagePacks || changes.spanishPlacement)) return;

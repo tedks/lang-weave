@@ -130,6 +130,7 @@ sh_test(
         "LICENSE-MIT",
         "NOTICE",
         "//extension:e2e/welcome.mjs",
+        "//extension:e2e/words.mjs",
         "//extension:manifest.json",
         "@bun_linux_x64//:bun",
         "@playwright_core//:index.mjs",

@@ -16,6 +16,7 @@ exports_files(
     [
         "design/icon.svg",
         "e2e/welcome.mjs",
+        "e2e/words.mjs",
         "manifest.json",
     ],
     visibility = ["//:__pkg__"],

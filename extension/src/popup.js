@@ -80,6 +80,11 @@ $('recoverBudget').addEventListener('click', () => run(async () => {
   await refresh();
 }));
 $('primary').addEventListener('click', () => run(async () => {
+  if (primary.page === 'review.html') {
+    const { id: windowId } = await chrome.windows.getCurrent();
+    await send({ type: 'openReview', windowId });
+    return;
+  }
   await chrome.tabs.create({ url: chrome.runtime.getURL(`src/${primary.page}`) });
 }));
 $('openSettings').addEventListener('click', (e) => {
