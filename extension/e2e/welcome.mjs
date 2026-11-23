@@ -115,7 +115,7 @@ async function checkSpanishCompounds(page, expanded = false) {
   ];
   if (expanded) cases.push(
     ['We stored the life jackets before we talked about life.', 'life', 'vida'],
-    ['We spent the night watching the night sky.', 'the night', 'la noche'],
+    ['We watched the night sky and spent the night outdoors.', 'the night', 'la noche'],
     ['We watched the night sky before dawn brightened the sky.', 'the sky', 'el cielo'],
   );
   for (const [text, english, spanish] of cases) {
