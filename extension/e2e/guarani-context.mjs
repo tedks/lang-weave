@@ -116,13 +116,26 @@ for (const [gradual, level] of [[false, 1], [true, 1], [false, 2], [true, 2]]) {
       assert.equal(await page.locator('#positive').textContent(), positive.replace(o, f));
       await word.press('Enter');
       assert.equal(await page.locator('#positive').textContent(), positive);
-      const requests = await worker.evaluate(() => globalThis.guaraniRequests);
-      assert.ok(requests.some(({ text, offered }) => text === positive && offered), `offered ${f} for the noun`);
-      const proposal = requests.find(({ text, offered }) => text === negative && offered);
-      assert.ok(proposal, `offered ${f} for the verb fixture before validation`);
-      const key = `c:${proposal.id}`;
-      const cached = await worker.evaluate(async (key) => Object.entries(await chrome.storage.local.get(null))
-        .filter(([name]) => name === key || name.startsWith(`${key}:gradual:`)).map(([, entry]) => entry.s), key);
+      const { positiveOffered, negativeOffered, cached } = await worker.evaluate(async ({ positive, negative }) => {
+        const deadline = Date.now() + 5000;
+        let positiveOffered = false, negativeOffered = false, cached = [];
+        while (Date.now() < deadline) {
+          const requests = globalThis.guaraniRequests;
+          positiveOffered = requests.some(({ text, offered }) => text === positive && offered);
+          const proposal = requests.find(({ text, offered }) => text === negative && offered);
+          if (proposal) {
+            negativeOffered = true;
+            const key = `c:${proposal.id}`;
+            cached = Object.entries(await chrome.storage.local.get(null))
+              .filter(([name]) => name === key || name.startsWith(`${key}:gradual:`)).map(([, entry]) => entry.s);
+            if (cached.length && positiveOffered) break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        return { positiveOffered, negativeOffered, cached };
+      }, { positive, negative });
+      assert.ok(positiveOffered, `offered ${f} for the noun`);
+      assert.ok(negativeOffered, `offered ${f} for the verb fixture before validation`);
       assert.deepEqual(cached, [[]], `worker rejected ${f} before caching or delivering it for the verb fixture`);
       assert.equal(await page.locator('#negative').textContent(), negative);
       assert.equal(await page.locator('#negative .fw-word').count(), 0);
