@@ -1,8 +1,12 @@
 # Changelog
 
-User-facing changes from 0.11.0 to 0.12.25, newest first. One entry per pull request merged into `main` through `git log --first-parent --merges`, with its number and a one-line summary. Entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number, because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
+The 0.16.0 backup notes appear first, followed by the historical changelog from 0.11.0 to 0.12.25. Historical entries are grouped by the version in `extension/manifest.json` at the merge. A pull request title or body sometimes cites an earlier number because the branch was rebased before it merged. A pull request marked "no bump" changed no shipped file. Earlier history, 0.2.0 to 0.10.0, is in the pull request list.
 
 Fork pull requests: <https://github.com/tedks/lang-weave/pulls?q=is%3Apr+is%3Amerged>
+
+## 0.16.0
+
+- Learning backups preserve Guess first answers and retrieval and exposure measurements for generated spellings such as `il/elle`, `z.B.` and `EU:n`. For format 2 files without reading dates, Lang Weave 0.12.21 is the first reader for guesses and 0.12.22 is the first to restore both kinds of measurements. Format 3 files with reading dates require 0.13.3 or later. Progress on [newer bundled vocabulary](guarani-starter.md#restoring-a-backup) can require a newer reader for a complete restore. The preview counts saved and omitted measurements, and the existing catalog checks and size limit still apply.
 
 ## 0.12.25 (2026-11-12)
 

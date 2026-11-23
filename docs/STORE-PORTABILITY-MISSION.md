@@ -8,6 +8,12 @@ Schema 3 files add scoped reading-day dates and require 0.13.3 or later to
 restore. Exports without reading dates still use schema 2. See the
 [reading-day backup contract](PROGRESS-MISSION.md#reading-day-backup-compatibility).
 
+Starting in 0.16.0, backups preserve catalog-verified Guess first answers and
+measurements for generated forms such as `il/elle`, `z.B.` and `EU:n`, within
+the existing log budget. Format 2 files with guesses require 0.12.21 or later.
+Use 0.12.22 or later for format 2 files with those generated-form measurements.
+The format 3 and bundled vocabulary requirements above still apply.
+
 ## Intent and boundary
 
 Give an existing unpacked installation an explicit local export of supported durable learning state and give a separate, keyless, fresh-learning installation a file-based preview and confirmed import. The old installation and its profile remain intact. This is preparation for a possible Store identity change, not a Store upload, identity change, account action, or release. The existing personal-only export remains available with its original format.

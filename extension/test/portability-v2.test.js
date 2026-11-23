@@ -10,6 +10,7 @@ import { storedFsrs } from '../src/fsrs.js';
 import { personalId, baseline } from './backup-fixture.js';
 import { wordsForLevel } from '../src/levels.js';
 import { hashKey } from '../src/hash.js';
+import { READING_DAYS_KEY } from '../src/events.js';
 
 // Storage as a schema 2 writer will leave it: FSRS state on cards, logs in three scopes,
 // a desired retention, and one orphan log word that no catalog can verify.
@@ -48,7 +49,7 @@ test('a schema 1 export from writer storage is plain schema 1', () => {
   expect(parseBackup(json).schemaVersion).toBe(1);
 });
 
-test('new generated forms import now but export waits for a tolerant older reader', () => {
+test.each([2, 3])('schema %i preserves scoped guesses and generated-form measurements', (schema) => {
   const { source } = baseline();
   const all = structuredClone(source);
   const forms = ['il/elle', 'z.B.', 'EU:n'];
@@ -56,23 +57,38 @@ test('new generated forms import now but export waits for a tolerant older reade
   forms.forEach((fr, i) => { words[i].fr = fr; });
   const version = hashKey(JSON.stringify(words));
   all.languagePacks.de = { version, words };
-  const entry = (word, at) => [word, at, 'standalone', 'productive', 'medium', 1, 3000, 2, 3, 0.91];
-  const tuples = [...forms, 'mot3'].map((form, i) => entry(form, 10 + i));
-  all[`lang:de:${version}:learningRetrievals`] = { version: 1, retrievals: tuples };
+  const packScope = `lang:de:${version}`;
+  const retrievals = [
+    ['il/elle', 10, 'guess', 'receptive', 'incorrect', 0, 1500, null, null, null],
+    ['z.B.', 11, 'inline', 'receptive', 'hard', 1, 2000, 1, 2, 0.9],
+    ['EU:n', 12, 'standalone', 'productive', 'medium', 2, 3000, 2, 3, 0.91],
+  ];
   const exposure = [1, 0, 1, '2026-10-01', '2026-10-01'];
-  all[`lang:de:${version}:learningExposures`] = { version: 1,
-    words: { 'il/elle': exposure, mot3: exposure } };
-  const exported = JSON.parse(createBackup(all, '0.12.22', 2));
-  const scope = exported.state.scopes[`lang:de:${version}`];
-  expect(scope.retrievals.retrievals.map((tuple) => tuple[0])).toEqual(['mot3']);
-  expect(Object.keys(scope.exposures.words)).toEqual(['mot3']);
-  expect(exported.state.logOmitted).toEqual({ retrievals: 3, exposureWords: 1 });
-  // The current reader still accepts new-form measurements from a schema 2 file.
-  scope.retrievals.retrievals = tuples;
-  scope.exposures.words['il/elle'] = exposure;
-  const imported = parseBackup(JSON.stringify(exported)).state.scopes[`lang:de:${version}`];
-  expect(imported.retrievals.retrievals.map((tuple) => tuple[0])).toEqual([...forms, 'mot3']);
-  expect(Object.keys(imported.exposures.words).sort()).toEqual(['il/elle', 'mot3']);
+  const exposures = { version: 1, words: Object.fromEntries(forms.map((form) => [form, exposure])) };
+  all[`${packScope}:learningRetrievals`] = { version: 1, retrievals };
+  all[`${packScope}:learningExposures`] = exposures;
+  // The exact same ID is still unverified in Spanish and in a stale version of the generated pack.
+  all.learningRetrievals = { version: 1, retrievals: retrievals.slice(0, 1) };
+  all['lang:de:bbbbbbbbbbbbbbbb:learningExposures'] = exposures;
+  const dates = ['2026-10-01', '2026-10-02'];
+  if (schema === 3) all[`${packScope}:${READING_DAYS_KEY}`] = dates;
+
+  const json = createBackup(all, '0.16.0');
+  const exported = JSON.parse(json);
+  expect(exported.schemaVersion).toBe(schema);
+  expect(exported.state.scopes[packScope]).toEqual({
+    retrievals: { version: 1, retrievals }, exposures, ...(schema === 3 ? { readingDays: dates } : {}),
+  });
+  expect(exported.state.scopes.es.retrievals).toBeUndefined();
+  expect(exported.state.scopes['lang:de:bbbbbbbbbbbbbbbb']).toBeUndefined();
+  expect(exported.state.logOmitted).toEqual({ retrievals: 1, exposureWords: 3 });
+  const parsed = parseBackup(json);
+  expect(backupPreview(parsed)).toMatchObject({ retrievals: 3, exposureWords: 3,
+    omittedRetrievals: 1, omittedExposureWords: 3, includesReadingDays: schema === 3 });
+  const restored = learningPatch(parsed, freshTarget().settings);
+  expect(restored[`${packScope}:learningRetrievals`]).toEqual({ version: 1, retrievals });
+  expect(restored[`${packScope}:learningExposures`]).toEqual(exposures);
+  expect(restored[`${packScope}:${READING_DAYS_KEY}`]).toEqual(schema === 3 ? dates : undefined);
 });
 
 test('a schema 2 file round-trips: FSRS state, logs and retention survive import and re-export', () => {

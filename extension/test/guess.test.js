@@ -1,12 +1,10 @@
-// Guess first: deterministic distractors, the log shape and backup handling (docs/INFERENCE-MISSION.md).
+// Guess first: deterministic distractors and the learning log (docs/INFERENCE-MISSION.md).
 import { test, expect } from 'bun:test';
 import { guessChoices, seedHash, GUESS_LIMIT, MAX_DISTRACTORS, MIN_DISTRACTORS } from '../src/guess.js';
 import { wordsForLevel } from '../src/levels.js';
 import { englishAnchors } from '../src/catalog.js';
 import { appendRetrieval, cleanRetrievals, retrievalEntries, reviewEntries, nextDayRecall, longRetention,
   calibration, verifiedKnown, workload, leeches, summarize, cleanExposures, SOURCES, OUTCOMES } from '../src/learning-log.js';
-import { createBackup, parseBackup, EXPORT_GUESSES } from '../src/portability.js';
-import { baseline } from './backup-fixture.js';
 
 const PACK = wordsForLevel(2);
 const DAY = '2026-10-31';
@@ -130,23 +128,6 @@ test('guesses never enter a review measure', () => {
   expect(workload(all, day(3), 30)).toEqual(workload(reviews, day(3), 30));
   expect(leeches(all)).toEqual(leeches(reviews));
   expect(summarize(state, cleanExposures(null), { now: day(3) }).retrievals).toBe(1);
-});
-
-test('schema 2 export leaves guesses out and counts them; import accepts them', () => {
-  expect(EXPORT_GUESSES).toBe(false);
-  const { source, spanish } = baseline();
-  const all = structuredClone(source);
-  const review = [spanish, 10, 'standalone', 'productive', 'medium', 1, 3000, 2, 3, 0.91];
-  const guess = [spanish, 11, 'guess', 'receptive', 'incorrect', 0, 1500, null, null, null];
-  all.learningRetrievals = { version: 1, retrievals: [review, guess] };
-  const file = JSON.parse(createBackup(all, '0.12.21', 2));
-  expect(file.state.scopes.es.retrievals.retrievals).toEqual([review]);
-  expect(file.state.logOmitted.retrievals).toBe(1);
-  // A file that carries a guess (a later writer) is read by this build.
-  file.state.scopes.es.retrievals.retrievals.push(guess);
-  delete file.state.logOmitted;
-  const parsed = parseBackup(JSON.stringify(file));
-  expect(parsed.state.scopes.es.retrievals.retrievals).toEqual([review, guess]);
 });
 
 test('the progress measurement: first-guess accuracy and next-day recall of guessed against other words', async () => {

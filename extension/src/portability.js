@@ -19,7 +19,7 @@ export const BACKUP_FORMAT = 'lang-weave-learning-backup';
 export const READING_DAYS_SCHEMA = 3;
 export const READ_SCHEMAS = Object.freeze([1, 2, READING_DAYS_SCHEMA]);
 export const MAX_BACKUP_BYTES = 1024 * 1024;
-// One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
+// One byte budget for the whole learning log, so the log can never crowd out
 // cards, packs or personal entries under MAX_BACKUP_BYTES.
 export const LOG_BUDGET_BYTES = 512 * 1024;
 // Slack under MAX_BACKUP_BYTES for the separators fitLog's accounting may round away.
@@ -376,7 +376,7 @@ function feedback(value, scope, installed, personalState, m) {
   }
   return result;
 }
-// Schema 2 files may say how much log data the exporter left out (budget or ruling B), so the
+// Schema 2 and 3 files may say how much log data the exporter left out, so the
 // import preview can report omissions the file itself no longer shows.
 function logOmitted(value) {
   keys(value, ['retrievals', 'exposureWords'], 'log omissions', ['retrievals', 'exposureWords']);
@@ -439,17 +439,6 @@ function storageEntries(all) {
 // personal) can reach this point: a historical pack scope has no catalog to verify its words,
 // so ruling B already left its log out. Everything left out, here or by ruling B during
 // validation, is counted in state.logOmitted.
-// Guess-first retrievals (source 'guess') are read, validated and imported, but schema 2 export
-// leaves them out and counts them in logOmitted: every build up to 0.12.20 refuses a whole backup
-// holding one. Turn this on once a release that reads them has shipped (the "Release order" rule
-// in docs/LEARNING-CORE-MISSION.md; docs/INFERENCE-MISSION.md).
-export const EXPORT_GUESSES = false;
-// 0.12.21 rejects these IDs when importing a schema 2 log. Keep the old form
-// predicate only at this export boundary until 0.12.22 readers have shipped.
-const legacyExportForm = (id) => id.length > 0 && id.length <= 50 && id.trim() === id &&
-  id.split(/\s+/).length <= 5 &&
-  !/[\p{Cc}\p{Cf}\p{Cs}<>:\/@\\]/u.test(id.replace(/[\u200c\u200d]/g, '')) &&
-  !/\.[\p{L}\p{N}]/u.test(id);
 function fitLog(st, m, budget) {
   const encoder = new TextEncoder();
   const bytes = (value) => encoder.encode(JSON.stringify(value)).length;
@@ -466,32 +455,17 @@ function fitLog(st, m, budget) {
     if (fields.retrievals) used += bytes('retrievals') + 2 + bytes({ version: 1, retrievals: [] });
     if (fields.exposures) used += bytes('exposures') + 2;
   }
-  for (const [id, fields] of Object.entries(st.scopes)) {
-    if (fields.exposures && !id.startsWith('personal:')) {
-      for (const word of Object.keys(fields.exposures.words)) {
-        if (legacyExportForm(word)) continue;
-        delete fields.exposures.words[word];
-        droppedWords++;
-      }
-    }
+  for (const fields of Object.values(st.scopes)) {
     if (fields.exposures && !fit(bytes(fields.exposures))) {
       droppedWords += Object.keys(fields.exposures.words).length;
       delete fields.exposures;
     }
   }
-  const all = [];
-  for (const [id, fields] of Object.entries(st.scopes))
-    for (const tuple of fields.retrievals?.retrievals || []) {
-      if ((tuple[2] === 'guess' && !EXPORT_GUESSES) ||
-          (!id.startsWith('personal:') && !legacyExportForm(tuple[0]))) {
-        droppedRetrievals++; continue;
-      }
-      all.push([id, tuple]);
-    }
-  all.sort(([, a], [, b]) => b[1] - a[1]);
+  const all = Object.values(st.scopes).flatMap((fields) => fields.retrievals?.retrievals || []);
+  all.sort((a, b) => b[1] - a[1]);
   const kept = new Set();
   let full = false;
-  for (const [, tuple] of all) {
+  for (const tuple of all) {
     if (!full && fit(bytes(tuple) + 1)) kept.add(tuple);
     else { full = true; droppedRetrievals++; }
   }
@@ -544,7 +518,7 @@ export function createBackup(all, exportedByVersion, schema) {
     // log without saying so.
     fitLog(clean.state, m, Math.max(0, Math.min(LOG_BUDGET_BYTES, MAX_BACKUP_BYTES - base - LOG_MARGIN_BYTES)));
   }
-  // Schema 2 is written compactly: indentation would roughly triple the learning log.
+  // Schemas 2 and 3 are written compactly: indentation would roughly triple the learning log.
   const json = schema >= 2 ? JSON.stringify(clean) : JSON.stringify(clean, null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('supported learning state exceeds file limit');
   return json;

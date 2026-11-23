@@ -2799,6 +2799,10 @@
     "message": "Download supported learning progress, personal entries, generated packs and learning preferences. Export only reads local state.",
     "description": "Paragraph describing what the export contains. Learning backup page (backup.html)."
   },
+  "backup_export_compatibility": {
+    "message": "For format 2, use Lang Weave 0.12.21 or later to restore Guess first answers and 0.12.22 or later for measurements of generated forms such as il/elle. Format 3 backups with reading-day dates require 0.13.3 or later. Progress on words added to the bundled vocabulary can require a newer version.",
+    "description": "Minimum versions for restoring newly exported measurements and reading dates. Keep the version numbers and generated spelling il/elle literal. Learning backup page (backup.html)."
+  },
   "backup_export_blocked": {
     "message": "An unverified card from an old or removed language pack blocks the whole backup. The old installation and its history stay intact; this tool cannot safely include that card or import part of the history.",
     "description": "Paragraph warning that one unverified card blocks the whole export. Learning backup page (backup.html)."
@@ -2962,10 +2966,10 @@
     "description": "Shown in the import preview when the validated backup holds any reading-day dates."
   },
   "backup_measurements": {
-    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words.",
-    "description": "Preview line counting logged reviews and exposure counts in the backup. Learning backup page (backup.html).",
+    "message": "Learning measurements: $RETRIEVALS$ logged reviews and guesses, exposure counts for $WORDS$ words.",
+    "description": "Preview line counting logged reviews and guesses together, and words with exposure counts. Learning backup page (backup.html).",
     "placeholders": {
-      "REVIEWS": {
+      "RETRIEVALS": {
         "content": "$1",
         "example": "340"
       },
@@ -2976,10 +2980,10 @@
     }
   },
   "backup_measurements_omitted": {
-    "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words. Left out, because the exporter's size limit was reached, the words are not in this backup's word lists or personal vocabulary, or they are guess-first answers, which backups do not carry yet: $OMITTED_REVIEWS$ reviews or guesses and exposure counts for $OMITTED_WORDS$ words.",
-    "description": "Same as the measurements line, followed by a second sentence counting what the export had to leave out. Learning backup page (backup.html).",
+    "message": "Learning measurements: $RETRIEVALS$ logged reviews and guesses, exposure counts for $WORDS$ words. Left out: $OMITTED_RETRIEVALS$ reviews or guesses and exposure counts for $OMITTED_WORDS$ words. Backups have a size limit and keep only measurements that match the backup's vocabulary.",
+    "description": "Counts the measurements kept and omitted during export or preview validation. Learning backup page (backup.html).",
     "placeholders": {
-      "REVIEWS": {
+      "RETRIEVALS": {
         "content": "$1",
         "example": "340"
       },
@@ -2987,7 +2991,7 @@
         "content": "$2",
         "example": "95"
       },
-      "OMITTED_REVIEWS": {
+      "OMITTED_RETRIEVALS": {
         "content": "$3",
         "example": "12"
       },
