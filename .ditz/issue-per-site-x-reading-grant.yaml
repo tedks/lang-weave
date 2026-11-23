@@ -1,0 +1,24 @@
+id: per-site-x-reading-grant
+title: Verify per-site access to X persists across tabs in the packaged extension
+desc: On the packaged 0.14.0 source cdc7bb9a, a fresh disposable Chrome profile choosing
+  only enabled sites, saving a per-host override for X, and opening a synthetic X
+  page showed no visible swap. Chrome listed X in permissions.getAll, but tabs.get/query
+  withheld tab URL and title, and the local synthetic model received no calls. With
+  a genuine Welcome all-sites browser grant the same package, page and stub produced
+  a visible word and persisted a reading day with one synthetic model call. Validate
+  the toolbar UI (including activeTab) and subsequent new-tab behavior, then correct
+  per-host permission handling if needed. Retain the live-title and URL eligibility
+  checks and avoid broadening requested access. Root owns initial GUI reproduction.
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T04:51:18-00:00
+references: []
+log_events:
+- time: 2026-11-23T04:51:18-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
