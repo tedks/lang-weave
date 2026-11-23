@@ -1,0 +1,21 @@
+id: minimum-chrome-review-reuse
+title: Reuse a Review tab on the declared minimum Chrome version
+desc: "On public 0.15.7, Chrome for Testing 140.0.7339.207 opens a second Review tab
+  for My words \u2192 Practice now. In a generated profile tabs.query with the exact
+  extension Review URL returned zero and tabs.create opened the second document; original
+  stayed on water, new current card was teacher. Same ZIP passed on Chrome 158.0.8127.36.
+  Fix reuse on supported versions without adding permissions or reading other sites.
+  Test navigation races, current review state and source-window prioritization."
+type: bugfix
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T08:39:32-00:00
+references: []
+log_events:
+- time: 2026-11-23T08:39:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
