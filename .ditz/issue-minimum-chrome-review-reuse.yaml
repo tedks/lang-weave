@@ -23,3 +23,14 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T09:09:06-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #87 is qualified at 5639a6ec37b90650a2b1607200ce5b6df8207c5e on merged
+    0.15.8 c59701f67b60af9476013dc35ed05eb77cfd8353. All six strict Bazel targets
+    passed, with 513 full Bun, 130 focused and 102 inherited Python tests. Exact 0.15.9
+    ZIP SHA-256 4d85c87acc29b6ad314e373c844c426c8ccfe0cae6088e15b78a2c42c1a3f120 passed
+    the disposable headed Chrome 140.0.7339.207 and 158.0.8127.36 installs. Formal
+    council cleared Sol and Opus at the exact head; the bounded Google attempt hit
+    quota. Keep this issue in progress pending CTO integration. Nonblocking slow-loading
+    follow-up: review-loading-edge-cases.'
