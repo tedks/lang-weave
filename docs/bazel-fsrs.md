@@ -60,12 +60,14 @@ curriculum and lexicon regressions. For fresh counts, add
 `--nocache_test_results --test_output=all` and read Bun's summary. Bazel
 reports the entire suite as one test target.
 
-On first fetch or a lockfile change, Bazel uses the pinned Bun to install
-from `extension/package.json` and `extension/bun.lock` in an external
-repository. The install uses the public npm registry, freezes the lock and
-skips lifecycle scripts. The test action copies the resolved modules and
-declared source files into its sandbox and runs Bun with networking and
-automatic installs disabled. No local `node_modules` is needed.
+Bazel uses the pinned Bun to install from `extension/package.json` and
+`extension/bun.lock` in an external repository. A change to either file or
+to the pinned Bun executable triggers a fresh install. The install uses the
+public npm registry, freezes the lock and skips lifecycle scripts. The test
+action copies the resolved modules and declared source files into the sandbox
+and runs Bun with automatic installs disabled. The documented
+`--spawn_strategy=linux-sandbox` invocation enforces the test's network block.
+No local `node_modules` is needed.
 
 The tests need the source layout, including licenses and data outside
 `extension/`. They run without Git metadata. The packaging tests build

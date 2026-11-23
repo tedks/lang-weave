@@ -12,6 +12,8 @@ cd "${TEST_TMPDIR}/extension"
 cp -LR "${deps_root}/node_modules" "${deps_root}/package.json" .
 
 export DO_NOT_TRACK=1
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR
+export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 export HOME="$TEST_TMPDIR"
 export TMPDIR="$TEST_TMPDIR"
 export TZ=UTC
