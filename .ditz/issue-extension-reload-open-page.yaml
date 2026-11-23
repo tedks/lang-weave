@@ -26,3 +26,20 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T06:16:18-00:00
+  who: Ted Smith
+  what: commented
+  comment: "Root reproduced the update boundary in disposable Chrome for Testing,
+    using the public 0.14.4 and 0.15.0 ZIP-matching fleet payloads, the real network-isolated
+    installer, chrome://extensions \u2192 Load unpacked, and a synthetic English page/provider.
+    Original \u201Cand\u201D \u2192 \u201Cy\u201D flipped both ways before upgrade.
+    The real alarm was shortened to 30 seconds for this controlled run. After the
+    install and extension self-reload Chrome served 0.15.0 under the same stable ID,
+    showed the new practice link, and retained the learner\u2019s confirmed Expanded
+    placement and site grants. The original document remained open and still contained
+    one visible y, but clicking it no longer flipped to English. The unmodified alarm
+    is also being observed separately. A command-line injected extension behaved differently
+    on reload and is not a substitute for the normal-install tracer. Private evidence
+    under cto-fleet-ui-reload.path/events.jsonl and validation.log. Continue to diagnose
+    real post-update recovery without trusting page-authored word-like DOM, auto-reloading
+    user tabs or reaching a live provider."
