@@ -13,8 +13,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T09:10:31-00:00
 references: []
 log_events:
@@ -36,3 +36,7 @@ log_events:
     version gates passed. OpenAI and Anthropic clean after the fix delta. Google quota
     exhausted. Integration and release remain with the coordinating owner. Receipt:
     https://github.com/tedks/lang-weave/pull/91#issuecomment-7097287300'
+- time: 2026-11-23T09:59:03-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: ""
