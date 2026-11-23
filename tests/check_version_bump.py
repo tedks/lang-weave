@@ -31,7 +31,7 @@ VERSIONED = (PLUGIN, '.claude-plugin/marketplace.json', 'extension/manifest.json
 # copied by setup but never loaded by the plugin or unpacked extension.
 SHIPPED = ('.claude-plugin/', 'scripts/', 'hooks/', 'commands/', 'skills/', 'agents/', 'data/', 'extension/')
 # Developer-only tools do not need an installed runtime version bump. Only
-# the known harness entry points are exempt. New e2e files fail closed.
+# the known harness files are exempt. New e2e files fail closed.
 NOT_SHIPPED = ('extension/test/', 'extension/node_modules/', 'extension/package.json', 'extension/bun.lock',
                'extension/bun.lockb')
 E2E_HARNESSES = (
@@ -39,6 +39,7 @@ E2E_HARNESSES = (
     'extension/e2e/again.mjs',
     'extension/e2e/badge.mjs',
     'extension/e2e/browser.mjs',
+    'extension/e2e/closed-shadow.js',
     'extension/e2e/gloss.mjs',
     'extension/e2e/gradual.mjs',
     'extension/e2e/guess.mjs',
