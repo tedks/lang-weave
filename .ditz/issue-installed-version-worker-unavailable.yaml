@@ -8,8 +8,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T09:57:11-00:00
 references: []
 log_events:
@@ -21,3 +21,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T10:19:09-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged #94 at 6f8f838475ae2c7dc23cd38dc27b434b542b4405, published 0.15.13
+    beta ZIP d2cc5c93f255681bd9b73814625c0666b36a124298a769ec4ad9540c8d30de98. Public
+    0.15.12 showed a blank value after a failed status; public 0.15.13 shows the loaded
+    version with the visible diagnostic. Strict six source targets plus both minimum
+    and current stable Chrome passed.'
