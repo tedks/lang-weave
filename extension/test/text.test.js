@@ -536,7 +536,8 @@ describe('lang and description on swapped words', () => {
       toggle(kept.querySelector('.fw-word'));
       expect(hosts()).toHaveLength(1);
       expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('Show Spanish');
-      revert(kept);
+      expect(revert(kept)).toBe(1);
+      expect(kept.textContent).toBe('birds and bees sing in the garden today');
     } finally { p.remove(); kept.remove(); }
   });
 });

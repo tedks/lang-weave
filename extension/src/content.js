@@ -94,7 +94,7 @@ const swapFor = (e) => {
 function record(span, event) {
   if (event === 'seen') deferredSightings.delete(span);
   const word = swapWord(span);
-  if (!word || !on()) return;
+  if (!word || !on() || !isIntactSwap(span)) return;
   const revision = config.revision;
   const today = localDay();
   if (seen.day !== today) seen = { day: today, events: new Set() };
@@ -235,7 +235,8 @@ async function openCue(span) {
   document.documentElement.append(shell.host); cue = panel; cueHost = shell.host;
   button(actions, t('recall_dismiss'), () => closeCue(span));
   placeTip(span, shell.host);
-  const liveCue = () => gen === generation && cue === panel && on() && span.isConnected && isPractice(span);
+  const liveCue = () => gen === generation && cue === panel && on() &&
+    span.isConnected && isPractice(span) && isIntactSwap(span);
   let ticket;
   let answer;
   try {
@@ -576,7 +577,7 @@ export function disarmTip(e) {
 }
 function introSpans(ticket) {
   return [...document.querySelectorAll(`span.${SWAP_CLASS}`)]
-    .filter((span) => isSwap(span) && introductionTicket(span) === ticket);
+    .filter((span) => introductionTicket(span) === ticket && isIntactSwap(span));
 }
 function abandonIntro(ticket, word, revision) {
   for (const span of introSpans(ticket)) {
@@ -598,7 +599,7 @@ function retryIntro(ticket, word, revision, gen) {
 function seenVisible({ acknowledge = true } = {}) {
   if (document.visibilityState === 'hidden') return;
   for (const span of visibleWords) {
-    if (!span.isConnected || isPractice(span)) continue;
+    if (!span.isConnected || isPractice(span) || !isIntactSwap(span)) continue;
     const ticket = introductionTicket(span);
     if (ticket) {
       if (!acknowledge) continue;

@@ -194,7 +194,7 @@ function showEnglish(span, text) {
 }
 export const introductionTicket = (span) => introductions.get(span) || '';
 export function replaceIntroductionTicket(span, oldTicket, nextTicket) {
-  if (!owned.has(span) || !span.isConnected || introductions.get(span) !== oldTicket || !nextTicket) return false;
+  if (!span.isConnected || introductions.get(span) !== oldTicket || !nextTicket || !isIntactSwap(span)) return false;
   introductions.set(span, nextTicket);
   return true;
 }
@@ -445,7 +445,7 @@ export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es') {
 export function revert(root) {
   const spans = Array.from(root.querySelectorAll(`span.${SWAP_CLASS}`)).filter((span) => {
     if (!isSwap(span)) return false;
-    // A site's own edits must survive the next observer pass as well as an update.
+    // Leave the site's own edits in place during rescans, pause, revocation and updates.
     if (isIntactSwap(span)) return true;
     forgetSwap(span);
     return false;
@@ -511,12 +511,12 @@ export function retireSwaps(doc) {
 
 // Click: flip one swap between the selected target language and English.
 export function toggle(span, language = 'Spanish') {
-  if (!isIntactSwap(span)) return null;
-  const showEn = !span.classList.contains('fw-en');
   const display = displaySwap.get(span);
+  if (!display?.f || !isIntactSwap(span)) return null;
+  const showEn = !span.classList.contains('fw-en');
   span.classList.toggle('fw-en', showEn);
   if (showEn) {
-    showEnglish(span, sourceEnglish.get(span) ?? span.getAttribute('data-en'));
+    showEnglish(span, sourceEnglish.get(span));
     span.removeAttribute('aria-label');
     describe(span, t('swap_show_language', language));
   } else showTarget(span, display.f, display);

@@ -3,20 +3,25 @@ import { Window } from 'happy-dom';
 
 const story = 'I enjoy cats and dogs every single day here.';
 const wait = (ms = 400) => new Promise((done) => setTimeout(done, ms));
-const swaps = (msg) => ({ results: Object.fromEntries(msg.items.map((i) => [i.key,
-  [{ o: 'and', f: 'et', g: 'and', h: 'ay', ctx: '' }]])) });
+const swaps = (msg, extra = {}) => ({ results: Object.fromEntries(msg.items.map((i) => [i.key,
+  [{ o: 'and', f: 'et', g: 'and', h: 'ay', ctx: '', ...extra }]])) });
 
-async function withReader(module, run) {
+async function withReader(module, run, { introTicket } = {}) {
   const win = new Window({ url: 'https://example.com/article' });
   const keys = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval', 'setTimeout'];
   const saved = Object.fromEntries(keys.map((k) => [k, globalThis[k]]));
+  let markVisible;
   class IO {
-    constructor(cb, options) { this.cb = cb; this.options = options; this.els = new Set(); }
+    constructor(cb, options) {
+      this.cb = cb; this.options = options; this.els = new Set();
+      if (!options.rootMargin) markVisible = (target) => cb([{ target, isIntersecting: true, intersectionRatio: 1 }]);
+    }
     observe(el) { this.els.add(el); if (this.options.rootMargin) queueMicrotask(() => { if (this.els.has(el)) this.cb([{ target: el, isIntersecting: true, intersectionRatio: 1 }]); }); }
     unobserve(el) { this.els.delete(el); }
     disconnect() { this.els.clear(); }
   }
-  const config = { settings: { enabled: true, newSitesEnabled: true, siteOverrides: {} }, level: 1, revision: 'r1', hasKey: true, paused: false, origins: ['<all_urls>'], stage: 1 };
+  const config = { settings: { enabled: true, newSitesEnabled: true, siteOverrides: {}, gradual: !!introTicket },
+    level: 1, revision: 'r1', hasKey: true, paused: false, origins: ['<all_urls>'], stage: 1 };
   const requests = [];
   const listeners = [];
   const runtime = {
@@ -25,7 +30,7 @@ async function withReader(module, run) {
     sendMessage: async (msg) => {
       requests.push(msg);
       if (msg.type === 'config') return config;
-      if (msg.type === 'swaps') return swaps(msg);
+      if (msg.type === 'swaps') return swaps(msg, introTicket ? { word: 'et', introTicket } : {});
       return { ok: true };
     },
   };
@@ -41,7 +46,7 @@ async function withReader(module, run) {
       '<p id="b"><span class="fw-word" data-en="forged source">visible site text</span></p></main>';
     await import(`../src/content.js?${module}`);
     await wait();
-    await run({ win, runtime, requests, deliver, config });
+    await run({ win, runtime, requests, deliver, config, markVisible });
   } finally {
     await win.happyDOM.close();
     Object.assign(globalThis, saved);
@@ -124,3 +129,22 @@ test('only the worker can retire a live reader, and a failed reload resumes with
     await wait();
     expect(passage.querySelector('.fw-word')?.textContent).toBe('et');
   }));
+
+test('a site edit prevents the unshown target from consuming an introduction', () =>
+  withReader('edited-introduction', async ({ win, requests, markVisible, config, deliver }) => {
+    const word = win.document.querySelector('#a .fw-word');
+    expect(word?.textContent).toBe('and');
+    word.dataset.siteEdited = 'true';
+    markVisible(word);
+    await wait(0);
+    expect(requests.filter(({ type }) => type === 'introAck')).toEqual([]);
+    expect(word.textContent).toBe('and');
+    delete word.dataset.siteEdited;
+    markVisible(word);
+    await wait(0);
+    expect(requests.filter(({ type }) => type === 'introAck')).toHaveLength(1);
+    expect(word.textContent).toBe('et');
+    deliver({ type: 'retry', config: { ...config, paused: true } }, {});
+    expect(word.isConnected).toBe(false);
+    expect(win.document.querySelector('#a').textContent).toBe(story);
+  }, { introTicket: 'reserved-word' }));

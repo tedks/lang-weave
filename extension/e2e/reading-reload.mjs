@@ -255,8 +255,10 @@ try {
   await flip(word);
   assert.equal(await word.count(), 1);
   const recovered = await openPopup();
-  await recovered.getByText('On for reading.example', { exact: true }).waitFor();
-  assert.equal(await recovered.locator('#readingReload').isVisible(), false);
+  assert.deepEqual(await recovered.evaluate(async () => {
+    const [readingTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return chrome.tabs.sendMessage(readingTab.id, { type: 'readingReloadHint' }, { frameId: 0 });
+  }), { ambiguous: false });
   await recovered.close();
   console.log(`PASS: ${candidate.version} → ${nextVersion} (same source, fixture manifest version). The old owned wrapper is gone, the same page weaves again, and existing edits and approvals survived.`);
 
