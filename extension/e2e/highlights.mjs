@@ -1,14 +1,14 @@
 // Real Chromium rendering of the shipped extension CSS on owned synthetic pages.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-highlights-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 const screenshots = process.argv.includes('--save-screenshots')
   ? join(root, '..', 'docs', 'artifacts') : join(scratch, 'screenshots');
 function contrast(foreground, background) {
@@ -25,18 +25,14 @@ function contrast(foreground, background) {
 }
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.content_scripts[0].matches = ['https://reading.example/*']; // synthetic site only
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true, viewport: { width: 820, height: 460 },
+    ...chromiumBinary, headless: true, viewport: { width: 820, height: 460 },
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
+  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  await grantReadingSite(browser, worker);
   await browser.route('https://reading.example/highlight-fixture/**', (route) => {
     const dark = route.request().url().endsWith('/dark');
     const background = dark ? '#15202b' : '#ffffff';

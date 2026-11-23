@@ -25,6 +25,15 @@ exports_files(
 )
 
 filegroup(
+    name = "supplementary_browser_cases",
+    srcs = glob([
+        "e2e/*.mjs",
+        "e2e/*.js",
+    ]),
+    visibility = ["//:__pkg__"],
+)
+
+filegroup(
     name = "version_scan_inputs",
     srcs = glob(["design/**"]) + [
         "package.json",

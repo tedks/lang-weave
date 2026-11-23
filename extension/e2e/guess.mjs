@@ -1,27 +1,21 @@
 // Guess first in isolated real MV3 Chromium: synthetic Gemini replies, a throwaway profile and
 // browser-level network denial. Production source and CSS; learning cards seeded in storage.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-guess-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 const artifacts = process.argv.includes('--save-screenshots')
   ? join(root, '..', 'docs', 'artifacts') : join(scratch, 'screenshots');
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true }); // default_locale needs it
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push(...manifest.optional_host_permissions); // test grant only
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true, viewport: { width: 760, height: 520 },
+    ...chromiumBinary, headless: true, viewport: { width: 760, height: 520 },
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
@@ -66,6 +60,8 @@ try {
     <form><p>Private form text and notes stay here every evening.</p></form>
     <p contenteditable="true">Editable text and notes stay here every evening.</p>
   </main></body></html>`;
+  await grantReadingSite(browser, worker);
+  await grantReadingSite(browser, worker, 'http://reading.example/*');
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const page = await browser.newPage();
   page.on('console', (msg) => { if (msg.type() === 'error') console.error('PAGE CONSOLE', msg.text()); });
@@ -74,7 +70,7 @@ try {
   await page.goto('https://reading.example/guess');
   const y = page.locator('#one .fw-word');
   const pero = page.locator('#two .fw-word');
-  const o = page.locator('#three .fw-word');
+  const o = page.locator('#three .fw-word').describe('third HTTPS guess word');
   await y.waitFor();
   await pero.waitFor();
   await o.waitFor();
@@ -265,7 +261,7 @@ try {
   await browser.route('http://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const httpPage = await browser.newPage();
   await httpPage.goto('http://reading.example/guess');
-  const httpWord = httpPage.locator('#three .fw-word');
+  const httpWord = httpPage.locator('#three .fw-word').describe('third HTTP guess word');
   await httpWord.waitFor();
   await httpWord.hover();
   const httpPanel = httpPage.locator('.fw-guess-host');
