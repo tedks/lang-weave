@@ -88,11 +88,13 @@ backup and resource-manifest regressions without npm test dependencies.
 `//:inherited_python_test` runs the full `unittest discover -s tests` suite
 from declared runfiles. It copies the fixtures and source into a temporary
 directory and gives each run a disposable home for inherited setup tests.
-The test carries Bazel's Linux sandbox network block. It uses Python and Git
-from the Nix shell and `ps` from the local system for process detection tests.
+Use the explicit Linux sandbox strategy below to enforce the test's
+`block-network` tag and fail if the sandbox is unavailable. The suite uses
+Python and Git from the Nix shell and `ps` from the local system for process
+detection tests.
 
 ```sh
-nix develop --command bazel test //:inherited_python_test //:version_classifier_test
+nix develop --command bazel test --spawn_strategy=linux-sandbox //:inherited_python_test //:version_classifier_test
 ```
 
 Run the live version check before accepting a release candidate. Pass a local

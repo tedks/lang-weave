@@ -263,6 +263,15 @@ class VersionBump(unittest.TestCase):
             self.assertEqual(explicit.returncode, 0, explicit.stderr)
             self.assertIn(f'base={self.base} head={candidate}', explicit.stdout)
 
+    def test_strict_rejects_commits_without_a_merge_base(self):
+        self.git('checkout', '-q', '--orphan', 'unrelated')
+        candidate = self.commit('unrelated history')
+        result = self.strict('--base', self.base, '--head', 'unrelated')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'base={self.base} head={candidate}', result.stdout)
+        self.assertIn('git merge-base', result.stderr)
+        self.assertNotIn('Version check passed', result.stdout)
+
     def test_strict_rereads_a_reused_candidate_ref(self):
         self.git('branch', 'baseline', self.base)
         self.git('branch', 'candidate', self.base)
