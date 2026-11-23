@@ -9,6 +9,74 @@ const packagedExtension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
 if (process.env.TEST_SRCDIR && !packagedExtension) throw new Error('Bazel must supply the extracted beta ZIP directory');
 export const extensionRoot = packagedExtension || fileURLToPath(new URL('..', import.meta.url));
 
+export async function waitForExtensionWorker(browser, previous) {
+  const matches = (worker) => {
+    const url = new URL(worker.url());
+    return url.protocol === 'chrome-extension:' && url.pathname === '/src/background.js' &&
+      (!previous || worker.url() === previous.url);
+  };
+  // Chrome 140 can publish the worker target before its extension APIs are bound.
+  // Playwright can also keep the same Worker object across an MV3 restart.
+  let timeout, done = false;
+  try {
+    return await Promise.race([
+      (async () => {
+        while (!done) {
+          const worker = browser.serviceWorkers().find(matches);
+          if (worker) {
+            try {
+              const ready = await worker.evaluate(({ id, token }) => {
+                const api = globalThis.chrome;
+                return api?.runtime?.id === id &&
+                  typeof api.runtime.onMessage?.addListener === 'function' &&
+                  typeof api.storage?.local?.get === 'function' &&
+                  typeof api.storage.local.set === 'function' &&
+                  typeof api.permissions?.contains === 'function' &&
+                  (!token || globalThis.fixtureWorkerToken !== token);
+              }, { id: new URL(worker.url()).host, token: previous?.token });
+              if (ready) return worker;
+            } catch (error) {
+              // Closing a target or replacing its execution context can interrupt this read.
+              if (!/Service worker restarted|Worker was closed|Target page, context or browser has been closed|Execution context was destroyed/i
+                .test(error.message)) throw error;
+            }
+          }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+      })(),
+      // Playwright can also wait for a worker execution context before evaluating.
+      new Promise((_, reject) => {
+        const target = previous ? `replacement for ${previous.url}` : 'Lang Weave background worker';
+        timeout = setTimeout(() => reject(new Error(`Timed out waiting for Chrome APIs in ${target}`)), 10000);
+      }),
+    ]);
+  } finally {
+    done = true;
+    clearTimeout(timeout);
+  }
+}
+
+export async function restartExtensionWorker(browser, page, worker) {
+  const url = worker.url();
+  const token = await worker.evaluate(() => {
+    globalThis.fixtureWorkerToken = crypto.randomUUID();
+    return globalThis.fixtureWorkerToken;
+  });
+  const cdp = await browser.newCDPSession(page);
+  try {
+    const { targetInfos } = await cdp.send('Target.getTargets');
+    const target = targetInfos.find((item) => item.type === 'service_worker' && item.url === url);
+    assert.ok(target, 'the first worker is running');
+    await cdp.send('Target.closeTarget', { targetId: target.targetId });
+    // Start the worker directly, without navigation or a user gesture.
+    await cdp.send('ServiceWorker.enable');
+    await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${new URL(url).host}/` });
+    return await waitForExtensionWorker(browser, { url, token });
+  } finally {
+    await cdp.detach();
+  }
+}
+
 // Use Chromium's permission store in a disposable profile. The manager pregrants the
 // test origin so the extension's normal optional-permission request has no native prompt.
 export async function grantReadingSite(browser, worker, pattern = 'https://reading.example/*') {

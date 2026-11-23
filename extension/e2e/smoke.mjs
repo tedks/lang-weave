@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, isAbsolute } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
 const beginnerSpanishWords = 48;
 const firstReviewBatch = 5;
@@ -51,7 +51,7 @@ try {
     // dispatch at the browser level even if that happens during this flow.
     args: launchArgs,
   });
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(context);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
@@ -238,7 +238,7 @@ try {
   context = await chromium.launchPersistentContext(join(scratch, 'fresh-profile'), {
     ...chromiumBinary, headless: true, args: launchArgs,
   });
-  const freshWorker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  const freshWorker = await waitForExtensionWorker(context);
   assert.equal(await freshWorker.evaluate(() => 'smokeCalls' in globalThis), false);
   await grantReadingSite(context, freshWorker, 'http://127.0.0.1/*');
   // The owned origin is a positive control; a non-loopback hostname must

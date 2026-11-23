@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, restartExtensionWorker, waitForExtensionWorker } from './browser.mjs';
 
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-startup-recovery-'));
 const extension = extensionRoot;
@@ -17,7 +17,7 @@ try {
   });
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: '<!doctype html><title>Ordinary reading</title><main><p id="reading">We read books and enjoy quiet evenings every week.</p></main>' }));
-  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  let worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
@@ -46,20 +46,7 @@ try {
   const waiting = await browser.newPage();
   await waiting.goto('https://reading.example/waiting');
   assert.equal(await waiting.locator('#reading .fw-word').count(), 0);
-  const cdp = await browser.newCDPSession(waiting);
-  const { targetInfos } = await cdp.send('Target.getTargets');
-  const target = targetInfos.find((item) => item.type === 'service_worker' &&
-    item.url === `chrome-extension://${id}/src/background.js`);
-  assert.ok(target, 'the first worker is running');
-  await cdp.send('Target.closeTarget', { targetId: target.targetId });
-  // CDP starts the worker directly. Neither page navigation nor a user gesture wakes it.
-  await cdp.send('ServiceWorker.enable');
-  await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${id}/` });
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const candidate = browser.serviceWorkers().find((item) => item !== worker);
-    if (candidate) { worker = candidate; break; }
-    await new Promise((done) => setTimeout(done, 100));
-  }
+  worker = await restartExtensionWorker(browser, waiting, worker);
   await waiting.locator('#reading .fw-word').waitFor({ timeout: 10000 });
   assert.equal(await waiting.locator('#reading .fw-word').count(), 1);
   assert.equal(await waiting.locator('#reading .fw-word').textContent(), 'y');

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 import { closedShadow } from './closed-shadow.js';
 const { cleanPack } = await import(pathToFileURL(join(extensionRoot, 'src', 'languages.js')).href);
 const { initialState, intervalDays } = await import(pathToFileURL(join(extensionRoot, 'src', 'fsrs.js')).href);
@@ -21,7 +21,7 @@ try {
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)

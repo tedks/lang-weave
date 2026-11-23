@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, waitForExtensionWorker } from './browser.mjs';
 import { pathToFileURL } from 'node:url';
 
 const { hashKey } = await import(pathToFileURL(join(extensionRoot, 'src', 'hash.js')).href);
@@ -40,7 +40,7 @@ async function load(name, { keyless = false, source = extensionRoot } = {}) {
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   // The fixture writes storage directly; wait for the install's default settings write first.
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)

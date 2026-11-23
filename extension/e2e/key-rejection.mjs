@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, chromiumBinary, extensionRoot, grantReadingSite } from './browser.mjs';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, restartExtensionWorker, waitForExtensionWorker } from './browser.mjs';
 
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-key-rejection-'));
 const extension = extensionRoot;
@@ -16,7 +16,7 @@ try {
   });
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: '<!doctype html><title>Ordinary reading</title><main><p id="reading">We read books and enjoy quiet evenings every week.</p></main>' }));
-  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  let worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   const waitStatus = async (stage, predicate) => {
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -106,20 +106,7 @@ try {
   await waitStatus('reading on the unrelated granted site', (status) => status?.at > staleAt);
   assert.equal(await worker.evaluate(() => globalThis.lateCalls), 1);
   const beforeRestart = await worker.evaluate(() => chrome.storage.local.get(['modelCalls', 'modelStatus']));
-  const cdp = await browser.newCDPSession(other);
-  const { targetInfos } = await cdp.send('Target.getTargets');
-  const target = targetInfos.find((item) => item.type === 'service_worker' &&
-    item.url === `chrome-extension://${id}/src/background.js`);
-  assert.ok(target);
-  await cdp.send('Target.closeTarget', { targetId: target.targetId });
-  await cdp.send('ServiceWorker.enable');
-  await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${id}/` });
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const candidate = browser.serviceWorkers().find((item) => item !== worker);
-    if (candidate) { worker = candidate; break; }
-    await new Promise((done) => setTimeout(done, 100));
-  }
-  await new Promise((done) => setTimeout(done, 30));
+  worker = await restartExtensionWorker(browser, other, worker);
   const afterRestart = await browser.newPage();
   await afterRestart.goto('https://other.example/after-restart');
   await waitStatus('reading after the worker restart', (status) => status?.at > beforeRestart.modelStatus.at);
