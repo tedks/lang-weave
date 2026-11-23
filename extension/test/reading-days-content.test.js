@@ -73,6 +73,10 @@ test('visible target faces count once per local day, including a page left open 
     click();
     expect(span.textContent).toBe('y');
     expect(seen).toEqual(['2026-10-20', '2026-10-21', '2026-10-22']);
+
+    now = new RealDate(2026, 9, 20, 12).getTime();
+    tick(); tick(); // The worker can retain this observed day again even if the old date aged out.
+    expect(seen).toEqual(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-20']);
   } finally {
     win.happyDOM.cancelAsync();
     Object.assign(globalThis, previous);
