@@ -3124,5 +3124,89 @@
   "progress_measure_guess_recall_why": {
     "message": "If guessed words are recalled no better than other words, the guess step is not helping. Hovered words can differ from the rest, so this is a hint, not proof.",
     "description": "Explanation under the guess recall comparison."
+  },
+  "paragraph_title": {
+    "message": "Practice a paragraph",
+    "description": "Title and navigation link for the exercise page."
+  },
+  "paragraph_intro": {
+    "message": "Use your own English text to try a word in Spanish or Paraguayan Guaraní. Everything stays in this tab. No key or site access needed.",
+    "description": "Purpose and privacy of the paragraph exercise."
+  },
+  "paragraph_source": {
+    "message": "Your paragraph",
+    "description": "Heading for the paragraph controls."
+  },
+  "paragraph_language": {
+    "message": "Practice language",
+    "description": "Label for the exercise language selector."
+  },
+  "paragraph_generated": {
+    "message": "Offline practice supports the two bundled languages. Pick either here without changing your reading language in Settings.",
+    "description": "Shown when Settings selects a generated language."
+  },
+  "paragraph_english": {
+    "message": "Short English paragraph",
+    "description": "Label for the plain-text paragraph field."
+  },
+  "paragraph_limit": {
+    "message": "Up to 2,000 characters of plain text.",
+    "description": "Maximum size of the practice paragraph."
+  },
+  "paragraph_find": {
+    "message": "Find words",
+    "description": "Find possible catalog senses in the source text."
+  },
+  "paragraph_example": {
+    "message": "Use example",
+    "description": "Fill the paragraph field with an example for the selected language."
+  },
+  "paragraph_clear": {
+    "message": "Clear paragraph",
+    "description": "Discard the practice text and all results."
+  },
+  "paragraph_choices": {
+    "message": "Choose a word to practice",
+    "description": "Heading for the exercise results and word choices."
+  },
+  "paragraph_sense_help": {
+    "message": "Check that the catalog meaning fits your sentence.",
+    "description": "Reminder that matches suggest possible meanings."
+  },
+  "paragraph_occurrence": {
+    "message": "Occurrence in your paragraph",
+    "description": "Label for choosing which exact part of the paragraph to practice."
+  },
+  "paragraph_sense": {
+    "message": "Catalog word and meaning",
+    "description": "Label for choosing the target word and its English sense."
+  },
+  "paragraph_practice": {
+    "message": "Practice this word",
+    "description": "Show the chosen word where it occurs in the paragraph."
+  },
+  "paragraph_transient": {
+    "message": "This exercise is temporary. Your words, reviews and reading progress stay as they are.",
+    "description": "Explains that paragraph practice has no effect on persistent learning data."
+  },
+  "paragraph_flip": {
+    "message": "Click the underlined word, or press Enter or Space on it, to flip between languages.",
+    "description": "Mouse and keyboard instructions for the woven word."
+  },
+  "paragraph_beginner": {
+    "message": "Vocabulary tier: Beginner",
+    "description": "Effective bundled vocabulary tier for the paragraph exercise."
+  },
+  "paragraph_expanded": {
+    "message": "Vocabulary tier: Expanded",
+    "description": "Effective bundled vocabulary tier for the paragraph exercise."
+  },
+  "paragraph_empty": {
+    "message": "Enter a short English paragraph or use the example.",
+    "description": "Shown when the learner tries to find words with an empty paragraph."
+  },
+  "paragraph_no_matches": {
+    "message": "No matching words at this tier. Try the example or edit your paragraph and find words again.",
+    "description": "Shown when the catalog offers no eligible matches."
   }
 }

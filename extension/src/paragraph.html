@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="paragraph_title">Practice a paragraph</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="content.css">
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { max-width: 780px; margin: 2rem auto; padding: 0 1.25rem 3rem; font: 16px/1.55 system-ui, sans-serif; color: var(--ui-text); background: var(--ui-bg); }
+  h1 { margin-bottom: .2rem; }
+  h2 { margin-top: 0; font-size: 1.25rem; }
+  section { padding: 1.25rem; margin: 1.4rem 0; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; }
+  label { display: block; font-weight: 600; }
+  button, select, textarea { font: inherit; }
+  button { padding: .4rem .65rem; cursor: pointer; }
+  select { max-width: 100%; }
+  textarea { display: block; width: 100%; min-height: 9rem; resize: vertical; }
+  .muted { color: var(--ui-muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: .9rem; }
+  #preview { padding: 1rem; border-left: 4px solid #397d77; background: var(--ui-bg); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.12rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1 data-i18n="paragraph_title">Practice a paragraph</h1>
+  <p class="muted" data-i18n="paragraph_intro">Use your own English text to try a word in Spanish or Paraguayan Guaraní. Everything stays in this tab. No key or site access needed.</p>
+  <section aria-labelledby="paragraphHeading">
+    <h2 id="paragraphHeading" data-i18n="paragraph_source">Your paragraph</h2>
+    <label for="language" data-i18n="paragraph_language">Practice language</label>
+    <select id="language" aria-describedby="level languageNote" disabled></select>
+    <p id="level" class="muted"></p>
+    <p id="languageNote" class="muted" hidden data-i18n="paragraph_generated">Offline practice supports the two bundled languages. Pick either here without changing your reading language in Settings.</p>
+    <label for="source" data-i18n="paragraph_english">Short English paragraph</label>
+    <textarea id="source" maxlength="2000" autocomplete="off" spellcheck="false" aria-describedby="paragraphLimit"></textarea>
+    <small id="paragraphLimit" class="muted" data-i18n="paragraph_limit">Up to 2,000 characters of plain text.</small>
+    <div class="actions">
+      <button id="find" type="button" disabled data-i18n="paragraph_find">Find words</button>
+      <button id="example" type="button" disabled data-i18n="paragraph_example">Use example</button>
+      <button id="clear" type="button" data-i18n="paragraph_clear">Clear paragraph</button>
+    </div>
+    <p id="status" role="status" class="muted"></p>
+  </section>
+  <section id="choices" aria-labelledby="choicesHeading" hidden>
+    <h2 id="choicesHeading" data-i18n="paragraph_choices">Choose a word to practice</h2>
+    <p class="muted" data-i18n="paragraph_sense_help">Check that the catalog meaning fits your sentence.</p>
+    <p><label for="occurrence" data-i18n="paragraph_occurrence">Occurrence in your paragraph</label>
+    <select id="occurrence"></select></p>
+    <p><label for="sense" data-i18n="paragraph_sense">Catalog word and meaning</label>
+    <select id="sense"></select></p>
+    <button id="practice" type="button" aria-describedby="practiceNote" data-i18n="paragraph_practice">Practice this word</button>
+    <p id="practiceNote" class="muted" data-i18n="paragraph_transient">This exercise is temporary. Your words, reviews and reading progress stay as they are.</p>
+    <div id="result" hidden>
+      <p class="muted" data-i18n="paragraph_flip">Click the underlined word, or press Enter or Space on it, to flip between languages.</p>
+      <p id="preview" lang="en" dir="auto"></p>
+    </div>
+  </section>
+</main>
+<script type="module" src="paragraph-page.js"></script>
+</body>
+</html>

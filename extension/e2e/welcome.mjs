@@ -63,6 +63,86 @@ async function checkSample(page, { name, tag, targets, source, firstSource }) {
   assert.equal(await demo.textContent(), source);
 }
 
+async function openParagraph(context, entry, url) {
+  const [page] = await Promise.all([
+    context.waitForEvent('page'),
+    entry.getByRole('link', { name: 'Practice a paragraph' }).press('Enter'),
+  ]);
+  await page.waitForURL(url);
+  await page.locator('#language:enabled').waitFor();
+  return page;
+}
+
+async function checkParagraph(context, worker, id) {
+  const base = `chrome-extension://${id}/src/`;
+  assert.equal(context.pages().some((p) => p.url() === `${base}paragraph.html`), false);
+  const popup = await context.newPage();
+  await popup.goto(`${base}popup.html`);
+  const before = await worker.evaluate(async () => ({
+    local: await chrome.storage.local.get(null), sync: await chrome.storage.sync.get(null),
+    session: await chrome.storage.session.get(null), permissions: await chrome.permissions.getAll(),
+  }));
+  assert.equal(before.local.apiKey, undefined);
+  const page = await openParagraph(context, popup, `${base}paragraph.html`);
+  const source = page.getByRole('textbox', { name: 'Short English paragraph' });
+  const find = page.getByRole('button', { name: 'Find words' });
+  const occurrence = page.getByRole('combobox', { name: 'Occurrence in your paragraph' });
+  const sense = page.getByRole('combobox', { name: 'Catalog word and meaning' });
+  const practice = page.getByRole('button', { name: 'Practice this word' });
+  const preview = page.locator('#preview');
+  const language = page.getByRole('combobox', { name: 'Practice language' });
+  assert.equal(await language.inputValue(), 'es');
+  await page.getByText('Vocabulary tier: Beginner').waitFor();
+  await page.getByRole('button', { name: 'Use example' }).click();
+  await find.click();
+  assert.ok(await occurrence.locator('option').count() >= 6);
+  const text = 'A window faced the river. The window stood open. “A window.” A window-frame broke. <img src=x>';
+  await source.fill(text);
+  assert.equal(await occurrence.isHidden(), true);
+  await find.press('Enter');
+  assert.equal(await occurrence.evaluate((el) => el === document.activeElement), true);
+  assert.deepEqual((await occurrence.locator('option').allTextContents()).map((label) => label.match(/\[(.*?)\]/)[1]),
+    ['window', 'the river', 'The window']);
+  await occurrence.selectOption('2');
+  await practice.press('Enter');
+  const word = preview.getByRole('button', { name: 'La ventana', exact: true });
+  assert.equal(await word.evaluate((el) => el === document.activeElement), true);
+  assert.equal(await word.getAttribute('lang'), 'es');
+  assert.equal(await preview.textContent(), text.replace('The window', 'La ventana'));
+  assert.equal(await preview.locator('img').count(), 0);
+  await page.keyboard.press('Space');
+  assert.equal(await preview.textContent(), text);
+  await preview.getByRole('button', { name: 'The window', exact: true }).click();
+  assert.equal(await word.textContent(), 'La ventana');
+  await source.fill('Zebras prance.');
+  await find.click();
+  await page.getByRole('status').getByText(/Try the example or edit your paragraph/).waitFor();
+  await language.selectOption({ label: 'Paraguayan Guaraní' });
+  await page.getByRole('button', { name: 'Use example' }).click();
+  await find.click();
+  const teacher = occurrence.locator('option').filter({ hasText: /\[teacher\]/ });
+  await occurrence.selectOption(await teacher.getAttribute('value'));
+  assert.equal(await sense.locator('option:checked').textContent(), 'mbo’ehára · teacher (at school)');
+  await practice.click();
+  const guaraniWord = preview.getByRole('button', { name: 'mbo’ehára', exact: true });
+  assert.equal(await guaraniWord.getAttribute('lang'), 'gn-PY');
+  await guaraniWord.click();
+  assert.equal(await preview.textContent(), await source.inputValue());
+  await page.getByRole('button', { name: 'Clear paragraph' }).press('Space');
+  assert.equal(await source.inputValue(), '');
+  assert.equal(await source.evaluate((el) => el === document.activeElement), true);
+  assert.equal(await occurrence.isHidden(), true);
+  assert.equal(page.url(), `${base}paragraph.html`);
+  const after = await worker.evaluate(async () => ({
+    local: await chrome.storage.local.get(null), sync: await chrome.storage.sync.get(null),
+    session: await chrome.storage.session.get(null), permissions: await chrome.permissions.getAll(),
+  }));
+  assert.deepEqual(after, before, 'paragraph practice leaves storage and permissions untouched');
+  await page.close();
+  await popup.close();
+  console.log('PASS: installed popup routes to keyless Spanish and Guaraní paragraph practice, exact selection and flipping, plain text, no-match recovery and clear, unchanged storage and grants.');
+}
+
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-welcome-'));
 const suppliedExtension = process.env.LANG_WEAVE_WELCOME_EXTENSION;
@@ -100,6 +180,7 @@ try {
   assert.equal(before.apiKey, undefined);
   assert.equal(before.settings.language, 'es');
   const permissions = await worker.evaluate(() => chrome.permissions.getAll());
+  await checkParagraph(context, worker, id);
   await checkSample(page, spanish);
   await pickerFor(page).selectOption({ label: guarani.name });
   await checkSample(page, guarani);
