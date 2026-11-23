@@ -11,10 +11,10 @@ const beginnerSpanishWords = 48;
 const firstReviewBatch = 5;
 const spanishAfterIntroduction = `3 due · ${beginnerSpanishWords - firstReviewBatch} available to add`;
 
-const source = process.env.SPANISH_WEAVE_TEST_EXTENSION || extensionRoot;
-if (!isAbsolute(source)) throw new Error('SPANISH_WEAVE_TEST_EXTENSION must be an absolute extension directory');
+// Bazel's extracted ZIP takes precedence over the standalone checkout override.
+const extension = process.env.LANG_WEAVE_WELCOME_EXTENSION || process.env.SPANISH_WEAVE_TEST_EXTENSION || extensionRoot;
+if (!isAbsolute(extension)) throw new Error('The smoke extension directory must be absolute');
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-smoke-'));
-const extension = source;
 let context;
 const originHits = [];
 const proxyHits = [];

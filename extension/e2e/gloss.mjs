@@ -65,8 +65,9 @@ try {
       globalThis.glossCalls.push(...passages.map(({ text }) => text));
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages:
         passages.map(({ id, text }) => ({ id, swaps: text.includes(' and ')
-          ? [{ o: 'and', f: 'et', ctx: '' }]
-          : text.includes(' together ') ? [{ o: 'together', f: 'ensemble', ctx: '' }] : [] })) }) }] } }] }),
+          ? [{ o: 'and', f: 'et', g: 'and', h: 'eh', ctx: '' }]
+          : text.includes(' together ') ? [{ o: 'together', f: longEntry.fr, g: 'together', h: 'ahn-sahmbl', ctx: '' }]
+            : [] })) }) }] } }] }),
       { headers: { 'Content-Type': 'application/json' } });
     };
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
