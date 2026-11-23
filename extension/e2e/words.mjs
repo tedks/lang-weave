@@ -31,12 +31,20 @@ try {
       '--host-resolver-rules=MAP * ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  let worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
-  const extensionId = await worker.evaluate(() => chrome.runtime.id);
+  const extensionId = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
+  const isReviewWorker = (candidate) => candidate.url() === `chrome-extension://${extensionId}/src/background.js`;
+  let worker = browser.serviceWorkers().find(isReviewWorker) || await browser.waitForEvent('serviceworker', isReviewWorker);
+  assert.equal(await worker.evaluate(() => chrome.runtime.id), extensionId);
   const url = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
   const send = (page, message) => page.evaluate((m) => chrome.runtime.sendMessage(m), message);
   const stored = () => worker.evaluate(() => chrome.storage.local.get(['recallReview', 'learningRetrievals']));
-  const reviewTabs = () => worker.evaluate((url) => chrome.tabs.query({ url }), url('review'));
+  const reviewPages = () => browser.pages().filter((page) => page.url() === url('review'));
+  const tabOf = (page) => page.evaluate(() => chrome.tabs.getCurrent());
+  // Count browser pages independently of the worker's discovery. Chrome 140's
+  // URL-filtered tabs.query returns no matches even for our own open Review.
+  const reviewTabs = () => Promise.all(reviewPages().map(tabOf));
+  const grants = () => worker.evaluate(() => chrome.permissions.getAll());
+  const initialGrants = await grants();
   const until = async (read, check, what) => {
     let value;
     for (let i = 0; i < 100; i++) {
@@ -62,7 +70,7 @@ try {
   assert.deepEqual(await reviewTabs(), []);
   await popup.locator('#primary').click();
   const review = await openedPage('review');
-  const { id: reviewId, windowId: reviewWindow } = await review.evaluate(() => chrome.tabs.getCurrent());
+  const { id: reviewId, windowId: reviewWindow } = await tabOf(review);
   const reviewDocument = () => worker.evaluate(async (tabId) => (await chrome.runtime.getContexts({
     contextTypes: ['TAB'], tabIds: [tabId], frameIds: [0],
   }))[0]?.documentId, reviewId);
@@ -238,8 +246,7 @@ try {
     await row(id).getByRole('button', { name: 'Practice now' }).click();
     await prompt.getByText(gloss, { exact: true }).waitFor();
     assert.equal(await answer.isVisible(), false);
-    assert.deepEqual((await reviewTabs()).filter((tab) => tab.url === url('review')).map((tab) => [tab.id, tab.active]),
-      [[reviewId, true]]);
+    assert.deepEqual((await reviewTabs()).map((tab) => [tab.id, tab.active]), [[reviewId, true]]);
   };
   await practice(different);
   assert.match(await review.locator('#progress').textContent(), /^Card 2 of /);
@@ -330,14 +337,10 @@ try {
 
   // Concurrent ordinary opens after closing the review must create one replacement.
   await review.close();
-  await popup.evaluate(() => {
-    document.getElementById('primary').click();
-    document.getElementById('primary').click();
-  });
+  assert.deepEqual(await Promise.all([send(popup, { type: 'openReview' }), send(popup, { type: 'openReview' })]),
+    [{ ok: true }, { ok: true }]);
   const replacement = await openedPage('review');
   await replacement.locator('#prompt').waitFor();
-  // This request waits behind both clicks in the worker's queue.
-  assert.deepEqual(await send(popup, { type: 'openReview' }), { ok: true });
   assert.equal((await reviewTabs()).length, 1);
   assert.equal((await stored()).learningRetrievals.retrievals.length, 2);
 
@@ -357,6 +360,47 @@ try {
   await replacement.locator('#prompt').getByText('teacher (at school)', { exact: true }).waitFor();
   assert.equal((await reviewTabs()).length, 1);
   assert.deepEqual(await stored(), spanish);
+
+  // With two live reviews, the source-window review wins even if a different
+  // window also has an active review tab.
+  const localReview = await tabOf(replacement);
+  const popupTab = await tabOf(popup);
+  assert.equal(localReview.windowId, popupTab.windowId);
+  const remoteWindow = await worker.evaluate((url) => chrome.windows.create({ url, focused: false }), url('review'));
+  const remoteReview = await until(() => reviewPages().find((page) => page !== replacement),
+    Boolean, 'the competing Review document');
+  await remoteReview.locator('#prompt').getByText('teacher (at school)', { exact: true }).waitFor();
+  const remoteTab = await tabOf(remoteReview);
+  assert.equal(remoteTab.windowId, remoteWindow.id);
+  assert.equal(remoteTab.active, true);
+  assert.notEqual(remoteTab.windowId, localReview.windowId);
+  await popup.bringToFront();
+  assert.equal((await tabOf(replacement)).active, false);
+  assert.deepEqual(await send(popup, { type: 'openReview' }), { ok: true });
+  assert.equal((await tabOf(replacement)).active, true);
+  if (shortcutTool) assert.equal(await focusedWindow(), localReview.windowId);
+  assert.equal(reviewPages().length, 2);
+  await remoteReview.close();
+
+  // After that tab navigates to a protected Chrome page, Practice now creates
+  // one new Review, leaving both the old tab and other Lang Weave pages intact.
+  await replacement.goto('chrome://version/');
+  await replacement.evaluate(() => { globalThis.protectedFixture = true; });
+  await options.evaluate(() => { globalThis.optionsFixture = true; });
+  await words.bringToFront();
+  await search('y');
+  await row('y').getByRole('button', { name: 'Practice now' }).click();
+  const newReview = await openedPage('review');
+  await newReview.locator('#prompt').getByText('water', { exact: true }).waitFor();
+  const newTab = await tabOf(newReview);
+  assert.notEqual(newTab.id, localReview.id);
+  assert.equal(newTab.windowId, (await tabOf(words)).windowId);
+  assert.equal(newTab.active, true);
+  assert.deepEqual(reviewPages(), [newReview]);
+  assert.equal(replacement.url(), 'chrome://version/');
+  assert.equal(await replacement.evaluate(() => globalThis.protectedFixture), true);
+  assert.equal(await options.evaluate(() => globalThis.optionsFixture), true);
+  assert.deepEqual(await grants(), initialGrants);
 
   console.log(`PASS: My words and review in real MV3 Chromium: ${total} words, popup open and cold resume, repeated practice in one tab, stale-ticket and duplicate-open protection, explicit early rating, reset guards, search and popup sizing. No network or model call.`);
 } finally {

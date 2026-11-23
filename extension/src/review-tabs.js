@@ -1,34 +1,85 @@
-// One worker owns opening review for popup, shortcuts and My words. The tab
-// strip is the source of truth even after an MV3 worker restart.
+const LOAD_TIMEOUT_MS = 1000;
+const LOAD_POLL_MS = 25;
+class ReviewLoading extends Error {}
+
+// One worker serializes popup, shortcut and My words opens. Chrome's own
+// Review documents are discoverable again after an MV3 worker restart.
 export function createReviewTabs({ tabs, windows, runtime }) {
   const url = runtime.getURL('src/review.html');
+  const filter = { contextTypes: ['TAB'], documentUrls: [url], frameIds: [0], incognito: false };
+  const contexts = (tabIds) => runtime.getContexts(tabIds ? { ...filter, tabIds } : filter);
   let opens = Promise.resolve();
-  const isReview = (tab) => tab?.id >= 0 && !tab.incognito && (tab.pendingUrl ?? tab.url) === url;
-  const read = (id) => tabs.get(id).catch(() => null);
+  let openingTabId;
+
+  async function readTab(id) {
+    const tab = await tabs.get(id).catch(() => null);
+    // Chrome 140 can omit both URL fields. A visible mismatch still rules
+    // out this tab, but only a matching document context can establish identity.
+    const visibleUrl = tab?.pendingUrl || tab?.url;
+    return tab && !tab.incognito && !tab.discarded && (!visibleUrl || visibleUrl === url) ? tab : null;
+  }
+
+  async function currentReview(id) {
+    const deadline = performance.now() + LOAD_TIMEOUT_MS;
+    while (true) {
+      let tab = await readTab(id);
+      if (!tab || tab.status === 'unloaded') return null;
+      const wasComplete = tab.status === 'complete';
+      const [document] = await contexts([id]);
+      tab = await readTab(id);
+      if (!tab || tab.status === 'unloaded') return null;
+      const complete = tab.status === 'complete';
+      if (document?.documentId) {
+        if (id === openingTabId) openingTabId = undefined;
+        // A fast commit can finish loading between the context and tab reads.
+        if (wasComplete && complete && document.windowId === tab.windowId) {
+          return { tab, documentId: document.documentId };
+        }
+      } else if (id !== openingTabId || wasComplete && complete) {
+        // An unrelated destination can keep loading after the Review
+        // document disappears. Only our new tab can be waiting for its first context.
+        return null;
+      }
+      // A context can predate its listener on startup and outlive the start
+      // of a navigation away, even when Chrome hides the pending URL.
+      if (performance.now() >= deadline) throw new ReviewLoading('The Lang Weave review is still loading. Try again.');
+      await new Promise((resolve) => setTimeout(resolve, LOAD_POLL_MS));
+    }
+  }
+
+  async function refreshReview(id, review) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // The refresh carries neither a word nor a ticket. The exact document
+      // that receives it asks the worker for the current queue.
+      const reply = await tabs.sendMessage(id, { type: 'refreshReview' }, { documentId: review.documentId })
+        .catch(() => null);
+      const current = await currentReview(id);
+      if (!current) return false;
+      if (current.documentId === review.documentId) {
+        if (reply?.ok === true) return true;
+        throw new Error('The open Lang Weave review could not refresh.');
+      }
+      review = current;
+    }
+    throw new Error('The Lang Weave review changed while opening. Try again.');
+  }
 
   async function focusReview(id, refresh) {
-    if (!isReview(await read(id))) return false;
+    let review = await currentReview(id);
+    if (!review) return false;
     try {
-      const active = await tabs.update(id, { active: true });
-      if (!isReview(active)) return false;
-      await windows.update(active.windowId, { focused: true });
-      if (refresh) {
-        const [document] = await runtime.getContexts({
-          contextTypes: ['TAB'], tabIds: [id], documentUrls: [url], frameIds: [0], incognito: false,
-        });
-        if (document?.documentId) {
-          // The tab may navigate between discovery and delivery. Only the
-          // exact review document may receive the refresh; it never carries a
-          // ticket or word. A new document reads the queue on startup.
-          await tabs.sendMessage(id, { type: 'refreshReview' }, { documentId: document.documentId })
-            .catch(() => {});
-        }
+      if (!review.tab.active) {
+        await tabs.update(id, { active: true });
+        review = await currentReview(id);
+        if (!review) return false;
       }
+      await windows.update(review.tab.windowId, { focused: true });
     } catch (error) {
-      if (isReview(await read(id))) throw error;
+      if (await currentReview(id)) throw error;
       return false;
     }
-    return isReview(await read(id));
+    review = await currentReview(id);
+    return !!review && (!refresh || await refreshReview(id, review));
   }
 
   function openReview(windowId, chooseWord) {
@@ -43,16 +94,30 @@ export function createReviewTabs({ tabs, windows, runtime }) {
       const result = chooseWord ? await chooseWord() : { ok: true };
       if (!result.ok) return result;
 
-      // Chrome exposes our own extension URLs without the tabs permission.
-      const candidates = (await tabs.query({ url })).filter(isReview);
+      const ids = new Set((await contexts()).map(({ tabId }) => tabId));
+      if (openingTabId !== undefined) ids.add(openingTabId);
+      const candidates = (await Promise.all([...ids].map(readTab))).filter(Boolean);
       const rank = (tab) => tab.windowId === origin.id ? (tab.active ? 0 : 1) : 2;
       candidates.sort((a, b) => rank(a) - rank(b) || a.id - b.id);
+      let loading;
       for (const tab of candidates) {
-        if (await focusReview(tab.id, !!chooseWord)) return result;
+        try {
+          const reused = await focusReview(tab.id, !!chooseWord);
+          if (tab.id === openingTabId) openingTabId = undefined;
+          if (reused) return result;
+        } catch (error) {
+          if (!(error instanceof ReviewLoading)) throw error;
+          loading = error;
+        }
       }
+      if (loading) throw loading;
       const created = await tabs.create({ url, windowId: origin.id });
-      await windows.update(created.windowId, { focused: true });
-      return result;
+      // Hold serialized opens until the new document can be found. If loading
+      // times out, keep this ID as a candidate for the next request in this worker.
+      openingTabId = created.id;
+      const opened = await focusReview(created.id, false);
+      openingTabId = undefined;
+      return opened ? result : { error: 'The new Lang Weave review is no longer open.' };
     });
     opens = request.catch(() => {});
     return request;
