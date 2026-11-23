@@ -53,10 +53,15 @@ export function mountPlacement(panel) {
   const beginnerExamples = samples.querySelector('[data-placement-beginner]');
   const expandedExamples = samples.querySelector('[data-placement-expanded]');
   const [beginner, expanded] = placementSamples();
+  const isOpen = () => panel.open && !panel.hidden;
   let snapshot;
-  let busy = false;
-  let reopenPending = false;
-  let languageChanges = 0;
+  let saveEpoch;
+  let opening = 0;
+  let readGeneration = 0;
+  let saving = false;
+  let pendingSave;
+  let saveFocus;
+  let notice;
 
   function showExamples(container, words) {
     container.hidden = words.length === 0;
@@ -102,12 +107,12 @@ export function mountPlacement(panel) {
     score.removeAttribute('aria-invalid');
     scoreStatus.textContent = '';
     showFirst(1);
-    if (wasFocused && panel.open && !panel.hidden) trigger.focus();
+    if (wasFocused && isOpen()) trigger.focus();
   }
 
   scoreForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!snapshot || scoreForm.hidden) return;
+    if (!isOpen() || scoreForm.hidden) return;
     const hint = duolingoPreview(score.value);
     showFirst(hint);
     if (hint === null && score.value.trim()) {
@@ -122,101 +127,143 @@ export function mountPlacement(panel) {
       : hint === 1 ? t('placement_score_beginner') : '';
   });
 
-  async function load() {
-    snapshot = null;
-    fieldset.disabled = true;
-    hideScore();
-    const languageAtRead = languageChanges;
-    const current = await chrome.runtime.sendMessage({ type: 'placement' });
-    if (current?.available === false) {
-      status.textContent = t('placement_spanish_only');
-      retry.hidden = true;
+  function announce(message, kind) {
+    notice = kind;
+    if (status.textContent !== message) status.textContent = message;
+  }
+
+  function restoreSaveFocus() {
+    const previousFocus = saveFocus;
+    saveFocus = undefined;
+    // Chromium can drop focus when disabling a focused form control.
+    if (!previousFocus ||
+        (document.activeElement !== document.body && document.activeElement !== previousFocus)) return;
+    if (!fieldset.disabled) previousFocus.focus();
+    else if (!retry.hidden) retry.focus();
+    else trigger.focus();
+  }
+
+  function showSnapshot(current) {
+    const selected = Number(choice.value);
+    const previousChoice = snapshot?.choice;
+    const dirty = snapshot && selected !== previousChoice;
+    const wasUnavailable = snapshot?.available === false;
+    const option = [...choice.options].find(({ value, disabled }) => Number(value) === current.choice && !disabled)
+      ?? choice.options[0];
+    const saved = Number(option.value);
+    const recovering = !retry.hidden;
+    const focused = document.activeElement;
+    const settled = pendingSave;
+    pendingSave = undefined;
+    snapshot = { ...current, choice: saved };
+    retry.hidden = true;
+    fieldset.disabled = !current.available;
+    if (!current.available) {
+      hideScore();
+      announce(t('placement_spanish_only'));
+      if (focused === retry || fieldset.contains(focused)) trigger.focus();
+      restoreSaveFocus();
       return;
     }
-    if (!current?.available) throw new Error('Placement unavailable');
-    snapshot = current;
-    scoreForm.hidden = languageChanges !== languageAtRead || !(beginner.length && expanded.length);
-    choice.value = String(current.choice);
-    if (choice.selectedOptions[0]?.disabled) choice.value = '0';
-    fieldset.disabled = false;
-    retry.hidden = true;
-    status.textContent = '';
-  }
-
-  function showError() {
-    status.textContent = t('placement_error');
-    retry.hidden = !!snapshot;
-  }
-
-  function finishOperation() {
-    busy = false;
-    if (reopenPending) {
-      reopenPending = false;
-      if (panel.open) void refresh();
-    }
+    scoreForm.hidden = !(beginner.length && expanded.length);
+    if (!dirty) choice.value = String(saved);
+    // Refresh the displayed saved choice without granting a dirty draft a new
+    // epoch. A rejected Save can do so with an explicit second-save prompt.
+    const clean = !dirty || selected === saved;
+    if (clean || settled === 'conflict') saveEpoch = current.epoch;
+    const label = option.textContent;
+    if (settled === 'saved' && selected === saved) announce(t('placement_saved'), 'saved');
+    else if (settled === 'conflict') announce(t('placement_changed', label), 'draft');
+    else if (!clean && saveEpoch !== current.epoch) announce(t('placement_competing', label), 'draft');
+    else if (settled === 'error') announce(t('placement_error'));
+    else if (recovering || wasUnavailable || (notice === 'draft' && clean) ||
+             (notice === 'saved' && saved !== previousChoice)) announce('');
+    if (focused === retry) choice.focus();
+    restoreSaveFocus();
   }
 
   async function refresh() {
-    if (busy) return;
-    busy = true;
-    try { await load(); }
-    catch { showError(); }
-    finally { finishOperation(); }
+    if (saving || !isOpen()) return;
+    const generation = ++readGeneration;
+    const isCurrent = () => isOpen() && generation === readGeneration;
+    try {
+      const current = await chrome.runtime.sendMessage({ type: 'placement' });
+      if (!isCurrent()) return;
+      if (typeof current?.available !== 'boolean') throw new Error('Placement unavailable');
+      showSnapshot(current);
+    } catch {
+      if (isCurrent()) {
+        announce(t('placement_error'));
+        retry.hidden = false;
+        restoreSaveFocus();
+      }
+    }
   }
 
   panel.addEventListener('toggle', () => {
-    if (!panel.open) {
-      reopenPending = false;
-      hideScore();
-    } else if (busy) reopenPending = true;
-    else void refresh();
+    opening++;
+    readGeneration++;
+    snapshot = null;
+    pendingSave = undefined;
+    saveFocus = undefined;
+    fieldset.disabled = true;
+    retry.hidden = true;
+    hideScore();
+    announce('');
+    void refresh();
   });
-  chrome.storage?.onChanged?.addListener(({ settings }, area) => {
+  chrome.storage?.onChanged?.addListener(({ settings, spanishPlacement, epoch }, area) => {
+    if (area !== 'local') return;
     const before = settings?.oldValue?.language ?? DEFAULT_SETTINGS.language;
     const after = settings?.newValue?.language ?? DEFAULT_SETTINGS.language;
-    if (area !== 'local' || before === after) return;
-    languageChanges++;
-    hideScore();
+    if (before !== after) {
+      const focused = document.activeElement;
+      const choiceFocused = fieldset.contains(focused) || (saveFocus && focused === document.body);
+      if (snapshot) snapshot = { ...snapshot, available: false };
+      fieldset.disabled = true;
+      pendingSave = undefined;
+      saveFocus = undefined;
+      hideScore();
+      if (choiceFocused && isOpen()) trigger.focus();
+    }
+    if (before !== after || spanishPlacement || epoch) void refresh();
   });
-  retry.addEventListener('click', async () => {
-    const wasFocused = document.activeElement === retry;
-    await refresh();
-    const focused = document.activeElement;
-    if (snapshot && panel.open && (focused === retry || wasFocused && focused === document.body)) choice.focus();
+  choice.addEventListener('change', () => {
+    if (!snapshot?.available || Number(choice.value) !== snapshot.choice) return;
+    saveEpoch = snapshot.epoch;
+    if (notice === 'draft') announce('');
   });
+  retry.addEventListener('click', () => { void refresh(); });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (busy || !snapshot) return;
+    if (!isOpen() || fieldset.disabled || !snapshot?.available) return;
     const selected = Number(choice.value);
     if (choice.selectedOptions[0]?.disabled) return;
-    const previousFocus = document.activeElement;
-    busy = true;
+    const view = opening;
+    const isSameOpening = () => isOpen() && view === opening;
+    const focused = document.activeElement;
+    saveFocus = fieldset.contains(focused) ? focused : undefined;
+    saving = true;
+    readGeneration++;
     fieldset.disabled = true;
-    status.textContent = '';
+    announce('');
     try {
-      const result = await chrome.runtime.sendMessage({ type: 'placement', choice: selected, epoch: snapshot.epoch });
+      const result = await chrome.runtime.sendMessage({ type: 'placement', choice: selected, epoch: saveEpoch });
+      if (!isSameOpening()) return;
       if (result?.ok) {
-        snapshot = result;
-        status.textContent = t('placement_saved');
-      } else if (result?.ok === false) {
-        const previousChoice = snapshot.choice;
-        await load();
-        if (snapshot) {
-          if (snapshot.choice === previousChoice) choice.value = String(selected);
-          status.textContent = t('placement_changed');
-        }
-      } else showError();
-    } catch { showError(); }
-    finally {
-      fieldset.disabled = !snapshot;
-      // Chromium can drop focus when disabling a focused form control.
-      if (panel.open && fieldset.contains(previousFocus) &&
-          (document.activeElement === document.body || document.activeElement === previousFocus)) {
-        if (snapshot) previousFocus.focus();
-        else if (!retry.hidden) retry.focus();
-        else trigger.focus();
+        // This draft was saved. A fresh read decides whether it is still current.
+        snapshot = { ...result, choice: selected, available: snapshot.available };
+        if (snapshot.available) pendingSave = 'saved';
+      } else if (snapshot.available) {
+        pendingSave = result?.ok === false ? 'conflict' : 'error';
       }
-      finishOperation();
+    } catch {
+      if (isSameOpening() && snapshot.available) pendingSave = 'error';
+    }
+    finally {
+      saving = false;
+      // Wait to present the result until writes and reopenings during the save are reflected.
+      void refresh();
     }
   });
 }

@@ -73,6 +73,34 @@ async function openParagraph(context, entry, url) {
   return page;
 }
 
+// Hold one real worker response, leaving the installed UI and storage events live.
+async function holdPlacementResponse(page, save) {
+  const gate = await page.evaluateHandle((save) => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    const gate = { reached: false };
+    const held = new Promise((release) => { gate.release = release; });
+    chrome.runtime.sendMessage = async (message, ...args) => {
+      if (message?.type !== 'placement' || Object.hasOwn(message, 'choice') !== save) return send(message, ...args);
+      chrome.runtime.sendMessage = send;
+      const result = await send(message, ...args);
+      gate.reached = true;
+      if (await held) throw new Error('Fixture: placement reply lost');
+      return result;
+    };
+    return gate;
+  }, save);
+  return {
+    wait: () => page.waitForFunction((gate) => gate.reached, gate, { polling: 50 }),
+    release: async (fail = false) => {
+      await gate.evaluate(async ({ release }, fail) => {
+        release(fail);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }, fail);
+      await gate.dispose();
+    },
+  };
+}
+
 async function checkParagraph(context, worker, id) {
   const base = `chrome-extension://${id}/src/`;
   assert.equal(context.pages().some((p) => p.url() === `${base}paragraph.html`), false);
@@ -253,6 +281,21 @@ try {
   const placement = page.locator('#placement');
   const placementTrigger = placement.locator(':scope > summary');
   assert.equal(await placement.getByRole('combobox').count(), 0, 'placement is optional and closed initially');
+  const heldOpening = await holdPlacementResponse(page, false);
+  await placementTrigger.press('Enter');
+  await heldOpening.wait();
+  await placement.evaluate((panel) => {
+    panel.addEventListener('toggle', () => {
+      if (!panel.open) panel.dataset.placementClosed = 'true';
+    }, { once: true });
+  });
+  await placementTrigger.press('Enter');
+  await page.locator('#placement[data-placement-closed]').waitFor({ state: 'attached' });
+  await heldOpening.release();
+  assert.equal(await placement.evaluate((panel) => panel.open), false);
+  assert.equal(await placement.locator('[data-placement-score]').getAttribute('hidden'), '');
+  assert.equal(await placement.locator('fieldset').evaluate((fieldset) => fieldset.disabled), true);
+
   await placementTrigger.focus();
   await placementTrigger.press('Enter');
   await placement.getByRole('heading', { name: 'Beginner', exact: true }).waitFor();
@@ -288,11 +331,108 @@ try {
   const meanings = placement.getByText('Check Expanded meanings', { exact: true });
   await meanings.press('Enter');
   await placement.locator('[lang="en"]').filter({ hasText: /still/ }).waitFor();
-  await startingPoint.selectOption({ label: 'Expanded' });
   const saveStartingPoint = placement.getByRole('button', { name: 'Save starting point' });
+  const [otherSettings] = await Promise.all([
+    context.waitForEvent('page', { predicate: (p) => p.url() === `chrome-extension://${id}/src/options.html` }),
+    page.locator('#openSettings').click(),
+  ]);
+  const otherPlacement = otherSettings.locator('#placement');
+  await otherPlacement.waitFor({ state: 'visible' });
+  await otherPlacement.locator(':scope > summary').press('Enter');
+  const otherChoice = otherPlacement.getByRole('combobox', { name: 'Spanish starting point' });
+  const otherSave = otherPlacement.getByRole('button', { name: 'Save starting point' });
+  const savedText = 'Spanish starting point saved on this device.';
+  const stored = () => worker.evaluate(() => chrome.storage.local.get(['spanishPlacement', 'epoch']));
+  const waitForChoice = (surface, value) => surface.locator(`#placement[open]:not([hidden]) option[value="${value}"]:checked`)
+    .waitFor({ state: 'attached' });
+
+  await score.fill('30');
+  await score.press('Enter');
+  await score.fill('160');
+  await startingPoint.focus();
+  await otherChoice.selectOption('2');
+  await otherSave.click();
+  await otherPlacement.getByText(savedText, { exact: true }).waitFor();
+  assert.equal((await stored()).spanishPlacement, 2);
+  await waitForChoice(page, 2);
+  assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
+  assert.equal(await score.inputValue(), '160');
+  assert.equal(await placement.getByRole('heading').first().textContent(), 'Expanded');
+
+  const lostReply = await holdPlacementResponse(page, false);
+  await otherChoice.selectOption('0');
+  await otherSave.click();
+  await lostReply.wait();
+  await lostReply.release(true);
+  await placement.getByText('Could not load or save Spanish placement. Try again.', { exact: true }).waitFor();
+  assert.equal(await startingPoint.inputValue(), '2');
+  assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
+  const reloadPlacement = placement.getByRole('button', { name: 'Reload placement' });
+  const lostReload = await holdPlacementResponse(page, false);
+  await reloadPlacement.press('Space');
+  await lostReload.wait();
+  await lostReload.release(true);
+  assert.equal(await reloadPlacement.evaluate((button) => button === document.activeElement), true);
+  await otherChoice.selectOption('1');
+  await otherSave.click();
+  await waitForChoice(page, 1);
+  assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
+
+  const heldPassive = await holdPlacementResponse(page, false);
+  await otherChoice.selectOption('2');
+  await otherSave.click();
+  await heldPassive.wait();
+  await otherChoice.selectOption('0');
+  await otherSave.click();
+  await waitForChoice(page, 0);
+  await heldPassive.release();
+  assert.equal(await startingPoint.inputValue(), '0', 'a late read cannot replace a newer saved choice');
+
+  const heldSave = await holdPlacementResponse(page, true);
+  await startingPoint.selectOption('2');
   await saveStartingPoint.press('Space');
-  await placement.getByRole('status').getByText('Spanish starting point saved on this device.').waitFor();
+  await heldSave.wait();
+  await waitForChoice(otherSettings, 2);
+  await otherChoice.selectOption('0');
+  await otherSave.click();
+  await otherPlacement.getByText(savedText, { exact: true }).waitFor();
+  assert.equal((await stored()).spanishPlacement, 0);
+  const heldAfterSave = await holdPlacementResponse(page, false);
+  await heldSave.release();
+  await heldAfterSave.wait();
+  assert.equal(await startingPoint.isDisabled(), true);
+  assert.equal(await placement.getByText(savedText, { exact: true }).count(), 0);
+  await heldAfterSave.release();
+  await waitForChoice(page, 0);
+  assert.equal(await placement.getByText(savedText, { exact: true }).count(), 0);
+
+  await startingPoint.selectOption('2');
+  await startingPoint.focus();
+  await otherChoice.selectOption('1');
+  await otherSave.click();
+  await placement.getByText('Saved starting point: Beginner. Your selection is unsaved.', { exact: true }).waitFor();
+  assert.equal(await startingPoint.inputValue(), '2');
+  assert.equal(await startingPoint.evaluate((select) => select === document.activeElement), true);
+  const competing = await stored();
+  assert.equal(competing.spanishPlacement, 1);
+  const lostSave = await holdPlacementResponse(page, true);
+  await saveStartingPoint.press('Space');
+  await lostSave.wait();
+  await lostSave.release(true);
+  await placement.getByText('Saved starting point: Beginner. Your selection is unsaved.', { exact: true }).waitFor();
+  assert.equal(await startingPoint.inputValue(), '2');
+  assert.deepEqual(await stored(), competing);
+  await saveStartingPoint.press('Space');
+  await placement.getByText('Saved starting point: Beginner. Review your selection and save again to keep it.',
+    { exact: true }).waitFor();
+  assert.deepEqual(await stored(), competing, 'a stale save cannot write even after the passive refresh');
+  assert.equal(await startingPoint.inputValue(), '2');
+  await saveStartingPoint.press('Space');
+  await placement.getByRole('status').getByText(savedText).waitFor();
+  await waitForChoice(otherSettings, 2);
+  await otherSettings.close();
   assert.equal(await saveStartingPoint.evaluate((button) => button === document.activeElement), true);
+  console.log('PASS: installed Welcome and Settings refresh each other, preserve competing drafts and focus, and ignore closed or superseded responses.');
   const placed = await worker.evaluate(() => chrome.storage.local.get(['settings', 'spanishPlacement', 'consentShown', 'apiKey', 'recallReview']));
   assert.equal(placed.spanishPlacement, 2);
   assert.equal(placed.consentShown, false);
@@ -382,6 +522,17 @@ try {
   const languagePreview = guaraniWelcome.locator('#placement > summary');
   await languagePreview.press('Enter');
   const openScore = guaraniWelcome.locator('#duolingoScore');
+  const draft = guaraniWelcome.locator('#placementChoice');
+  const saveDraft = guaraniWelcome.getByRole('button', { name: 'Save starting point' });
+  const defaultSaved = 'Saved starting point: Use my reading level setting.';
+  await draft.selectOption('2');
+  await options.locator('#density').selectOption('light');
+  await guaraniWelcome.getByText(`${defaultSaved} Your selection is unsaved.`, { exact: true }).waitFor();
+  const afterDensityChange = await stored();
+  await saveDraft.click();
+  await guaraniWelcome.getByText(`${defaultSaved} Review your selection and save again to keep it.`, { exact: true }).waitFor();
+  assert.deepEqual(await stored(), afterDensityChange, 'an unrelated settings change does not reauthorize a draft');
+
   await openScore.fill('30');
   await openScore.press('Enter');
   await guaraniWelcome.getByText('Try the Expanded examples first.').waitFor();
@@ -394,6 +545,38 @@ try {
   await openScore.waitFor({ state: 'hidden' });
   assert.equal(await openScore.inputValue(), '');
   assert.equal(await beginnerMeanings.evaluate((summary) => summary === document.activeElement), true);
+  await guaraniWelcome.getByText('Choose Spanish in Settings to use this check.').waitFor();
+  assert.equal(await draft.isDisabled(), true);
+  await options.locator('#language').selectOption('es');
+  await openScore.waitFor({ state: 'visible' });
+  assert.equal(await draft.inputValue(), '2');
+  assert.equal(await openScore.inputValue(), '');
+  assert.equal(await guaraniWelcome.locator('#placementScoreStatus').textContent(), '');
+  assert.equal(await guaraniWelcome.locator('.placement-samples h3').first().textContent(), 'Beginner');
+  assert.equal(await beginnerMeanings.evaluate((summary) => summary === document.activeElement), true);
+  const afterRoundTrip = await stored();
+  await saveDraft.click();
+  await guaraniWelcome.getByText(`${defaultSaved} Review your selection and save again to keep it.`, { exact: true }).waitFor();
+  assert.deepEqual(await stored(), afterRoundTrip, 'the language round trip still requires confirmation');
+  assert.equal(await draft.inputValue(), '2');
+  await draft.selectOption('0'); // adopt the saved preference without writing
+  assert.equal(await guaraniWelcome.locator('[data-placement-status]').textContent(), '');
+  assert.deepEqual(await stored(), afterRoundTrip);
+  await draft.focus();
+  await options.locator('#language').selectOption('gn-PY-x-weave');
+  await openScore.waitFor({ state: 'hidden' });
+  assert.equal(await languagePreview.evaluate((summary) => summary === document.activeElement), true);
+  await options.locator('#language').selectOption('es');
+  await openScore.waitFor({ state: 'visible' });
+  await guaraniWelcome.bringToFront();
+  const heldScopeSave = await holdPlacementResponse(guaraniWelcome, true);
+  await saveDraft.press('Space');
+  await heldScopeSave.wait();
+  await guaraniWelcome.waitForFunction(() => document.activeElement === document.body, null, { polling: 50, timeout: 3000 });
+  await options.locator('#language').selectOption('gn-PY-x-weave');
+  await openScore.waitFor({ state: 'hidden' });
+  assert.equal(await languagePreview.evaluate((summary) => summary === document.activeElement), true);
+  await heldScopeSave.release();
   await languagePreview.press('Enter');
   await guaraniWelcome.locator('#placement:not([open])').waitFor();
   await languagePreview.press('Enter');
