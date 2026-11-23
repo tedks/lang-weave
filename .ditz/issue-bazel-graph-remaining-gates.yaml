@@ -105,3 +105,12 @@ log_events:
     checker rejects the real demo mismatch (0.13.1 extension vs 0.12.26 module), accepts
     the actual release from 0.12.23 to 0.12.24 before MODULE.bazel existed, and passed
     the merged snapshot at 0.12.27. The umbrella stays open for its remaining gates.'
+- time: 2026-11-23T06:23:23-00:00
+  who: Ted Smith
+  what: commented
+  comment: "PR #77 used a sandboxed Bazel fixture with actual archived reader code
+    to verify historical Guaran\xED backups across 0.12.26, 0.14.2, merged 0.15.1
+    and 0.15.2. Consider a reusable historical-reader fixture for future catalog additions.
+    It should pin the archive commits and manifest versions and cover both unknown-card
+    refusal and log-only omissions. The private guarani-prose checkpoint has a repeatable
+    probe and its exact receipt."
