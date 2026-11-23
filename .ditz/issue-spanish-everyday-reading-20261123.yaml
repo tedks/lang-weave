@@ -1,0 +1,20 @@
+id: spanish-everyday-reading-20261123
+title: Promote practical Spanish nouns for broader Beginner reading
+desc: "Small 0.14.3 catalog batch after Guaran\xED expansion. Freeze an original multi-topic
+  discovery and held-out corpus before selecting terms. Reuse unambiguous former Expanded
+  nouns, preserve Expanded and prior Beginner entries, verify ordinary worker requests
+  and gradual eligibility, and record contrast rejections and limits. Run source gates
+  and formal council; CTO owns integration and release."
+type: feature
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T04:19:40-00:00
+references: []
+log_events:
+- time: 2026-11-23T04:19:40-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
