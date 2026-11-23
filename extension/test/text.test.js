@@ -212,7 +212,7 @@ describe('revert and toggle', () => {
       expect(edit.firstChild).toBe(siteNode);
       expect(forged.textContent).toBe('y');
       expect(forged.dataset.en).toBe('not the source');
-      expect(readable(edited, 'https://reading.example/')).toBe(true); // same-world edit still has private ownership
+      expect(readable(edited, 'https://reading.example/')).toBe(false); // a failed reload must not repaint it
       const newWorld = doc.createElement('p');
       newWorld.append('These are unrelated site words around ', forged, ' with more reading here.');
       doc.body.append(newWorld);

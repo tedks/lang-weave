@@ -463,13 +463,23 @@ export function revert(root) {
 export function retireSwaps(doc) {
   for (const span of doc.querySelectorAll('span')) {
     const face = paintedFaces.get(span);
-    if (!face ||
-        span.parentElement?.closest('form, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) continue;
+    if (!face || !isSwap(span)) continue;
     const nodes = faceNodes(span);
-    if (nodes.length !== face.nodes.length || nodes.some((node, i) => node !== face.nodes[i]) ||
-        span.outerHTML !== face.markup) continue;
-    undescribe(span);
-    span.replaceWith(doc.createTextNode(sourceEnglish.get(span)));
+    if (nodes.length === face.nodes.length && nodes.every((node, i) => node === face.nodes[i]) &&
+        span.outerHTML === face.markup &&
+        !span.parentElement?.closest('form, button, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) {
+      undescribe(span);
+      span.replaceWith(doc.createTextNode(sourceEnglish.get(span)));
+    }
+    // A failed browser reload can resume this world. It must still leave
+    // abandoned page edits untouched, and it has no old introduction authority.
+    owned.delete(span);
+    paintedFaces.delete(span);
+    introductions.delete(span);
+    practice.delete(span);
+    cuedPractice.delete(span);
+    described.delete(span);
+    descriptions.delete(span);
   }
 }
 
