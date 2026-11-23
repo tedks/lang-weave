@@ -66,15 +66,17 @@ test('Spanish placement opts in locally, prioritizes real reader matches, and pr
       async remove(keys) { for (const key of [keys].flat()) delete storage[key]; },
     } },
     runtime: { id, getURL: (path) => extension + path, getManifest: () => ({ version: '0.13.0' }),
+      getContexts: async () => [{ tabId: 2, windowId: 1, documentId: 'review' }],
       onMessage: on(listeners), onInstalled: on(), onStartup: on() },
     windows: { getLastFocused: async () => ({ id: 1 }), update: async () => {} },
-    tabs: { get: async () => ({ id: 1, title: 'Reading', url: page.url }),
+    tabs: { get: async (tabId) => tabId === 2 ? { id: 2, windowId: 1, status: 'complete', active: true }
+      : { id: 1, title: 'Reading', url: page.url },
       query: async () => {
         if (!failBroadcast) return [];
         failedBroadcast = true;
         throw new Error('Could not list tabs');
       },
-      sendMessage: async () => {}, create: async ({ windowId }) => ({ id: 2, windowId }) },
+      sendMessage: async (_tabId, message) => message.type === 'refreshReview' ? { ok: true } : undefined },
     action: { setBadgeText: async () => {} }, alarms: { create: async () => {}, onAlarm: on() },
     permissions: { getAll: async () => ({ origins: ['<all_urls>'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},

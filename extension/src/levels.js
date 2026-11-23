@@ -184,7 +184,7 @@ export function possibleSpanishPromptWords(level, words, batch) {
 export function validateSwaps(level, swaps, sharedWords, language = 'es', { text = '' } = {}) {
   if (!Array.isArray(swaps)) return [];
   const idx = indexFor(level, sharedWords, language);
-  const sourceOptions = { beginnerSpanish: language === 'es' && level <= 1 };
+  const sourceOptions = { language, level };
   const out = [];
   for (const s of swaps) {
     if (!s || typeof s.o !== 'string' || typeof s.f !== 'string') continue;
