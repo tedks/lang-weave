@@ -107,8 +107,27 @@ test('both original examples have distinct Beginner options including Guaraní h
 
 const html = readFileSync(new URL('../src/paragraph.html', import.meta.url), 'utf8');
 
+test.each([
+  ['fr', '#gn-PY-x-weave', GUARANI_STARTER, true],
+  [GUARANI_STARTER, '#es', 'es', false],
+  [GUARANI_STARTER, '#ES', GUARANI_STARTER, false],
+  ['fr', '#gn-PY', 'es', true],
+  [GUARANI_STARTER, '', GUARANI_STARTER, false],
+])('reading preference %s with practice link %s opens %s', async (savedLanguage, hash, expected, showNote) => {
+  const window = new Window({ url: 'chrome-extension://fixture/src/paragraph.html' + hash });
+  const doc = window.document;
+  doc.body.innerHTML = html.slice(html.indexOf('<body>') + '<body>'.length, html.indexOf('<script'));
+  try {
+    await mountParagraph(doc, { get: async () => ({ settings: { language: savedLanguage } }) });
+    expect(doc.getElementById('language').value).toBe(expected);
+    const note = doc.getElementById('languageNote');
+    expect(note.hidden).toBe(!showNote);
+    if (showNote) expect(note.textContent).toContain('Pick either here without changing your reading language in Settings.');
+  } finally { await window.happyDOM.abort(); }
+});
+
 test('the exercise reads only preferences and discards every view on edit, reset or pagehide', async () => {
-  const url = 'chrome-extension://fixture/src/paragraph.html#gn-PY';
+  const url = 'chrome-extension://fixture/src/paragraph.html';
   const window = new Window({ url });
   const doc = window.document;
   doc.body.innerHTML = html.slice(html.indexOf('<body>') + '<body>'.length, html.indexOf('<script'));

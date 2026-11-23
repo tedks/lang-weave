@@ -91,9 +91,15 @@ test('the local sample remains usable when the saved language cannot be read', a
     expect(picker.disabled).toBe(false);
     expect(picker.value).toBe('es');
     expect(demo.querySelector('.fw-word').textContent).toBe('hoy');
+    const link = win.document.getElementById('practiceParagraph');
+    expect(link.getAttribute('href')).toBe('paragraph.html');
     picker.value = GUARANI_STARTER;
     picker.dispatchEvent(new win.Event('change'));
     expect(demo.querySelector('.fw-word').textContent).toBe('ama');
+    expect(link.hash).toBe(`#${GUARANI_STARTER}`);
+    picker.value = 'es';
+    picker.dispatchEvent(new win.Event('change'));
+    expect(link.hash).toBe('#es');
     expect(reads).toEqual(['settings']);
     expect(writes).toEqual([]);
   } finally {
