@@ -141,6 +141,12 @@ const HAVE_FORMS = new Set(['have', 'has', 'had']);
 const INFINITIVE_VERBS = new Set(['need', 'needs', 'needed', 'hope', 'hopes', 'hoped', 'want', 'wants', 'wanted',
   'plan', 'plans', 'planned', 'try', 'tries', 'tried', 'decide', 'decides', 'decided']);
 const QUESTION_AUXILIARIES = new Set(['do', 'does', 'did']);
+const QUESTION_ADJUNCTS = new Set(['how', 'when', 'where', 'why']);
+const NEGATED_DO = new Set(["don't", "doesn't", "didn't"]);
+// "That" can instead start a relative clause modifying the noun.
+const OBJECT_DETERMINERS = new Set(['a', 'an', 'the', 'my', 'your', 'his', 'her', 'its', 'our', 'their',
+  'some', 'this', 'these', 'those']);
+const TIME_ADJUNCT = /^(?:next|last|past|rest|few|couple|(?:second|minute|hour|morning|afternoon|evening|day|night|week|month|year|spring|summer|autumn|fall|winter|weekend)s?)$/u;
 const LINE_BREAK = /[\r\n\u2028\u2029]/u;
 const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
   !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
@@ -152,11 +158,10 @@ function tokenBefore(text, ts, at) {
 
 const modal = (value) => !!value && (MODALS.has(value) || CONTRACTED_MODAL.test(value));
 
-function clearModalContext(text, cue, subject, anchor, allowDialogue) {
+function clearModalContext(cue, subject, takesObject) {
   if (CONTRACTED_MODAL.test(cue.value) || CLAUSE_STARTS.has(subject?.value)) return true;
-  // A bare noun can be the subject after inversion: "How soon will fire spread?"
-  return !!subject && LETTER.test(subject.raw) && !SUBJECT_DETERMINERS.has(subject.value) &&
-    !sentenceStart(text, cue.start, { allowDialogue }) && text[sentenceEnd(text, anchor.end) - 1] !== '?';
+  // A noun can be the subject after inversion, as in "How soon will fire spread?"
+  return takesObject && !!subject && LETTER.test(subject.raw) && !SUBJECT_DETERMINERS.has(subject.value);
 }
 
 function clearVerbContext(text, ts, at, allowDialogue) {
@@ -164,22 +169,25 @@ function clearVerbContext(text, ts, at, allowDialogue) {
   if (!cue) return false;
   const head = tokenBefore(text, ts, at - 1);
   const subject = head && tokenBefore(text, ts, at - 2);
-  if (modal(cue.value)) return clearModalContext(text, cue, head, ts[at], allowDialogue);
-  if (cue.value === 'not' && modal(head?.value)) return clearModalContext(text, head, subject, ts[at], allowDialogue);
+  const next = ts[at + 1];
+  // A time adjunct can also start with a determiner: "access we have to water this summer".
+  const takesObject = OBJECT_DETERMINERS.has(next?.value) && !LINE_BREAK.test(text.slice(ts[at].end, next.start)) &&
+    !TIME_ADJUNCT.test(ts[at + 2]?.value ?? '');
+  if (modal(cue.value)) return clearModalContext(cue, head, takesObject);
+  if (cue.value === 'not' && modal(head?.value)) return clearModalContext(head, subject, takesObject);
   if (cue.value === 'to') {
     // Bare prepositional "to" leaves a noun sense possible, as in "access to water".
-    // "Have to" can express possession and a preposition. Require an object cue after the verb.
-    if (HAVE_FORMS.has(head?.value)) {
-      return SUBJECT_DETERMINERS.has(ts[at + 1]?.value) &&
-        /^\p{Zs}+$/u.test(text.slice(ts[at].end, ts[at + 1].start));
-    }
+    // An adjacent object also distinguishes "the librarian needs to book a room"
+    // from possession and a preposition in "the access they have to water".
+    if (HAVE_FORMS.has(head?.value)) return takesObject;
     return INFINITIVE_MARKERS.has(head?.value) || INFINITIVE_VERBS.has(head?.value) &&
-      (CLAUSE_STARTS.has(subject?.value) || modal(subject?.value));
+      (takesObject || CLAUSE_STARTS.has(subject?.value) || modal(subject?.value) || NEGATED_DO.has(subject?.value));
   }
   const please = cue.value === ',' ? head : cue;
   if (please?.value === 'please') return sentenceStart(text, please.start, { allowDialogue });
-  return (MODALS.has(head?.value) || QUESTION_AUXILIARIES.has(head?.value)) &&
-    CLAUSE_STARTS.has(cue.value) && sentenceStart(text, head.start, { allowDialogue });
+  if (!(MODALS.has(head?.value) || QUESTION_AUXILIARIES.has(head?.value)) || !CLAUSE_STARTS.has(cue.value)) return false;
+  return sentenceStart(text, head.start, { allowDialogue }) ||
+    QUESTION_ADJUNCTS.has(subject?.value) && sentenceStart(text, subject.start, { allowDialogue });
 }
 
 // Preserve a possible subject and verb in sentence-initial uses like “The door hinges on one pin.”

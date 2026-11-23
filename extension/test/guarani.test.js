@@ -54,10 +54,12 @@ test.each([1, 2])('Guaraní tier %i omits plainly verbal uses and preserves the 
   const choices = (text) => paragraphMatches(text, GUARANI_STARTER, level).flatMap(({ senses }) => senses);
   for (const [o, f, negative, positive] of [
     ['book', 'aranduka', 'Please book a room near the station.', 'She read a book beside the window.'],
+    ['book', 'aranduka', 'The librarian needs to book a room.', 'She showed the librarian her book.'],
     ['chair', 'apyka', 'We will chair the discussion after lunch.', 'We carried a chair into the kitchen.'],
     ['water', 'y', 'The caretaker has to water the garden today.', 'The school needs access to water from the well.'],
     ['wind', 'yvytu', 'I need to wind the clock before bed.', 'We listened to wind through the shutters.'],
     ['fire', 'tata', 'They hope to fire the manager next week.', 'The travelers gathered beside the fire.'],
+    ['fire', 'tata', 'The committee plans to fire the manager.', 'The committee gathered beside the fire.'],
   ]) {
     const proposal = [{ o, f }];
     expect(choices(negative).map(({ word }) => word)).not.toContain(f);
@@ -83,14 +85,20 @@ test('Guaraní recognizes bounded cues without interpreting every prepositional 
   for (const text of [
     'We’ll book a room on the second floor.', 'We should not book a room this far away.',
     'Could you book a room for my aunt?', 'Did you book a room on this side of town?',
+    'Who should book the room?', 'Where should we book our rooms?',
+    'You don’t need to book early on weekdays.',
   ]) expect(offers(text, 'aranduka')).toBe(false);
   for (const [text, word] of [
     ['They brought hope to fire survivors.', 'tata'],
     ['They were used to water from the mountain spring.', 'y'],
     ['She argued for the right to water and shelter.', 'y'],
     ['The access they have to water comes from a shallow well.', 'y'],
+    ['The access they have to water that freezes in winter comes from a shallow well.', 'y'],
+    ['The only access we have to water this summer is the rain barrel.', 'y'],
+    ['Only then would water reach the fields.', 'y'],
     ['Can water freeze under pressure?', 'y'],
     ['How soon will fire spread through wet timber?', 'tata'],
+    ['He typed how fast can water travel through this pipe', 'y'],
     ['We carried water for the trip.', 'y'],
   ]) expect(offers(text, word)).toBe(true);
   expect(offers('Wind the clock before leaving.', 'yvytu')).toBe(true); // An unmarked imperative remains ambiguous to the matcher.

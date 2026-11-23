@@ -429,7 +429,7 @@ export function applySwaps(root, swaps, onPlaced = () => {}, language = 'es', le
   for (const swap of swaps) {
     const m = locate(flat, swap.o, swap.ctx);
     if (!m) continue;
-    if (sourceIssue(flat.text, m.start, m.end, swap.o, { language, level, target: swap.word || swap.f })) continue;
+    if (sourceIssue(flat.text, m.start, m.end, swap.o, { language, level, target: swap.f })) continue;
     if (used.some((u) => m.start < u.end && u.start < m.end)) continue;
     const place = toNode(flat, m, swap.o);
     if (!place) continue;

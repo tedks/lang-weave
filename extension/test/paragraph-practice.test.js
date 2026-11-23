@@ -65,7 +65,7 @@ test('trusted web swaps still resolve and guard the exact occurrence before pain
 test('Guaraní DOM placement checks the target and exact occurrence, even with a trusted swap', () => {
   const text = 'The book explains how to book a room above the orchard.';
   const noun = { o: 'book', f: 'aranduka', word: 'aranduka', g: 'book (printed volume)', h: '', ctx: 'The book explains' };
-  const verb = { ...noun, ctx: 'how to book a room' };
+  const verb = { ...noun, word: undefined, ctx: 'how to book a room' };
   const window = new Window();
   try {
     for (const level of [1, 2]) {
