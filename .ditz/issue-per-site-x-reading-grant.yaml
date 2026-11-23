@@ -22,3 +22,13 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T04:52:56-00:00
+  who: Ted Smith
+  what: commented
+  comment: Reproduced through the real Chrome toolbar in a generated disposable profile,
+    using the committed package. Choosing Only sites I turn on, then Turn on for this
+    site on the synthetic X tab, produced a visible Spanish swap and persisted today's
+    reading day. Opening a second tab at the same URL failed after 12 s. Exactly one
+    synthetic model request, only the first tab's URL/title accessible, and no external
+    traffic. Isolated confirmation with actual all-sites prompt succeeds. New site-access
+    lead owns the single-origin persistent grant fix for the next combined beta.
