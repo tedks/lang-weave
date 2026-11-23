@@ -22,3 +22,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T04:22:27-00:00
+  who: Ted Smith
+  what: commented
+  comment: '0.13.3 backup reader PR #66 is ready at 2dedc29e8555f778ae6f7e7d65e424ac98d7c628.
+    It reads and re-exports schema 3 dates, preserves date-free schema 2 compatibility,
+    and accepts schemas 1 and 2. Exact council and validation evidence: https://github.com/tedks/lang-weave/pull/66#issuecomment-7091511196.
+    The 0.14.0 writer, union and UI are staged separately in PR #69. The issue remains
+    in progress across the staged source landings.'
