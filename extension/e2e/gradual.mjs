@@ -249,6 +249,9 @@ try {
   await review.goto(`chrome-extension://${id}/src/review.html`);
   await review.locator('#counts').getByText(/0 due/).waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
+  // A settings change refreshes an open Review tab. Its queue snapshot can
+  // overwrite a direct fixture reset made outside the worker's write queue.
+  await review.close();
 
   // The current page has exhausted its one-word allowance. With no due
   // anchor in this passage, local selection skips the model entirely; the
@@ -319,7 +322,11 @@ try {
   await options.locator('#language').selectOption('es');
   await options.locator('#gradual').check();
   await options.locator('#newWordsPerDay').selectOption('2');
-  await worker.evaluate(async () => {
+  await options.waitForFunction(async () => {
+    const { settings } = await chrome.storage.local.get('settings');
+    return settings?.language === 'es' && settings.gradual && settings.newWordsPerDay === 2;
+  });
+  const resetQuestion = () => worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
     delete recallReview.cards['la pregunta'];
     const now = new Date();
@@ -327,37 +334,49 @@ try {
     recallReview.learning = { day, count: 1, pending: [] };
     await chrome.storage.local.set({ recallReview });
   });
-  const offscreen = await browser.newPage();
-  await offscreen.goto('https://reading.example/offscreen');
-  const reserved = offscreen.locator('#offscreen .fw-word');
-  await reserved.waitFor();
-  assert.equal(await reserved.textContent(), 'the question');
-  assert.equal(await reserved.getAttribute('data-fr'), null);
-  const beforeVisible = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
-  assert.equal(beforeVisible.learning.count, 1);
-  assert.equal(beforeVisible.cards['la pregunta'], undefined);
+  const readReview = () => worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
+  const openOffscreen = async () => {
+    const page = await browser.newPage();
+    await page.goto('https://reading.example/offscreen');
+    const reserved = page.locator('#offscreen .fw-word');
+    await reserved.waitFor();
+    // In quirks mode the root element can report the document's full height.
+    const face = await reserved.evaluate((span) => ({
+      offscreen: span.getBoundingClientRect().top >= window.innerHeight,
+      text: span.textContent, translation: span.getAttribute('data-fr'),
+    }));
+    assert.equal(face.offscreen, true, 'the question starts below the viewport');
+    assert.equal(face.text, 'the question');
+    assert.equal(face.translation, null);
+    const state = await readReview();
+    assert.equal(state.learning.count, 1);
+    assert.equal(state.cards['la pregunta'], undefined);
+    assert.deepEqual(state.learning.pending.map(({ word }) => word), ['la pregunta']);
+    return { page, reserved };
+  };
+  const scrollAndCheckIntroduction = async ({ page, reserved }) => {
+    await reserved.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelector('#offscreen .fw-word')?.getAttribute('data-fr') === 'la pregunta');
+    const state = await readReview();
+    assert.equal(state.learning.count, 2);
+    assert.ok(state.cards['la pregunta']);
+    // The visible span sends a separate encounter write after the acknowledgement.
+    await options.waitForFunction(async () => {
+      const { recallReview } = await chrome.storage.local.get('recallReview');
+      return recallReview?.cards['la pregunta']?.seenCount === 1;
+    }, undefined, { polling: 50, timeout: 5000 });
+    await page.close();
+  };
+  await resetQuestion();
+  const offscreen = await openOffscreen();
   await worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
     recallReview.learning.pending[0].until = Date.now() - 1000; // recently expired, still eligible for renewal
     await chrome.storage.local.set({ recallReview });
   });
-  await reserved.scrollIntoViewIfNeeded();
-  await offscreen.waitForFunction(() => document.querySelector('#offscreen .fw-word')?.getAttribute('data-fr') === 'la pregunta');
-  const afterVisible = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
-  assert.equal(afterVisible.learning.count, 2);
-  assert.ok(afterVisible.cards['la pregunta']);
-  await worker.evaluate(async () => {
-    const { recallReview } = await chrome.storage.local.get('recallReview');
-    delete recallReview.cards['la pregunta'];
-    recallReview.learning.count = 1;
-    recallReview.learning.pending = [];
-    await chrome.storage.local.set({ recallReview });
-  });
-  const retryPage = await browser.newPage();
-  await retryPage.goto('https://reading.example/offscreen');
-  const retryReserved = retryPage.locator('#offscreen .fw-word');
-  await retryReserved.waitFor();
-  assert.equal(await retryReserved.textContent(), 'the question');
+  await scrollAndCheckIntroduction(offscreen);
+  await resetQuestion();
+  const retry = await openOffscreen();
   await worker.evaluate(() => {
     const original = chrome.storage.local.set;
     chrome.storage.local.set = (...args) => {
@@ -368,11 +387,7 @@ try {
       return original.call(chrome.storage.local, ...args);
     };
   });
-  await retryReserved.scrollIntoViewIfNeeded();
-  await retryPage.waitForFunction(() => document.querySelector('#offscreen .fw-word')?.getAttribute('data-fr') === 'la pregunta');
-  const afterRetry = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
-  assert.equal(afterRetry.learning.count, 2);
-  assert.ok(afterRetry.cards['la pregunta']);
+  await scrollAndCheckIntroduction(retry);
   await worker.evaluate(async () => {
     const { recallReview } = await chrome.storage.local.get('recallReview');
     recallReview.learning.day = '2099-01-01';
