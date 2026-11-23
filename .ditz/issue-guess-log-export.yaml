@@ -13,8 +13,8 @@ type: task
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-01T04:07:06-00:00
 references: []
 log_events:
@@ -53,3 +53,9 @@ log_events:
     ZIP and historical reader evidence: https://github.com/tedks/lang-weave/pull/99#issuecomment-7099657986.
     Sol and Opus clean after a fix round; Google quota-empty. Leave active until root
     integration.'
+- time: 2026-11-23T11:28:39-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #99 merged normally on main at ca1d4633f41d5faee92ad92e7c4ae283b99b640e.
+    The audited second parent is 9c595146455e642952be02e01aaad5aa1656ef21, and its
+    tree is identical to the merge tree. CTO owns release and rollout.'
