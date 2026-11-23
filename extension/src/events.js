@@ -44,7 +44,7 @@ export async function queueEvents(storage, events, day = localDay(), { wordIds =
   const obj = await storage.get([PENDING_KEY, SENT_KEY, READING_DAYS_KEY]);
   const stored = obj[READING_DAYS_KEY];
   let dates = validReadingDays(stored) ? stored : readingDates(obj, wordIds);
-  const pending = Array.isArray(obj[PENDING_KEY]) ? obj[PENDING_KEY] : [];
+  const pending = Array.isArray(obj[PENDING_KEY]) ? [...obj[PENDING_KEY]] : [];
   const oldSent = obj[SENT_KEY];
   const sent = { day, words: oldSent?.day === day && Array.isArray(oldSent.words)
     ? oldSent.words.filter((word) => typeof word === 'string') : [] };

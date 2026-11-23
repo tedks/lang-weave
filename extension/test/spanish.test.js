@@ -118,6 +118,7 @@ test('reading dates share the event write, survive queue eviction and keep the m
   const flip = { word: 'y', kind: 'flip' }, seen = { word: 'y', kind: 'seen' };
   expect(await queueEvents(tracked, [seen], '2026-10-01', { wordIds: ['y'], canWrite: () => false })).toBeNull();
   expect(writes).toHaveLength(0);
+  expect((await store.get([PENDING_KEY]))[PENDING_KEY]).toHaveLength(2);
   await queueEvents(tracked, [seen, seen], '2026-10-01', { wordIds: ['y'] });
   expect(writes).toHaveLength(1);
   expect(writes[0][READING_DAYS_KEY]).toEqual(['2026-09-30', '2026-10-01']);
