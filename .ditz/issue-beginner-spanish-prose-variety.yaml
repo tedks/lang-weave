@@ -1,0 +1,21 @@
+id: beginner-spanish-prose-variety
+title: Broaden Beginner Spanish choices in ordinary prose
+desc: 'Narrow follow-up to spanish-everyday-reading-20261123 and scoped child of curriculum-growth.
+  Promote a small set of existing Expanded rows selected with the CTO''s fixed 300-passage
+  sample. Preserve Expanded, placement/history, scheduling, backups and other languages.
+  Report eligible forms per passage, held-out validator evidence and actual synthetic-provider
+  reading in a fresh Chromium profile from the candidate ZIP. Target 0.15.4 after
+  #79. CTO owns merge and release.'
+type: feature
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T06:42:23-00:00
+references: []
+log_events:
+- time: 2026-11-23T06:42:23-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
