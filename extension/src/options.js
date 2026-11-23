@@ -8,6 +8,7 @@ import { hasSiteAccess } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 localize();
+$('version').textContent = chrome.runtime.getManifest().version;
 const placementPanel = $('placement');
 mountPlacement(placementPanel);
 const placementSummary = placementPanel.firstElementChild;
@@ -30,7 +31,6 @@ async function refresh() {
   status = next;
   const c = status.config;
   const s = c.settings;
-  $('version').textContent = chrome.runtime.getManifest().version;
   $('update').hidden = !status.update;
   $('updateVersion').textContent = status.update || '';
   $('newSitesEnabled').value = String(s.newSitesEnabled);
