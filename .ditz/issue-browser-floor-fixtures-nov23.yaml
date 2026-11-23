@@ -22,3 +22,13 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T09:34:20-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Fixture sweep ready for CTO integration at b29df4ce81e014f791d9eaae3cc8ddf5204601b6.
+    Historical public 0.15.7 and public-identical rebuilt 0.15.9 each passed 12/13
+    full and isolated on 140 (only known Guess product failure), and 13/13 full and
+    isolated on 155 and 158. Public 0.15.9 beta install headless passed 3/3 on 140
+    and 3/3 on 158. Strict source and release version gates passed. Council has clean
+    OpenAI and Anthropic seats and an actual quota error for Google. Known runtime
+    failure is separately tracked under guess-keyboard-focus-chrome140. Receipt: https://github.com/tedks/lang-weave/pull/88#issuecomment-7096808668'
