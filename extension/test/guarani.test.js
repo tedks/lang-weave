@@ -64,7 +64,7 @@ test('everyday passages that had no candidates now reach home and school words t
   }
 });
 
-test('a prior starter backup restores exact old Guaraní card, event, encounter and retrieval IDs', () => {
+test('prior starter backups restore old Guaraní card, event, encounter and retrieval IDs and keep reading dates', () => {
   const day = '2026-11-22';
   const reviewedAt = Date.parse(`${day}T12:00:00Z`);
   const oldId = 'gn-PY-x-weave:0000000000000001:legacy:ytoror%C3%B5';
@@ -78,23 +78,31 @@ test('a prior starter backup restores exact old Guaraní card, event, encounter 
     retrievals: { version: 1, retrievals: [['ytororõ', reviewedAt, 'standalone', 'productive', 'medium', 1, 2000, 1, 1, 0.9]] },
   };
   // Literal scope and IDs pin the pre-addition backup contract independently of the current pack.
-  const backup = parseBackup(JSON.stringify({
-    format: 'lang-weave-learning-backup', schemaVersion: 2, exportedByVersion: '0.13.1',
-    state: {
-      preferences: { language: 'gn-PY-x-weave', levelOverride: 2, gradual: true, newWordsPerDay: 5,
-        density: 'normal', inlineRecall: false },
-      packs: {}, personal: { version: 1, revision: 0, entries: [], history: {} },
-      scopes: { [scope]: fields },
-    },
-  }));
-  const restored = learningPatch(backup, {});
-  expect(restored.settings.language).toBe(GUARANI_STARTER);
-  expect(cleanReview(restored[`${scope}:recallReview`], GUARANI_PACK.words, reviewedAt, true).cards.ytororõ)
-    .toEqual(fields.review.cards.ytororõ);
-  expect(restored[`${scope}:vocabularyEncounters`]).toEqual(fields.encounters);
-  const again = parseBackup(createBackup(restored, '0.14.2'));
-  expect(again.state.scopes[scope]).toEqual(fields);
-  expect(again.omitted).toEqual({ retrievals: 0, exposures: 0 });
+  const snapshots = [
+    { schemaVersion: 2, exportedByVersion: '0.13.1', history: fields },
+    { schemaVersion: 3, exportedByVersion: '0.14.1', history: { ...fields, readingDays: [day] } },
+  ];
+  for (const { schemaVersion, exportedByVersion, history } of snapshots) {
+    const backup = parseBackup(JSON.stringify({
+      format: 'lang-weave-learning-backup', schemaVersion, exportedByVersion,
+      state: {
+        preferences: { language: 'gn-PY-x-weave', levelOverride: 2, gradual: true, newWordsPerDay: 5,
+          density: 'normal', inlineRecall: false },
+        packs: {}, personal: { version: 1, revision: 0, entries: [], history: {} },
+        scopes: { [scope]: history },
+      },
+    }));
+    const restored = learningPatch(backup, {});
+    expect(restored.settings.language).toBe(GUARANI_STARTER);
+    expect(cleanReview(restored[`${scope}:recallReview`], GUARANI_PACK.words, reviewedAt, true).cards.ytororõ)
+      .toEqual(history.review.cards.ytororõ);
+    expect(restored[`${scope}:vocabularyEncounters`]).toEqual(history.encounters);
+    expect(restored[`${scope}:readingDaysV1`]).toEqual(history.readingDays);
+    const again = parseBackup(createBackup(restored, '0.14.2'));
+    expect(again.schemaVersion).toBe(schemaVersion);
+    expect(again.state.scopes[scope]).toEqual(history);
+    expect(again.omitted).toEqual({ retrievals: 0, exposures: 0 });
+  }
 });
 
 test('the starter is selectable without a key and its reviews round trip alongside earlier Guaraní packs', async () => {
