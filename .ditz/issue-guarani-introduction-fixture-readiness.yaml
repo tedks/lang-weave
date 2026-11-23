@@ -10,8 +10,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-23T10:52:55-00:00
 references: []
 log_events:
@@ -23,3 +23,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T10:59:27-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged #97. Confirmed target marker is required before checking both exact
+    forms, the whole sentence, trusted keyboard flip and rejected verbs. Tested on
+    140 and 158; the installed ZIP is byte-identical.'
