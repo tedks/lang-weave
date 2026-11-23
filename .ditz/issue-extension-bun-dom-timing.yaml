@@ -48,3 +48,22 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-11-23T04:13:24-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Fix in tedks/lang-weave#65 at d2f22703d48fde4a07f6ebfe6b2e213bd416299d.
+    On the old fixture, a serial diagnostic held a single title-recovery flush past
+    the fixed wait and reproduced both the wrong early assertion and a later content.js
+    callback using restored DOM globals. The new runtime, gloss, and guess fixtures
+    step Bun''s clock and clear pending work before restoring the DOM. A bounded 180
+    ms event-loop stall after the title poll passed all 49 targeted cases. Skipping
+    the final virtual 1 ms caused exactly the expected paint failure, followed by
+    a native wait and an empty reinstalled clock without callback leakage. The separately
+    reported synchronous CSS timeout had exceeded its real wall-clock bound under
+    pressure. Existing test limits are retained.
+
+
+    Exact-head uncached Linux sandbox gates passed 446 full Bun tests over all 72
+    tracked files, 66 focused tests over 11 files, 102 inherited Python tests, FSRS,
+    package boundary and version classifier. The live gate confirmed no shipped files
+    changed. Awaiting formal council clearance and CTO integration.'
