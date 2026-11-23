@@ -7,7 +7,7 @@ Learn a language through the English you already read. This Chrome extension rep
 
 A browser-focused fork of [French Weave](https://github.com/jackieoliver/french-weave) by Jackie Oliver. Lang Weave is free software under the [GNU AGPL v3 or later](LICENSE). The upstream history and its [MIT license](LICENSE-MIT) are preserved (see [NOTICE](NOTICE)). No terminal plugin, Python setup or native messaging host is required.
 
-This describes version 0.12.27. There is no Chrome Web Store release yet. You load the extension unpacked, as below.
+To check which version Chrome has loaded, open Lang Weave’s **Settings → About**.
 
 ## Install in Chrome
 
@@ -17,7 +17,7 @@ Chrome 140 or newer is required. This is an unpacked beta from GitHub Releases. 
 
 1. From [Lang Weave releases](https://github.com/tedks/lang-weave/releases), download the `lang-weave-<version>.zip` asset and extract it into a permanent folder. GitHub's **Source code (zip)** on the same release page provides the source for that version.
 2. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the extracted folder that contains `manifest.json`. Keep that folder in place. For a source checkout, select the repository's `extension` folder instead.
-3. The welcome tab shows a demo with bundled words. Choose **Only sites I turn on** for per-site access, or **All sites except sensitive ones** to ask Chrome for access to all websites. The sensitive-site blocklist is heuristic.
+3. In the welcome tab, use **Sample language** to try Spanish or Paraguayan Guaraní. Hover or focus an underlined word for its meaning. Click it or press Enter or Space to flip it. The picker changes the sample, and Settings controls your reading language. Choose **Only sites I turn on** for per-site access, or **All sites except sensitive ones** to ask Chrome for access to all websites. The sensitive-site blocklist is heuristic.
 4. If you choose to use Gemini, open **Settings** from the popup, paste your own API key, then click **Save key** and **Test key**. Testing sends one short prompt to Google.
 5. For per-site access, open a page you want to weave, check the site's box in the popup and accept Chrome's permission prompt. The unpacked manifest already declares x.com and twitter.com, so they need no new Chrome grant. Reload an already-open page if needed.
 
@@ -43,7 +43,7 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 
 ## Controls and privacy
 
-**Popup.** The **On** switch pauses weaving and restores the original text in open pages. The site checkbox controls the current hostname. Below them are a Today line, the days you practised this week with your verified-known count, and one button. The button reads **Review N due words**, **Add words** or **Practice**. Links open **Settings**, **My words** and this section. If a saved introduction date is more than seven days ahead of your clock, the popup offers to reset only that day's introduction budget.
+**Popup.** The **On** switch pauses weaving and restores the original text in open pages. The site checkbox controls the current hostname. Below them are today's counts, practice days in the last seven, and your verified-known count. Reading a visible woven word or doing a review can make the day count. The button reads **Review N due words**, **Add words** or **Practice**. Links open **Settings**, **My words** and this section. If a saved introduction date is more than seven days ahead of your clock, the popup offers to reset only that day's introduction budget.
 
 **Toolbar badge.** The icon says why Lang Weave is or is not working on the current tab, with fixed text and no page or host data. A **!** means setup, a key, or a rejected key needs attention. A **•** means this site needs your OK. A **–** means Lang Weave is not reading here: it is paused, the site is off or sensitive, the model is cooling down, or the daily call limit is reached. Reviews still work then. No mark means it is working. Hover the icon for the reason in words. Where Chrome withholds a tab's address, the tooltip says to open Lang Weave to check the page.
 
@@ -64,6 +64,7 @@ Every install loaded before 0.12.0 has an ID derived from its folder. Version 0.
 - Settings and cached replacement choices. Cached choices contain short English fragments, and about 5,000 are kept. **Clear cache** forgets them without touching learning progress.
 - Review cards and their schedule.
 - Up to 500 word events per target, each a word, a kind (seen, peek or flip) and a date.
+- Up to 30 local dates per pack or personal language when you saw a woven word. These records contain only dates.
 - A learning log. Each review adds a word ID, a time, an outcome and some numbers: response time, days since the last review, the scheduled interval and predicted recall. Each word also keeps counts of sightings and peeks with first and last day. It never holds pages, URLs or text.
 - Coarse per-word encounter counts that guide gradual learning.
 - Up to five generated vocabulary packs and your personal entries.
@@ -72,7 +73,7 @@ Apart from the key, which authenticates your requests to Google, none of this st
 
 **Your own words.** Select a word or short phrase in readable text on an enabled, permitted site and choose **Add to Lang Weave** from Chrome's selection menu. Say whether the selection is English or the target language. Check any local suggestion or enter both forms yourself, then press **Save personal entry**. The menu and Save do not call Gemini or an online dictionary. **Personal entries** lets you find entries, add one to manual review, archive or unarchive it without losing history, and export your entries and history as local JSON. A saved entry does not spend a daily introduction or count as practice. With gradual learning on, an unambiguous single-word entry may enter the normal budgeted reading flow when it appears in a passage. Phrases and unresolved collisions stay available for manual review only. The bundled suggestions have not been checked against a dictionary.
 
-**Learning backup.** **Settings**, then **Your data**, then **Learning backup** downloads one JSON file of your learning progress, personal entries, generated packs and learning preferences. Export only reads local state. The file excludes keys, host grants, site choices, consent, caches, quotas, page text and one-use tickets. Import goes into a separate, keyless install whose target has only initialized defaults. It refuses conflicts instead of merging or replacing, and it previews counts and preferences before you confirm. An unverified card from an old removed pack blocks the whole export rather than risk page text in the file. Backups from 0.12.6 on use format 2. This build reads formats 1 and 2. Build 0.12.5 was the first to import format 2. To restore a backup containing the Paraguayan Guaraní starter selection or progress, use 0.12.26 or later. Use 0.12.27 or later to restore progress on the seven Beginner Spanish clothing and packing nouns. Once 0.12.6 has logged anything, 0.12.4 and earlier can no longer export. [The backup contract](docs/STORE-PORTABILITY-MISSION.md) lists the supported keys and exclusions.
+**Learning backup.** **Settings**, then **Your data**, then **Learning backup** downloads one JSON file of your learning progress, personal entries, generated packs and learning preferences. Export only reads local state. The file excludes keys, host grants, site choices, consent, caches, quotas, page text and one-use tickets. Import goes into a separate, keyless install whose target has only initialized defaults. It refuses conflicts instead of merging or replacing, and it previews counts and preferences before you confirm. An unverified card from an old removed pack blocks the whole export rather than risk page text in the file. This build reads formats 1, 2 and 3. Exports use format 2 by default. A backup with reading-day dates uses format 3 and needs 0.13.3 or later to restore. Use 0.13.3 or later to export from an installation that already holds these dates. Build 0.12.5 was the first to import format 2. To restore a backup containing the Paraguayan Guaraní starter selection or progress, use 0.12.26 or later. Use 0.12.27 or later to restore progress on the seven Beginner Spanish clothing and packing nouns. Once 0.12.6 has logged anything, 0.12.4 and earlier can no longer export. [The backup contract](docs/STORE-PORTABILITY-MISSION.md) lists the supported keys and exclusions.
 
 ## Learning
 
@@ -82,7 +83,7 @@ The gloss appears after a 700 ms pause, so you have a beat to recall the word fi
 
 **Gradual learning** starts on, at 5 new words a day, for a new install; the welcome page says so and Settings changes it. Only storage that is still completely empty gets this default. An update or a reload keeps the current choice, a profile from before 0.12.24 that never turned it on stays off, and restoring a backup restores the backup's choice. With it on:
 - Only a bounded number of new words are introduced per local day, 1 to 10 in Settings. A word counts only once it is actually visible on the page.
-- Due words come first, then weak ones, then learning words met on fewer than eight days in their first three weeks, then other learning words, then new words. Among new words, a lower band comes first, with the Beginner words at band 0, and Spanish cognates break ties.
+- Due words come first, then weak ones, then learning words met on fewer than eight days in their first three weeks, then other learning words, then new words. Among new words, lower frequency bands come first by default. Choosing an Expanded Spanish starting point prioritizes Expanded-only words among fresh matches. Spanish cognates break ties.
 - A learning word seen three times in one local day is left out of requests for the rest of that day. Two same-day peeks on a learning word you have already rated bring its review forward to within 24 hours.
 - Across one request, new, due and learning swaps are capped near 2% of the words read, with a minimum of one, whatever the density.
 - A pile of five or more due or weak words pauses new introductions.
@@ -97,7 +98,7 @@ Reviews are scheduled with FSRS-6 on the actual time since each review, aiming f
 
 **Spanish vocabulary.** Coarse frequency bands order new words. The first Expanded addition selects 79 everyday nouns from an upstream AI-drafted list. [Selection, credits and limits](docs/UPSTREAM-CURRICULUM-MISSION.md) are documented. The selection and approximate sound hints lean Latin American. Spanish accents and ñ are preserved, and generated target forms are matched exactly.
 
-**Paraguayan Guaraní.** Select the included starter in Settings. My words and Review work without a key. Weaving words into web pages uses your Gemini key and site access settings. [Starter vocabulary and sources](docs/guarani-starter.md)
+**Paraguayan Guaraní.** Select the included starter in Settings to use it for reading and see its sample when you return to Welcome. The sample, My words and Review work without a key. Weaving words into web pages uses your Gemini key and site access settings. [Starter vocabulary and sources](docs/guarani-starter.md)
 
 **Other languages.** In Settings, **Add a language**, enter a code such as `fr` or `ja`, and generate a local experimental pack with Gemini. It needs your key and a chosen site policy, and it counts toward the daily call cap. Quality is not certified. Each pack has its own progress and reviews. **Remove this generated language** frees a slot and deletes that pack's reading and review progress. Personal entries and their history stay under the target language.
 

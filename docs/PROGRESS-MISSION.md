@@ -4,6 +4,24 @@ State: PR #28 on branch `progress-words`. Ditz issues `today-progress` and `my-w
 
 Encounter-core update (2026-10-30): [ENCOUNTER-MISSION.md](ENCOUNTER-MISSION.md) supersedes the earlier permanent-familiar behavior below when gradual learning is on. A third Easy is maintenance and remains scheduled under FSRS; an Already know claim is verified only by a later 21+-day retrieval at or after its claim due. In gradual mode My words shows the effective maintenance due date, Practice now can choose maintenance cards, and a pending claim cannot bypass its verification date. The one-time count of old retired cards due for verification appears on the review and progress pages. Reset's stale guard also compares claim fields. Legacy behavior below remains for gradual-off profiles. The My words claim still has no retrieval-log entry; the card's additive claim fields carry its verification gate.
 
+## Reading-day backup compatibility
+
+Lang Weave 0.13.3 is the first reader for learning backup schema 3. It can
+restore and re-export a file with reading dates. Schema 1 and 2 imports remain
+supported, and exports still use schema 2 when there are no reading dates.
+Version 0.14.0 starts recording new dates as you read.
+
+Schema 3 adds an optional `readingDays` list per scope, with one to 30 unique
+local calendar dates in `YYYY-MM-DD` format. These dates travel with the scoped
+learning backup even for a removed pack. A date alone carries no word ID or
+evidence of recall. The same bounded list is stored under `readingDaysV1`
+in the normal bundled, versioned pack or personal scope. A scope without dates
+has no date key. The import preview says when the file includes dates.
+
+Use 0.13.3 or later to restore schema 3 or to export from an installation that
+already holds these date records. Earlier versions reject schema 3 files and
+cannot export from local storage containing the new keys.
+
 ## Intent
 
 The learner can see their words and whether learning is happening, from local data only. Sources: roadmap M2 `today-progress` and `my-words`; UX audit #11, #12 and #16; learning-science recommendations 1, 5 and 11 and section 9, "What to measure".
@@ -48,7 +66,9 @@ The learner can see their words and whether learning is happening, from local da
   - **Seen and peeked:** distinct words, from the per-day record in `events.js`.
   - **Flipped:** flip events in the bounded reading-event queue, which keeps the latest 500. It is a lower bound.
   - **Reviewed:** graded ratings logged today. Claims are excluded.
-- **Activity and the week.** A day is active when it holds any retrieval, a rating or a claim. Days are dates in the device's current time zone. The log stores instants only, so after travel, past retrievals are counted on the new zone's dates. "Days practised this week" counts active days among the last seven local days, today included. A missed day only lowers that rolling count, and nothing is ever lost.
+- **Activity and the week.** A day is active after a visible woven word, a review rating or a review claim. The weekly count takes the union of those days across the current pack and its personal language since six local calendar days before today. My words shows the same union over 30 days and describes the reading and review events for each day. Review instants are grouped in the device's current time zone, while reading keeps the local date captured at the sighting. Dates beyond today stay outside the display after a clock rollback.
+- **Sightings.** The content script checks that a target-language face is visible in the top document. Its observation date travels with the `seen` event. The worker accepts today or the preceding local calendar date and writes the accepted date with the event. A late sighting leaves the current day's seen counts intact. Hidden tabs, practice cues still showing English, and flipped English faces supply no new sightings. The regular visibility check also catches a word that fades in without moving.
+- **Upgrades and erasure.** Older installs and backups can supply a reading date through a retained `seen` event or `seenSent` record for a catalog word. Earlier events that have aged out leave gaps. New feedback writes retain available evidence for the activity window, including in scopes with restored dates. New dates stay local until the learner exports a backup. Removing the extension erases them along with its other local history. Clear cache and resetting an individual review card leave activity history intact.
 - **Measurements and thresholds.** Below these thresholds, a measurement reads "Not enough data yet" with its current sample, never a rate:
 
   | Measurement | Minimum sample |
@@ -98,5 +118,4 @@ Tests and gates are recorded in the PR comment for the merge commit.
 ## Not done, and why
 
 - Peek rate over time needs successive snapshots, which the log does not keep.
-- Reading-only days, with exposures but no retrieval, do not count as practice, because exposures keep no per-day series. Counting them needs a log change.
 - The words page is not a side panel. That is the later half of UX audit #16.

@@ -4,11 +4,12 @@ import { hashKey } from '../src/hash.js';
 import { DAILY_MODEL_CALLS } from '../src/quota.js';
 import { PENDING_KEY } from '../src/events.js';
 import { wordsForLevel } from '../src/levels.js';
+import { advanceDOMTime, restoreTimedDOM, settleDOM, useDOMClock } from './dom-clock.js';
 
 // The real worker and content modules together on a plain article page, with fake Gemini.
 test('runtime: key isolation, local events, site controls, stale replies, retries and quota', async () => {
   const win = new Window({ url: 'https://example.com/article' });
-  const originalGlobals = Object.fromEntries(['chrome', 'fetch', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval', 'Date'].map((k) => [k, globalThis[k]]));
+  const originalGlobals = Object.fromEntries(['chrome', 'fetch', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'Date'].map((k) => [k, globalThis[k]]));
   // Model a reader at UTC-05:00. Both instants are January 2 in UTC, but straddle local midnight.
   const RealDate = originalGlobals.Date;
   let clock = RealDate.parse('2026-01-02T04:59:00Z');
@@ -19,7 +20,6 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     getMonth() { return new RealDate(this.getTime() - 5 * 3600000).getUTCMonth(); }
     getDate() { return new RealDate(this.getTime() - 5 * 3600000).getUTCDate(); }
   }
-  globalThis.Date = ReaderDate;
   const local = { settings: { apiKey: 'synthetic-gemini', enabled: true, levelOverride: 1 },
     hostKey: 'foreign-french-key', wordState: { version: 'french', words: [{ fr: 'et', en: 'and', status: 'active' }] } }; // foreign legacy data must be ignored
   const messageListeners = [], contentListeners = [];
@@ -58,7 +58,6 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
   const reply = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
   Object.assign(globalThis, {
     window: win, document: win.document, location: win.location, MutationObserver: win.MutationObserver, IntersectionObserver: IO,
-    setInterval: win.setInterval.bind(win),
     chrome: {
       storage: { local: storageArea(local) },
       runtime: {
@@ -89,10 +88,11 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
   });
   const options = { id: 'fw-test', url: 'chrome-extension://fw-test/src/options.html' };
   const call = (msg) => dispatch(msg, msg.type === 'clearCache' ? options : popup);
-  const wait = (ms = 400) => new Promise((done) => setTimeout(done, ms));
   // happy-dom has no isTrusted; real user input is marked by hand, a page's dispatchEvent is left untrusted.
   const user = (e) => Object.defineProperty(e, 'isTrusted', { value: true });
   try {
+    useDOMClock();
+    globalThis.Date = ReaderDate;
     await import('../src/background.js');
     let config = await dispatch({ type: 'config' }, page());
     expect(accessLevel).toBe('TRUSTED_CONTEXTS');
@@ -114,7 +114,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     win.document.body.innerHTML = '<main><p id="reading">I enjoy cats and dogs every single day.</p><form><p>Private typing and secrets should stay exactly here.</p></form><p contenteditable="true">Private words and typing must never leave this editor.</p><p id="nested">Keep these and other words <span contenteditable="true">private typed text</span> here.</p><p>My doctor says medication and rest are important.</p><p lang="es">Hola y gracias por leer esta página cada día.</p></main>';
     await import('../src/content.js');
     contentListeners.push(...messageListeners.splice(beforeContent));
-    await wait();
+    await advanceDOMTime(400);
     expect(modelCalls).toBe(1);
     const el = win.document.querySelector('#reading');
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
@@ -123,38 +123,45 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     // cannot repaint them, and returning to a safe title permits reading.
     const safeCalls = modelCalls;
     win.document.title = 'Hospital medication update';
-    await wait(20);
+    await advanceDOMTime(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(el.textContent).toBe('I enjoy cats and dogs every single day.');
     expect(modelCalls).toBe(safeCalls);
     win.document.title = 'Ordinary reading';
-    await wait(1300); // interval fallback also covers sites whose title mutation is not reported
+    await settleDOM();
+    expect(el.querySelector('.fw-word')).toBeNull(); // reading is stopped and there is no observer
+    // The initial paint and sensitive-title observation used 420 ms.
+    await advanceDOMTime(580); // first title poll at t=1000 ms
+    await advanceDOMTime(249);
+    expect(el.querySelector('.fw-word')).toBeNull(); // the batch is still debouncing
+    await advanceDOMTime(1);
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
     const sameSpan = el.querySelector('.fw-word');
     const safeTitleCalls = modelCalls;
     win.document.title = 'Another ordinary reading title';
-    await wait(1300);
+    await advanceDOMTime(750); // the next poll, leaving time for any queued repaint
+    await advanceDOMTime(550);
     expect(el.querySelector('.fw-word')).toBe(sameSpan);
     expect(modelCalls).toBe(safeTitleCalls);
     expect(local[PENDING_KEY] || []).toHaveLength(0); // prefetch is not exposure
     const visibility = io.findLast((o) => !o.options.rootMargin);
     const span = el.querySelector('.fw-word');
     visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
-    await wait(20);
+    await advanceDOMTime(20);
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen']);
     expect(span.dataset.fwStatus).toBe('active');
     // The gloss waits for a dwell; a passing pointer neither shows it nor records anything.
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
-    await wait(100);
+    await advanceDOMTime(100);
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
-    await wait(700);
+    await advanceDOMTime(700);
     expect(span.classList.contains('fw-tip')).toBe(false);
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     expect(local[PENDING_KEY]).toHaveLength(1);
     // Focus shows the gloss for keyboard readers but never records a peek, since a page can focus a span from script.
     span.dispatchEvent(user(new win.FocusEvent('focusin', { bubbles: true })));
-    await wait(800);
+    await advanceDOMTime(800);
     expect(span.classList.contains('fw-tip')).toBe(true);
     expect(win.document.querySelector('div.fw-gloss-on')?.textContent).toBe('y · and · "ee"');
     // The name is the Spanish word alone, voiced as Spanish; the gloss is its description.
@@ -167,7 +174,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(span.classList.contains('fw-tip')).toBe(false);
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
-    await wait(800);
+    await advanceDOMTime(800);
     expect(span.classList.contains('fw-tip')).toBe(true);
     expect(win.document.querySelectorAll('div.fw-gloss-on')).toHaveLength(1);
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek']);
@@ -177,15 +184,15 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     span.dispatchEvent(user(new win.FocusEvent('focusout', { bubbles: true })));
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
-    await wait(800);
+    await advanceDOMTime(800);
     expect(local[PENDING_KEY]).toHaveLength(2); // one peek per word per day
     span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
     const callsBeforeLocalMidnight = modelCalls;
     clock = RealDate.parse('2026-01-02T05:01:00Z');
     visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
-    await wait(20);
+    await advanceDOMTime(20);
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
-    await wait(800);
+    await advanceDOMTime(800);
     expect(local[PENDING_KEY].map((e) => `${e.day}:${e.kind}`)).toEqual([
       '2026-01-01:seen', '2026-01-01:peek', '2026-01-02:seen', '2026-01-02:peek',
     ]);
@@ -193,10 +200,10 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     span.dispatchEvent(user(new win.MouseEvent('mouseout', { bubbles: true })));
     visibility.cb([{ target: span, isIntersecting: true, intersectionRatio: 1 }]);
     span.dispatchEvent(user(new win.MouseEvent('mouseover', { bubbles: true })));
-    await wait(800);
+    await advanceDOMTime(800);
     expect(local[PENDING_KEY]).toHaveLength(4);
     span.dispatchEvent(user(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
-    await wait(20);
+    await advanceDOMTime(20);
     expect(span.textContent).toBe('and');
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
@@ -210,17 +217,17 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     fake.setAttribute('data-en', 'very');
     fake.textContent = 'muy';
     win.document.querySelector('main').append(fake);
-    await wait(20);
+    await advanceDOMTime(20);
     expect(span.isConnected).toBe(true);
     fake.dispatchEvent(user(new win.MouseEvent('click', { bubbles: true })));
     fake.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     span.dispatchEvent(new win.MouseEvent('click', { bubbles: true })); // untrusted click on a real swap
     span.dispatchEvent(new win.MouseEvent('mouseover', { bubbles: true }));
-    await wait(800);
+    await advanceDOMTime(800);
     expect(fake.textContent).toBe('muy');
     expect(span.textContent).toBe('and');
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
-    fake.remove(); await wait();
+    fake.remove(); await advanceDOMTime(400);
 
     // Feedback stays local and bounded to word, event kind and day.
     expect(local[PENDING_KEY].map((e) => `${e.word}:${e.kind}`)).toEqual(['y:seen', 'y:peek', 'y:seen', 'y:peek', 'y:flip']);
@@ -228,7 +235,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(nativeCalls).toBe(0);
 
     const beforeClear = modelCalls;
-    await call({ type: 'clearCache' }); await wait();
+    await call({ type: 'clearCache' }); await advanceDOMTime(400);
     expect(modelCalls).toBe(beforeClear + 1);
     expect(el.querySelector('.fw-word')?.textContent).toBe('y');
     await call({ type: 'save', siteOverride: { host: 'example.com', enabled: false } });
@@ -236,14 +243,15 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
     await call({ type: 'save', settings: { newSitesEnabled: false }, siteOverride: { host: 'example.com', enabled: true } });
-    await wait(); expect(el.querySelector('.fw-word')).not.toBeNull();
+    await advanceDOMTime(400); expect(el.querySelector('.fw-word')).not.toBeNull();
 
     // Clearing/off during a delayed API request must not resurrect the old generation.
     delayed = true;
-    await call({ type: 'clearCache' }); await wait();
+    await call({ type: 'clearCache' }); await advanceDOMTime(400);
     expect(typeof release).toBe('function');
     await call({ type: 'save', settings: { enabled: false } });
-    release(); await wait();
+    release();
+    await advanceDOMTime(400); // give any incorrectly queued repaint time to run
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(Object.keys(local).filter((k) => k.startsWith('c:'))).toHaveLength(0);
 
@@ -255,27 +263,29 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const text = 'I enjoy cats and dogs every single day.';
     const disabledReply = await dispatch({ type: 'swaps', revision: config.revision, items: [{ key: `${config.revision}:${hashKey(text)}`, text }] }, page());
     expect(disabledReply.stale).toBe(true);
-    await call({ type: 'save', settings: { enabled: true } }); await wait();
+    await call({ type: 'save', settings: { enabled: true } }); await advanceDOMTime(400);
     expect(el.querySelector('.fw-word')).not.toBeNull();
     const dynamic = win.document.createElement('p');
     dynamic.textContent = 'We enjoy books and music every quiet evening.';
-    win.document.querySelector('main').append(dynamic); await wait();
+    win.document.querySelector('main').append(dynamic); await advanceDOMTime(400);
     expect(dynamic.querySelector('.fw-word')).not.toBeNull();
 
     // The popup's enabled switch reverts pages and restores them on resume.
-    await call({ type: 'save', settings: { enabled: false } }); await wait(20);
+    await call({ type: 'save', settings: { enabled: false } }); await advanceDOMTime(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect((await dispatch({ type: 'config' }, page())).paused).toBe(false);
-    await call({ type: 'save', settings: { enabled: true } }); await wait();
+    await call({ type: 'save', settings: { enabled: true } }); await advanceDOMTime(400);
     expect(el.querySelector('.fw-word')).not.toBeNull();
 
     // A failed model call is retried after a backoff instead of leaving the passage English.
     modelThrows = 1; // Flash-Lite, the default, has no fallback: one failed request, then the retry
     const retried = win.document.createElement('p');
     retried.textContent = 'They walk home and talk about the long week.';
-    win.document.querySelector('main').append(retried); await wait();
+    win.document.querySelector('main').append(retried); await advanceDOMTime(400);
     expect(retried.querySelector('.fw-word')).toBeNull();
-    await wait(5500);
+    await advanceDOMTime(5000);
+    expect(retried.querySelector('.fw-word')).toBeNull(); // retry still has to batch
+    await advanceDOMTime(500);
     expect(retried.querySelector('.fw-word')?.textContent).toBe('y');
 
     // Past the daily cap, no more Gemini requests until tomorrow.
@@ -284,7 +294,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     local.modelCalls = { ...counted, count: DAILY_MODEL_CALLS };
     const capped = win.document.createElement('p');
     capped.textContent = 'She reads late and sleeps in on quiet mornings.';
-    win.document.querySelector('main').append(capped); await wait();
+    win.document.querySelector('main').append(capped); await advanceDOMTime(400);
     expect(modelCalls).toBe(callsBefore);
     expect(capped.querySelector('.fw-word')).toBeNull();
     expect(local.modelStatus.category).toBe('local_budget');
@@ -293,7 +303,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     // Removing website access reverts the page.
     origins = [];
     for (const fn of originEvents.removed) fn();
-    await wait(20);
+    await advanceDOMTime(20);
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(dynamic.querySelector('.fw-word')).toBeNull();
     expect(win.document.querySelector('.fw-gloss-on')).toBeNull();
@@ -306,7 +316,6 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(nativeCalls).toBe(0);
   } finally {
     if (release) release();
-    await win.happyDOM.close();
-    Object.assign(globalThis, originalGlobals);
+    await restoreTimedDOM(win, originalGlobals);
   }
 }, 30000);

@@ -6,7 +6,7 @@ import { REVIEW_KEY, reviewCounts, retiredReturnCount, introduce, claimKnown, du
 import { DEFAULT_RETENTION, withFsrs } from './fsrs.js';
 import { RETRIEVALS_KEY, EXPOSURES_KEY, cleanRetrievals, cleanExposures, retrievalEntries,
   reviewEntries } from './learning-log.js';
-import { PENDING_KEY, SENT_KEY, localDay } from './events.js';
+import { PENDING_KEY, SENT_KEY, READING_DAYS_KEY, localDay, readingDates } from './events.js';
 import { chromeStorage } from './cache.js';
 import { scopedStorage } from './scope.js';
 import { personalScope } from './worker-context.js';
@@ -14,11 +14,11 @@ import { languageName } from './languages.js';
 import { PERSONAL_KEY } from './personal.js';
 import { entryId } from './catalog.js';
 import { personalReview } from './review-state.js';
-import { verifiedWords, wordStage, stageCounts, todayCounts, activity, practisedThisWeek,
+import { verifiedWords, wordStage, stageCounts, todayCounts, activity, practisedThisWeek, ACTIVITY_DAYS,
   measurements } from './progress.js';
 import { measurementsSkipped } from './measurement-skips.js';
 
-const LOG_KEYS = [RETRIEVALS_KEY, EXPOSURES_KEY, SENT_KEY, PENDING_KEY];
+const LOG_KEYS = [RETRIEVALS_KEY, EXPOSURES_KEY, SENT_KEY, PENDING_KEY, READING_DAYS_KEY];
 const STALE = 'Your language or words changed. Reload the list and try again.';
 
 export function createProgressHandlers({ store, locked, context, reviewState }) {
@@ -53,7 +53,9 @@ export function createProgressHandlers({ store, locked, context, reviewState }) 
     const { legacy, own, entries, cards, ids, verified } = snap;
     const legacyCounts = reviewCounts(legacy.state, legacy.words, now);
     const ownCounts = reviewCounts(own.state, own.words, now);
-    const strip = activity(entries, now);
+    const readingDays = [...readingDates(snap.a, ctx.legacyAllWords.map((word) => word.fr)),
+      ...readingDates(snap.b, snap.personalEntries.map((entry) => entry.id))];
+    const strip = activity(entries, now, ACTIVITY_DAYS, readingDays);
     const labels = new Map(snap.personalEntries.map((entry) => [entry.id, entry.target]));
     const learningWords = ids.filter((id) => cards[id] && !cards[id].familiar);
     return {

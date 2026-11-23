@@ -1,7 +1,6 @@
-// Backup schemas: this build reads 1 and 2 and writes 2; schema 1 output stays available for
-// installations that predate the tolerant reader (0.12.3).
+// Schema 2 learning state stays readable in schemas 2 and 3; schema 1 output stays available.
 import { test, expect } from 'bun:test';
-import { createBackup, parseBackup, learningPatch, targetFresh, backupPreview, BACKUP_SCHEMA, MAX_BACKUP_BYTES,
+import { createBackup, parseBackup, learningPatch, targetFresh, backupPreview, READING_DAYS_SCHEMA, MAX_BACKUP_BYTES,
   LOG_BUDGET_BYTES,
   READ_SCHEMAS } from '../src/portability.js';
 import { alreadyImported } from '../src/backup-handlers.js';
@@ -32,9 +31,11 @@ function writerStorage() {
 }
 const freshTarget = () => ({ settings: { ...DEFAULT_SETTINGS, siteOverrides: {} } });
 
-test('this build reads schemas 1 and 2 and writes schema 2', () => {
-  expect(BACKUP_SCHEMA).toBe(2);
-  expect([...READ_SCHEMAS]).toEqual([1, 2]);
+test('this build reads schemas 1 through 3 and defaults to schema 2 without reading dates', () => {
+  expect(READING_DAYS_SCHEMA).toBe(3);
+  expect([...READ_SCHEMAS]).toEqual([1, 2, 3]);
+  const { all } = writerStorage();
+  expect(createBackup(all, '0.13.3')).toBe(createBackup(all, '0.13.3', 2));
 });
 
 test('a schema 1 export from writer storage is plain schema 1', () => {
@@ -187,7 +188,7 @@ test('malformed or out-of-schema schema 2 content fails closed', () => {
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals.push([spanish, 1, 'inline', 'productive', 'easy', 1, null, null, null, null, 'extra passage']); }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.exposures.words[spanish] = [1, 0, 9, '2026-10-01', '2026-10-01']; }, /invalid exposure log entry/],
     [v2, (b) => { Object.defineProperty(b.state.scopes.es.exposures.words, '__proto__', { value: [1, 0, 1, '2026-10-01', '2026-10-01'], enumerable: true }); }, /unsafe exposure log key/],
-    [v2, (b) => { b.schemaVersion = 3; }, /schema 3, and this version of Lang Weave reads schemas 1 and 2\. Update Lang Weave/],
+    [v2, (b) => { b.schemaVersion = 4; }, /schema 4, and this version of Lang Weave reads schemas 1, 2 and 3\. Update Lang Weave/],
   ];
   for (const [base, mutate, message] of cases) expect(() => parseBackup(altered(base, mutate))).toThrow(message);
 });

@@ -201,7 +201,7 @@ test('preview and outcome copy keep the exact English, with and without the opti
     { exportedByVersion: '0.12.18', languages: ['es', 'fr'], packs: 1, cards: 5, personal: 2,
       preferences: { language: 'es', levelOverride: 2, gradual: true, newWordsPerDay: 3, density: 'heavy', inlineRecall: true,
         desiredRetention: 0.9 },
-      retrievals: 40, exposureWords: 9, omittedRetrievals: 0, omittedExposureWords: 0 },
+      retrievals: 40, exposureWords: 9, omittedRetrievals: 0, omittedExposureWords: 0, includesReadingDays: true },
     { languages: [], packs: -1, cards: 'x', personal: 0, preferences: {},
       retrievals: 7, exposureWords: 3, omittedRetrievals: 4, omittedExposureWords: 1 },
   ];
@@ -223,7 +223,7 @@ test('preview and outcome copy keep the exact English, with and without the opti
       'Exported by Lang Weave 0.12.18.',
       'Languages: es, fr · Generated packs: 1 · Review cards: 5 · Personal entries: 2.',
       'Learning preferences: language es, level 2, gradual true, new words/day 3, density heavy, inline recall true, target recall 0.9.',
-      'Learning measurements: 40 logged reviews, exposure counts for 9 words.']);
+      'Learning measurements: 40 logged reviews, exposure counts for 9 words. This backup includes reading-day dates.']);
     expect($('notice').textContent).toBe('Preview validated. Import requires your confirmation and a fresh target check.');
     $('preview').click();
     await tick();

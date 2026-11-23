@@ -940,23 +940,27 @@
     "description": "First-run welcome page: browser tab title and main heading."
   },
   "welcome_intro": {
-    "message": "Learn Spanish a little at a time while reading English pages.",
+    "message": "Learn another language while reading English pages.",
     "description": "First-run welcome page: introduction under the main heading."
   },
   "welcome_demo_heading": {
-    "message": "1. See it in a sentence",
+    "message": "1. Try a reading sample",
     "description": "First-run welcome page: heading of step 1. Keep the number."
   },
+  "welcome_demo_language": {
+    "message": "Sample language",
+    "description": "First-run welcome page: label for the local reading sample selector."
+  },
   "welcome_demo_help": {
-    "message": "Hover over an underlined word for its meaning. Click it to flip between Spanish and English. This sample uses bundled words and stays on your device.",
-    "description": "First-run welcome page: how to use the sample sentence above it."
+    "message": "Hover over or focus an underlined word for its meaning. Click it or press Enter or Space to flip it. This bundled sample stays on your device. Choose your reading language in Settings.",
+    "description": "First-run welcome page: how to use the sample passage above it."
   },
   "welcome_privacy_heading": {
     "message": "2. Choose where it may read",
     "description": "First-run welcome page: heading of step 2. Keep the number."
   },
   "welcome_privacy_sends": {
-    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini chooses Spanish words that fit the context. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
+    "message": "When Lang Weave is on for a site, it sends readable text from that site's pages to Google's Gemini API with your own key. Gemini uses that context to choose words in the reading language you select in Settings. Forms, editable text and code blocks are skipped. Lang Weave has no account or telemetry.",
     "description": "First-run welcome page: what is sent to Google's Gemini API when Lang Weave is on for a site."
   },
   "welcome_privacy_free_key": {
@@ -968,7 +972,7 @@
     "description": "First-run welcome page: notice about the Gemini API age requirement."
   },
   "welcome_privacy_conditions": {
-    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini; adding a language sends a vocabulary-generation request. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
+    "message": "Page text is not sent until you add a key, choose a site policy here, and Chrome allows access to a site. Testing a key in Settings sends a short test prompt to Gemini. Generating a vocabulary pack in Settings sends a separate request to Gemini. Sensitive sites such as webmail, banking, health and AI chat start off under either choice. You can change sites later in Settings.",
     "description": "First-run welcome page: conditions before any page text is sent, and which sites start off."
   },
   "welcome_only_sites": {
@@ -1139,19 +1143,9 @@
       }
     }
   },
-  "progress_week_one": {
-    "message": "Practised on $COUNT$ day of the last 7",
-    "description": "Weekly practice line, singular. $1 is the number of days. Progress text shared by the popup, settings and My words.",
-    "placeholders": {
-      "COUNT": {
-        "content": "$1",
-        "example": "1"
-      }
-    }
-  },
-  "progress_week_other": {
-    "message": "Practised on $COUNT$ days of the last 7",
-    "description": "Weekly practice line, plural. $1 is the number of days. Progress text shared by the popup, settings and My words.",
+  "progress_week": {
+    "message": "Practised on $COUNT$ of the last 7 days (reading or review activity)",
+    "description": "Weekly practice line shared by the popup, settings and My words. $1 is the number of days with either reading or review activity.",
     "placeholders": {
       "COUNT": {
         "content": "$1",
@@ -2196,7 +2190,7 @@
     }
   },
   "words_strip_label": {
-    "message": "Days with reviews in the last 30 days: $COUNT$",
+    "message": "$COUNT$ of the last 30 days with reading or review activity",
     "description": "Screen-reader label of the 30-day activity strip on My words.",
     "placeholders": {
       "COUNT": {
@@ -2206,8 +2200,8 @@
     }
   },
   "words_strip_day_one": {
-    "message": "$DAY$: $COUNT$ review",
-    "description": "Tooltip of one day in the activity strip, singular. $2 is the date, $1 the number of reviews that day.",
+    "message": "$DAY$ · $COUNT$ review event",
+    "description": "One day in the activity strip, singular. $2 is the date, $1 the number of ratings or claims that day.",
     "placeholders": {
       "DAY": {
         "content": "$2",
@@ -2220,8 +2214,8 @@
     }
   },
   "words_strip_day_other": {
-    "message": "$DAY$: $COUNT$ reviews",
-    "description": "Tooltip of one day in the activity strip, plural. $2 is the date, $1 the number of reviews that day.",
+    "message": "$DAY$ · $COUNT$ review events",
+    "description": "One day in the activity strip, plural. $2 is the date, $1 the number of ratings or claims that day.",
     "placeholders": {
       "DAY": {
         "content": "$2",
@@ -2230,6 +2224,16 @@
       "COUNT": {
         "content": "$1",
         "example": "2"
+      }
+    }
+  },
+  "words_strip_reading": {
+    "message": "$SUMMARY$ · read a woven word",
+    "description": "Activity strip summary of a day that also included reading. $1 contains the date and the number of review events.",
+    "placeholders": {
+      "SUMMARY": {
+        "content": "$1",
+        "example": "2026-10-30 · 0 review events"
       }
     }
   },
@@ -2894,6 +2898,10 @@
         "example": "0.9"
       }
     }
+  },
+  "backup_includes_reading_dates": {
+    "message": "This backup includes reading-day dates.",
+    "description": "Shown in the import preview when the validated backup holds any reading-day dates."
   },
   "backup_measurements": {
     "message": "Learning measurements: $REVIEWS$ logged reviews, exposure counts for $WORDS$ words.",

@@ -2,6 +2,10 @@ import { test, expect } from 'bun:test';
 import { DAY_MS, REVIEW_KEY } from '../src/review.js';
 import { RETRIEVALS_KEY } from '../src/learning-log.js';
 import { PERSONAL_KEY } from '../src/personal.js';
+import { PENDING_KEY, READING_DAYS_KEY, SENT_KEY, localDay } from '../src/events.js';
+import { GUARANI_PACK } from '../src/guarani.js';
+import { GUARANI_STARTER } from '../src/language-name.js';
+import { baseline } from './backup-fixture.js';
 
 const ID = 'fw-progress';
 const BASE = `chrome-extension://${ID}/`;
@@ -9,7 +13,7 @@ const sender = (page) => ({ id: ID, url: `${BASE}src/${page}.html` });
 const UUID = '0b5e7e4c-1d2a-4c3b-9f8e-1a2b3c4d5e6f';
 
 // Boots the real worker with an in-memory storage and a controllable clock.
-async function boot(name, data) {
+async function boot(name, data, origins = [], beforePermissions = () => {}) {
   const RealDate = Date;
   const clock = { now: Date.parse('2026-10-20T15:00:00Z') };
   class Clock extends RealDate {
@@ -34,7 +38,7 @@ async function boot(name, data) {
     tabs: { query: async () => [], sendMessage: async () => {} },
     action: { setBadgeText: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on() },
+    permissions: { async getAll() { await beforePermissions(); return { origins }; }, onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
@@ -45,6 +49,130 @@ async function boot(name, data) {
   });
   return { clock, dispatch, restore: () => { globalThis.Date = RealDate; } };
 }
+
+test('a delayed sighting keeps its local date without replacing the next day’s seen counts', async () => {
+  const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const data = { apiKey: 'synthetic-test-key', settings: { enabled: true, newSitesEnabled: true, gradual: false } };
+  const before = new Date(2026, 9, 20, 23, 59).getTime(), after = new Date(2026, 9, 21, 0, 1).getTime();
+  let crossMidnight = false;
+  let waitForMidnight;
+  const { clock, dispatch, restore } = await boot('activity-midnight', data, ['https://example.com/*'], async () => {
+    if (waitForMidnight) {
+      const hold = waitForMidnight;
+      waitForMidnight = null;
+      await hold();
+    }
+    if (crossMidnight) clock.now = after;
+  });
+  const page = { id: ID, tab: { id: 1 }, url: 'https://example.com/article', frameId: 0, documentLifecycle: 'active' };
+  try {
+    clock.now = before;
+    const { revision } = await dispatch({ type: 'config' }, page);
+    const event = (word, day) => dispatch({ type: 'event', event: 'seen', word, day, revision }, page);
+    crossMidnight = true;
+    expect(await event('y', '2026-10-20')).toEqual({ ok: true });
+    expect(clock.now).toBe(after);
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-20']);
+    expect(data[PENDING_KEY].at(-1)).toEqual({ word: 'y', kind: 'seen', day: '2026-10-20' });
+    expect(data.learningExposures.words.y.slice(-2)).toEqual(['2026-10-20', '2026-10-20']);
+
+    expect(await event('pero', '2026-10-21')).toEqual({ ok: true });
+    expect(await event('con', '2026-10-20')).toEqual({ ok: true });
+    expect(await event('con', '2026-10-20')).toEqual({ ok: true });
+    for (const invalid of [null, '2026-10-19', '2026-10-22', '2026-10-21T00:00:00Z']) {
+      expect(await event('con', invalid)).toEqual({ ok: false });
+    }
+    expect(data[PENDING_KEY].filter((entry) => entry.word === 'con')).toEqual([{ word: 'con', kind: 'seen', day: '2026-10-20' }]);
+    expect(data[SENT_KEY]).toEqual({ day: '2026-10-21', words: ['pero'] });
+    const activity = await dispatch({ type: 'progress' }, sender('popup'));
+    expect(activity.today.seen).toBe(1);
+    expect(activity.practisedThisWeek).toBe(2);
+
+    // A peek holds the lock before midnight and writes the next day's bucket before a
+    // sighting that already dispatched on the previous day can enter the lock.
+    crossMidnight = false;
+    clock.now = before;
+    const { promise: entered, resolve: enter } = Promise.withResolvers();
+    const { promise: midnight, resolve: release } = Promise.withResolvers();
+    waitForMidnight = () => { enter(); return midnight; };
+    const peek = dispatch({ type: 'event', event: 'peek', word: 'y', revision }, page);
+    await entered;
+    const sighting = event('muy', '2026-10-20');
+    await Promise.resolve(); // Let the settled runtime gate dispatch record before moving the clock.
+    clock.now = after;
+    release();
+    expect(await peek).toEqual({ ok: true });
+    expect(await sighting).toEqual({ ok: true });
+    expect(data[PENDING_KEY].at(-1)).toEqual({ word: 'muy', kind: 'seen', day: '2026-10-20' });
+    expect(data[SENT_KEY]).toEqual({ day: '2026-10-21', words: ['pero', 'peek:y'] });
+    expect((await dispatch({ type: 'progress' }, sender('popup'))).today).toMatchObject({ seen: 1, peeked: 1 });
+  } finally { restore(); Object.assign(globalThis, saved); }
+});
+
+test('accepted reading days and reviews are unioned within the active pack and personal language', async () => {
+  const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const personalId = `personal:es:${UUID}`;
+  const { source, version } = baseline();
+  const data = { apiKey: 'synthetic-test-key', settings: { enabled: true, newSitesEnabled: true, gradual: true },
+    languagePacks: source.languagePacks,
+    [PENDING_KEY]: [{ word: 'y', kind: 'seen', day: '2026-10-17' }, { word: 'y', kind: 'peek', day: '2026-10-16' },
+      { word: 'unknown', kind: 'seen', day: '2026-10-18' }, { word: 'y', kind: 'seen', day: '2026-10-00' }],
+    [READING_DAYS_KEY]: ['2026-10-33'],
+    learningExposures: { version: 1, words: { y: [5, 0, 4, '2026-10-15', '2026-10-19'] } },
+    [PERSONAL_KEY]: { version: 1, revision: 1, history: {}, entries: [{ uuid: UUID, id: personalId,
+      language: 'es', source: 'shimmer', target: 'brillar', sense: 'a faint shine', direction: 'en-to-target',
+      archived: false, provenance: 'manual', createdAt: 1 }] } };
+  const { clock, dispatch, restore } = await boot('activity-days', data, ['https://example.com/*']);
+  const page = { id: ID, tab: { id: 1 }, url: 'https://example.com/article', frameId: 0, documentLifecycle: 'active' };
+  const popup = sender('popup'), options = sender('options');
+  const progress = () => dispatch({ type: 'progress' }, popup);
+  const cfg = () => dispatch({ type: 'config' }, page);
+  const seen = (word, revision, from = page) => dispatch({ type: 'event', event: 'seen', word, revision }, from);
+  const packDates = (language, packVersion) => `lang:${language}:${packVersion}:${READING_DAYS_KEY}`;
+  try {
+    clock.now = new Date(2026, 9, 20, 12).getTime();
+    const today = localDay(new Date(clock.now));
+    data[RETRIEVALS_KEY] = { version: 1, retrievals: [['y', clock.now - 1000, 'standalone', 'productive', 'medium', 0, 4000, 1, 2, 0.9]] };
+    const start = await progress();
+    expect(start.practisedThisWeek).toBe(2);
+    expect(start.activity.filter((d) => d.reading).map((d) => d.day)).toEqual(['2026-10-17']);
+    expect(start.today.reviewed).toBe(1);
+    const es = await cfg();
+    expect(await seen('y', es.revision, { ...page, documentLifecycle: 'prerender' })).toEqual({ ok: false });
+    expect(await seen('y', es.revision, { ...page, url: 'https://ungranted.example.com/article' })).toEqual({ ok: false });
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-33']);
+    expect(await seen('y', es.revision)).toEqual({ ok: true });
+    expect(await seen('brillar', es.revision)).toEqual({ ok: true });
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-17', today]);
+    expect(data[`lang:personal:es:${READING_DAYS_KEY}`]).toEqual([today]);
+    const mixed = await progress();
+    expect(mixed.practisedThisWeek).toBe(2);
+    expect(mixed.activity.at(-1)).toEqual({ day: today, retrievals: 1, reading: true });
+    expect(mixed.today.reviewed).toBe(1);
+    expect(mixed.measurements.graded).toBe(start.measurements.graded);
+    expect(mixed.verifiedKnown).toBe(start.verifiedKnown);
+
+    await dispatch({ type: 'save', settings: { language: GUARANI_STARTER, gradual: false } }, popup);
+    const guarani = await cfg();
+    expect((await progress()).practisedThisWeek).toBe(0);
+    expect(await seen('y', es.revision)).toEqual({ ok: false });
+    expect(await seen('y', guarani.revision)).toEqual({ ok: true });
+    expect((await progress()).activity.at(-1)).toEqual({ day: today, retrievals: 0, reading: true });
+    expect(data[packDates(GUARANI_STARTER, GUARANI_PACK.version)]).toEqual([today]);
+
+    await dispatch({ type: 'save', settings: { language: 'fr' } }, popup);
+    const generated = await cfg();
+    expect((await progress()).practisedThisWeek).toBe(0);
+    expect(await seen('mot0', generated.revision)).toEqual({ ok: true });
+    expect(data[packDates('fr', version)]).toEqual([today]);
+    expect((await progress()).practisedThisWeek).toBe(1);
+    expect(await dispatch({ type: 'removeLanguage', code: 'fr' }, options)).toEqual({ ok: true });
+    expect(data[packDates('fr', version)]).toBeUndefined();
+    await dispatch({ type: 'clearCache' }, options);
+    expect((await progress()).practisedThisWeek).toBe(2);
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-17', today]);
+  } finally { restore(); Object.assign(globalThis, saved); }
+});
 
 test('words actions: Practice now serves the chosen card first, Reset is guarded and forgets only the card', async () => {
   const saved = { chrome: globalThis.chrome, fetch: globalThis.fetch };

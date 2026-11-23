@@ -86,6 +86,7 @@ function renderPreview(preview) {
   $('measurements').textContent = omitted
     ? t('backup_measurements_omitted', count(preview.retrievals), count(preview.exposureWords), count(preview.omittedRetrievals), count(preview.omittedExposureWords))
     : t('backup_measurements', count(preview.retrievals), count(preview.exposureWords));
+  if (preview.includesReadingDays === true) $('measurements').textContent += ` ${t('backup_includes_reading_dates')}`;
   $('summary').hidden = false;
 }
 

@@ -1,6 +1,8 @@
 // Browser-local gradual policy. Callers serialize mutations and persist before returning results.
-import { localDay } from './events.js';
+import { localDay, validDay } from './events.js';
 import { hashKey } from './hash.js';
+
+export { validDay } from './events.js';
 
 export const DENSITIES = ['light', 'normal', 'heavy'];
 export const RESERVATION_MS = 30 * 1000;
@@ -12,15 +14,6 @@ const BASIC = new Set(['and', 'or', 'but', 'no', 'yes', 'with', 'for (purpose)',
 const dueAt = (card) => Math.max(Math.min(card.due, card.peekDue ?? Infinity), card.claimDue || 0);
 export const introductionOwner = (ticket, sender, revision) =>
   hashKey(JSON.stringify([ticket, sender.documentId, sender.tab?.id, sender.frameId, revision]));
-
-export function validDay(value) {
-  const match = typeof value === 'string' && /^(\d{4})-(\d\d)-(\d\d)$/.exec(value);
-  if (!match) return false;
-  const date = new Date(0);
-  date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() + 1 === Number(match[2]) &&
-    date.getUTCDate() === Number(match[3]);
-}
 
 export function cleanLearning(raw, now = Date.now()) {
   const day = validDay(raw?.day) ? raw.day : '';

@@ -3,13 +3,13 @@
 // DOM snapshot and message with the same scenario recorded on the base commit (9cd3dce, before
 // guess first): with the setting off the page must be byte-for-byte unchanged.
 import { Window } from 'happy-dom';
+import { advanceDOMTime, restoreTimedDOM, useDOMClock } from './dom-clock.js';
 
 const trusted = (event) => Object.defineProperty(event, 'isTrusted', { value: true });
-const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
 export async function hoverScenario(moduleUrl, settings = {}) {
   const win = new Window({ url: 'https://example.com/article' });
-  const names = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver', 'setInterval'];
+  const names = ['chrome', 'document', 'window', 'location', 'MutationObserver', 'IntersectionObserver'];
   const previous = Object.fromEntries(names.map((name) => [name, globalThis[name]]));
   const sent = [];
   const config = { settings: { enabled: true, newSitesEnabled: true, siteOverrides: {}, gradual: true, inlineRecall: false,
@@ -24,7 +24,7 @@ export async function hoverScenario(moduleUrl, settings = {}) {
   }
   Object.assign(globalThis, {
     window: win, document: win.document, location: win.location, MutationObserver: win.MutationObserver,
-    IntersectionObserver: IO, setInterval: win.setInterval.bind(win),
+    IntersectionObserver: IO,
     chrome: { runtime: { id: 'scenario', onMessage: { addListener: () => {} }, sendMessage: async (msg) => {
       sent.push(msg.type === 'event' ? `event:${msg.event}:${msg.word}` : msg.type);
       if (msg.type === 'config') return config;
@@ -42,33 +42,33 @@ export async function hoverScenario(moduleUrl, settings = {}) {
     return ids.get(id);
   }));
   try {
+    useDOMClock();
     win.document.body.innerHTML = '<main><p id="one">We read and write every evening.</p></main>';
     await import(moduleUrl);
-    await wait(400);
+    await advanceDOMTime(400);
     snap();
     const span = win.document.querySelector('.fw-word');
     span.dispatchEvent(trusted(new win.MouseEvent('mouseover', { bubbles: true })));
-    await wait(750);
+    await advanceDOMTime(750);
     snap();
     span.dispatchEvent(trusted(new win.MouseEvent('mouseout', { bubbles: true })));
-    await wait(10);
+    await advanceDOMTime(10);
     snap();
     span.dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true, cancelable: true })));
-    await wait(10);
+    await advanceDOMTime(10);
     snap();
     span.dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true, cancelable: true })));
-    await wait(10);
+    await advanceDOMTime(10);
     snap();
     span.focus();
-    await wait(750);
+    await advanceDOMTime(750);
     snap();
     span.dispatchEvent(trusted(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     span.dispatchEvent(trusted(new win.KeyboardEvent('keydown', { key: '2', bubbles: true })));
-    await wait(10);
+    await advanceDOMTime(10);
     snap();
     return { snapshots, sent };
   } finally {
-    Object.assign(globalThis, previous);
-    win.happyDOM.cancelAsync();
+    await restoreTimedDOM(win, previous);
   }
 }

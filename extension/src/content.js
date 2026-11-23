@@ -26,10 +26,11 @@ const pending = new Map();
 const inflight = new Set();
 const tracked = new Set();
 const visibleWords = new Set();
+const deferredSightings = new Set(); // intersecting swaps still hidden by CSS
 const introInflight = new Set();
 let introRetries = new WeakMap(); // an expired visible reservation gets a bounded fresh attempt
 const introErrors = new Map();
-const seen = new Set();
+let seen = { day: '', events: new Set() };
 const failures = new Map(); // text key -> failed model attempts; retried with backoff
 const MAX_RETRIES = 3;
 // Live text (countdowns, tickers, "updated 5s ago") would cost a model call per change, and a page that undoes
@@ -91,16 +92,28 @@ const swapFor = (e) => {
 };
 
 function record(span, event) {
+  if (event === 'seen') deferredSightings.delete(span);
   const word = swapWord(span);
   if (!word || !on()) return;
   const revision = config.revision;
-  const id = revision + ':' + localDay() + ':' + event + ':' + word;
+  const today = localDay();
+  if (seen.day !== today) seen = { day: today, events: new Set() };
+  const events = seen.events;
+  const id = revision + ':' + event + ':' + word;
   const daily = event === 'seen' || event === 'peek';
-  if (daily && seen.has(id)) return;
-  if (daily) seen.add(id);
-  void send({ type: 'event', word, event, revision }).then((r) => {
-    if (!r?.ok && daily) seen.delete(id);
-  }).catch(() => { if (daily) seen.delete(id); });
+  if (daily && events.has(id)) return;
+  if (event === 'seen') {
+    if (document.visibilityState === 'hidden' || !span.isConnected || !visibleWords.has(span) ||
+        span.classList.contains('fw-en')) return;
+    if (span.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) {
+      deferredSightings.add(span);
+      return;
+    }
+  }
+  if (daily) events.add(id);
+  void send({ type: 'event', word, event, revision, ...(event === 'seen' ? { day: today } : {}) }).then((r) => {
+    if (!r?.ok && daily) events.delete(id);
+  }).catch(() => { if (daily) events.delete(id); });
 }
 // Keep the box outside readable passages and clipping ancestors. It contains only validated swap display text.
 function showTip(span) {
@@ -578,12 +591,13 @@ function retryIntro(ticket, word, revision, gen) {
   if (attempts > 3) { abandonIntro(ticket, word, revision); return; }
   setTimeout(() => { if (gen === generation && alive()) seenVisible(); }, attempts * 1000);
 }
-function seenVisible() {
+function seenVisible({ acknowledge = true } = {}) {
   if (document.visibilityState === 'hidden') return;
   for (const span of visibleWords) {
     if (!span.isConnected || isPractice(span)) continue;
     const ticket = introductionTicket(span);
     if (ticket) {
+      if (!acknowledge) continue;
       if (!introInflight.has(ticket) && on()) {
         introInflight.add(ticket);
         const gen = generation, revision = config.revision, word = swapWord(span);
@@ -747,7 +761,9 @@ function mutations(records) {
   }
   observer?.takeRecords();
   for (const el of tracked) if (!el.isConnected) { tracked.delete(el); near.unobserve(el); }
-  for (const span of visibleWords) if (!span.isConnected) { visibleWords.delete(span); visible.unobserve(span); }
+  for (const span of visibleWords) if (!span.isConnected) {
+    visibleWords.delete(span); deferredSightings.delete(span); visible.unobserve(span);
+  }
   pruneDescriptions();
   observer?.takeRecords();
   queuePracticeCues();
@@ -757,7 +773,7 @@ function start() {
   visible = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (e.isIntersecting && e.intersectionRatio >= 0.5) visibleWords.add(e.target);
-      else visibleWords.delete(e.target);
+      else { visibleWords.delete(e.target); deferredSightings.delete(e.target); }
     }
     seenVisible();
   }, { threshold: [0, 0.5] });
@@ -792,7 +808,7 @@ function stop() {
   churn = new WeakMap();
   introRetries = new WeakMap();
   for (const el of tracked) { revert(el); keys.delete(el); }
-  tracked.clear(); visibleWords.clear();
+  tracked.clear(); visibleWords.clear(); deferredSightings.clear();
 }
 function update(next, retry = false) {
   if (!next?.settings || !next.revision) return;
@@ -819,6 +835,7 @@ function reveal(e) {
   hideTip(); closeGuess();
   if (isPractice(span)) { void openCue(span); return; }
   if (toggle(span, languageName(config.language))) record(span, 'flip');
+  else record(span, 'seen');
   observer?.takeRecords();
 }
 chrome.runtime.onMessage.addListener((msg) => {
@@ -884,6 +901,12 @@ const navTimer = setInterval(() => {
     page = location.href;
     titleSensitive = sensitive;
     if (config) update(config, true);
+  } else if (day !== today) {
+    seenVisible({ acknowledge: false });
+  } else if (document.visibilityState !== 'hidden') {
+    // Geometry can stay fixed while a word fades in. Recheck only CSS-hidden swaps, so
+    // a rejected worker message cannot start a timer-driven retry loop.
+    for (const span of [...deferredSightings]) record(span, 'seen');
   }
   day = today;
 }, 1000);

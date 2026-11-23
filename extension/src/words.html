@@ -17,9 +17,10 @@
   button:disabled { cursor: default; opacity: .55; }
   #headline { font-size: 1.15rem; font-weight: 600; margin: .25rem 0; }
   #stages { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin: .5rem 0; padding: 0; list-style: none; }
-  #strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin: .6rem 0 .25rem; max-width: 520px; }
-  #strip span { aspect-ratio: 1; border-radius: 3px; border: 1px solid var(--ui-border); }
-  #strip span.on { background: currentColor; border-color: currentColor; }
+  #strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin: .6rem 0 .25rem; max-width: 520px; padding: 0; list-style: none; }
+  #strip li { aspect-ratio: 1; border-radius: 3px; border: 1px solid var(--ui-border); }
+  #strip li.on { background: currentColor; border-color: currentColor; }
+  #strip span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
   .controls label { display: grid; gap: .15rem; }
   .controls input, .controls select { font: inherit; padding: .35rem; min-width: 12rem; }
@@ -47,7 +48,7 @@
     <p class="muted meta" id="stagesNote" data-i18n="words_stages_note">Words by stage, from the pack and your active entries (archived entries are not counted):</p>
     <ul id="stages" aria-labelledby="stagesNote"></ul>
     <p id="today" class="muted"></p>
-    <div id="strip" role="img"></div>
+    <ol id="strip" role="list"></ol>
     <p id="week" class="muted"></p>
   </section>
   <section aria-labelledby="listHeading">

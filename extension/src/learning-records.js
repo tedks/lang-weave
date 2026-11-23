@@ -5,7 +5,6 @@ import { chromeStorage } from './cache.js';
 import { scopedStorage } from './scope.js';
 import { personalScope } from './worker-context.js';
 import { recordRetrieval, recordExposures, RETRIEVALS_KEY, cleanRetrievals, retrievalEntries } from './learning-log.js';
-import { localDay } from './events.js';
 import { noteMeasurementSkipped } from './measurement-skips.js';
 
 // The log catalogs match what a backup can verify (portability.js logCatalog): the scope's full
@@ -36,9 +35,9 @@ export async function retrievalsFor(ctx, personal) {
   return retrievalEntries(cleanRetrievals(raw));
 }
 
-export async function logExposure(ctx, personal, word, kind, now) {
+export async function logExposure(ctx, personal, word, kind, day) {
   try {
-    const counted = await recordExposures(storageFor(ctx, personal), [word], catalog(ctx, personal), localDay(new Date(now)), kind);
+    const counted = await recordExposures(storageFor(ctx, personal), [word], catalog(ctx, personal), day, kind);
     if (counted) return counted;
   } catch { /* the attempted measurement is counted below */ }
   await noteMeasurementSkipped(chromeStorage);
