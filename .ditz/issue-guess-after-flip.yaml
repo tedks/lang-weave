@@ -7,8 +7,8 @@ type: bugfix
 component: default
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-11-02T17:10:53-00:00
 references: []
 log_events:
@@ -27,3 +27,7 @@ log_events:
     0.15.5 ZIP and green on the initial 0.15.7 candidate in Chromium with real keyboard/mouse,
     a synthetic provider and disposable storage. First stacked revision passed 498/498.
     Final review follows placement #82.'
+- time: 2026-11-23T08:20:27-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: ""
