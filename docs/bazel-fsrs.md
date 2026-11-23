@@ -133,7 +133,9 @@ For a focused rerun, pass one or more arguments such as
 
 The separate `//:reading_reload_test` gate uses Chrome's native **Load unpacked**
 and permission prompt in a disposable 1500×920 X11 desktop with a window
-manager. Pass the exact candidate ZIP and Chromium path as above, plus
+manager. Install `xclip` for the generated X display or pass its absolute path with
+`--test_env=LANG_WEAVE_RELOAD_XCLIP=/absolute/path/to/xclip`. The test verifies
+the selected folder name before confirming the native dialog. Pass the exact candidate ZIP and Chromium path as above, plus
 `--test_env=LANG_WEAVE_PRIOR_ZIP=/absolute/path/to/lang-weave-0.15.2.zip`,
 `--test_env=LANG_WEAVE_RELOAD_XDOTOOL=/absolute/path/to/xdotool`,
 `--test_env=DISPLAY` and `--test_env=XAUTHORITY`. The gate pins the public
