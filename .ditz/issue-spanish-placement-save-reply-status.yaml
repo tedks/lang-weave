@@ -1,0 +1,23 @@
+id: spanish-placement-save-reply-status
+title: Clarify Spanish placement status when a Save reply is lost
+desc: 'PR #82''s Anthropic review on de68e05 found a nonblocking message ambiguity.
+  A local placement Save can commit even if its reply is lost. A fresh read may then
+  verify the requested choice is the current saved preference while the form still
+  reports the failed communication. The worker''s CAS protects storage and retrying
+  is safe. The same selection could have been committed by another open panel, so
+  a future wording change can report the verified value without asserting which request
+  succeeded. Keep the existing stale-epoch confirmation, Score privacy, and permissions.
+  Exercise a held/rejected real reply plus fresh read if taking this up.'
+type: task
+component: learning
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T08:12:28-00:00
+references: []
+log_events:
+- time: 2026-11-23T08:12:28-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
