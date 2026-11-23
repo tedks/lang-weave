@@ -20,8 +20,6 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     getMonth() { return new RealDate(this.getTime() - 5 * 3600000).getUTCMonth(); }
     getDate() { return new RealDate(this.getTime() - 5 * 3600000).getUTCDate(); }
   }
-  useDOMClock();
-  globalThis.Date = ReaderDate;
   const local = { settings: { apiKey: 'synthetic-gemini', enabled: true, levelOverride: 1 },
     hostKey: 'foreign-french-key', wordState: { version: 'french', words: [{ fr: 'et', en: 'and', status: 'active' }] } }; // foreign legacy data must be ignored
   const messageListeners = [], contentListeners = [];
@@ -93,6 +91,8 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
   // happy-dom has no isTrusted; real user input is marked by hand, a page's dispatchEvent is left untrusted.
   const user = (e) => Object.defineProperty(e, 'isTrusted', { value: true });
   try {
+    useDOMClock();
+    globalThis.Date = ReaderDate;
     await import('../src/background.js');
     let config = await dispatch({ type: 'config' }, page());
     expect(accessLevel).toBe('TRUSTED_CONTEXTS');
@@ -130,7 +130,8 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     win.document.title = 'Ordinary reading';
     await settleDOM();
     expect(el.querySelector('.fw-word')).toBeNull(); // reading is stopped and there is no observer
-    await advanceDOMTime(750); // reach the first one-second title poll
+    // Only the initial 250 ms paint has advanced the clock since content import.
+    await advanceDOMTime(750); // first title poll at t=1000 ms
     await advanceDOMTime(249);
     expect(el.querySelector('.fw-word')).toBeNull(); // the batch is still debouncing
     await advanceDOMTime(1);
@@ -138,7 +139,8 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     const sameSpan = el.querySelector('.fw-word');
     const safeTitleCalls = modelCalls;
     win.document.title = 'Another ordinary reading title';
-    await advanceDOMTime(1000);
+    await advanceDOMTime(750); // the next poll, leaving time for any queued repaint
+    await advanceDOMTime(550);
     expect(el.querySelector('.fw-word')).toBe(sameSpan);
     expect(modelCalls).toBe(safeTitleCalls);
     expect(local[PENDING_KEY] || []).toHaveLength(0); // prefetch is not exposure
@@ -225,7 +227,7 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     expect(fake.textContent).toBe('muy');
     expect(span.textContent).toBe('and');
     expect(local[PENDING_KEY].map((e) => e.kind)).toEqual(['seen', 'peek', 'seen', 'peek', 'flip']);
-    fake.remove(); await advanceDOMTime(250);
+    fake.remove(); await advanceDOMTime(400);
 
     // Feedback stays local and bounded to word, event kind and day.
     expect(local[PENDING_KEY].map((e) => `${e.word}:${e.kind}`)).toEqual(['y:seen', 'y:peek', 'y:seen', 'y:peek', 'y:flip']);
@@ -248,7 +250,8 @@ test('runtime: key isolation, local events, site controls, stale replies, retrie
     await call({ type: 'clearCache' }); await advanceDOMTime(250);
     expect(typeof release).toBe('function');
     await call({ type: 'save', settings: { enabled: false } });
-    release(); await settleDOM();
+    release();
+    await advanceDOMTime(400); // give any incorrectly queued repaint time to run
     expect(el.querySelector('.fw-word')).toBeNull();
     expect(Object.keys(local).filter((k) => k.startsWith('c:'))).toHaveLength(0);
 

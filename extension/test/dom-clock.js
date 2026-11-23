@@ -26,11 +26,12 @@ export async function advanceDOMTime(ms) {
 }
 
 export async function restoreTimedDOM(win, previous) {
-  // Settle released replies while their globals are still installed.
-  await settleDOM();
-  // Discard pending content timers. Happy DOM needs real timers to close.
-  jest.useRealTimers();
   try {
+    // Settle released replies while their globals are still installed.
+    await settleDOM();
+    // Discard pending content timers. Happy DOM needs real timers to close.
+    jest.clearAllTimers();
+    jest.useRealTimers();
     await win.happyDOM.close();
   } finally {
     Object.assign(globalThis, previous);

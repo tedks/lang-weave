@@ -5,7 +5,7 @@ import { Window } from 'happy-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hoverScenario } from './guess-scenario.js';
-import { advanceDOMTime, restoreTimedDOM, settleDOM, useDOMClock } from './dom-clock.js';
+import { advanceDOMTime, restoreTimedDOM, useDOMClock } from './dom-clock.js';
 
 const trusted = (event) => Object.defineProperty(event, 'isTrusted', { value: true });
 const read = (path) => readFileSync(resolve(import.meta.dir, '..', path), 'utf8');
@@ -153,20 +153,20 @@ test('a hover dwell opens the choice panel instead of the gloss, and a choice re
     expect(p.guessActive()).not.toBe(buttons[0]); // a hover never takes focus
     // Leaving the word does not close it: the reader moves to the panel.
     span.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(p.guessPanel()).toBe(panel);
     p.click(buttons[0], false); // page scripts cannot answer
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(p.types()).not.toContain('guessAnswer');
     p.click(buttons[0]);
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(p.sent.find((m) => m.type === 'guessAnswer')).toEqual({ type: 'guessAnswer', ticket: 'ticket-1', choice: 0, revision: 'guess' });
     expect(panel.querySelector('.fw-guess-status').textContent).toBe('Not quite: y · and · "ee"');
     expect(buttons[1].classList.contains('fw-guess-right')).toBe(true);
     expect(buttons[0].classList.contains('fw-guess-wrong')).toBe(true);
     expect(buttons.every((b) => b.disabled)).toBe(true);
     p.click(buttons[1]);
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(p.types().filter((t) => t === 'guessAnswer')).toHaveLength(1);
     // The answered panel closes on a click away; the next hover today is the plain gloss with its peek.
     p.doc.body.dispatchEvent(trusted(new p.win.MouseEvent('pointerdown', { bubbles: true })));
@@ -185,7 +185,7 @@ test('a right answer says so; a failed answer still shows the meaning without ju
     const span = p.doc.querySelector('.fw-word');
     await p.hover(span);
     p.click(p.guessPanel().querySelectorAll('.fw-guess-choices button')[1]);
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(p.guessPanel().querySelector('.fw-guess-status').textContent).toBe('Right: y · and · "ee"');
     expect(p.guessPanel().querySelector('.fw-guess-wrong')).toBeNull();
     p.key(p.doc.body, 'Escape');
@@ -196,7 +196,7 @@ test('a right answer says so; a failed answer still shows the meaning without ju
   try {
     await q.hover(q.doc.querySelector('.fw-word'));
     q.click(q.guessPanel().querySelectorAll('.fw-guess-choices button')[2]);
-    await settleDOM();
+    await advanceDOMTime(20);
     expect(q.guessPanel().querySelector('.fw-guess-status').textContent).toBe('y · and · "ee"');
     expect(q.guessPanel().querySelector('.fw-guess-right, .fw-guess-wrong')).toBeNull();
   } finally { await q.restore(); }
@@ -326,7 +326,7 @@ test('no panel inside a form or an editable region, and the setting turning off 
     const form = p.doc.createElement('form');
     main.parentNode.insertBefore(form, main);
     form.append(main);
-    await settleDOM();
+    await advanceDOMTime(20);
     const moved = p.doc.querySelector('form .fw-word');
     expect(moved).toBeTruthy(); // positive control: the swap survived the move
     await p.hover(moved);
@@ -334,7 +334,7 @@ test('no panel inside a form or an editable region, and the setting turning off 
     expect(p.types()).not.toContain('guessBegin');
     moved.dispatchEvent(trusted(new p.win.MouseEvent('mouseout', { bubbles: true })));
     p.doc.body.append(main);
-    await settleDOM();
+    await advanceDOMTime(20);
     await p.hover(p.doc.querySelector('.fw-word'));
     expect(p.doc.querySelector('.fw-gloss')).toBeTruthy(); // the withheld meaning was released in the form
     const fresh = p.doc.createElement('p');

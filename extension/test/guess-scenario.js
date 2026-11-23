@@ -3,7 +3,7 @@
 // DOM snapshot and message with the same scenario recorded on the base commit (9cd3dce, before
 // guess first): with the setting off the page must be byte-for-byte unchanged.
 import { Window } from 'happy-dom';
-import { advanceDOMTime, restoreTimedDOM, settleDOM, useDOMClock } from './dom-clock.js';
+import { advanceDOMTime, restoreTimedDOM, useDOMClock } from './dom-clock.js';
 
 const trusted = (event) => Object.defineProperty(event, 'isTrusted', { value: true });
 
@@ -52,20 +52,20 @@ export async function hoverScenario(moduleUrl, settings = {}) {
     await advanceDOMTime(750);
     snap();
     span.dispatchEvent(trusted(new win.MouseEvent('mouseout', { bubbles: true })));
-    await settleDOM();
+    await advanceDOMTime(10);
     snap();
     span.dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true, cancelable: true })));
-    await settleDOM();
+    await advanceDOMTime(10);
     snap();
     span.dispatchEvent(trusted(new win.MouseEvent('click', { bubbles: true, cancelable: true })));
-    await settleDOM();
+    await advanceDOMTime(10);
     snap();
     span.focus();
     await advanceDOMTime(750);
     snap();
     span.dispatchEvent(trusted(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     span.dispatchEvent(trusted(new win.KeyboardEvent('keydown', { key: '2', bubbles: true })));
-    await settleDOM();
+    await advanceDOMTime(10);
     snap();
     return { snapshots, sent };
   } finally {
