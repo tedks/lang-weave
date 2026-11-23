@@ -32,3 +32,12 @@ log_events:
     and 3/3 on 158. Strict source and release version gates passed. Council has clean
     OpenAI and Anthropic seats and an actual quota error for Google. Known runtime
     failure is separately tracked under guess-keyboard-focus-chrome140. Receipt: https://github.com/tedks/lang-weave/pull/88#issuecomment-7096808668'
+- time: 2026-11-23T09:57:27-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #88 reconciled with merged #89 and frozen at 51aedf7df5b3a8b35586afb59314adc06e8849f2.
+    The Bazel export list retains browser.mjs once with legacy-gloss-upgrade.mjs.
+    Rebuilt 0.15.10 equals the public ZIP. All full scenarios pass on 155 and 158.
+    On 140 the preserved Guess focus assertion is the only failure. Current main including
+    #92 composes cleanly. Runtime PR #91 qualifies the combined fixture and runtime
+    fixed candidate at 13/13 for all three browsers. Receipt: https://github.com/tedks/lang-weave/pull/88#issuecomment-7097118137'
