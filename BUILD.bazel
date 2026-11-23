@@ -122,3 +122,10 @@ sh_test(
     ],
     tags = ["block-network"],
 )
+
+sh_binary(
+    name = "release_version_check",
+    srcs = ["//build_defs:run_release_version_check.sh"],
+    args = ["$(rlocationpath :tests/check_version_bump.py)"],
+    data = ["tests/check_version_bump.py"],
+)

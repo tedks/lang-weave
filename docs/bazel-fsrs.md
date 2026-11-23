@@ -82,3 +82,36 @@ the interactive local demo, the stable extension ID and per-site consent.
 It also selects bundled Paraguayan Guaraní and reviews a word offline.
 It uses no real account or key. The focused Bun target covers language,
 backup and resource-manifest regressions without npm test dependencies.
+
+## Python and release version gates
+
+`//:inherited_python_test` runs the full `unittest discover -s tests` suite
+from declared runfiles. It copies the fixtures and source into a temporary
+directory and gives each run a disposable home for inherited setup tests.
+The test carries Bazel's Linux sandbox network block. It uses Python and Git
+from the Nix shell and `ps` from the local system for process detection tests.
+
+```sh
+nix develop --command bazel test //:inherited_python_test //:version_classifier_test
+```
+
+Run the live version check before accepting a release candidate. Pass a local
+base ref such as the previous release commit. The check compares the candidate
+to the merge base and prints both full commit IDs. A missing base, an invalid
+ref or a version failure exits nonzero. Make the needed history available
+locally before running the check.
+
+```sh
+# Use HEAD of the clean Bazel checkout.
+nix develop --command bazel run //:release_version_check -- --base refs/tags/PREVIOUS_RELEASE
+
+# Check a committed candidate by name in a different local checkout.
+nix develop --command bazel run //:release_version_check -- \
+  --repo /absolute/path/to/checkout --base refs/tags/PREVIOUS_RELEASE --head refs/heads/CANDIDATE
+```
+
+With `--head`, only committed snapshots enter the comparison and the working
+tree can be dirty. Without `--head`, the selected worktree must have no
+tracked or untracked changes reported by Git. Bazel can reuse the launcher's
+build. Each invocation reads the requested repository and resolves its refs
+again. Use the printed head SHA when recording release evidence.

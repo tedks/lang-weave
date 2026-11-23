@@ -25,6 +25,8 @@ Standalone entrypoints, kept for people who work in this repo without Bazel or t
 - `npm run test:highlights` inside `extension/`, the real Chromium light/dark CSS checks for highlight styling.
 - `python3 -m unittest discover -s tests` from the root, for inherited Python tooling.
 
+For release acceptance, run the inherited Python suite with `bazel test //:inherited_python_test` and compare candidate commits with `bazel run //:release_version_check`. See [the Bazel release commands](docs/bazel-fsrs.md#python-and-release-version-gates).
+
 Keep Chrome runtime verification separate from mocked model verification; never imply a live Gemini check without one.
 
 ## Repo specifics
