@@ -1,0 +1,20 @@
+id: guarani-reading-demo
+title: "Add a keyless Paraguayan Guaran\xED welcome reading sample"
+desc: "Offer an interactive original English passage with words from the bundled Paraguayan
+  Guaran\xED catalog. Show the sample language and restore the corresponding preview
+  for returning readers, with Spanish fallback and truthful generated-pack and consent
+  copy. Verify matching, language tags and keyboard interaction in the packaged offline
+  welcome flow. Target 0.13.1 after local Spanish placement."
+type: feature
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T03:22:15-00:00
+references: []
+log_events:
+- time: 2026-11-23T03:22:15-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
