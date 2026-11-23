@@ -19,3 +19,12 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-11-23T05:58:51-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'The 0.15.1 review-tab investigation found that current Linux Chromium
+    reserves Alt+Shift+R for its built-in Reading mode. In a fresh installed Chromium
+    profile Lang Weave''s Open review command reported no assigned shortcut. Assigning
+    Ctrl+Shift+Y through chrome://extensions/shortcuts in the disposable profile exercised
+    the native command successfully. This is a separate default-binding product decision;
+    PR #75 implements review-tab reuse for the command.'
