@@ -25,7 +25,9 @@ Chrome 140 or newer is required. This is an unpacked beta from GitHub Releases. 
 
 **One ID.** Since 0.12.0 the manifest carries a public key, so Chrome gives Lang Weave the ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh` from any folder on any machine. Chrome will not run two copies with that ID in one profile, so use a separate profile for a development checkout. Lang Weave and the inherited French companion do not share browser storage.
 
-**Fleet installs.** The dotfiles installer stages the approved version in `${XDG_DATA_HOME:-$HOME/.local/share}/lang-weave/extension`. On machines with the updater enabled, it checks the fleet pin hourly. To see which build you are actually reading with, open `chrome://extensions` in that Chrome profile, turn on **Developer mode**, and check the Lang Weave entry’s version and ID. Open **Details** to check its unpacked folder. If the ID matches the one above and the folder is the fleet folder, click **Reload**, then refresh the page you were reading. If Chrome still shows a pre-0.12.0 entry, follow the migration steps below to carry your progress across.
+**Fleet installs.** The dotfiles updater checks the approved version hourly and installs it in `${XDG_DATA_HOME:-$HOME/.local/share}/lang-weave/extension`. While Chrome is running, the unpacked extension checks that folder for updates on a 30-minute timer. Open Lang Weave’s **Settings → About** to see the version running in your profile.
+
+If you still see an older version, open `chrome://extensions`, enable **Developer mode**, and check Lang Weave’s ID and unpacked folder under **Details**. If the ID above and the fleet folder match, click **Reload** to pick up the installed files immediately. If words on an already-open page stop responding, save any edits and refresh that page. For a pre-0.12.0 entry, follow the migration steps below to carry your progress across.
 
 ### Upgrading from before 0.12.0
 
