@@ -8,3 +8,9 @@ filegroup(
     ],
     visibility = ["//:__pkg__"],
 )
+
+filegroup(
+    name = "version_scan_inputs",
+    srcs = glob(["*.mjs"]),
+    visibility = ["//extension:__pkg__"],
+)
