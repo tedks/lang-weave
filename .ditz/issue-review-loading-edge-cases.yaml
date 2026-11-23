@@ -1,0 +1,25 @@
+id: review-loading-edge-cases
+title: Refine feedback and fallback for unusually slow Review transitions
+desc: 'Non-blocking follow-up from Lang Weave PR #87 at 5639a6ec37b90650a2b1607200ce5b6df8207c5e.
+  In a slow same-tab reload during an already-directed refresh, the current fallback
+  may report temporary loading or focus a later ready Review. A worker-created tab
+  navigated away before its first Review context can remain ambiguous until the unrelated
+  destination finishes because Chrome 140 hides URL fields. Consider whether a reliable
+  scoped signal can improve these cases without additional permissions, broad tab
+  discovery, or creating a duplicate while a Review is still loading. The existing
+  behavior prioritizes one tab and confirmed acknowledgement and focus. Note the unavoidable
+  Chrome API gap between scoped document checks and tab-level activation; window focus
+  and refresh revalidate afterward.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-23T09:08:28-00:00
+references: []
+log_events:
+- time: 2026-11-23T09:08:28-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
