@@ -4,7 +4,7 @@ import { requestSwaps, timeoutFor } from '../src/engine.js';
 import { DEFAULT_SETTINGS } from '../src/settings.js';
 import { createCache, memoryStorage } from '../src/cache.js';
 import { hashKey } from '../src/hash.js';
-import { capSwaps, possibleSpanishPromptWords, validateSwaps, wordsForLevel } from '../src/levels.js';
+import { capSwaps, legacyGlossForms, legacyInflects, possibleSpanishPromptWords, validateSwaps, wordsForLevel } from '../src/levels.js';
 import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA, unknownBudget } from '../src/prompt.js';
 import { cleanPack } from '../src/languages.js';
 import { GUARANI_PACK } from '../src/guarani.js';
@@ -201,20 +201,63 @@ describe('engine', () => {
       .toEqual(['el objeto', 'crecer', 'frase']);
     expect(possibleSpanishPromptWords(2, words, [{ text }])).toEqual(words.slice(0, 3));
     expect(possibleSpanishPromptWords(2, words, [{ text }, { text: '' }])).toBe(words);
+
+    const collision = [
+      { fr: 'el objeto', en: 'the object', hint: 'el ob-HEH-toh' },
+      { fr: 'objeto', en: 'artifact', hint: 'ob-HEH-toh' },
+    ];
+    expect(validateSwaps(2, [{ o: 'object', f: 'el objeto' }], collision, 'es', { text })[0]?.word)
+      .toBe('objeto');
+    expect(possibleSpanishPromptWords(2, collision, [{ text }])).toEqual(collision);
   });
 
-  test('gradual Spanish and ordinary Guaraní and generated requests preserve the full request bytes', async () => {
+  test('every accepted legacy gloss form in the bundled catalog remains possible', () => {
+    let accepted = 0;
+    for (const word of wordsForLevel(2)) {
+      const words = [word];
+      for (const form of legacyGlossForms(word.en, { inflections: legacyInflects(word) })) {
+        for (const o of new Set([form, form.replaceAll("'", '’'), form.replace(' ', ' (briefly) ')])) {
+          const text = `A reader saw ${o} before lunch today.`;
+          if (!validateSwaps(2, [{ o, f: word.fr }], words, 'es', { text }).length) continue;
+          expect(possibleSpanishPromptWords(2, words, [{ text }]), `${word.fr}: ${o}`).toEqual(words);
+          accepted++;
+        }
+      }
+    }
+    expect(accepted).toBeGreaterThan(1000);
+  });
+
+  test('the default Spanish path handles an empty projection and a missing candidate list', async () => {
+    const batch = [{ id: 'a', text: 'Quartz gems glow brightly under moonlight.' }];
+    const words = [{ fr: 'la maleta', en: 'the suitcase', hint: 'lah mah-LEH-tah', status: 'active' }];
+    const sent = [];
+    const args = { apiKey: 'synthetic', model: 'gemini-3.5-flash-lite', level: 2, batch,
+      fetchImpl: async (_url, init) => {
+        sent.push(JSON.parse(init.body).systemInstruction.parts[0].text);
+        return geminiReply([{ id: 'a', swaps: [{ o: 'quartz', f: 'la maleta' }] }]);
+      } };
+    expect((await requestSwaps({ ...args, words })).results.a).toEqual([]);
+    expect((await requestSwaps(args)).results.a).toEqual([]);
+    expect(sent[0]).toBe(buildSystemPrompt(2, []));
+    expect(sent[0]).toContain('listed most-needed first):\nnone');
+    expect(sent[1]).toBe(buildSystemPrompt(2));
+    expect(sent[1]).toContain('la ventana = the window');
+    expect(sent[1]).toContain('el libro = the book');
+  });
+
+  test('gradual Spanish, other status mixes, and non-Spanish requests preserve the full request bytes', async () => {
     const generated = cleanPack({ words: Array.from({ length: 80 }, (_, i) => ({
       fr: `mot${i}`, en: `word${i}`, hint: 'moh', level: i < 40 ? 1 : 2,
     })) }, 'fr');
     const cases = [
       ['es', wordsForLevel(1).slice(0, 4), true, 'The room fell quiet today.'],
+      ['es', [{ ...wordsForLevel(1)[0], status: 'new' }], false, 'The room fell quiet today.'],
       [GUARANI_STARTER, GUARANI_PACK.words, false, 'A single large tree stands here.'],
       ['fr', generated.words, false, 'We copied word1 into the notebook today.'],
     ];
     for (const [language, rows, unknownLimit, text] of cases) {
       const batch = [{ id: 'a', text }];
-      const words = rows.map((word) => ({ ...word, status: 'active' }));
+      const words = rows.map((word) => ({ status: 'active', ...word }));
       const shownToday = [words[0].fr];
       const body = buildRequest({ system: buildSystemPrompt(2, words, shownToday, language, 'light',
         unknownLimit ? unknownBudget(batch) : null), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });

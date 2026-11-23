@@ -50,6 +50,7 @@ const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
 const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
 export const legacyInflects = (word) => !ARTICLE_RE.test(word.word ?? word.fr);
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+const bareSpanishTarget = (canon) => exactFr(canon).replace(DEFINITE_RE, '');
 export const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').toLocaleLowerCase(language).replace(/\s+/g, ' ').trim();
 // An omitted accent here spells a different Spanish word, not a harmless typo.
 const AMBIGUOUS_FOLDS = new Set(['si', 'el', 'tu', 'mi', 'te', 'se', 'de', 'mas', 'aun', 'como', 'cuando', 'donde', 'que', 'quien']);
@@ -162,13 +163,17 @@ export function possibleSpanishPromptWords(level, words, batch) {
   const { exact } = indexFor(level, words);
   const possible = new Set();
   for (const hit of exact.values()) {
-    if (possible.has(hit.word)) continue;
     // Use the same full and bare target aliases and the same gloss rules as validation.
-    // Explicit anchors are uncommon and can safely stay in the prompt.
-    if (hit.anchors || [...legacyGlossForms(hit.en, { inflections: legacyInflects(hit) })].some((form) => {
+    // Explicit anchors stay in the prompt.
+    const matches = hit.anchors || [...legacyGlossForms(hit.en, { inflections: legacyInflects(hit) })].some((form) => {
       const runs = form.match(/[a-z]+/g) || [];
       return texts.some((text) => runs.every((run) => text.includes(run)));
-    })) possible.add(hit.word);
+    });
+    if (!matches) continue;
+    possible.add(hit.word);
+    // Validation can return a distinct bare row after checking the definite row's gloss.
+    const bare = exact.get(bareSpanishTarget(hit.canon));
+    if (bare) possible.add(bare.word);
   }
   return words.filter(({ fr }) => possible.has(fr));
 }
@@ -196,7 +201,7 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     if (language === 'es' && DEFINITE_RE.test(hit.word) && /^(?:a|an)\s/i.test(o)) continue;
     // "my problem" -> "my el problema", "the answer" -> "the la respuesta": when the English article (or a
     // possessive) stays outside the swap, use the bare noun.
-    const bare = language === 'es' ? exactFr(hit.canon).replace(DEFINITE_RE, '') : exactFr(hit.canon);
+    const bare = language === 'es' ? bareSpanishTarget(hit.canon) : exactFr(hit.canon);
     if (bare !== exactFr(hit.canon) && !/^the\s/i.test(o) && idx.exact.has(bare)) hit = idx.exact.get(bare);
     const ctx = typeof s.ctx === 'string' ? s.ctx.trim() : '';
     if (text) {
