@@ -119,7 +119,9 @@ function safeProviderText(text, passages) {
 }
 
 function meter(priceRow, outcome, bytes, readerWorst) {
-  const details = { providerRequestId: outcome.providerRequestId, usage: outcome.usage };
+  const details = {
+    providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, usage: outcome.usage,
+  };
   const provisional = (reader, reason, status, error = {}) =>
     ({ reader, provider: null, reason, status, error, details });
   const blocked = { blocked: true };
@@ -266,7 +268,9 @@ export function createApi({
     let pendingLate = null;
     function reconcileLate(outcome) {
       const cost = isHttpError(outcome) ? 0 : meter(priceRow, outcome, bytes, readerWorst).provider;
-      ledger.reconcile(id, cost, { providerRequestId: outcome.providerRequestId, usage: outcome.usage });
+      ledger.reconcile(id, cost, {
+        providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, usage: outcome.usage,
+      });
     }
     function receiveLate(outcome) {
       if (!firstFinished) {
@@ -292,7 +296,9 @@ export function createApi({
     try {
       if (isHttpError(outcome)) {
         const category = outcome.status === 429 ? 'rate_limit' : outcome.status === 503 ? 'overloaded' : 'request_failed';
-        winner = ledger.release(id, { providerRequestId: outcome.providerRequestId, reason: category });
+        winner = ledger.release(id, {
+          providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, reason: category,
+        });
         if (!winner.won) {
           reconcileLate(outcome);
           return replay(id, winner.costMicros > 0);

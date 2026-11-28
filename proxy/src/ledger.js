@@ -94,7 +94,11 @@ const schema = `
   CREATE UNIQUE INDEX IF NOT EXISTS open_account
     ON reservations(accountId) WHERE state = 'open';
   CREATE INDEX IF NOT EXISTS reservation_day ON reservations(dayKey, accountId);
-  CREATE INDEX IF NOT EXISTS reservation_request ON reservations(providerRequestId);
+  CREATE TABLE IF NOT EXISTS provider_request_ids (
+    reservationId TEXT NOT NULL REFERENCES reservations,
+    requestId TEXT NOT NULL,
+    PRIMARY KEY (requestId, reservationId)
+  ) STRICT;
   CREATE TABLE IF NOT EXISTS idempotency (
     accountId TEXT NOT NULL REFERENCES accounts,
     keyHash TEXT NOT NULL,
@@ -455,24 +459,36 @@ function providerAmount(value) {
   return { actual: value, overflow: null };
 }
 
+function recordProviderIds(tx, id, { providerRequestId, providerRequestIds = [] }) {
+  const ids = new Set([providerRequestId, ...providerRequestIds].filter(Boolean));
+  for (const requestId of ids) {
+    tx.run('INSERT OR IGNORE INTO provider_request_ids (reservationId, requestId) VALUES (?, ?)', id, requestId);
+  }
+  if (ids.size) {
+    tx.run('UPDATE reservations SET providerRequestId = COALESCE(providerRequestId, ?) WHERE reservationId = ?',
+      ids.values().next().value, id);
+  }
+}
+
 function finish(tx, entry, {
-  state, readerActual, providerActual, reason, now, providerRequestId = null, usage = null,
+  state, readerActual, providerActual, reason, now, providerRequestId, providerRequestIds, usage = null,
 }) {
   if (!entry || entry.state !== 'open') return entry;
   const debit = Math.min(readerActual, entry.readerWorst);
   const { actual, overflow } = providerAmount(providerActual);
   const overage = !!overflow || actual > entry.providerMax;
   if (overage) openStop(tx, entry.reservationId);
+  recordProviderIds(tx, entry.reservationId, { providerRequestId, providerRequestIds });
   tx.run('UPDATE accounts SET reservedMicros = reservedMicros - ?, balanceMicros = balanceMicros - ? WHERE accountId = ?',
     entry.readerWorst, debit, entry.accountId);
   const { balanceMicros } = account(tx, entry.accountId);
   tx.run(`
     UPDATE reservations SET state = ?, costMicros = ?, balanceMicros = ?, providerActual = ?,
-      providerOverflowMicros = ?, reason = ?, settledAt = ?, overage = ?, providerRequestId = ?,
+      providerOverflowMicros = ?, reason = ?, settledAt = ?, overage = ?,
       promptTokens = ?, outputTokens = ?, thoughtTokens = ?
     WHERE reservationId = ?
   `, overflow ? 'provisional' : state, debit, balanceMicros, actual, overflow, reason, now, Number(overage),
-  providerRequestId, usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
+  usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
   usage?.thoughtsTokenCount ?? null, entry.reservationId);
   tx.run('UPDATE idempotency SET expiresAt = ? WHERE reservationId = ?', now + IDEMPOTENCY_MS, entry.reservationId);
   return reservation(tx, entry.reservationId);
@@ -490,12 +506,12 @@ function tryFinish(tx, entry, options) {
   return { ...finish(tx, entry, options), won: entry.state === 'open' };
 }
 
-function reconcile(tx, entry, providerActual, { providerRequestId = null, usage = null } = {}) {
+function reconcile(tx, entry, providerActual, { providerRequestId, providerRequestIds, usage = null } = {}) {
   if (!entry || entry.state === 'open') return entry;
-  if (providerRequestId && !entry.providerRequestId) {
-    tx.run('UPDATE reservations SET providerRequestId = ? WHERE reservationId = ?', providerRequestId, entry.reservationId);
-  }
-  if (entry.state !== 'provisional' || entry.providerActual !== null) return reservation(tx, entry.reservationId);
+  recordProviderIds(tx, entry.reservationId, { providerRequestId, providerRequestIds });
+  const pending = entry.state === 'provisional' && entry.providerActual === null;
+  const aboveBound = entry.providerActual > entry.providerMax;
+  if (!pending && (!aboveBound || providerActual === null)) return reservation(tx, entry.reservationId);
   const { actual, overflow } = providerAmount(providerActual);
   const newOverflow = overflow && !entry.providerOverflowMicros;
   const overage = !!newOverflow || actual > entry.providerMax;
@@ -669,6 +685,12 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         const priceRow = currentPrice(tx, quotedModel, dayKey);
         if (priceRowId && priceRow?.id !== priceRowId) return 'STALE_PRICE';
         if (!priceRow) return 'NO_PRICE';
+        if (tx.get(`
+          SELECT 1 FROM reservations
+          WHERE dayKey = ? AND (providerActual > providerMax OR
+            (providerActual IS NULL AND providerOverflowMicros IS NOT NULL))
+          LIMIT 1
+        `, dayKey)) return 'STOPPED';
         if (priceRequest) {
           const quote = quotePriceRow(priceRow, requestBytes, maxOutputTokens);
           if (quote === 'NO_PRICE') return quote;
@@ -697,16 +719,16 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         return priceRequest ? { kind: 'RESERVED', reservationId: id, priceRow, readerWorst } : id;
       });
     },
-    settle(id, readerActual, providerActual, reason, { providerRequestId = null, usage = null } = {}) {
+    settle(id, readerActual, providerActual, reason, { providerRequestId, providerRequestIds, usage = null } = {}) {
       checkMicros(readerActual);
       return checkOverage(id, (tx, prior) => tryFinish(tx, prior, {
         state: providerActual === null ? 'provisional' : 'settled',
-        readerActual, providerActual, reason, now: now(), providerRequestId, usage,
+        readerActual, providerActual, reason, now: now(), providerRequestId, providerRequestIds, usage,
       }));
     },
-    release(id, { providerRequestId = null, reason = 'release' } = {}) {
+    release(id, { providerRequestId, providerRequestIds, reason = 'release' } = {}) {
       return transaction((tx) => tryFinish(tx, reservation(tx, id), {
-        state: 'released', readerActual: 0, providerActual: 0, reason, now: now(), providerRequestId,
+        state: 'released', readerActual: 0, providerActual: 0, reason, now: now(), providerRequestId, providerRequestIds,
       }));
     },
     expireStale(at = now()) {
@@ -719,7 +741,10 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     reconcileProviderRequest(providerRequestId, providerActual) {
       checkMicros(providerActual);
       const { entry, alarm } = transaction((tx) => {
-        const matches = tx.all('SELECT * FROM reservations WHERE providerRequestId = ? LIMIT 2', providerRequestId);
+        const matches = tx.all(`
+          SELECT r.* FROM provider_request_ids i JOIN reservations r USING (reservationId)
+          WHERE i.requestId = ? LIMIT 2
+        `, providerRequestId);
         if (matches.length !== 1) return { entry: null, alarm: false };
         const result = reconcile(tx, matches[0], providerActual);
         return { entry: result, alarm: !!result.overage && !matches[0].overage };

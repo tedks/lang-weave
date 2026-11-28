@@ -76,6 +76,9 @@ export function createProvider({ baseUrl, credential, fetchImpl, now = Date.now 
             if (!(error instanceof SyntaxError)) throw error;
           }
 
+          const bodyRequestId = safeRequestId(data?.responseId);
+          const distinctIds = bodyRequestId && providerRequestId && bodyRequestId !== providerRequestId
+            ? [providerRequestId, bodyRequestId] : null;
           const candidate = data?.candidates?.[0];
           const parts = candidate?.content?.parts;
           const text = Array.isArray(parts)
@@ -87,7 +90,8 @@ export function createProvider({ baseUrl, credential, fetchImpl, now = Date.now 
             finishReason: safeString(candidate?.finishReason),
             blockReason: safeString(data?.promptFeedback?.blockReason),
             usage: usageMetadata(data?.usageMetadata),
-            providerRequestId: safeRequestId(data?.responseId) ?? providerRequestId,
+            providerRequestId: bodyRequestId ?? providerRequestId,
+            ...(distinctIds ? { providerRequestIds: distinctIds } : {}),
           };
         } catch (error) {
           if (error?.sent === false && !receivedHeaders) return failedBeforeSend();
