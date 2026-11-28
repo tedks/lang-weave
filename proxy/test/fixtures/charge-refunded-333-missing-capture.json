@@ -1,0 +1,16 @@
+{
+  "id": "evt_charge_refunded_333",
+  "object": "event",
+  "livemode": false,
+  "type": "charge.refunded",
+  "data": {
+    "object": {
+      "id": "ch_fixture",
+      "object": "charge",
+      "amount": 1000,
+      "amount_refunded": 333,
+      "currency": "usd",
+      "payment_intent": "pi_fixture"
+    }
+  }
+}

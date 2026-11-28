@@ -1,0 +1,17 @@
+{
+  "id": "evt_dispute_closed",
+  "object": "event",
+  "livemode": false,
+  "type": "charge.dispute.closed",
+  "data": {
+    "object": {
+      "id": "dp_fixture",
+      "object": "dispute",
+      "charge": "ch_fixture",
+      "amount": 300,
+      "currency": "usd",
+      "payment_intent": "pi_fixture",
+      "status": "lost"
+    }
+  }
+}

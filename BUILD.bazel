@@ -273,3 +273,11 @@ sh_binary(
     args = ["$(rlocationpath :tests/check_version_bump.py)"],
     data = ["tests/check_version_bump.py"],
 )
+
+# The proxy imports extension modules in place. Keep the existing payload
+# visibility and expose its runfiles only to the proxy test package.
+alias(
+    name = "proxy_extension_runfiles",
+    actual = "//extension:payload",
+    visibility = ["//proxy:__pkg__"],
+)
