@@ -1,0 +1,97 @@
+import { API_BASE } from '../../extension/src/gemini.js';
+import { parseRetryAfter } from '../../extension/src/quota-status.js';
+
+const failedBeforeSend = () => ({ kind: 'http_error', status: 0, category: 'request_failed' });
+const sentWithoutResponse = () => ({ kind: 'no_response', sent: true });
+
+function usageMetadata(value) {
+  const { promptTokenCount, candidatesTokenCount = 0, thoughtsTokenCount = 0 } = value ?? {};
+  if (![promptTokenCount, candidatesTokenCount, thoughtsTokenCount]
+    .every((count) => Number.isSafeInteger(count) && count >= 0)) return null;
+  return { promptTokenCount, candidatesTokenCount, thoughtsTokenCount };
+}
+
+// The M1 adapter follows the AI Studio outcome table in section 6.3.
+// An injected transport can prove a pre-send failure by rejecting with
+// `sent: false`. An ordinary Fetch rejection cannot provide that proof.
+export function createProvider({ credential, fetchImpl, now = Date.now }) {
+  if (typeof credential !== 'string' || !credential || typeof fetchImpl !== 'function') {
+    throw new TypeError('Provider credential and transport are required');
+  }
+
+  const safeString = (value) => typeof value === 'string' && !value.includes(credential) ? value : null;
+  const safeRequestId = (value) => /^[A-Za-z0-9._:-]{1,128}$/.test(value ?? '') ? safeString(value) : null;
+
+  return {
+    async call({ model, request, timeoutMs }) {
+      let body;
+      try {
+        body = JSON.stringify(request);
+      } catch {
+        return failedBeforeSend();
+      }
+
+      const controller = new AbortController();
+      let timer;
+      const deadline = new Promise((resolve) => {
+        timer = setTimeout(() => {
+          resolve(sentWithoutResponse());
+          controller.abort();
+        }, timeoutMs);
+      });
+
+      async function send() {
+        let providerRequestId;
+        try {
+          const response = await fetchImpl(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': credential },
+            body,
+            signal: controller.signal,
+            redirect: 'manual',
+          });
+          providerRequestId = safeRequestId(response.headers.get('x-request-id')) ?? undefined;
+          if (response.status !== 200) {
+            // An HTTP status is enough to classify the charge. Provider error
+            // bodies can contain request data and are never used as diagnostics.
+            void response.body?.cancel().catch(() => {});
+            const category = response.status === 429 ? 'rate_limit'
+              : response.status === 503 ? 'overloaded' : 'request_failed';
+            const retry = parseRetryAfter(response.headers.get('retry-after'), now());
+            return { kind: 'http_error', status: response.status, category,
+              retryAfterMs: retry === undefined ? undefined : Math.ceil(retry), providerRequestId };
+          }
+          let data;
+          try {
+            data = await response.json();
+          } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+          }
+
+          const candidate = data?.candidates?.[0];
+          const parts = candidate?.content?.parts;
+          const text = Array.isArray(parts)
+            ? parts.filter((part) => !part?.thought && typeof part?.text === 'string')
+              .map((part) => part.text).join('') : null;
+          return {
+            kind: 'ok',
+            text: safeString(text),
+            finishReason: safeString(candidate?.finishReason),
+            blockReason: safeString(data?.promptFeedback?.blockReason),
+            usage: usageMetadata(data?.usageMetadata),
+            providerRequestId: safeRequestId(data?.responseId) ?? providerRequestId,
+          };
+        } catch (error) {
+          if (error?.sent === false && !providerRequestId) return failedBeforeSend();
+          return { ...sentWithoutResponse(), providerRequestId };
+        }
+      }
+
+      try {
+        return await Promise.race([send(), deadline]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
+}
