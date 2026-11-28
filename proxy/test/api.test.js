@@ -1068,3 +1068,96 @@ test('admission applies a late receipt staged by another connection after the ex
     }
   }
 }, { timeout: 25_000 });
+
+test('GET balance replays a release from the journal after reopening SQLite', async () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'read-balance-')), 'ledger.sqlite');
+  const now = () => Date.parse('2026-11-28T23:58:00Z');
+  let store = createSqliteStorage(filename, { now });
+  try {
+    const ledger = createLedger(store, { now });
+    const id = ledger.createAccount(sha256('balance restart'));
+    const token = ledger.rotateToken(id);
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture', 'restart-balance');
+    const reservationId = ledger.reserve(id, 60, 100, PRICE_ROWS[0].id, 2_000_000, sha256(key), sha256('body'));
+    store.finalizations.stage(reservationId, {
+      state: 'released', readerActual: 0, providerActual: 0, reason: 'request_failed',
+    });
+    store.close();
+
+    store = createSqliteStorage(filename, { now });
+    const reopened = createLedger(store, { now });
+    expect(reopened.getReservation(reservationId).state).toBe('open');
+    const api = createApi({
+      ledger: reopened, clientIp: () => '192.0.2.4', ipHashSecret: 'fixture', now, provider: stubProvider(),
+    });
+    const response = await api(new Request(base + '/v0/balance', {
+      headers: { Authorization: `Bearer ${token}` },
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ balanceMicros: 100, reservedMicros: 0 });
+    expect(reopened.getReservation(reservationId)).toMatchObject({ state: 'released', costMicros: 0 });
+  } finally { store.close(); }
+});
+
+test('admission still dispatches after an acknowledgement failure and never debits a released swap', async () => {
+  let at = Date.parse('2026-11-28T23:58:00Z');
+  const now = () => at;
+  const store = createSqliteStorage(':memory:', { now });
+  const journalErrors = [];
+  const provider = stubProvider(OUTCOMES.httpError);
+  let dispatchWasAdmitted;
+  let failAcknowledgement = true;
+  const ledger = createLedger({
+    ...store,
+    finalizations: {
+      ...store.finalizations,
+      acknowledge(receipts) {
+        if (!failAcknowledgement) return store.finalizations.acknowledge(receipts);
+        failAcknowledgement = false;
+        dispatchWasAdmitted = store.transaction((tx) =>
+          tx.get("SELECT state FROM reservations WHERE state = 'open'")?.state);
+        throw new Error('fixture journal write failed');
+      },
+    },
+  }, { now, onJournalError: (event) => journalErrors.push(event) });
+  try {
+    const id = ledger.createAccount(sha256('ack failure'));
+    const token = ledger.rotateToken(id);
+    const oldAccount = ledger.createAccount(sha256('pending release'));
+    for (const account of [id, oldAccount]) {
+      ledger.setEnrolled(account);
+      ledger.adjust(account, 100_000, 'fixture', account);
+    }
+    const old = ledger.reserve(oldAccount, 60, 100, PRICE_ROWS[0].id, 2_000_000, sha256(key), sha256('old body'));
+    const api = createApi({
+      ledger: {
+        ...ledger,
+        expireStale() {
+          const expired = ledger.expireStale();
+          store.finalizations.stage(old, {
+            state: 'released', readerActual: 0, providerActual: 0, reason: 'request_failed',
+          });
+          return expired;
+        },
+      },
+      clientIp: () => '192.0.2.4', ipHashSecret: 'fixture', now, provider,
+    });
+    const response = await api(new Request(base + '/v0/swaps', {
+      method: 'POST', body: JSON.stringify(reading),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    }));
+    expect(dispatchWasAdmitted).toBe('open');
+    expect(journalErrors).toEqual([{ reason: 'finalization_ack_failed' }]);
+    expect(provider.calls).toHaveLength(1);
+    expect(response.status).toBe(502);
+    const { reservationId } = ledger.getIdempotency(id, sha256(key));
+    expect(ledger.getReservation(reservationId)).toMatchObject({ state: 'released', costMicros: 0 });
+    expect(store.finalizations.withSnapshot((receipts) => receipts.map((receipt) => receipt.reservationId))).toEqual([old]);
+
+    at += STALE_MS + 1;
+    expect(ledger.expireStale()).toEqual([]);
+    expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 100_000, reservedMicros: 0 });
+    expect(store.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+  } finally { store.close(); }
+});

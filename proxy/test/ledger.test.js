@@ -407,3 +407,122 @@ test('an unrepresentable late reconcile keeps the day closed until a correction'
     expect(ledger.reserve(id, 20, 500, price, ceiling, hash('next'), body)).toMatch(/^[a-f0-9]{32}$/);
   } finally { db.close(); }
 });
+
+test('a settled overage retains the known cost through overflow and accepts a correction', () => {
+  const { db, ledger, account } = makeLedger();
+  try {
+    const id = account(1_000).id;
+    const reservationId = ledger.reserve(id, 100, 500, price, ceiling, hash(), body);
+    ledger.settle(reservationId, 35, 600, 'stop', { providerRequestId: 'settled-overage' });
+    const overflow = ledger.reconcile(reservationId, 10_000_000_000_000_000n);
+    expect(overflow).toMatchObject({
+      state: 'settled', providerActual: 600, providerOverflowPending: 1,
+      providerOverflowMicros: '10000000000000000', costMicros: 35,
+    });
+    expect(ledger.reconcile(reservationId, null)).toMatchObject({
+      state: 'settled', providerActual: 600, providerOverflowPending: 1, costMicros: 35,
+    });
+    expect(ledger.clearStop('fixture-clear-before-correction')).toBeTrue();
+    expect(ledger.reserve(id, 15, 20, price, ceiling, hash('next'), body)).toBe('STOPPED');
+    expect(ledger.reconcileProviderRequest('settled-overage', 400)).toMatchObject({
+      state: 'settled', providerActual: 400, providerOverflowPending: 0,
+      providerOverflowMicros: '10000000000000000', costMicros: 35,
+    });
+    expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 965, reservedMicros: 0 });
+    expect(ledger.reserve(id, 15, 20, price, ceiling, hash('next'), body)).toMatch(/^[a-f0-9]{32}$/);
+  } finally { db.close(); }
+});
+
+test('balance operators apply a staged release before using available credit after reopening', () => {
+  for (const op of ['adjust', 'transfer', 'reverse', 'webhook']) {
+    const filename = join(mkdtempSync(join(tmpdir(), 'balance-replay-')), 'ledger.sqlite');
+    const now = () => Date.parse('2026-11-28T23:58:00Z');
+    let store = createSqliteStorage(filename, { now });
+    try {
+      const ledger = createLedger(store, { now });
+      const from = ledger.createAccount(hash('from'));
+      const to = ledger.createAccount(hash('to'));
+      const paymentIntentId = 'pi_balance_replay';
+      ledger.setEnrolled(from);
+      ledger.setEnrolled(to);
+      ledger.recordPayment({ paymentIntentId, accountId: from, packMicros });
+      ledger.grant(paymentIntentId);
+      const id = ledger.reserve(from, 60, 100, price, ceiling, hash(), body);
+      store.finalizations.stage(id, { state: 'released', readerActual: 0, providerActual: 0, reason: 'request_failed' });
+      store.close();
+
+      store = createSqliteStorage(filename, { now });
+      const reopened = createLedger(store, { now });
+      expect(reopened.getReservation(id).state).toBe('open');
+      if (op === 'adjust') {
+        expect(reopened.adjust(from, -packMicros, 'fixture debit', 'debit-once')).toMatchObject({
+          balanceMicros: 0, reservedMicros: 0,
+        });
+        expect(reopened.adjust(from, -packMicros, 'fixture debit', 'debit-once')).toBe('DUPLICATE');
+      } else if (op === 'transfer') {
+        expect(reopened.transfer(from, to, 'transfer-once')).toMatchObject({ balanceMicros: packMicros });
+        expect(reopened.getPayment(paymentIntentId).accountId).toBe(to);
+      } else {
+        const reversal = op === 'reverse' ? reopened.reverse(paymentIntentId, packMicros)
+          : reopened.applyPaymentEvent('evt_balance_replay', (tx) => tx.reverse(paymentIntentId, packMicros));
+        expect(reversal.reversedMicros).toBe(packMicros);
+        expect(reopened.getAccount(from).frozen).toBeFalse();
+      }
+      expect(reopened.getAccount(from)).toMatchObject({ balanceMicros: 0, reservedMicros: 0 });
+      expect(reopened.getReservation(id)).toMatchObject({ state: 'released', costMicros: 0 });
+      expect(store.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+    } finally { store.close(); }
+  }
+});
+
+test('replaying an unacknowledged late receipt does not overwrite a later export correction', () => {
+  const now = () => Date.parse('2026-11-28T00:00:00Z');
+  const db = createSqliteStorage(':memory:', { now });
+  const ledger = createLedger({
+    ...db,
+    finalizations: { ...db.finalizations, acknowledge() { throw new Error('fixture journal write failed'); } },
+  }, { now, onOverage() {}, onJournalError() {} });
+  try {
+    const id = ledger.createAccount(hash('ack-replay'));
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture credit', 'ack-replay-credit');
+    const reservationId = ledger.reserve(id, 20, 500, price, ceiling, hash(), body);
+    ledger.settle(reservationId, 15, 600, 'stop', { providerRequestId: 'export-correction' });
+    ledger.reconcile(reservationId, 700);
+    expect(ledger.reconcileProviderRequest('export-correction', 650).providerActual).toBe(650);
+    expect(db.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['primary', 'late']);
+    expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 85, reservedMicros: 0 });
+    expect(ledger.getReservation(reservationId).providerActual).toBe(650);
+  } finally { db.close(); }
+});
+
+test('an older SQLite ledger reopens with only unresolved historical overflows marked pending', () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'legacy-overflow-')), 'ledger.sqlite');
+  const now = () => Date.parse('2026-11-28T00:00:00Z');
+  let store = createSqliteStorage(filename, { now });
+  try {
+    const ledger = createLedger(store, { now, onOverage() {} });
+    const ids = ['corrected', 'unresolved'].map((name) => {
+      const accountId = ledger.createAccount(hash(name));
+      ledger.setEnrolled(accountId);
+      ledger.adjust(accountId, 100, 'fixture credit', name);
+      const id = ledger.reserve(accountId, 20, 500, price, ceiling, hash(), body);
+      expect(ledger.settle(id, 15, 300, 'stop')).toMatchObject({ state: 'settled' });
+      return id;
+    });
+    store.transaction((tx) => {
+      tx.run('ALTER TABLE reservations DROP COLUMN appliedLateReceipt');
+      tx.run('ALTER TABLE reservations DROP COLUMN providerOverflowPending');
+      tx.run("UPDATE reservations SET providerOverflowMicros = '10000000000000000', overage = 1");
+      tx.run('UPDATE reservations SET providerActual = 300 WHERE reservationId = ?', ids[0]);
+      tx.run('UPDATE reservations SET providerActual = NULL WHERE reservationId = ?', ids[1]);
+    });
+    store.close();
+
+    store = createSqliteStorage(filename, { now });
+    const reopened = createLedger(store, { now });
+    expect(reopened.getReservation(ids[0])).toMatchObject({ providerActual: 300, providerOverflowPending: 0 });
+    expect(reopened.getReservation(ids[1])).toMatchObject({ state: 'settled', providerActual: null, providerOverflowPending: 1 });
+    expect(reopened.reconcile(ids[1], 400)).toMatchObject({ providerActual: 400, providerOverflowPending: 0 });
+  } finally { store.close(); }
+});

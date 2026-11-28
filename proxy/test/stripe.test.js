@@ -560,3 +560,17 @@ test('MK-06 applies a nonround Checkout fallback in cents and leaves foreign ref
     } finally { db.close(); }
   }
 });
+
+test('MK-06 rounds a 333-cent refund up before granting an eligible 1000-cent Checkout', async () => {
+  const { deliver, ledger, db, account } = setup({ packMicros: 10_000_001 });
+  try {
+    const { id } = account();
+    await deliver('charge-refunded-333-missing-capture');
+    expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'pending', reversalTarget: 0 });
+    await deliver('checkout-paid', { client_reference_id: id });
+    expect(ledger.getPayment(intentId)).toMatchObject({
+      paidMicros: 10_000_000, refundedMicros: 3_330_000, grantState: 'granted', reversalTarget: 3_330_001,
+    });
+    expect(ledger.getAccount(id).balanceMicros).toBe(6_670_000);
+  } finally { db.close(); }
+});
