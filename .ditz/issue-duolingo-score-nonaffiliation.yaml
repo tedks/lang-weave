@@ -1,0 +1,18 @@
+id: duolingo-score-nonaffiliation
+title: Add a not-affiliated-with-Duolingo note beside the Score field
+desc: 'Source: LW-STORE store packet (PR #33, risk R11, 2026-11-28). The manual Duolingo
+  Score field has no ''not affiliated with Duolingo'' note; trademark/impersonation
+  review risk. Small code change; fold into the 0.16.2 Store-prep release.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-28T08:29:35-00:00
+references: []
+log_events:
+- time: 2026-11-28T08:29:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
