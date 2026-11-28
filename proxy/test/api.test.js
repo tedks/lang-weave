@@ -176,7 +176,7 @@ test('the exact built UTF-16 limit accepts a request beyond the superseded 64,00
     const words = Array.from({ length: 80 }, (_, i) => ({
       source: 'pack', status: 'active', fr: `あ${i}`.padEnd(50, 'あ'), en: 'え'.repeat(60),
     }));
-    const passages = Array.from({ length: 8 }, (_, i) => ({ id: `p${i + 1}`, text: 'あ'.repeat(i === 7 ? 0 : 2000) }));
+    const passages = Array.from({ length: 8 }, (_, i) => ({ id: `p${i + 1}`, text: 'あ'.repeat(i === 7 ? 0 : 1500) }));
     const input = { ...reading, language: 'ja', words, passages };
     const measured = JSON.stringify(buildSwapRequest({ ...input, batch: passages })).length;
     const extra = MAX_REQUEST_CHARS - measured;
