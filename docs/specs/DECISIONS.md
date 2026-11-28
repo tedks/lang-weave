@@ -86,8 +86,9 @@ Open rulings `store-provider-region-ruling` and `store-site-consent-ruling` are 
   specific action clearly agreeing to the disclosure", and the 0.16.1 welcome buttons choose a site
   policy without saying "agree". This is the packet's top rejection risk (R1). It needs a small code
   change and a 0.16.2 release, which a lead can prepare as a draft PR.
-- **Store package deltas:** before any upload (except a key-kept test you choose under D1) the
-  Store ZIP must drop the development manifest `key` and the dead content loader, and the Duolingo Score field needs a "not affiliated with
+- **Store package deltas:** before any upload the Store ZIP must drop the development manifest
+  `key` (the only exception is a key-kept test you choose under D1, which still applies every
+  other delta below) and the dead content loader, and the Duolingo Score field needs a "not affiliated with
   Duolingo" line (ditz `store-manifest-key-delta`, `store-first-upload-key`; packet R2, R11).
 
 After yes: an agent fills the distribution tab (unlisted, US) and the listing from

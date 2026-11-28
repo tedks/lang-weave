@@ -100,12 +100,11 @@ All requests are HTTPS, JSON, `Content-Type: application/json`, at most 192 KiB 
 `413` with `"tooLarge": "body"`, no reservation). Responses never
 echo request text. Every error body is `{"error": {"category": <string>, "retryAfterMs"?: <int>,
 "ahead"?: <bool>, "duplicate"?: <bool>, "charged"?: <bool>, "keyReuse"?: <bool>,
-"blocked"?: <bool>, "tooLarge"?: "body"|"passages"|"words", "dailyCap"?: <bool>}}`. A 200 body's
-`usage` is `null` when the provider sent none (6.3).
+"blocked"?: <bool>, "tooLarge"?: "body"|"passages"|"words", "dailyCap"?: <bool>}}`,
 with `category` drawn from the extension's existing set in `quota-status.js` plus four new
 values, which E1 adds to `STATUS_CATEGORIES` (`quota-status.js:9`) and to the message mapping in
 `reading.js`: `managed_balance`, `managed_unauthorized`, `managed_unavailable`,
-`managed_update_required`.
+`managed_update_required`. A 200 body's `usage` is `null` when the provider sent none (6.3).
 
 CORS, not a manifest change: the proxy answers with `Access-Control-Allow-Origin:
 chrome-extension://lkbkmlgogcpcacjmdmoecgacdbfddbnh` and allows the `Authorization`,
@@ -154,8 +153,9 @@ for byte.
   inputs, and the module closure must load with no `chrome` global. The proxy then sets
   `generationConfig.maxOutputTokens`. **Size cap: the same measure and the same limit the
   extension already uses**, `requestChars` (`adaptive.js:40-47`, the length of the serialized
-  body) at most `MAX_REQUEST_CHARS` = 25,000 (`adaptive.js:10`); as UTF-8 that is at most 100,000
-  bytes. Over the cap → `400 request_failed` with `"tooLarge": "passages"` when the batch has more
+  body) at most `MAX_REQUEST_CHARS` = 25,000 (`adaptive.js:10`); `requestChars` counts UTF-16 code
+  units, each at most 3 UTF-8 bytes, so the UTF-8 body is at most 75,000 bytes; the cost bounds
+  use 100,000 as a deliberately loose upper figure, and no validator should be tightened to it. Over the cap → `400 request_failed` with `"tooLarge": "passages"` when the batch has more
   than one passage, or `"tooLarge": "words"` when a single passage is still over. E1 checks the
   same measure **before** sending, so a conforming client never gets either: it splits the
   passages until each request fits (down to one passage), and for a single passage still over,
@@ -163,20 +163,25 @@ for byte.
   nothing because it never reserves. E1 only splits on `tooLarge`, never on other `400`s. Other
   violations → `400 request_failed` with no provider call. A boundary test builds the combined
   maximum (eight 2,000-character passages, the largest pack of 80 words at their field maxima,
-  and a personal-word list at its maxima) and checks that E1's splitting always yields requests
-  the proxy accepts.
+  and a personal-word list at its maxima) and asserts, for that fixture, exactly which passages E1
+  sends, in how many requests, which (if any) it drops, and that every emitted request is under
+  the cap and accepted by the proxy. A test that passes because everything was dropped fails.
   Idempotency: `reserve` claims `(accountId, SHA-256(Idempotency-Key))` together with
   `SHA-256` of the canonical request body **in the same transaction** as the reservation (C2), so
   a crash cannot leave a charged call without its key. The claim is kept for 60 seconds after
   settlement and holds no reading content. A repeat within that window makes no new reservation
-  or provider call: with the same body it returns the held response if the serving instance
+  or provider call: with the same canonical body it returns the held response if the serving instance
   still holds it in memory, otherwise `409 request_failed` with `"duplicate": true` and
   `"charged": <bool>` from the recorded outcome; with a different body it returns
   `422 request_failed` with `"keyReuse": true`. A repeat while the original is still open returns
   `429 rate_limit` with `retryAfterMs`. After 60 seconds a repeat is a new call. **Key lifetime in
-  E1:** one key per logical batch (the same passage keys and words), reused if E1 asks for the
-  same batch again within 60 seconds (for example after the page re-renders it), so a re-request
-  of an abandoned call returns `duplicate` instead of a second charge.
+  E1:** a key identifies one **canonical body**: the structured request serialized by the one
+  canonicalizer both sides import (sorted keys, no insignificant whitespace), the same bytes the
+  proxy hashes. E1 reuses a key only when it would send byte-identical canonical bytes within 60
+  seconds (for example after the page re-renders an unchanged batch), so a re-request of an
+  abandoned call returns `duplicate` instead of a second charge. Any change (passage text,
+  `shownToday`, density, words) gets a new key. If E1 nevertheless receives `keyReuse`, it mints a
+  new key and sends once more.
   Errors: `402 managed_balance` when the reservation fails; `503 managed_unavailable` when the
   global ceiling is reached or the proxy is in maintenance; provider 429/503/timeout map to the
   existing `rate_limit` / `overloaded` / `request_failed` with `retryAfterMs` passed through
@@ -235,10 +240,12 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   `providerHeld` drops by `providerMax` and `providerSpent` rises by the **full**
   `providerActual`, which includes input, output and thinking tokens. A `providerActual` above
   `providerMax` means C5's maximum is wrong: it raises an `overage` alarm, which stops all managed
-  calls (section 12), and the full amount stays recorded. For an **unknown-cost outcome**
-  (6.3) the reservation instead moves to state `provisional`: the reader is charged
-  `readerWorst`, the full `providerMax` stays counted for the day, and the row waits for
-  reconciliation.
+  calls (section 12), and the full amount stays recorded. The **reader debit and the provider
+  accounting are independent**: the reader is always charged the 6.3 table's reader amount for
+  the outcome, capped at `readerWorst`, whatever the provider state. For an **unknown-cost
+  outcome** (6.3) the provider side moves to state `provisional`: the full `providerMax` stays
+  counted for the day and waits for reconciliation. A provisional hold that is never reconciled
+  stays counted for its own day only; the next UTC day starts with no holds from earlier days.
 - `reconcile(reservationId, providerActual)` — once, for a `provisional` row, and only when the
   cost can be attributed to **that** reservation: a late response for its own request, or a
   provider usage-export row matched by its request id. It replaces the provisional `providerMax`
@@ -272,10 +279,15 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   that are **not** Stripe refunds. A debit takes at most `balance - reserved`. Unique per `ref`.
   A refund on request is always issued in Stripe and reaches the ledger only through the
   `charge.refunded` webhook, so it can never be debited twice.
-- `transfer(fromAccountId, toAccountId, ref)` — token recovery in one step: requires no open
-  reservation on `from`, moves `balance` from `from` to `to`, **reassigns `from`'s payment records
-  to `to`** (so later refunds, disputes and freezes apply to the account now holding the credit),
-  revokes `from`'s token, and freezes `from`. Unique per `ref`.
+- `transfer(fromAccountId, toAccountId, ref)` — token recovery in one step. Refused if `from` is
+  frozen (a frozen account's balance stays put until the operator resolves the dispute or
+  refund), if `to` is frozen, or if `from` has an open reservation. Otherwise it moves `balance`
+  from `from` to `to`, **reassigns `from`'s payment records to `to`** (so later refunds, disputes
+  and freezes apply to the account now holding the credit), revokes `from`'s token, and freezes
+  `from`. A payment record's `accountId` is set once, by the first Checkout event that passes C4's
+  checks, and afterwards changes only through `transfer`; a later Checkout notification carrying
+  the original account id does not move it back. `grant`'s one-pack rule does not apply to a
+  transfer, which may leave `to` holding more than two packs. Unique per `ref`.
 - `revokeToken(tokenHash)` and `rotateToken(accountId) → newToken` — take effect for the next
   reservation; an open reservation settles normally.
 - `expireStale(now)` — a reservation open longer than 5 minutes (well past the provider timeout)
@@ -285,6 +297,10 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
 
 `call({model, request, timeoutMs}) → ProviderOutcome`, one of:
 
+- Every outcome carries `providerRequestId` when the route supplies one (for example a response
+  id or request-id header); E2 stores it on the reservation so `reconcile` can match a provider
+  usage-export row to it. `no_response` usually has none; such a hold is reconciled only by a
+  late response or not at all, and is then released with its day (C2).
 - `{kind: "ok", text, finishReason, blockReason, usage}`: HTTP 200. `finishReason` from the first
   candidate (or `null` when there is none); `blockReason` from `promptFeedback.blockReason` (or
   `null`); `usage` from `usageMetadata` (`promptTokenCount`, `candidatesTokenCount`,
