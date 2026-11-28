@@ -4,14 +4,14 @@ These images come from `extension/e2e/store-shots.mjs`. It loads the packaged St
 
 | File | Dimensions | Listing caption |
 |---|---:|---|
-| `01-welcome.png` | 1280×800 | **Welcome page.** “Pick where it may read. Only sites you turn on, or all except sensitive ones. You choose before anything is sent.” |
-| `02-hover.png` | 1280×800 | **Hover.** “Hover a word for its meaning and how it sounds.” |
+| `01-welcome.png` | 1280×800 | **Try it first.** “Try a bundled reading sample before you add a key. It stays on your device.” |
+| `02-hover.png` | 1280×800 | **Hover.** “Hover a word for its meaning and a written pronunciation hint.” |
 | `03-flip.png` | 1280×800 | **Flip.** “Click a word to flip it back to English.” |
 | `04-review.png` | 1280×800 | **Review.** “Words you met while reading come back for a quick recall check, scheduled with FSRS.” |
-| `05-progress.png` | 1280×800 | **Progress.** “See what you have introduced, seen and recalled. All of it stays in your browser.” |
+| `05-progress.png` | 1280×800 | **Progress.** “See what you have introduced, seen and recalled.” |
 | `small-promo.png` | 440×280 | Lang Weave · Learn Spanish while you read. |
 
-The five screenshot captions match the draft on `listing-docs`; no caption change is needed. The review image shows “but,” which was swapped in the sample article. This fixture starts the review session with the page’s **Add 5 new words** control; the current gradual-learning flow can also introduce words from reading, as `extension/e2e/gradual.mjs` verifies. Reading encounters in this fixture contribute to the Progress page.
+The captions match `docs/STORE-SUBMISSION-PACKET.md`. In 0.16.1 the welcome page opens with the bundled reading sample (language and passage pickers), so `01-welcome.png` now shows the sample and the start of the privacy section; the site-policy buttons are below the fold, and the caption changed to match. The 0.16.1 refresh of `01-welcome.png`, `04-review.png` and `05-progress.png` was rendered with the cached Playwright Chromium revision 1247 (Chrome for Testing 155.0.8059.12), because the pinned revision 1248 was not cached and the host disk was too full to download it. In the same run `02-hover.png`, `03-flip.png` and `small-promo.png` came out byte-identical to the committed copies, so the renderer difference did not change pixels where the UI did not change. The review image shows “but,” which was swapped in the sample article. This fixture starts the review session with the page’s **Add 5 new words** control; the current gradual-learning flow can also introduce words from reading, as `extension/e2e/gradual.mjs` verifies. Reading encounters in this fixture contribute to the Progress page.
 
 From the repository root, install the locked development dependencies once, then regenerate and check the images:
 
