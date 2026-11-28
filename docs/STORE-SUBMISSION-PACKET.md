@@ -16,7 +16,7 @@ The Store zip is the shipped extension with three manifest deltas, applied only 
 | `alarms` | Declared (`manifest.json:11`), used for the unpacked self-update timer | Removed |
 | `web_accessible_resources` | 19 `src/` modules for all HTTP(S) origins (`manifest.json:52-79`) | Removed. The content script ships as one classic file, `src/content-bundle.js`, and `src/sites.js` is rewritten to register it (`package.mjs:585-601`) |
 
-Unchanged in the Store build, and therefore part of the review: the manifest `key` (`manifest.json:6`), `minimum_chrome_version` 140 (`manifest.json:5`), the two `commands` (`manifest.json:27-36`), `storage`, `scripting`, `activeTab`, `contextMenus`, the Gemini host permission and the optional `http://*/*` and `https://*/*` host permissions (`manifest.json:9-22`). The zip also carries `LICENSE`, `LICENSE-MIT` and `NOTICE` (`package.mjs:25`, `:146`) and two now-unreferenced modules, `src/content-loader.js` and the ES-module `src/content.js` (see risk R9).
+Unchanged in the Store build, and therefore part of the review: the manifest `key` (`manifest.json:6`), `minimum_chrome_version` 140 (`manifest.json:5`), the two `commands` (`manifest.json:27-36`), `storage`, `scripting`, `activeTab`, `contextMenus`, the Gemini host permission and the optional `http://*/*` and `https://*/*` host permissions (`manifest.json:9-22`). The zip also carries `LICENSE`, `LICENSE-MIT` and `NOTICE` (`package.mjs:25`, `:146`) and five modules that nothing in the Store build loads: `src/content-loader.js`, `src/content.js`, `src/page.js`, `src/panel-style.js` and `src/personal-capture.js` (their code is inside `src/content-bundle.js`; see risk R9).
 
 ## 1. Store listing tab
 
@@ -42,7 +42,7 @@ Plain text, no markup. Every claim is checked against the code in the "Source" c
 ```
 Learn a language while you read.
 
-Lang Weave swaps a few words on the English pages you choose into the language you are learning, right where they make sense. Hover or focus a word to see its meaning and a pronunciation hint. Click it to flip it back to English. Words you meet come back later in a short review, so they stick. Spanish and Paraguayan Guaraní are bundled.
+Lang Weave swaps a few words on the English pages you choose into the language you are learning, right where they make sense. Hover or focus a word to see its meaning and a written pronunciation hint. Click it to flip it back to English. Words you meet come back later in a short spaced review. Spanish and Paraguayan Guaraní are bundled.
 
 TRY IT WITHOUT A KEY
 - The welcome page has short bundled reading samples you can hover and flip.
@@ -50,16 +50,16 @@ TRY IT WITHOUT A KEY
 - Review and My words work offline.
 
 HOW IT WORKS ON WEBSITES
-- You choose where it may read: only sites you turn on (recommended), or all sites except sensitive ones. Chrome asks you for each grant.
+- You choose where it may read: only sites you turn on (recommended), one Chrome permission prompt per site; or all sites, one Chrome prompt that grants access to every website, after which Lang Weave itself keeps sensitive sites switched off until you turn one on.
 - Gradual learning introduces a few new words a day (5 by default; you set the pace or turn it off).
 - Reviews are scheduled with FSRS, an open spaced-repetition method.
-- Save your own words from a page: select, right-click, Add to Lang Weave.
+- Save your own words from a page: select, right-click, Add to Lang Weave. Saving sends nothing; with gradual learning on, a saved word can later be offered to Gemini as a candidate.
 - You can also generate a starter vocabulary for another language. Generated packs are experimental and not checked by a native speaker.
 
 HOW YOUR DATA IS HANDLED
-- No account, no Lang Weave server, no analytics or tracking. Your key, settings, saved words and progress stay in your browser.
-- Weaving on websites sends readable text from the sites you allow to Google's Gemini API, using your own Gemini API key. Page addresses and titles are not sent.
-- With a free key, Google may use that text to improve its products and human reviewers may read it. A billed key avoids that use. Under Google's terms, users in the EEA, Switzerland and the UK need a billed key.
+- No account, no Lang Weave server, no analytics or tracking. Your settings and review history are stored only in your browser.
+- Weaving on websites sends Google's Gemini API, with your own Gemini API key: readable text from the sites you allow; your reading level, density and language; and the candidate words with labels from your progress (due, new, active or known), including eligible saved words. Testing your key and generating a new language also send short requests. The page address and tab title are not sent as fields, but on-page headings and anything else in a passage can be.
+- With a free key, Google may use that text to improve its products and human reviewers may read it; Google advises not to send sensitive, confidential or personal information with a free key. A billed key avoids the product-improvement use. Under Google's terms, users in the EEA, Switzerland and the UK need a billed key. [HOLD: this paragraph follows the D3a ruling.]
 - Webmail, messaging, AI chat, password managers, banking, health, government and private-network sites start switched off. This is a heuristic safety net and cannot recognise every private page.
 - Lang Weave is for people 18 and older, as Google's Gemini API terms require.
 - You need your own Gemini API key from Google AI Studio for weaving on websites. Google's quotas and charges apply to your key. Lang Weave limits itself to 1,000 requests a day; that is not a spending cap.
@@ -83,13 +83,14 @@ Lang Weave is not affiliated with or endorsed by Google or Duolingo. Gemini is a
 | Spanish and Paraguayan Guaraní bundled | `README.md` "Install in Chrome"; `extension/src/welcome-demo.js:2-3` |
 | Keyless samples and paragraph practice stay local | `extension/src/welcome.html:31-46`; `_locales/en/messages.json` `paragraph_intro`; no `fetch`/`sendMessage` in `welcome-demo.js`, `paragraph-page.js` |
 | Review works without key or network | No `fetch` in `review*.js`, `words.js`, `progress*.js` |
-| Two site policies, Chrome grant per request | `extension/src/welcome.html:53-56`; `extension/src/welcome.js:6-9`, `:33`; `extension/src/popup.js:73`; `extension/src/sites.js:41-50` |
+| Two site policies; per-site grant or one all-sites grant; sensitive defaults applied by Lang Weave, not Chrome | `extension/src/welcome.html:53-56`; `extension/src/welcome.js:6-9`, `:33`; `extension/src/popup.js:73`; `extension/src/sites.js:41-50` |
 | Gradual learning on for new installs, 5 a day | `extension/src/settings.js:18-22`; `extension/src/welcome.html:70` |
 | FSRS | `extension/src/fsrs.js:6-10` |
 | Add to Lang Weave | `extension/src/capture-handlers.js:235-242` |
 | Generated packs experimental, up to five | `_locales/en/messages.json` `options_add_language_intro`; `extension/src/languages.js:11` |
 | Data handling, sensitive sites, 1,000 a day | PRIVACY-POLICY.md Appendix A (C1-C18) |
-| Addresses and titles not sent | PRIVACY-POLICY.md C9 |
+| What is sent to Google | PRIVACY-POLICY.md C1, C3, C6, C8, C9, C12, C13 |
+| Saving sends nothing | `extension/src/capture-handlers.js` (no `fetch`); PRIVACY-POLICY.md C14 |
 | 18+ | `extension/src/welcome.html:51`; `extension/src/options.html:58` |
 
 ### 1b. What the listing must not claim
@@ -105,11 +106,12 @@ Lang Weave is not affiliated with or endorsed by Google or Duolingo. Gemini is a
 9. "Automatically protects banking and health". The blocklist is heuristic.
 10. "Powered by Google", "official Gemini extension", Google, Duolingo or other logos.
 11. "Works on X out of the box". The Store build has no X content script.
-12. "Pronunciation audio". Hints are written only.
+12. "Pronunciation audio", "hear how it sounds". Hints are written only.
 13. "Syncs across devices", "cloud backup", other browsers. Backup is a manual JSON file.
 14. "Unlimited". The local cap and the key's quota apply.
 15. "Imports your Duolingo progress". The placement preview only orders local examples from a number you type (`extension/src/placement.js:3-11`).
 16. Superlatives, competitor comparisons, user counts, ratings or testimonials.
+17. "Your progress never leaves your browser". Progress-derived status labels go to Google with each reading request.
 
 ## 2. Single-purpose statement
 
@@ -121,12 +123,12 @@ Every feature serves that purpose: page swaps, the keyless samples and paragraph
 
 All images come from `extension/e2e/store-shots.mjs`, which loads the packaged Store build in an isolated profile, grants only a synthetic host (`reading.example`), fails closed on every DNS name and intercepts Gemini with a canned reply. The article is original sample prose. No real account, key, personal page or live Gemini call is used. See `docs/store-assets/README.md`.
 
-0.16.1 refresh (this branch): `01-welcome.png`, `04-review.png` and `05-progress.png` changed because the UI changed; `02-hover.png`, `03-flip.png` and `small-promo.png` rendered byte-identical. The run used cached Chromium revision 1247 because the pinned 1248 was not cached and the disk was too full to download it. `--check` passes.
+0.16.1 refresh (this branch): `01-welcome.png`, `04-review.png` and `05-progress.png` changed because the UI changed; `02-hover.png`, `03-flip.png` and `small-promo.png` rendered byte-identical. The run used cached Chromium revision 1247 because the pinned 1248 was not cached and the disk was too full to download it. `--check` passes (dimensions and format only). Not yet done: a render with the pinned revision and an eyes-on comparison against an installed Store build (R15). Fixture note for the record: the review image's session starts from the page's **Add 5 new words** control, not from reading-introduced words.
 
 | # | File | Caption (Dashboard has no caption field; use as alt text or overlay only if Ted wants) |
 |---|---|---|
 | 1 | `01-welcome.png` | **Try it first.** Try a bundled reading sample before you add a key. It stays on your device. |
-| 2 | `02-hover.png` | **Hover.** Hover a word for its meaning and how it sounds. |
+| 2 | `02-hover.png` | **Hover.** Hover a word for its meaning and a written pronunciation hint. |
 | 3 | `03-flip.png` | **Flip.** Click a word to flip it back to English. |
 | 4 | `04-review.png` | **Review.** Words you met while reading come back for a quick recall check, scheduled with FSRS. |
 | 5 | `05-progress.png` | **Progress.** See what you have introduced, seen and recalled. All of it stays in your browser. |
@@ -158,54 +160,76 @@ Suggested five: site-access chooser, hover, keyless sample (or paragraph practic
 
 ## 4. Privacy practices tab
 
+### What goes to Google (single account used everywhere in this packet and the policy)
+
+| Request | Contents | When |
+|---|---|---|
+| Reading | Up to 8 passages of page text (6 words to 2,000 characters each) with `revision:hash` ids; your key in the `x-goog-api-key` header; instructions carrying reading level, density, target language, a per-request swap budget (gradual learning), the candidate words (target form, English gloss) each with a due/new/active/known status, today's shown forms (non-gradual path), and eligible saved personal words (gradual). A fallback retry resends the same body to Flash-Lite. | Only on an enabled, granted site after the welcome choice, with a key, under the daily cap (PRIVACY-POLICY C6, C8, C9, C11, C33) |
+| Key test | `Reply OK.` with your key | User presses **Test key**, after the welcome choice (C12) |
+| Language generation | Language code and English name, with your key | User adds a generated language, after the welcome choice (C13) |
+
+Stays local, never sent: review schedule and ratings, reading events, reading dates, learning log, encounter counts, settings, site choices, cache, backups. Only the status labels derived from that history travel with candidate words.
+
 ### 4a. Permission justifications
 
 Enter one per permission in the Store manifest. The Dashboard warns "Requesting broader permissions than necessary may cause your extension to be rejected" (cws-dashboard-privacy).
 
 | Permission | Justification | Evidence |
 |---|---|---|
-| `storage` | Keeps the user's settings, Gemini API key, site choices, saved words, review schedule, learning log and cached word choices in `chrome.storage.local`, plus a short-lived guess ticket in `chrome.storage.session`. Nothing is synced or uploaded by the extension. | `extension/src/background.js:29`; `extension/src/cache.js:62-66`; `extension/src/reading.js:401-412` |
+| `storage` | Keeps the user's settings, Gemini API key, site choices, saved words, review schedule, learning log and cached word choices in `chrome.storage.local`, plus a short-lived guess ticket in `chrome.storage.session`. The extension has no sync or upload of this storage; what is sent to Google per request is listed above. | `extension/src/background.js:29`; `extension/src/cache.js:62-66`; `extension/src/reading.js:401-412` |
 | `scripting` | Registers the reading script only for origins the user has granted (`registerContentScripts`), and injects it into the open tab right after the user turns that site on from the popup, so they do not have to reload. | `extension/src/sites.js:24-36`, `:56-60` |
 | `activeTab` | When the user opens the popup or uses a shortcut, gives access to the current tab's address so the popup can show and switch Lang Weave for that site and ask Chrome for that one site's permission. | `extension/src/popup.js:73`; `extension/src/commands.js:6-13` |
-| `contextMenus` | Adds one item, "Add to Lang Weave", for selected text on web pages, so the user can save a word to their own vocabulary. It opens an extension page; nothing is sent anywhere. | `extension/src/capture-handlers.js:235-242` |
-| Host `https://generativelanguage.googleapis.com/*` | The only server Lang Weave contacts. With the user's own key, it sends readable text from user-allowed pages to Google's Gemini API to choose which words to swap; it also sends a one-line key test and an optional generated-language request when the user asks. | `extension/src/gemini.js:9`, `:24-30`; `extension/src/settings-handlers.js:249-255`; `extension/src/languages.js:55-64` |
-| Optional hosts `http://*/*`, `https://*/*` | Never requested at install. Requested only from a user click: one site from the popup, or all sites from the welcome page or Settings if the user chooses that. Lets the reading script read and rewrite text on those sites. Sensitive sites stay off even when all sites are granted. | `extension/src/popup.js:73`; `extension/src/sites.js:47-50`; `extension/src/welcome.js:33`; `extension/src/options.js:189-190`; `extension/src/settings.js:55-96` |
+| `contextMenus` | Adds one item, "Add to Lang Weave", for selected text on web pages, so the user can save a word to their own vocabulary. Saving sends nothing; it opens an extension page and stores the entry locally. | `extension/src/capture-handlers.js:235-242` |
+| Host `https://generativelanguage.googleapis.com/*` | The only server Lang Weave contacts, always with the user's own key: reading requests (page text plus candidate words and settings, as listed above), a one-line key test, and an optional generated-language request. | `extension/src/gemini.js:9`, `:24-30`; `extension/src/settings-handlers.js:249-255`; `extension/src/languages.js:55-64` |
+| Optional hosts `http://*/*`, `https://*/*` | Never requested at install. Requested only from a user click. "Only sites I turn on" asks Chrome for one site at a time from the popup. "All sites except sensitive ones" (welcome page or Settings) asks Chrome once for every HTTP(S) site; Chrome then grants all of them, and it is Lang Weave, not Chrome, that keeps a list of sensitive sites switched off until the user turns one on from the popup. The X suggestion asks for `https://x.com/*` only. The wildcard declaration is needed for both choices because Chrome only lets an extension request origins it declares. | `extension/src/popup.js:73`; `extension/src/sites.js:47-50`; `extension/src/welcome.js:33`, `:56`; `extension/src/options.js:189-190`; `extension/src/settings.js:55-96` |
 | `commands` (manifest key, not a permission) | Two keyboard shortcuts: pause or resume Lang Weave on the current site, and open the review page. | `extension/manifest.json:27-36`; `extension/src/commands.js:4-29` |
 
-Not requested: `tabs`, `history`, `cookies`, `identity`, `webRequest`, `<all_urls>` at install, `alarms` (Store build).
+Not requested: `tabs`, `history`, `cookies`, `identity`, `webRequest`, host access at install, `alarms` (Store build).
 
 ### 4b. Remote code
 
-**"No, I am not using remote code."** All JavaScript is in the package. Gemini returns JSON, which is parsed (`extension/src/gemini.js:50-57`), validated against the listed vocabulary (`extension/src/engine.js:40`) and inserted as text (`extension/src/text.js:118-123`). The Store zip scan found no `eval(`, `new Function`, `importScripts` or remote `<script src>`; the only dynamic `import()` is in the unreferenced `src/content-loader.js`, and it imports the extension's own file. The MV3 guidance: RHC "does not include data or things like JSON or CSS" (<https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code>), and "Communicating with remote servers for certain purposes is still allowed" (<https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements>).
+**"No, I am not using remote code."** All JavaScript is in the package. Two kinds of model output exist, and both are data:
+
+- **Swap responses** are parsed as JSON (`extension/src/gemini.js:50-57`), validated against the listed vocabulary (`extension/src/engine.js:40`) and written with `textContent` or text nodes (`extension/src/text.js:175`, `:192`, `:205`).
+- **Generated-language packs** are parsed as JSON and validated field by field (`cleanPack`, `extension/src/languages.js:17-29`: 20–80 entries, level 1 or 2, bounded form, gloss and hint) before storage. Their words then flow through the same swap and text-node path. A negative search found no `innerHTML` in `extension/src/`; the single `insertAdjacentHTML` (`extension/src/placement-page.js:6`) inserts a static template.
+
+The Store zip scan found no `eval(`, `new Function`, `importScripts` or remote `<script src>`. The only dynamic `import()` is in the unreferenced `src/content-loader.js`, and it imports the extension's own file. MV3 guidance: RHC "does not include data or things like JSON or CSS" (<https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code>); "Communicating with remote servers for certain purposes is still allowed" (<https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements>). Residual: R19 below.
 
 ### 4c. Data usage
 
-The fetched Dashboard page does not list the category names; the user-data FAQ lists examples instead. The rows below use the category names Ted will see [VERIFY each name live]. Over-disclosure is the safe error: the FAQ says extensions "are required to disclose how they handle user data, even when data is processed or stored locally" (user-data-faq Q3).
+The fetched Dashboard page does not list the category names or their definitions; the user-data FAQ lists examples instead. Rows use the names Ted will see [VERIFY each name and definition live]. The FAQ says extensions "are required to disclose how they handle user data, even when data is processed or stored locally" (user-data-faq Q3).
 
 | Category | Answer | Why |
 |---|---|---|
 | Website content | **Yes** | Readable text from allowed pages is sent to Gemini (PRIVACY-POLICY C6). Short fragments are cached locally (C15). |
 | Authentication information | **Yes** | The user's Gemini API key is stored locally and sent to Google as the request credential (C3, C4). |
-| User activity | **Yes** (judgment) | Local records of hovers, flips, guesses and review outcomes on Lang Weave's own words, with times (C16). Not transmitted. |
-| Web history | No | No list of visited pages is kept. Host names the user turns on or off are stored as settings; reading dates hold dates only (C16). [Ted: confirm] |
-| Personally identifiable information | No | Nothing asks for a name, email or ID. |
-| Personal communications | No | Webmail, messaging and AI chat start off (C10). A user who turns such a site on sends its text as website content, already declared. |
-| Health information, Financial and payment information | No | Not collected by design; health, banking and payment sites start off and high-stakes passages are skipped (C10). |
+| User activity | **Yes** | Local records of hovers, flips, guesses and review outcomes on Lang Weave's own words, with times (C16). Derived labels (due/new/active/known, today's shown forms) are sent to Google with candidate words (C8). |
+| Web history | No [Ted: confirm] | No list of visited pages is kept or sent. Host names the user turns on or off are stored as settings; reading dates hold dates only (C16). |
 | Location | No | Not collected. Google sees the request IP under its own terms. |
+| Personal communications | **UNRESOLVED** | *For No:* no communication is read as such; webmail, messaging and AI chat start off (C10); nothing records messages. *For Yes:* a user can turn such a site on, and its readable text is then sent like any page; selected text can be saved locally. Depends on the live definition: "handles" vs "collects as a category". |
+| Personally identifiable information | **UNRESOLVED** | *For No:* Lang Weave never asks for a name, email or ID. *For Yes:* passages can contain names and other identifiers of the user or of other people (policy C9), and they are sent to Google. |
+| Health information | **UNRESOLVED** | *For No:* health portals start off, and health passages and titles are skipped (C10). *For Yes:* the filter is a fixed word list and heuristic; a user can enable a health site; missed passages are sent. |
+| Financial and payment information | **UNRESOLVED** | *For No:* banking and payment sites start off; financial passages, titles and checkout/billing paths are skipped (C10). *For Yes:* same heuristic limits; a user can enable such a site. |
+
+The safe error is over-disclosure ("If the information listed in your privacy fields contradicts the information provided in your privacy policy", listing-requirements). Ted decides the four unresolved rows against the live definitions; whichever way, the policy must say the same thing (R7).
 
 ### 4d. Certifications
 
+> **HOLD — pending Ted ruling (DECISIONS D3a).** Do not tick any certification, including Limited Use, until the free-key question (R5) is ruled.
+
 The Dashboard's three checkboxes (wording from the previous draft; the fetched docs only say "Use the second group of checkboxes to certify that you comply with each of the disclosure statements" [VERIFY verbatim live]):
 
-1. I do not sell or transfer user data to third parties, outside of the approved use cases. **True**: the only transfer is page text and the key to Google's Gemini API, necessary for the single purpose, under the user's own key.
-2. I do not use or transfer user data for purposes that are unrelated to my item's single purpose. **True.**
-3. I do not use or transfer user data to determine creditworthiness or for lending purposes. **True.**
+1. I do not sell or transfer user data to third parties, outside of the approved use cases. **HOLD.** Lang Weave transfers page text, candidate words with progress-derived labels, and the key to Google's Gemini API, plus key-test and generation requests. Whether a free-key transfer, which Google may use for its own products, is an approved use case is D3a.
+2. I do not use or transfer user data for purposes that are unrelated to my item's single purpose. **HOLD** for the same reason (Google's secondary use under Unpaid terms).
+3. I do not use or transfer user data to determine creditworthiness or for lending purposes. True for Lang Weave; tick together with the others once D3a is ruled.
 
-Also tick the Limited Use certification only after the hosted policy page carries the Limited Use statement ("must show a Limited Use disclosure on your project's homepage or on a page one click away from the homepage", user-data-faq). Privacy policy URL: [PRIVACY POLICY URL, e.g. https://tedks.com/projects/lang-weave/privacy/ once tedks/website#53 is merged].
+Limited Use certification: HOLD (D3a). It also needs the hosted policy page to carry the Limited Use statement ("must show a Limited Use disclosure on your project's homepage or on a page one click away from the homepage", user-data-faq). Privacy policy URL: [PRIVACY POLICY URL, e.g. https://tedks.com/projects/lang-weave/privacy/ once tedks/website#53 is merged].
 
 ## 5. Reviewer test instructions
 
-Paste into the **Test instructions** tab. The docs call that tab optional and "only useful if the item requires restricted credentials or a paid account for full access to all features" (<https://developer.chrome.com/docs/webstore/cws-dashboard-test-instructions>). A Gemini key is a free credential a reviewer can make, so the instructions say how, and no one's key is shared.
+Paste into the **Test instructions** tab. The docs call that tab optional and "only useful if the item requires restricted credentials or a paid account for full access to all features" (<https://developer.chrome.com/docs/webstore/cws-dashboard-test-instructions>).
+
+**Open (R10): there is no settled, compliant way for a reviewer to exercise real-site weaving yet.** Steps 1–6 need nothing. Steps 7–11 need a Gemini key, and which kind of key is acceptable depends on D3a and R6: a reviewer may not be able or allowed to create one, and if the Store build requires a billed key (D3a option a), an unpaid reviewer key would not match the intended configuration. Ted must choose before submission: (a) a dedicated, capped, billed review key in its own Cloud project, deleted after review; (b) instructions for the reviewer's own key; (c) submit with the keyless path only and say so. The draft below assumes (b) and must be revised to the ruling.
 
 ```
 No account or key is needed to see the product.
@@ -213,32 +237,32 @@ No account or key is needed to see the product.
 1. Install. A welcome tab opens.
 2. Under "1. Try a reading sample", choose Spanish or Paraguayan Guaraní and a passage. Hover or focus an underlined word for its meaning; click it (or Enter/Space) to flip it to English. This uses bundled data only; there is no network request.
 3. Click "Practice a paragraph". Paste any English paragraph and try the suggested words. Nothing leaves the tab.
-4. Under "2. Choose where it may read", read the disclosure, then click "Only sites I turn on · recommended". Until a choice is made the extension refuses every Gemini request, including key tests.
+4. Under "2. Choose where it may read", read the disclosure, then click "Only sites I turn on · recommended". Until a choice is made the extension refuses every Gemini request, including key tests. (The other choice, "All sites except sensitive ones", makes Chrome ask once for access to every website; Lang Weave then keeps webmail, banking, health and similar sites off until you turn one on.)
 5. Open the toolbar popup > My words, and Practice. Add five new words and rate them. Review works offline.
 6. Optional: Settings > Your data > Learning backup downloads a local JSON file of progress (no key, no site data).
 
-Weaving on real websites (needs a Gemini API key):
-7. Create a free key in Google AI Studio (https://aistudio.google.com/apikey) with a test Google account. Do not use a key that matters; with a free key Google may use requests to improve its products.
+Weaving on real websites (needs a Gemini API key) [REVISE TO D3a / R6 RULING]:
+7. [KEY SOURCE: per Ted's ruling.] Do not use a key that matters.
 8. Settings > Gemini: paste the key, Save key, Test key (sends "Reply OK." to Google).
-9. Open a plain English article on a non-sensitive site, open the popup, tick "Turn on for this site" and accept Chrome's prompt for that one site. A few words are swapped. Hover for meaning; click to flip.
-10. Untick the site or switch the popup's On switch off: original text is restored and no further requests are sent. Webmail, banking and health sites stay off even with "All sites except sensitive ones".
-11. Select a word on the page, right-click > Add to Lang Weave to save it locally (no network call).
+9. Open a plain English article on a non-sensitive site, open the popup, tick "Turn on for this site" and accept Chrome's prompt for that one site. A few words are swapped. Hover for meaning; click to flip. The request carries the passages, the candidate words with their status labels, the reading settings and the key.
+10. Untick the site or switch the popup's On switch off: original text is restored and no new requests are sent (a request already in flight completes). Webmail, banking and health sites stay off even with "All sites except sensitive ones".
+11. Select a word on the page, right-click > Add to Lang Weave to save it locally. Saving sends nothing.
 
-X/Twitter is not injected by default in this build; it needs the same per-site grant as any site.
+X/Twitter is not injected by default in this build; it needs a per-site grant like any site.
 ```
-
-[OPTIONAL, Ted's account action] If Ted prefers reviewers not to create a key, make a dedicated Google Cloud project with a low quota cap, create a key there for review only, put it in the test-instructions field, and delete the key after review. Never reuse a personal key.
 
 ## 6. Distribution recommendation
 
+**Resolve R6 (provider-terms fit) before making even an Unlisted build available.** Distribution choices narrow some provider risks but do not resolve them.
+
 | Setting | Recommendation | Reason |
 |---|---|---|
-| Visibility | **Unlisted** for the first review, then Public | "All visibility settings have the same policy requirements and will go through the same review process" (cws-dashboard-distribution), so Unlisted buys no easier review, but it limits who finds an early build while support and the consent wording settle. Private needs a tester list. Do not create a second "beta" item: one item avoids a duplicate listing and a second ID. |
-| Regions | **United States only** to start [Ted decides under `store-provider-region-ruling`] | Gemini terms: "You may use only Paid Services when making API Clients available to users in the European Economic Area, Switzerland, or the United Kingdom." Lang Weave cannot tell whether a key is billed, so EEA, UK and Swiss distribution makes the publisher rely on users following the in-product note (`options.html:71`). The terms also limit use to "an available region"; the US is listed on the available-regions page (fetched Nov 28, 2026; about 190 countries, EEA, UK and Switzerland all listed). Other non-EEA/UK/CH available regions can be added once support exists. |
-| Age | No Store control; state 18+ in listing and product | Gemini terms: "You must be 18 years of age or older to use the APIs" and API Clients must not be "directed towards or is likely to be accessed by individuals under the age of 18." Do not market to students or schools. Leave Mature content off; it is for content, not age gating. |
-| Consumer use | Open question for Ted/counsel | Gemini terms describe the APIs as "for professional or business purposes, not for consumer use." A BYOK consumer extension sits uneasily with that line. Not a Store review rule, but a provider-terms risk (R6). |
-| Deferred publishing | Use it | "Once the review is complete, you will have up to 30 days to publish" (<https://developer.chrome.com/docs/webstore/publish>). Lets Ted inspect the approved item before it goes live. |
-| Pricing | Free | No payments, so no physical address requirement ("Required in some circumstances", only for items that sell items, features or subscriptions, set-up-account). |
+| Visibility | **Unlisted** for the first review, then Public | "All visibility settings have the same policy requirements and will go through the same review process" (cws-dashboard-distribution), so Unlisted buys no easier review; it limits who finds an early build. Do not create a second "beta" item. |
+| Regions | **United States only** to start [Ted decides under `store-provider-region-ruling`] | Gemini terms: "You may use only Paid Services when making API Clients available to users in the European Economic Area, Switzerland, or the United Kingdom." The obligation falls on whoever makes the client available; telling users to use billed keys while accepting any key does not establish compliance there, so excluding those territories is the only option the current build supports. The terms also limit use to "an available region"; the US is listed (available-regions page, fetched Nov 28, 2026). US-only addresses only this clause. |
+| Professional/business use | **Open (R6)** | Gemini terms describe the APIs as "for professional or business purposes, not for consumer use." Distribution settings cannot resolve this. Ted/counsel must decide the approved audience and use, then state it in the listing and reviewer instructions. |
+| Age | **Open (R6)** for the "likely to be accessed" clause | "You must be 18 years of age or older to use the APIs" and API Clients must not be "directed towards or is likely to be accessed by individuals under the age of 18." The product and listing state 18+; the Store has no age gate, so "likely to be accessed" depends on audience and marketing. Do not market to students or schools. Mature content stays off; it is a content flag, not an age gate. |
+| Deferred publishing | Use it | "Once the review is complete, you will have up to 30 days to publish" (<https://developer.chrome.com/docs/webstore/publish>). |
+| Pricing | Free | No in-item purchases. |
 
 ## 7. Developer account checklist (Ted's actions; none taken)
 
@@ -249,8 +273,8 @@ X/Twitter is not injected by default in this build; it needs the same per-site g
 | Publisher name | Required; "Appears under "Offered by:"" (set-up-account). |
 | Verified contact email | "Verify your email (Required)"; shown under the item's contact information. |
 | 2-Step Verification | "2-Step Verification is required for all developer accounts prior to publishing an extension" (<https://developer.chrome.com/docs/webstore/program-policies/two-step-verification>). |
-| Trader / non-trader (EU DSA) | "it is the developer's responsibility to accurately self-declare their trader/non-trader status"; "The verified information of traders is available to users of the Chrome Web Store" (<https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure>). A free hobby item may be non-trader; Ted or counsel decides. If the item is not offered in the EU (section 6), the question matters less but still appears. |
-| Physical address | Not required for a free item without purchases (set-up-account). |
+| Trader / non-trader (EU DSA) | **Conditional.** "it is the developer's responsibility to accurately self-declare their trader/non-trader status"; traders are verified with "their legal name, contact details, and possibly other relevant identification documents", and "The verified information of traders is available to users of the Chrome Web Store" (<https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure>). Which status applies, and whether it matters if the item is not offered in the EU, was not established (the account and DSA support pages returned 404). Ted or counsel decides. |
+| Physical address | **Conditional.** The set-up-account page requires it for items that "offer functionality to purchase items, additional features, or subscriptions"; Lang Weave has none. A trader declaration may separately require verified contact details, possibly including an address; not established. |
 | Item ID | Decide `store-first-upload-key` before the first upload (R2). |
 
 ## 8. Placeholders Ted must fill
@@ -272,58 +296,62 @@ X/Twitter is not injected by default in this build; it needs the same per-site g
 | Category | Listing | Verify "Education" exists. |
 | "beta" wording | Description | Decide. |
 | Manifest `key` / first-upload method | Package | `store-first-upload-key`, `store-manifest-key-delta`. |
-| Reviewer key (optional) | Test instructions | Dedicated, capped, deleted after review. |
+| D3a free-key ruling | Policy Limited Use; 4d certifications; description data paragraph | (a) billed key required, (b) accept with disclosure, (c) delay. Blocks submission (R5). |
+| Sensitive-category answers | 4c | Four rows UNRESOLVED; decide against live definitions. |
+| Approved audience and use | Listing; reviewer instructions | R6, with counsel. |
+| Reviewer key plan | Test instructions | Section 5 options (a)-(c); never a personal key. |
 | Trademark lines | Description | Ted or counsel confirm. |
-| Consent wording change (R1) | Code | Gap; needs a ruling and a release. |
+| Consent disclosure and wording change (R1) | Code | Gap: name the full payload, affirmative buttons, versioned consent. Needs a ruling and a release. |
+| Trader status and any address | Account | Conditional (section 7). |
 | Icon padding check | Listing | 96×96 mark in 128×128. |
 
 ## 9. Rejection-risk register
 
-Likelihood and impact are judgments (H/M/L), not measurements. Ranked by likelihood × impact.
+Likelihood (L) and impact (I) are judgments (H/M/L), not measurements. **BLOCKER** means do not submit until it is resolved. Ranked by status, then likelihood × impact.
 
 | # | Risk | L | I | Status / evidence | Fix |
 |---|---|---|---|---|---|
-| R1 | **Affirmative consent not explicit enough.** The FAQ wants "a specific action clearly agreeing to the disclosure before collecting or handling user data", "within the Product's user interface", not "only in a privacy policy". 0.16.1 shows the disclosure on the welcome page and blocks every Gemini call until the user clicks a site-policy button (`welcome.html:47-56`; `reading.js:231-236`; `settings-handlers.js:227`). The buttons say "Only sites I turn on · recommended" / "All sites except sensitive ones", not "I agree". A reviewer may read them as a settings choice rather than consent. | M | H | Partly handled | Code gap: relabel the buttons to carry agreement (for example "Agree and use only sites I turn on"), and show one line of the disclosure at the popup's first per-site grant. Needs a ruling and a release. |
-| R2 | **Manifest `key` in the uploaded zip.** The Store build keeps the dev `key` (`manifest.json:6`; `package.mjs:51`). The key docs only describe keeping a dev ID; no fetched page says what the Store does with a `key` in an upload. Outcomes range from ignore to reject to a different item ID. | M | H | Open (`store-first-upload-key`, `store-manifest-key-delta`) | Ted's ruling before the first upload. Do not upload a `-store` zip until then. |
-| R3 | **Broad optional host permissions** `http://*/*`, `https://*/*`. "Request access to the narrowest permissions necessary" applies to optional ones too ("The policy applies to both required and optional permissions", user-data-faq). "Reviews may take longer for extensions that request broad host permissions" (review-process). | M | M | Handled in design: optional, per-site by default, user-initiated, sensitive sites off (`popup.js:73`; `sites.js:47-50`; `settings.js:55-96`) | Use the 4a justification verbatim. If rejected, the fallback is to drop the "all sites" choice, a product change. |
-| R4 | **API key stored unencrypted.** FAQ Q9 describes data "stored at rest using a strong encryption method such as RSA or AES"; the index says "Keep authentication information secure." The key sits in `chrome.storage.local` with `TRUSTED_CONTEXTS` (`background.js:60-64`), which keeps content scripts out but is not encryption. | L | M | Disclosed honestly in the policy | Options: accept and disclose; session-only key with re-entry; no real at-rest encryption is possible without a user secret. Ruling needed if a reviewer raises it. |
-| R5 | **Google's human review of free-key requests vs Limited Use.** "Do not allow humans to read user data, unless" one of four exceptions applies. Lang Weave's own staff read nothing, but free-key requests may be read by Google's reviewers. | L | H | Disclosed in the welcome page, Settings and policy (`welcome.html:50`; `options.html:65`, `:71`) | A billed-key requirement removes it; a store-only "billed key" acknowledgement is a smaller step. Ruling. |
-| R6 | **Gemini terms fit** ("not for consumer use", 18+, minors, EEA/UK/CH Paid-only). Not a Store review rule, but a reviewer or Google could treat a consumer BYOK client as outside the API terms. | L | H | 18+ in product; EEA/UK/CH note in Settings | `store-provider-region-ruling`; US-only distribution; counsel. |
-| R7 | **Privacy fields vs policy mismatch** ("If the information listed in your privacy fields contradicts the information provided in your privacy policy", listing-requirements). | L | H | This packet and the policy were refreshed together | Re-diff both before submission; the hosted page must match the repo draft. |
-| R8 | **Privacy policy URL not live** at submission. | M | M | tedks/website#53 is a draft | Merge #53 (Ted) before submitting. |
-| R9 | **Dead modules in the zip.** `src/content-loader.js` (with a dynamic `import()` of the extension's own `src/content.js`) and the ES-module `src/content.js` ship but are unreferenced in the Store build. MV3 wants "the full functionality of an extension must be easily discernible from its submitted code". Not remote code, but unexplained code invites questions. | L | L | Open (`store-bundle-dead-loader`) | Drop both from the Store zip in `package.mjs`, or explain in test instructions. |
-| R10 | **Required key before core function / minimum functionality.** A reviewer without a key could see "Add a Gemini key to start". | L | M | Handled: keyless samples, paragraph practice and review (`welcome.html:31-46`) | Section 5 instructions. |
-| R11 | **Trademarks.** "Gemini", "Google", "Duolingo" appear in UI and description. Name is clean. Branding guide: "Give proper attribution for the use of any Google trademarks". The Duolingo Score field has no non-affiliation line in the product. | L | M | Description has attribution lines | Keep the attribution lines; consider a non-affiliation note beside the Duolingo field (code). |
-| R12 | **Self-update code in the Store build.** `update.js` still ships. It does nothing when the installed manifest has an `update_url` (`update.js:22`, `:43`, `:84`); the Store build has no `alarms`, and the listener is optional-chained (`background.js:199`). That the Store writes `update_url` into installed manifests is Chrome behavior not stated on any fetched page; the harness simulates it (`store-shots.mjs` sets `update_url`). If it were absent, the worker would fetch its own packaged manifest, find the same version, and do nothing. | L | L | Handled | Verify after the first Store install by reading the installed manifest. |
-| R13 | **Single purpose breadth** (weave, review, capture, generated packs, placement, paragraph practice). "Excessive permissions unrelated to your extension's single purpose" (quality FAQ). | L | M | All features are language learning; no unrelated permission | Use section 2 wording. |
-| R14 | **Text-heavy images.** Images guide: "Avoid text"; best listing: "Images should not use too much text". Screenshots are real UI, which is text; the promo tile has one line. | L | L | Acceptable | Keep the promo tile minimal. |
-| R15 | **Screenshots do not match the build.** | L | M | Refreshed for 0.16.1 on this branch | Rerun the harness at every submitted version. |
-| R16 | **Disclosure of later data-practice changes** ("the extension must prominently disclose data practice changes"). | L | M | Future risk | Any new data flow needs a new consent step, not just a policy edit. |
-| R17 | **Static X/Twitter injection** (dev manifest). | — | — | Handled: removed in the Store build (`package.mjs:54-75`); welcome offers an explicit "Allow x.com" grant (`welcome.js:11-16`, `:56`) | — |
-| R18 | **`web_accessible_resources` exposing 19 modules** (dev manifest). | — | — | Handled: removed in the Store build; content runs as one classic bundle (`package.mjs:85-95`, `:585-601`) | — |
-| R19 | **eval / remote script.** | — | — | None in the Store zip (scan above) | — |
-| R20 | **`minimum_chrome_version` 140.** | L | L | Not a policy issue; excludes older Chrome only | — |
-| R21 | **Localization incomplete.** | L | L | Only `en`; every manifest `__MSG_` key present | — |
+| R5 | **Free-key transfer vs Limited Use: BLOCKER.** Under the Unpaid terms Google uses submitted content "to provide, improve, and develop Google products and services" and "human reviewers may read, annotate, and process your API input and output". Limited Use allows transfer only "If necessary to providing or improving your single purpose" and says "Do not allow humans to read user data, unless" one of four exceptions applies. No exception that covers either was identified. A user-supplied key does not change who receives the data. Disclosure (`welcome.html:50`; `options.html:65`, `:71`) informs users but does not resolve it. | M | H | **BLOCKER: open, DECISIONS D3a** | Ted rules: (a) the Store build requires a billed key (billed requests are still logged for a limited period for abuse and legal purposes, and the extension cannot itself verify billing, so a billing acknowledgement does not prove which terms apply); (b) accept the risk with disclosure; (c) delay submission. The Limited Use statement and every certification stay on HOLD until then. |
+| R2 | **Manifest `key` in the uploaded zip.** The Store build keeps the dev `key` (`manifest.json:6`; `package.mjs:51`). No fetched page says what the Store does with a `key` in an upload; outcomes range from ignoring it to rejecting the upload to assigning a different item ID. | M | H | **BLOCKER: open** (`store-first-upload-key`, `store-manifest-key-delta`) | Ted rules before the first upload. Do not upload a `-store` zip until then. |
+| R6 | **Gemini terms fit**: "not for consumer use", 18+, and API clients "likely to be accessed" by minors; Paid Services only in the EEA, Switzerland and the UK. US-only distribution covers only the last of these. | M | H | **BLOCKER: open** (`store-provider-region-ruling`) | Ted/counsel decide the approved audience and use before any build, Unlisted included, is available. State the result in the listing and reviewer instructions. |
+| R1 | **Consent does not yet cover the payload.** The FAQ wants a disclosure that describes "the types of user data to be collected and how they will be used", and consent through "a specific action clearly agreeing to the disclosure", "within the Product's user interface". **Check of 0.16.1:** (1) *Recipient*: the welcome page names Google's Gemini API and the user's key, and Google's free-key use and human review (`welcome.html:49-50`). Covered. (2) *Payload*: it names readable page text, the key test and pack generation (`welcome.html:49`, `:52`). It does **not** say that candidate words with progress-derived labels, eligible saved words, or reading level, density and language travel with the text. Not covered. (3) *Action*: every Gemini path stays blocked until a site-policy click (`background.js:81`; `reading.js:231-236`; `settings-handlers.js:46`, `:59`, `:227`, `:243`), but the buttons read "Only sites I turn on · recommended" and "All sites except sensitive ones", not agreement. Partly covered. (4) *All-sites path*: the same disclosure sits above both buttons. Covered, with the payload gap from (2). (5) *X grant*: "Allow x.com" sits in the same section and grants only a host; model calls still need the policy click. Covered. (6) *Settings actions*: key test and generation are gated on the same flag. Covered. (7) *Upgrades*: the flag is set to false only on a profile with no stored settings (`background.js:81`). A profile that predates the consent screen is never asked, and a later change to the disclosure does not ask again. A Store install always starts with fresh storage, and backup import does not carry the flag, so this is not reachable in the Store build today; it is a gap for future disclosure changes (R16). (8) *Popup per-site grant*: no disclosure at the moment of the grant; it relies on the earlier welcome choice. | M | H | **Open: code gaps** | Code gaps (not changed here): extend the welcome disclosure to name the candidate words, their progress labels, saved words and reading settings; make the buttons state agreement ("Agree and use only sites I turn on"); version the consent so that a changed disclosure asks again; consider one line at the first popup grant. Needs a ruling and a release. |
+| R8 | **Privacy policy URL not live** at submission. | M | M | Open: tedks/website#53 is a draft | Merge #53 (Ted) after D3a, with placeholders filled. |
+| R23 | **Developer account gaps**: 2-Step Verification, verified email, trader declaration. | M | M | Open: Ted's actions | Section 7. |
+| R7 | **Privacy fields vs policy mismatch** ("If the information listed in your privacy fields contradicts the information provided in your privacy policy", listing-requirements). Four sensitive-category answers are UNRESOLVED (4c). | M | H | Open until 4c and D3a are settled | Settle 4c against the live definitions, then diff the packet, the policy and the hosted page before submitting. |
+| R10 | **Reviewer cannot exercise real-site weaving reproducibly.** The keyless path works (`welcome.html:31-46`). The website workflow needs a key, and which key is acceptable depends on D3a and R6. | M | M | Open | Choose a key plan (section 5) consistent with the D3a ruling; include the site grant and pause steps. |
+| R3 | **Broad optional host permissions** `http://*/*`, `https://*/*`. "Request access to the narrowest permissions necessary" covers optional permissions as well ("The policy applies to both required and optional permissions", user-data-faq). "Reviews may take longer for extensions that request broad host permissions" (review-process). The all-sites choice gives Chrome-level access to every site in one prompt; the sensitive-site defaults are Lang Weave's own and the user can override them per site. | M | M | Mitigated by design: optional, user-initiated, per-site by default (`popup.js:73`; `sites.js:47-50`; `settings.js:55-96`) | Use the 4a wording, which states the breadth. Fallbacks, both product changes: remove the all-sites choice **and** reassess the wildcard optional declaration (per-site requests still need the declaration to cover the requested origin; Chrome has no narrower declarative form for "any site the user picks"). |
+| R4 | **Data at rest not encrypted.** FAQ Q9 describes data "stored at rest using a strong encryption method such as RSA or AES"; the index says "Keep authentication information secure." The key, cached page fragments (`cache.js`), saved words and learning data are in `chrome.storage.local` with `TRUSTED_CONTEXTS` (`background.js:60-64`), which controls access but does not encrypt. | L | M | Open: applicability of Q9 to extension-local storage not established | Verify whether Q9 applies before submission. If it does, disclosure alone does not satisfy it. Candidate designs (not evaluated): session-only key, shorter cache retention, encryption with a key derived or stored separately. |
+| R12 | **Self-update code in the Store build.** `update.js` ships and does nothing when the installed manifest has an `update_url` (`update.js:22`, `:43`, `:84`). The harness *supplies* `update_url`, so the real Store-install path is not shown. If a Store install had no `update_url`, `arm()` would run `checkUpdate()` at install and startup (`background.js:193`, `:198`): it fetches the packaged `manifest.json`, compares versions (equal, so no reload), and `chrome.alarms` is absent, so no timer is set. Static reading only; the no-`update_url` branch has not been run against a Store-shaped build. | L | L | **Open** | Run the Store-shaped build without `update_url` in a test profile; after the first Store install, read the installed manifest. |
+| R15 | **Screenshots do not match the build.** Refreshed for 0.16.1, but rendered with cached Chromium 155, checked by `--check` (dimensions only) and by eye against the previous images, not against an installed Store build. | L | M | **Open** | Render with the pinned revision and compare by eye with an installed Store-build profile before upload. |
+| R19 | **Remote code / model-controlled input.** Swaps and generated packs are traced as data (4b), and the zip scan found no eval or remote script. The scan is a text search, and the generated-pack path is traced statically (`languages.js:17-29`, text-node rendering), not exercised in a browser test with hostile pack content. | L | M | **Open** where the evidence stops | Add a browser check with adversarial generated-pack fields (markup, scripts) to confirm text-only rendering on every page that shows pack words. |
+| R13 | **Single purpose breadth** (weave, review, capture, generated packs, placement, paragraph practice). "Excessive permissions unrelated to your extension's single purpose" (quality FAQ). | L | M | All features are language learning | Use section 2 wording. |
+| R11 | **Trademarks.** "Gemini", "Google", "Duolingo" in UI and description; the name is clean. Branding guide: "Give proper attribution for the use of any Google trademarks". The Duolingo Score field has no non-affiliation line in the product. | L | M | Attribution lines in description | Keep them; consider a non-affiliation note beside the Duolingo field (code). |
+| R16 | **Later data-practice changes** ("the extension must prominently disclose data practice changes"). | L | M | Future risk; see R1 item 7 | Versioned consent (code gap). |
 | R22 | **Duplicate listing / spam** if a separate "beta" item is created. | L | M | Not planned | One item only. |
-| R23 | **Developer account gaps** (2SV, trader declaration, verified email). | M | M | Ted's actions | Section 7. |
+| R9 | **Unloaded modules in the zip.** Five files ship that nothing in the Store build loads: `src/content-loader.js` (with a dynamic `import()` of the extension's own `src/content.js`), `src/content.js`, `src/page.js`, `src/panel-style.js`, `src/personal-capture.js` (computed from the static import graph of the manifest entry points, HTML pages and `src/content-bundle.js`). MV3 wants "the full functionality of an extension must be easily discernible from its submitted code". Not remote code, but unexplained duplicate code invites questions. | L | L | Open (`store-bundle-dead-loader`) | Omit them from the Store zip in `package.mjs`, or explain them in the test instructions. |
+| R14 | **Text-heavy images.** Images guide: "Avoid text"; best listing: "Images should not use too much text". | L | L | Screenshots are real UI; promo has one line | Keep the promo minimal. |
+| R20 | **`minimum_chrome_version` 140.** | L | L | Not a policy issue | — |
+| R21 | **Localization.** | L | L | Only `en`; every manifest `__MSG_` key present | — |
+| R17 | **Static X/Twitter injection** (dev manifest). | — | — | Handled: removed in the Store build (`package.mjs:54-75`); explicit "Allow x.com" grant offered (`welcome.js:11-16`, `:56`) | — |
+| R18 | **`web_accessible_resources` exposing 19 modules** (dev manifest). | — | — | Handled: removed in the Store build; content runs as one classic bundle (`package.mjs:85-95`, `:585-601`) | — |
 
 ## 10. Policy check (fetched November 28, 2026)
 
 | Policy clause (short quote, URL) | How 0.16.1 complies | Evidence | Residual risk |
 |---|---|---|---|
-| "Extensions may only collect, use, or transmit user data that is necessary for the extension's disclosed single purpose" (<https://developer.chrome.com/docs/webstore/program-policies/limited-use>) | Only passages, candidate words and the key go to Gemini, only for weaving on allowed sites | PRIVACY-POLICY C1, C6, C8, C9 | Low |
-| "Only transfer user data to third parties ... If necessary to providing or improving your single purpose" (limited-use) | One third party, Google's Gemini API, under the user's key | `gemini.js:9`, `:24-30` | Low |
-| "Do not allow humans to read user data, unless:" (limited-use) | Publisher reads nothing; free-key Google review disclosed | `welcome.html:50` | R5 |
-| "must show a Limited Use disclosure on your project's homepage or on a page one click away from the homepage" (<https://developer.chrome.com/docs/webstore/program-policies/user-data-faq>) | Statement in the policy draft and website#53 | PRIVACY-POLICY.md "Limited Use disclosure" | R8 until merged |
-| "If your Product handles any user data, then you must post an accurate and up to date privacy policy." "All parties the user data will be shared with." (<https://developer.chrome.com/docs/webstore/program-policies/privacy>) | Policy names Google's Gemini API as the only recipient | PRIVACY-POLICY.md | R8 |
-| "The prominent disclosure and consent must occur within the Product's user interface." / "a specific action clearly agreeing to the disclosure" (user-data-faq Q10) | Welcome-page disclosure; every model call blocked until a site-policy click | `welcome.html:47-56`; `background.js:81`; `reading.js:231-236`; `settings-handlers.js:46`, `:59`, `:227`, `:243` | R1 |
+| "Extensions may only collect, use, or transmit user data that is necessary for the extension's disclosed single purpose" (<https://developer.chrome.com/docs/webstore/program-policies/limited-use>) | Reading requests carry passages, candidate words with progress labels, reading settings and the key; key tests and generation carry a fixed prompt or a language code and name. All serve weaving. | PRIVACY-POLICY C1, C6, C8, C9, C12, C13 | R5 |
+| "Only transfer user data to third parties ... If necessary to providing or improving your single purpose" (limited-use) | One recipient, Google's Gemini API, under the user's key. Under Unpaid terms Google may also use the data for its own products. | `gemini.js:9`, `:24-30` | **R5 (BLOCKER)** |
+| "Do not allow humans to read user data, unless:" (limited-use) | Publisher reads nothing; Google's reviewers may read free-key requests; no exception identified | `welcome.html:50` | **R5 (BLOCKER)** |
+| "must show a Limited Use disclosure on your project's homepage or on a page one click away from the homepage" (<https://developer.chrome.com/docs/webstore/program-policies/user-data-faq>) | Statement drafted, on HOLD (D3a) | PRIVACY-POLICY.md "Limited Use disclosure" | R5, R8 |
+| "If your Product handles any user data, then you must post an accurate and up to date privacy policy." "All parties the user data will be shared with." (<https://developer.chrome.com/docs/webstore/program-policies/privacy>) | Policy names Google's Gemini API as the only recipient and lists every request type | PRIVACY-POLICY.md | R8 |
+| "The prominent disclosure and consent must occur within the Product's user interface." / "a specific action clearly agreeing to the disclosure" (user-data-faq Q10) | Welcome-page disclosure; every model call blocked until a site-policy click | `welcome.html:47-56`; `background.js:81`; `reading.js:231-236`; `settings-handlers.js:46`, `:59`, `:227`, `:243` | R1 (payload and button gaps) |
 | "Extensions must transmit user data over a secure connection (e.g. HTTPS, WSS)" (user-data-faq Q9) | HTTPS only | `gemini.js:9` | Low |
-| "stored at rest using a strong encryption method such as RSA or AES" (user-data-faq Q9); "Keep authentication information secure." (<https://developer.chrome.com/docs/webstore/program-policies/policies>) | Key isolated to trusted contexts, not encrypted | `background.js:60-64` | R4 |
-| "Request access to the narrowest permissions necessary" (<https://developer.chrome.com/docs/webstore/program-policies/permissions>) | Host access optional and per site; no `tabs`; `alarms` dropped from Store | `manifest.json:9-22`; `package.mjs:76-84` | R3 |
-| "the full functionality of an extension must be easily discernible from its submitted code" (<https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements>) | All code packaged and unminified; AGPL source public | Store zip | R9 |
-| "Using JavaScript's eval() method or other mechanisms to execute a string fetched from a remote source" is remote code (mv3-requirements) | No eval; model JSON parsed as data | `gemini.js:50-57`; `engine.js:40` | Low |
-| "Extensions with broken functionality---such as dead sites or non-functioning features---are not allowed." (<https://developer.chrome.com/docs/webstore/program-policies/minimum-functionality>) | Keyless features work; weaving needs a free key | `welcome.html:31-46` | R10 |
-| "Unnatural repetition of the same keyword more than 5 times"; "misleading, inaccurate, incomplete" metadata (<https://developer.chrome.com/docs/webstore/program-policies/listing-requirements>) | Description reviewed against code (1a, 1b) | Section 1 | R7 |
+| "stored at rest using a strong encryption method such as RSA or AES" (user-data-faq Q9); "Keep authentication information secure." (<https://developer.chrome.com/docs/webstore/program-policies/policies>) | Key and local data isolated to trusted contexts, not encrypted | `background.js:60-64` | R4 |
+| "Request access to the narrowest permissions necessary" (<https://developer.chrome.com/docs/webstore/program-policies/permissions>) | Host access optional, per site by default, all-sites only on request; no `tabs`; `alarms` dropped from Store | `manifest.json:9-22`; `package.mjs:76-84` | R3 |
+| "the full functionality of an extension must be easily discernible from its submitted code" (<https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements>) | All code packaged and readable; AGPL source public | Store zip | R9 |
+| "Using JavaScript's eval() method or other mechanisms to execute a string fetched from a remote source" is remote code (mv3-requirements) | No eval; swap and pack responses parsed as data and rendered as text | `gemini.js:50-57`; `engine.js:40`; `languages.js:17-29`; `text.js:175`, `:192`, `:205` | R19 |
+| "Extensions with broken functionality---such as dead sites or non-functioning features---are not allowed." (<https://developer.chrome.com/docs/webstore/program-policies/minimum-functionality>) | Keyless features work; weaving needs a key | `welcome.html:31-46` | R10 |
+| "Unnatural repetition of the same keyword more than 5 times"; "misleading, inaccurate, incomplete" metadata (<https://developer.chrome.com/docs/webstore/program-policies/listing-requirements>) | Description checked against code (1a, 1b) | Section 1 | R7 |
 | "Don't represent that your product is authorized by, endorsed by, or produced by another company" (<https://developer.chrome.com/docs/webstore/program-policies/impersonation-and-intellectual-property>) | Non-affiliation lines; no logos | Section 1 description | R11 |
 | "Affiliate links, codes, or cookies must only be included when..." (<https://developer.chrome.com/docs/webstore/program-policies/affiliate-ads>) | None | Negative search | n/a |
 | "We don't allow extensions that send messages on behalf of the user without giving the user the ability to confirm" (<https://developer.chrome.com/docs/webstore/program-policies/spam-and-abuse>) | Sends no messages on any site | Code | n/a |
@@ -339,5 +367,8 @@ Fetch notes: all pages above returned 200. `https://developer.chrome.com/docs/we
 - Nothing was entered in or checked against the Developer Dashboard; field names and category lists marked [VERIFY] come from docs or the earlier draft.
 - No Store upload, no Store install, no live Gemini call. Store zip contents come from running the package script locally and reading the zip.
 - Screenshots were rendered with Chromium 155 (revision 1247), not the pinned 156 (revision 1248).
-- The `update_url` behavior of Store installs (R12) and the treatment of `key` (R2) are not confirmed by any fetched page.
+- The `update_url` behavior of Store installs (R12) and the treatment of `key` (R2) are not confirmed by any fetched page, and the no-`update_url` branch was read, not run.
+- Whether user-data FAQ Q9 (encryption at rest) applies to extension-local storage (R4).
+- The sensitive-category definitions on the live Dashboard (4c).
+- The generated-pack rendering path was traced statically, not tested with hostile content (R19).
 - Gemini terms and regions were fetched once on November 28, 2026; they change.

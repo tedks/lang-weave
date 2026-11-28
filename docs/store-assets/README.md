@@ -5,7 +5,7 @@ These images come from `extension/e2e/store-shots.mjs`. It loads the packaged St
 | File | Dimensions | Listing caption |
 |---|---:|---|
 | `01-welcome.png` | 1280×800 | **Try it first.** “Try a bundled reading sample before you add a key. It stays on your device.” |
-| `02-hover.png` | 1280×800 | **Hover.** “Hover a word for its meaning and how it sounds.” |
+| `02-hover.png` | 1280×800 | **Hover.** “Hover a word for its meaning and a written pronunciation hint.” |
 | `03-flip.png` | 1280×800 | **Flip.** “Click a word to flip it back to English.” |
 | `04-review.png` | 1280×800 | **Review.** “Words you met while reading come back for a quick recall check, scheduled with FSRS.” |
 | `05-progress.png` | 1280×800 | **Progress.** “See what you have introduced, seen and recalled. All of it stays in your browser.” |
