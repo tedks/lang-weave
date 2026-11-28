@@ -267,8 +267,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   Stripe amounts are integer cents and are converted to micros (×10,000) on the way in.
   `recordPayment(...)` creates or updates it from any handled event, so **no evidence is lost
   whatever the order**: `refundedMicros` is the monotonic maximum of every cumulative
-  `amount_refunded` seen, in every grant state. `dispute` only moves forward, `none` → `open` →
-  `won` | `lost`: a closed outcome is authoritative, and a `created` event that arrives after its
+  `amount_refunded` seen, in every grant state. `dispute` only moves forward: `none` → `open` →
+  `won` | `lost`, or straight from `none` to `won` | `lost` when the close event arrives first. A
+  closed outcome is authoritative, and a `created` event that arrives after its
   `closed` event still applies its reversal (and the freeze, for a granted payment) but never
   reopens the dispute. A closed dispute's status maps as Stripe reports it: `lost` → `lost` with
   `disputeLostMicros` set from the dispute amount; `won` and inquiry outcomes such as
@@ -288,7 +289,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   leaves the difference owed. A **session-keyed orphan** (LW-STORE-MK-04, no usable
   `payment_intent`) has no payment record: it is `open` for `amount_total` until the operator
   identifies its `payment_intent` in Stripe and links it (`linkOrphan(checkoutSessionId,
-  paymentIntentId)`, unique), after which its status is derived from that payment record like any
+  paymentIntentId)`, unique), which creates the payment record from the session's facts
+  (`paidMicros` from `amount_total`, `accountId` if known, `grantState: refused`) if no webhook
+  has created it yet, after which its status is derived from that payment record like any
   other orphan.
 - **The orphan status is advisory.** It drives the operator's refund queue and never moves reader
   credit; goals 1 and 2 do not depend on it. Before refunding any orphan the operator confirms
@@ -309,8 +312,8 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   debits only the increase, at most `balance - reserved` of the account currently holding the
   payment (below); any remainder is operator loss and freezes that account. For a `pending`
   payment it only records the target, which the later grant subtracts. For a **`refused`**
-  payment (a refused grant or an orphan) it only records the target and updates the orphan refund
-  state above: it **never debits and never freezes**, because that credit was never given. A
+  payment (a refused grant or an orphan) it only records the target and updates `refundedMicros`
+  / `dispute` on the payment record, from which the orphan status is derived: it **never debits and never freezes**, because that credit was never given. A
   boundary test covers a refused grant followed by a Stripe refund (balance unchanged) and a
   dispute on an orphan (no freeze).
 - **Session disposition:** each Checkout session id has at most one disposition, `granted` or
@@ -403,8 +406,9 @@ order and any number of times.
   purchases by one account; `grant`'s one-pack rule limits how much credit one account holds.
 - **Dispute closed.** `charge.dispute.closed` records `dispute: won` or `lost` from the event's
   status. It changes no balance and unfreezes nothing by itself: for a granted payment the
-  operator decides on unfreezing; for an orphan the derived status moves to `open` (won: refund
-  what is still owed) or `settled` (lost).
+  operator decides on unfreezing; for an orphan it only records the outcome (and
+  `disputeLostMicros`), and the orphan's status is recomputed by C2's derivation, which alone
+  decides whether money is still owed.
 - Every other event type returns 200 and changes nothing.
 
 Disputes can arrive weeks after purchase, so freezing does not stop disputes on packs already
