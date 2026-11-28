@@ -156,7 +156,8 @@ for byte.
   by both E1 and the proxy on the same structured inputs **before** the proxy adds
   `maxOutputTokens` (the same quantity `requestChars`, `adaptive.js:40-47`, measures for the
   gradual path), at most `MAX_REQUEST_CHARS` = 25,000 (`adaptive.js:10`); `requestChars` counts UTF-16 code
-  units, each at most 3 UTF-8 bytes, so the UTF-8 body is at most 75,000 bytes; the cost bounds
+  units, each at most 3 UTF-8 bytes, so that pre-cap serialization is at most 75,000 UTF-8 bytes (the final provider body adds only
+  `maxOutputTokens`); the cost bounds
   use 100,000 as a deliberately loose upper figure, and no validator should be tightened to it. Over the cap → `400 request_failed` with `"tooLarge": "passages"` when the batch has more
   than one passage, or `"tooLarge": "words"` when a single passage is still over. E1 checks the
   same measure **before** sending, so a conforming client never gets either: it splits the
@@ -364,7 +365,7 @@ order and any number of times.
 Disputes can arrive weeks after purchase, so freezing does not stop disputes on packs already
 spent. The commercial bound is therefore **per disputed pack**: at most its price plus the $15
 dispute fee. It is not a per-account or per-day bound. What limits the rate is that an account
-acquires at most two packs' credit through normal grants and spends at most `ACCOUNT_DAILY_PROVIDER_MAX` of
+can hold at most two packs' credit at once after a normal grant and spends at most `ACCOUNT_DAILY_PROVIDER_MAX` of
 provider cost a day, and Stripe Radar sees a repeated card.
 
 ### C5 — Pricing (owner E6; consumer E2)
@@ -780,7 +781,8 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   expires when the first release after the one containing `buildSwapRequest` ships.
 - **LW-STORE-MK-02 (2026-11-28, lead, for mk-ext).** Clarification: in managed mode E1 sends
   `shownToday` filtered to forms that also appear as a word's `fr` in the same request, in stored
-  order, deduplicated. `buildSystemPrompt` uses `shownToday` only to order and hint listed words
+  order, deduplicated. "Appear" means an exact string match on both sides, with no Unicode
+  normalization and no case folding. `buildSystemPrompt` uses `shownToday` only to order and hint listed words
   (`prompt.js:55,64-68`), and `validateSwaps` rejects unlisted words, so nothing is lost, and the
   list cannot exceed the 400-word cap. The proxy rejects a `shownToday` form not in `words`
   (`400 request_failed`). The BYOK path is unchanged.
