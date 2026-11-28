@@ -262,11 +262,18 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
 - **Payment record**, keyed by Stripe `payment_intent` (refund and dispute events carry it;
   Checkout session events carry both it and the session id): `{paymentIntentId,
   checkoutSessionId?, accountId?, packMicros, paidMicros, grantState: pending | granted |
-  refused, reversalTarget, reversedMicros, refundedMicros, dispute: none | open | won | lost}`.
+  refused, reversalTarget, reversedMicros, refundedMicros, dispute: none | open | won | lost,
+  disputeLostMicros}`.
   Stripe amounts are integer cents and are converted to micros (×10,000) on the way in.
   `recordPayment(...)` creates or updates it from any handled event, so **no evidence is lost
   whatever the order**: `refundedMicros` is the monotonic maximum of every cumulative
-  `amount_refunded` seen, in every grant state; `dispute` follows the dispute events. The
+  `amount_refunded` seen, in every grant state. `dispute` only moves forward, `none` → `open` →
+  `won` | `lost`: a closed outcome is authoritative, and a `created` event that arrives after its
+  `closed` event still applies its reversal (and the freeze, for a granted payment) but never
+  reopens the dispute. A closed dispute's status maps as Stripe reports it: `lost` → `lost` with
+  `disputeLostMicros` set from the dispute amount; `won` and inquiry outcomes such as
+  `warning_closed` (no funds withdrawn) → `won`; anything else → `won` plus an operator
+  diagnostic. The
   **outcome** can still depend on order, explicitly: a dispute that arrives before the grant
   decision means no credit and no freeze; one that arrives after a grant freezes the account
   (below). **Freezing on a
@@ -275,10 +282,18 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   a `refused` payment never freezes.
 - **Orphan refund status** is **derived** from the payment record, never stored separately, so
   an orphan created after a refund or a dispute starts in the right state: `disputed` while
-  `dispute` is `open`; `settled` when `dispute` is `lost` (the buyer already has the money back);
-  otherwise `refunded` when `refundedMicros >= paidMicros`, else `open` with
-  `paidMicros - refundedMicros` still owed. A dispute the operator **won** returns the orphan to
-  `open` with that amount owed, so the operator refunds it normally.
+  `dispute` is `open`; otherwise, with `returned = refundedMicros + disputeLostMicros`,
+  `settled` when `returned >= paidMicros`, else `open` with `paidMicros - returned` still owed. So
+  a won dispute leaves an orphan `open` only if money is still owed, and a partial lost dispute
+  leaves the difference owed. A **session-keyed orphan** (LW-STORE-MK-04, no usable
+  `payment_intent`) has no payment record: it is `open` for `amount_total` until the operator
+  identifies its `payment_intent` in Stripe and links it (`linkOrphan(checkoutSessionId,
+  paymentIntentId)`, unique), after which its status is derived from that payment record like any
+  other orphan.
+- **The orphan status is advisory.** It drives the operator's refund queue and never moves reader
+  credit; goals 1 and 2 do not depend on it. Before refunding any orphan the operator confirms
+  the amount still owed in the Stripe dashboard, which is authoritative for what Stripe has paid
+  out, refunded or lost in a dispute.
 - `grant(paymentIntentId)` — from `pending` only: adds `packMicros - reversalTarget` and moves to
   `granted`, if the payment's `dispute` is `none`, the account exists and is not frozen, and the
   account's balance is below one pack (so normal grants never leave an account holding more
