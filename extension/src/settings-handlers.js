@@ -116,10 +116,14 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     return { ok: true };
   }
 
-  // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
+  // The trusted save route also provisions tracer tokens. An empty managedToken clears it.
   async function save(msg, forceKeyRotation = false) {
-    if (worker.keyIsolationUnavailable && msg.settings?.managedProvider === true)
+    const writesManagedToken = Object.hasOwn(msg, 'managedToken');
+    if (worker.keyIsolationUnavailable && (msg.settings?.managedProvider === true || writesManagedToken))
       throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
+    if (writesManagedToken && (typeof msg.managedToken !== 'string' ||
+        (msg.managedToken !== '' && !/^lwk_[A-Za-z0-9_-]{43}$/.test(msg.managedToken))))
+      throw new Error('Invalid managed reading token.');
     if (worker.keyIsolationUnavailable && typeof msg.apiKey === 'string' && msg.apiKey.trim())
       throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
     if (typeof msg.apiKey === 'string' && !msg.apiKey.trim() && !forceKeyRotation)
@@ -163,13 +167,18 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();
       }
+      if (writesManagedToken) {
+        patch.managedToken = msg.managedToken;
+        patch[MANAGED_STATUS_KEY] = null;
+      }
       // Target recall affects only review scheduling, and guess first only how a hover answers, so
       // changing either alone keeps the reading epoch and its cached results.
       const reading = ({ desiredRetention, guessFirst, ...rest }) => JSON.stringify(rest);
       const before = cleanSettings(saved.settings);
       const keyChanged = forceKeyRotation || (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey);
       if (reading(next) === reading(before) && !keyChanged) {
-        if (JSON.stringify(next) !== JSON.stringify(before) || msg.consentShown === true) await store.set(patch);
+        if (writesManagedToken || JSON.stringify(next) !== JSON.stringify(before) || msg.consentShown === true)
+          await store.set(patch);
       } else {
         patch.epoch = crypto.randomUUID();
         if (forceKeyRotation || Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
@@ -301,7 +310,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     const status = data[config.settings.managedProvider ? MANAGED_STATUS_KEY : STATUS_KEY];
     const modelStatus = visibleModelStatus(status, data[QUOTA_STATE_KEY], data.keyEpoch,
       safeModelStatus(status)?.category === 'local_budget' &&
-        await callsToday(chromeStorage) >= DAILY_MODEL_CALLS, Date.now(), config.settings.managedProvider);
+        await callsToday(chromeStorage) >= DAILY_MODEL_CALLS, Date.now(), config.managedTokenGeneration);
     return { config: publicContext(config), words: config.words.length,
       languages: ['es', GUARANI_STARTER, ...Object.keys(cleanPacks(data[PACKS_KEY]))].map((code) =>
         ({ code, name: languageName(code), experimental: !bundledLanguage(code) })),

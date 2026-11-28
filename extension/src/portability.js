@@ -49,7 +49,7 @@ const BAD_KEY = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_SCOPES = 80;
 const MAX_CARDS = 5000;
 const SETTINGS_FIELDS = ['enabled', 'model', 'levelOverride', 'language', 'gradual',
-  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'managedToken',
+  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey',
   'desiredRetention', 'guessFirst', 'managedProvider'];
 
 function fail(reason) { throw new Error(`Learning backup: ${reason}`); }
@@ -555,7 +555,7 @@ export function targetFresh(all) {
   const scopes = storageEntries(all); // rejects unknown target keys, including unknown scoped formats
   validateStorageSettings(all.settings || {});
   if (all.apiKey || all.settings?.apiKey) fail('target has a key; import into a keyless fresh installation');
-  if (all.managedToken || all.settings?.managedToken)
+  if (all.managedToken)
     fail('target has a managed token; import into a keyless fresh installation');
   if (Object.keys(packs(all.languagePacks || {})).length) fail('target has installed language packs');
   const own = personal(all.personalVocabularyV1 || { version: 1, revision: 0, entries: [], history: {} }, mode(true, 1));

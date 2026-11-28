@@ -4,7 +4,7 @@ import { chromeStorage } from './cache.js';
 import { cleanSettings, newSitesDefault, siteEnabled, hasSiteAccess } from './settings.js';
 import { resolveLevel } from './levels.js';
 import { EXPANDED_PLACEMENT_WORDS, L2_EXTRA, wordsForLevel } from './vocabulary.js';
-import { hashKey } from './hash.js';
+import { hashKey, sha256Hex } from './hash.js';
 import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
 import { GUARANI_PACK } from './guarani.js';
 import { PACKS_KEY, cleanPacks, packWords } from './languages.js';
@@ -20,7 +20,7 @@ const pageSettings = ({ desiredRetention, ...settings }) => settings;
 // it stays out of the reading revision, so turning it on or off costs no cache or model call.
 const readingSettings = ({ guessFirst, ...settings }) => pageSettings(settings);
 export const publicContext = ({ words, allWords, legacyWords, legacyAllWords, personal, captureEpoch,
-  activePersonal, personalAuto, retainedWordsKey, managedToken, settings, ...safe }) =>
+  activePersonal, personalAuto, retainedWordsKey, managedToken, managedTokenGeneration, settings, ...safe }) =>
   ({ ...safe, settings: pageSettings(settings) });
 export const personalScope = (language) => scopedStorage(chromeStorage, `personal:${language}`);
 export const laterDay = (a, b) => a > b ? a : b; // ISO local dates or empty string
@@ -88,6 +88,8 @@ export function createContext({ store, ready, worker }) {
     const token = saved.managedProvider && !worker.keyIsolationUnavailable
       ? (await store.get('managedToken')).managedToken : undefined;
     const managedToken = typeof token === 'string' && token ? token : undefined;
+    const managedTokenGeneration = managedToken ? await sha256Hex(new TextEncoder().encode(managedToken))
+      : saved.managedProvider ? '' : undefined;
     const hasKey = saved.managedProvider ? !!managedToken : !!data.apiKey;
     const paused = false; // retained in the page config protocol; pause is settings.enabled
     const manifest = chrome.runtime.getManifest();
@@ -96,7 +98,7 @@ export function createContext({ store, ready, worker }) {
       safeLegacyWords.map((word) => [word.fr, word.en]), personalAuto.map(({ entry }) =>
         [entry.id, entry.source, entry.target]), personal.unsupported === true,
       manifest.version, hasKey, origins]));
-    return { settings, level, revision, hasKey, managedToken, paused, origins, captureEpoch: data.epoch || '',
+    return { settings, level, revision, hasKey, managedToken, managedTokenGeneration, paused, origins, captureEpoch: data.epoch || '',
       stage: 0, language: saved.language,
       scope, words, allWords, legacyWords: retainedWords.length ? [...legacyWords, ...retainedWords] : legacyWords,
       legacyAllWords, retainedWordsKey,

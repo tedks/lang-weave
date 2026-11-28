@@ -64,6 +64,8 @@ const ready = (async () => {
       worker.keyIsolationUnavailable = false;
     } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
   }
+  // Clear a token left by an earlier run before starting page registration or handling messages.
+  if (worker.keyIsolationUnavailable) await store.remove('managedToken');
   const { settings } = await store.get('settings');
   // Install defaults need storage that nothing has written yet: an absent settings object beside a key or
   // progress is not a new install. Read everything only in that rare case, never on an ordinary wake.

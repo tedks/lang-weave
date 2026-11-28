@@ -140,6 +140,10 @@ export function safeModelStatus(value) {
   if (finite(value.retryAt)) out.retryAt = value.retryAt;
   if (MODEL_IDS.has(value.model)) out.model = value.model;
   if (value.category === 'managed_update_required' && typeof value.ahead === 'boolean') out.ahead = value.ahead;
+  if (value.category === 'request_failed' && value.duplicate === true && typeof value.charged === 'boolean') {
+    out.duplicate = true;
+    out.charged = value.charged;
+  }
   if (typeof value.keyEpoch === 'string' && value.keyEpoch.length > 0 && value.keyEpoch.length <= 64)
     out.keyEpoch = value.keyEpoch;
   return out;
@@ -149,7 +153,9 @@ export const rejectedForEpoch = (value, keyEpoch) => !!keyEpoch &&
   safeModelStatus(value)?.category === 'key_rejected' && value.keyEpoch === keyEpoch;
 
 // The popup and toolbar must ignore the same expired or stale operational status.
-export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReached, now = Date.now(), managed = false) {
+export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReached, now = Date.now(), managedGeneration) {
+  const managed = typeof managedGeneration === 'string';
+  if (managed && (!managedGeneration || value?.tokenGeneration !== managedGeneration)) return null;
   let status = safeModelStatus(value);
   if (status?.category === 'key_rejected' && !rejectedForEpoch(status, keyEpoch)) status = null;
   if (!managed && status && ['daily_quota', 'rate_limit', 'overloaded'].includes(status.category)) {
@@ -185,6 +191,7 @@ export function statusLabel(status, now = Date.now()) {
   if (safe.category === 'managed_unavailable') return t('status_managed_unavailable');
   if (safe.category === 'managed_update_required')
     return safe.ahead === false ? t('status_managed_behind') : t('status_managed_ahead');
+  if (safe.duplicate) return safe.charged ? t('status_managed_duplicate_charged') : t('status_managed_duplicate_free');
   const guided = Number.isFinite(now) && safe.retryAt > now && safe.retryAt <= now + MAX_RETRY_MS;
   const time = guided ? new Date(safe.retryAt).toLocaleString([], {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',

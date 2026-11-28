@@ -49,17 +49,17 @@ export async function liveGradualDocument(sender) {
 export function createReading({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds, context,
     adaptiveReviewState, commitAdaptive }) {
   // Model status is diagnostic; failure to save it must not hide a valid reading result.
-  async function saveModelStatus(status, epoch, managedToken) {
+  async function saveModelStatus(status, epoch, { managed, token, generation } = {}) {
     try {
       await locked(async () => {
-        const key = managedToken ? MANAGED_STATUS_KEY : STATUS_KEY;
-        const current = await store.get([key, managedToken ? 'managedToken' : 'keyEpoch']);
-        if (managedToken ? current.managedToken !== managedToken : (current.keyEpoch || '') !== epoch) return;
+        const key = managed ? MANAGED_STATUS_KEY : STATUS_KEY;
+        const current = await store.get([key, managed ? 'managedToken' : 'keyEpoch']);
+        if (managed ? !generation || current.managedToken !== token : (current.keyEpoch || '') !== epoch) return;
         const previous = safeModelStatus(current[key]);
         const retryAt = status.retryAt ?? (status.coolingDown ? retainedRetryAt(previous,
           status.category, Date.now(), status.retryAfterMs) : undefined);
-        await store.set({ [key]: safeModelStatus({ at: Date.now(), ...status,
-          keyEpoch: managedToken ? undefined : epoch, retryAt }) });
+        const safe = safeModelStatus({ at: Date.now(), ...status, keyEpoch: managed ? undefined : epoch, retryAt });
+        await store.set({ [key]: managed ? { ...safe, tokenGeneration: generation } : safe });
       });
     } catch { /* diagnostic only */ }
   }
@@ -82,6 +82,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
   async function swaps(msg, sender) {
     const ctx = await context();
     const managed = ctx.settings.managedProvider === true;
+    const credential = { managed, token: ctx.managedToken, generation: ctx.managedTokenGeneration };
     const consentGeneration = worker.permissionGeneration;
     const settingsAtStart = worker.settingsGeneration;
     let policyDay = '';
@@ -299,7 +300,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       }
       const latest = await context();
       if (!sameReadingPool(latest) || !activeOn(latest, sender.url)) return { results: {}, stale: true };
-      const error = managed && (category.startsWith('managed_') || category === 'key_isolation_unavailable')
+      const error = managed && (category.startsWith('managed_') || e?.duplicate === true)
         ? statusLabel(e)
         : category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
@@ -309,9 +310,9 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
         : category === 'consent_required' ? 'Choose site access on the welcome page first' : 'Model request failed';
       // A missing site choice is local policy, not a model failure or quota diagnostic.
       if (category !== 'consent_required' && (managed || category !== 'key_rejected'))
-        await saveModelStatus({ category, ahead: e?.ahead, retryAt: e?.retryAt ??
+        await saveModelStatus({ category, ahead: e?.ahead, duplicate: e?.duplicate, charged: e?.charged, retryAt: e?.retryAt ??
           (managed && e?.retryAfterMs ? Date.now() + e.retryAfterMs : undefined),
-          coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch, ctx.managedToken);
+          coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch, credential);
       try {
         // Cache entries are raw validated swaps. They still need the current gradual
         // quota and cards, even when another item in this batch failed at the model.
@@ -327,7 +328,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     try {
       const delivered = await deliver({ ...results, ...fresh.results }, fresh.results);
       if (!delivered.stale) {
-        await saveModelStatus({ category: 'ok', model: fresh.model }, requestEpoch, ctx.managedToken);
+        await saveModelStatus({ category: 'ok', model: fresh.model }, requestEpoch, credential);
         // A popup save must not commit between this last context read and title lookup.
         return locked(async () => await stillSafe() ? delivered : { results: {}, stale: true });
       }
@@ -338,7 +339,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       if (!sameReadingPool(latest) || !activeOn(latest, sender.url)) return { results: {}, stale: true };
       const category = 'storage_failed';
       const error = 'Local reading storage failed';
-      await saveModelStatus({ category }, requestEpoch, ctx.managedToken);
+      await saveModelStatus({ category }, requestEpoch, credential);
       try {
         const cached = await deliver(results);
         return { ...cached, error, retryAfterMs: e?.retryAfterMs };

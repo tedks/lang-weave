@@ -7,7 +7,6 @@ import { localDay, SENT_KEY } from '../src/events.js';
 import { API_BASE } from '../src/gemini.js';
 import { hashKey } from '../src/hash.js';
 import { cleanPack, validField } from '../src/languages.js';
-import { wordsForLevel } from '../src/levels.js';
 import { MANAGED_BASE } from '../src/managed.js';
 import { MAX_PERSONAL, PERSONAL_KEY, validForm } from '../src/personal.js';
 import { createBackup, parseBackup, targetFresh } from '../src/portability.js';
@@ -16,6 +15,7 @@ import { statusLabel } from '../src/quota-status.js';
 import { buildSwapRequest, canonicalSwapBody } from '../src/swap-request.js';
 import { validPackForm } from '../src/word-form.js';
 import { advanceDOMTime, restoreTimedDOM, useDOMClock } from './dom-clock.js';
+import byokBaseline from './byok-0.17.0-baseline.json';
 import manifest from '../manifest.json';
 
 const token = `lwk_${'z'.repeat(43)}`;
@@ -29,34 +29,45 @@ const success = (passages) => Response.json({ text: JSON.stringify({ passages: e
   usage: null, costMicros: 7, balanceMicros: 1000 });
 const emptySwaps = (passages) => passages.map(({ id }) => ({ id, swaps: [] }));
 
-async function workerFixture({ initial = {}, isolation = true, respond }) {
+async function workerFixture({ initial = {}, isolation = true, respond, version = manifest.version }) {
   const old = { chrome: globalThis.chrome, fetch: globalThis.fetch };
+  const runtimeManifest = { ...manifest, version };
   const data = { epoch: 'reading-epoch', keyEpoch: 'byok-epoch', managedToken: token,
     settings: { managedProvider: true, enabled: true, newSitesEnabled: true, model: 'gemini-3.8-flash' }, ...initial };
-  const calls = [], listeners = [], connections = [], accessLevels = [], gets = [];
+  const calls = [], listeners = [], connections = [], activations = [], accessLevels = [], gets = [], storageEvents = [];
   const on = (list = []) => ({ addListener: (fn) => list.push(fn) });
+  let finishIsolation, nextBadgeTitle;
   const store = {
     async get(keys) {
       const names = keys == null ? Object.keys(data) : [keys].flat();
       gets.push(names);
       return structuredClone(Object.fromEntries(names.filter((key) => key in data).map((key) => [key, data[key]])));
     },
-    async set(patch) { Object.assign(data, structuredClone(patch)); },
+    async set(patch) {
+      if (Object.hasOwn(patch, 'managedToken')) storageEvents.push('token stored');
+      Object.assign(data, structuredClone(patch));
+    },
     async remove(keys) { for (const key of [keys].flat()) delete data[key]; },
   };
-  if (isolation) store.setAccessLevel = async ({ accessLevel }) => { accessLevels.push(accessLevel); };
+  if (isolation) store.setAccessLevel = async ({ accessLevel }) => {
+    accessLevels.push(accessLevel);
+    if (isolation === 'reject') throw new Error('Storage isolation unavailable');
+    if (isolation === 'pending') await new Promise((done) => { finishIsolation = done; });
+    storageEvents.push('isolation established');
+  };
   globalThis.chrome = {
     storage: { local: store, session: memoryStorage() },
-    runtime: { id: page.id, getURL: (path) => `${extensionOrigin}/${path}`, getManifest: () => manifest,
+    runtime: { id: page.id, getURL: (path) => `${extensionOrigin}/${path}`, getManifest: () => runtimeManifest,
       onMessage: on(listeners), onConnect: on(connections), onInstalled: on(), onStartup: on() },
-    action: { setBadgeText: async () => {} },
-    tabs: { get: async () => ({ title: page.tab.title, url: page.url }), query: async () => [], sendMessage: async () => {} },
+    action: { setBadgeText: async () => {}, setTitle: async ({ title }) => nextBadgeTitle?.(title) },
+    tabs: { get: async () => ({ title: page.tab.title, url: page.url }), query: async () => [], sendMessage: async () => {},
+      onActivated: on(activations) },
     permissions: { getAll: async () => ({ origins: ['https://example.com/*'] }), onAdded: on(), onRemoved: on() },
     scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {},
       updateContentScripts: async () => {}, unregisterContentScripts: async () => {} },
   };
   globalThis.fetch = async (url, { signal, ...init } = {}) => {
-    if (url === `${extensionOrigin}/manifest.json`) return Response.json(manifest);
+    if (url === `${extensionOrigin}/manifest.json`) return Response.json(runtimeManifest);
     calls.push({ url, ...init });
     if (!respond) throw new Error('Unexpected external request in worker fixture');
     return respond(url, init, calls.length);
@@ -81,34 +92,69 @@ async function workerFixture({ initial = {}, isolation = true, respond }) {
   };
   try { await import(`../src/background.js?managed-worker-${crypto.randomUUID()}`); }
   catch (error) { Object.assign(globalThis, old); throw error; }
-  return { calls, accessLevels, gets, data, send, ask, backup, restore() { Object.assign(globalThis, old); } };
+  const badgeTitle = () => new Promise((resolve) => {
+    nextBadgeTitle = resolve;
+    activations[0]({ tabId: page.tab.id });
+  });
+  return { calls, accessLevels, gets, data, send, ask, backup, badgeTitle, storageEvents,
+    releaseIsolation: () => finishIsolation(), restore() { Object.assign(globalThis, old); } };
 }
 
-test('a managed credential stays private, and unavailable isolation prevents activation and dispatch', async () => {
-  const f = await workerFixture({ isolation: false, initial: { apiKey: 'synthetic-byok' } });
+test('missing or rejected isolation purges an existing managed credential and blocks activation and provisioning', async () => {
+  for (const isolation of [false, 'reject']) {
+    const f = await workerFixture({ isolation, initial: { apiKey: 'synthetic-byok' } });
+    try {
+      const config = await f.send({ type: 'config' });
+      expect(config.hasKey).toBe(false);
+      expect(JSON.stringify(config)).not.toContain(token);
+      expect((await f.ask()).reply).toEqual({ results: {}, stale: true });
+      expect(f.calls).toHaveLength(0);
+      expect(f.gets.some((keys) => keys.includes('managedToken'))).toBe(false);
+      const error = statusLabel({ category: 'key_isolation_unavailable' });
+      expect((await f.send({ type: 'status' }, options)).modelStatus).toEqual({ category: 'key_isolation_unavailable' });
+      expect(await f.send({ type: 'save', settings: { managedProvider: true } }, options)).toEqual({ error });
+      expect(await f.send({ type: 'save', managedToken: token }, options)).toEqual({ error });
+      expect(f.data.managedToken).toBeUndefined();
+      expect(f.data.settings.managedToken).toBeUndefined();
+      expect(f.data.apiKey).toBe('synthetic-byok');
+      expect(f.storageEvents).toEqual([]);
+    } finally { f.restore(); }
+  }
+});
+
+test('trusted token provisioning waits for TRUSTED_CONTEXTS and keeps the token out of page config', async () => {
+  const f = await workerFixture({ isolation: 'pending', initial: { managedToken: undefined } });
   try {
+    const pending = f.send({ type: 'save', managedToken: token }, options);
+    await Promise.resolve();
+    expect(f.data.managedToken).toBeUndefined();
+    expect(f.storageEvents).toEqual([]);
+    f.releaseIsolation();
+    expect(await pending).toEqual({ ok: true });
+    expect(f.accessLevels).toEqual(['TRUSTED_CONTEXTS']);
+    expect(f.storageEvents).toEqual(['isolation established', 'token stored']);
     const config = await f.send({ type: 'config' });
-    expect(config.hasKey).toBe(false);
+    expect(config.hasKey).toBe(true);
     expect(JSON.stringify(config)).not.toContain(token);
-    expect((await f.ask()).reply).toEqual({ results: {}, stale: true });
-    expect(f.calls).toHaveLength(0);
-    expect(f.gets.some((keys) => keys.includes('managedToken'))).toBe(false);
-    const error = statusLabel({ category: 'key_isolation_unavailable' });
-    expect((await f.send({ type: 'status' }, options)).modelStatus).toEqual({ category: 'key_isolation_unavailable' });
-    expect(await f.send({ type: 'save', settings: { managedProvider: true } }, options)).toEqual({ error });
+    expect(Object.hasOwn(config, 'managedTokenGeneration')).toBe(false);
+    expect(await f.send({ type: 'save', managedToken: '' })).toBeUndefined();
+    expect(await f.send({ type: 'save', managedToken: 'invalid' }, options)).toEqual({ error: 'Invalid managed reading token.' });
     expect(f.data.managedToken).toBe(token);
-    expect(f.data.settings.managedToken).toBeUndefined();
   } finally { f.restore(); }
 });
 
 test('managed reading maps proxy messages and keeps BYOK credentials and cooldowns separate', async () => {
   const byokStatus = { category: 'key_rejected', keyEpoch: 'byok-epoch' };
   const cases = [
-    [409, 'managed_update_required', { ahead: true }, 'Managed reading is updating; try again later'],
-    [409, 'managed_update_required', { ahead: false }, 'Update Lang Weave to keep using managed reading'],
+    [409, 'managed_update_required', { ahead: true }, 'Managed reading is updating; try again later.'],
+    [409, 'managed_update_required', { ahead: false }, 'Update Lang Weave to keep using managed reading.'],
     [401, 'managed_unauthorized', {}, 'Managed reading could not verify this token.'],
     [402, 'managed_balance', { dailyCap: true }, 'Managed reading has insufficient available credit.'],
     [503, 'managed_unavailable', {}, 'Managed reading is temporarily unavailable.'],
+    [409, 'request_failed', { duplicate: true, charged: true },
+      'This managed request was already charged. Trying again later may incur another charge.'],
+    [409, 'request_failed', { duplicate: true, charged: false },
+      'This managed request was already handled. No charge was recorded for it.'],
   ];
   const f = await workerFixture({ initial: { modelStatus: byokStatus }, respond(url, init, call) {
     expect(url).toBe(`${MANAGED_BASE}/v0/swaps`);
@@ -125,7 +171,9 @@ test('managed reading maps proxy messages and keeps BYOK credentials and cooldow
     for (const [index, [, category, details, message]] of cases.entries()) {
       expect((await f.ask()).reply.error).toBe(message);
       const status = (await f.send({ type: 'status' }, options)).modelStatus;
-      expect(status).toMatchObject({ category, ...(Object.hasOwn(details, 'ahead') ? { ahead: details.ahead } : {}) });
+      const { dailyCap, ...disclosed } = details;
+      expect(status).toMatchObject({ category, ...disclosed });
+      expect(Object.hasOwn(status, 'tokenGeneration')).toBe(false);
       expect(statusLabel(status)).toBe(message);
       expect(f.calls).toHaveLength(index + 1);
     }
@@ -134,11 +182,15 @@ test('managed reading maps proxy messages and keeps BYOK credentials and cooldow
   } finally { f.restore(); }
 });
 
-test('flag off preserves both BYOK requests byte for byte with a managed token present', async () => {
-  const snapshots = [];
+test('flag off preserves both BYOK requests from a build without managed code at the same version', async () => {
+  // Captured by running the original worker and its source tree with the release metadata set to 0.17.0.
+  expect(byokBaseline.recordedFrom).toBe('39b264a6815335f49c63a909a63e7e79ad5d3b8d');
+  expect(byokBaseline.manifestVersion).toBe('0.17.0');
+  const expected = byokBaseline.calls.map((call) => ({ ...call, body: byokBaseline.body }));
   for (const explicit of [{}, { managedProvider: false }]) {
-    const f = await workerFixture({ initial: { apiKey: 'synthetic-byok', settings: { ...explicit, newSitesEnabled: true,
-      model: 'gemini-3.8-flash' } }, respond(url, init, call) {
+    const f = await workerFixture({ version: byokBaseline.manifestVersion,
+      initial: { apiKey: 'synthetic-byok', settings: { ...explicit, newSitesEnabled: true,
+        model: 'gemini-3.8-flash' } }, respond(url, init, call) {
       expect(url).toStartWith(API_BASE);
       if (call === 1) return new Response('{}', { status: 503 });
       const body = JSON.parse(init.body);
@@ -147,28 +199,21 @@ test('flag off preserves both BYOK requests byte for byte with a managed token p
       return Response.json({ candidates: [{ content: { parts: [{ text }] } }] });
     } });
     try {
-      const { reply, ids, items } = await f.ask();
+      const { reply, ids } = await f.ask();
       expect(reply).toEqual({ results: { [ids[0]]: [] } });
-      const batch = items.map(({ key, text }) => ({ id: key, text }));
-      const words = wordsForLevel(1).map((word) => ({ ...word, status: 'active' }));
-      const body = JSON.stringify(buildSwapRequest({ batch, words, level: 1, language: 'es' }));
-      expect(f.calls).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite'].map((model) => ({
-        url: `${API_BASE}${model}:generateContent`, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': 'synthetic-byok' }, body,
-      })));
+      expect(f.calls).toEqual(expected);
       expect(f.gets.some((keys) => keys.includes('managedToken'))).toBe(false);
-      snapshots.push(f.calls);
     } finally { f.restore(); }
   }
-  expect(snapshots[0]).toEqual(snapshots[1]);
 });
 
 test('backup export drops the managed token and flag; import into a token-bearing profile is refused', async () => {
-  const json = createBackup({ managedToken: token, settings: { managedProvider: true, managedToken: token } }, manifest.version);
+  const json = createBackup({ managedToken: token, settings: { managedProvider: true } }, manifest.version);
   expect(parseBackup(json).state.preferences.language).toBe('es');
   for (const secret of [token, 'managedToken', 'managedProvider']) expect(json).not.toContain(secret);
   expect(() => targetFresh({ managedToken: token })).toThrow(/target has a managed token/);
-  expect(() => targetFresh({ settings: { managedToken: token } })).toThrow(/target has a managed token/);
+  expect(() => targetFresh({ settings: { managedToken: token } })).toThrow(/unsupported settings field/);
+  expect(() => createBackup({ settings: { managedToken: token } }, manifest.version)).toThrow(/unsupported settings field/);
   expect(targetFresh({ settings: { managedProvider: true } })).toBe(true);
   const injected = JSON.parse(json);
   injected.state.preferences.managedToken = token;
@@ -180,6 +225,40 @@ test('backup export drops the managed token and flag; import into a token-bearin
     expect((await backup({ type: 'learningExport' })).json).not.toContain(token);
     expect((await backup({ type: 'learningPreview', json })).error).toMatch(/target has a managed token/);
     expect(f.data.managedToken).toBe(token);
+  } finally { f.restore(); }
+});
+
+test('import commit refuses a managed token added after a successful backup preview', async () => {
+  const json = createBackup({}, manifest.version);
+  const f = await workerFixture({ initial: { managedToken: undefined } });
+  try {
+    const backup = f.backup();
+    const preview = await backup({ type: 'learningPreview', json });
+    expect(typeof preview.token).toBe('string');
+    expect(await f.send({ type: 'save', managedToken: token }, options)).toEqual({ ok: true });
+    const before = structuredClone(f.data);
+    expect((await backup({ type: 'learningImport', token: preview.token })).error).toMatch(/Target or preview changed/);
+    expect(f.data).toEqual(before);
+  } finally { f.restore(); }
+});
+
+test('the popup and badge ignore a managed diagnostic after token replacement', async () => {
+  const f = await workerFixture({ respond: () => jsonError(503, 'overloaded') });
+  try {
+    await f.ask();
+    const old = f.data.managedModelStatus;
+    expect(old.category).toBe('overloaded');
+    expect(old.tokenGeneration).toMatch(/^[0-9a-f]{64}$/);
+    expect((await f.send({ type: 'status' }, options)).modelStatus).toMatchObject({ category: 'overloaded' });
+    expect(await f.badgeTitle()).toBe('Reading is paused; review still works');
+
+    // Replace the stored token independently of the saver to exercise both readers' generation checks.
+    f.data.managedToken = `lwk_${'y'.repeat(43)}`;
+    expect((await f.send({ type: 'status' }, options)).modelStatus).toBeNull();
+    expect(await f.badgeTitle()).toBe('Lang Weave is on here');
+    expect(f.data.managedModelStatus).toEqual(old);
+    expect(await f.send({ type: 'save', managedToken: token }, options)).toEqual({ ok: true });
+    expect(f.data.managedModelStatus).toBeNull();
   } finally { f.restore(); }
 });
 
