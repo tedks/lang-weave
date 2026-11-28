@@ -3,7 +3,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 const TOLERANCE_SECONDS = 300;
 const CHECKOUT_EVENTS = new Set(['checkout.session.completed', 'checkout.session.async_payment_succeeded']);
 const REFUND = 'charge.refunded';
-const DISPUTE = 'charge.dispute.created';
+const DISPUTE_OPEN = 'charge.dispute.created';
+const DISPUTE_CLOSED = 'charge.dispute.closed';
 const ACCOUNT_ID = /^acct_[A-Z2-7]{26}$/;
 
 function validSignature(raw, header, secret, now) {
@@ -43,6 +44,8 @@ export function createStripeWebhook({
     const paid = isCheckout && object.mode === 'payment' && object.payment_status === 'paid';
     const paymentIntentId = stripeId(object.payment_intent, 'pi_');
     const checkoutSessionId = isCheckout ? stripeId(object.id, 'cs_') : null;
+    const paidMicros = paid && object.currency === 'usd' && Number.isSafeInteger(object.amount_total) &&
+      object.amount_total > 0 && Number.isSafeInteger(object.amount_total * 10_000) ? object.amount_total * 10_000 : null;
     const customerId = isCheckout ? stripeId(object.customer, 'cus_') : null;
     return ledger.applyPaymentEvent(eventId, (tx) => {
       if (!paymentIntentId) tx.recordDiagnostic(type, 'no_payment_intent');
@@ -50,7 +53,7 @@ export function createStripeWebhook({
         return;
       }
       if (!paymentIntentId) {
-        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId);
+        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId, paidMicros);
         return;
       }
       if (isCheckout && !checkoutSessionId) {
@@ -65,7 +68,7 @@ export function createStripeWebhook({
         const reference = object.client_reference_id;
         tx.recordPayment({
           ...payment, checkoutSessionId, customerId,
-          paidMicros: paid && matchingPack ? amountCents * 10_000 : null,
+          paidMicros: matchingPack ? paidMicros : null,
           accountId: paid && matchingPack && typeof reference === 'string' && ACCOUNT_ID.test(reference)
             ? reference : null,
         });
@@ -91,11 +94,13 @@ export function createStripeWebhook({
         tx.reverse(paymentIntentId, refundTarget(packMicros, captured, refunded), {
           paidMicros: captured * 10_000, refundedMicros: refunded * 10_000,
         });
-      } else {
-        // Only a granted payment can freeze an account. Refused and
-        // pending payments never credited it.
-        tx.recordPayment({ ...payment, disputed: true });
+      } else if (type === DISPUTE_OPEN) {
+        tx.recordPayment({ ...payment, dispute: 'open' });
         tx.reverse(paymentIntentId, packMicros);
+      } else {
+        const dispute = object.status;
+        if (dispute === 'won' || dispute === 'lost') tx.recordPayment({ ...payment, dispute });
+        else tx.recordDiagnostic(type, 'unrecognized_dispute_close');
       }
     });
   }
@@ -114,7 +119,7 @@ export function createStripeWebhook({
     const eventId = stripeId(event?.id, 'evt_');
     const type = event?.type;
     if (!eventId || typeof type !== 'string') return badRequest();
-    if (CHECKOUT_EVENTS.has(type) || type === REFUND || type === DISPUTE) {
+    if (CHECKOUT_EVENTS.has(type) || type === REFUND || type === DISPUTE_OPEN || type === DISPUTE_CLOSED) {
       const object = event.data?.object;
       if (!object || typeof object !== 'object' || Array.isArray(object)) return badRequest();
       apply(eventId, type, object);
