@@ -1,0 +1,20 @@
+id: managed-key-prior-prompt-snapshot
+title: Carry the prior managed prompt snapshot after the first shared-builder release
+desc: LW-STORE-MK-01 defers the previous-release proxy prompt snapshot until an earlier
+  tagged release contains buildSwapRequest. When that prerequisite exists, generate
+  the snapshot from the prior tag, verify its sources against that tag, and test both
+  current and prior versions plus ahead/behind errors. The M1 proxy suite carries
+  a TODO for this boundary.
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-28T08:55:49-00:00
+references: []
+log_events:
+- time: 2026-11-28T08:55:49-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
