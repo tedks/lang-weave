@@ -31,6 +31,10 @@ function newAccountId() {
 }
 
 const schema = `
+  CREATE TABLE IF NOT EXISTS finalization_journal_identity (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    generation TEXT NOT NULL
+  ) STRICT;
   CREATE TABLE IF NOT EXISTS accounts (
     accountId TEXT PRIMARY KEY,
     tokenHash TEXT UNIQUE,
@@ -83,6 +87,7 @@ const schema = `
     balanceMicros INTEGER,
     providerActual INTEGER,
     providerOverflowMicros TEXT,
+    latestProviderOverflowMicros TEXT,
     providerOverflowPending INTEGER NOT NULL DEFAULT 0 CHECK (providerOverflowPending IN (0, 1)),
     appliedLateReceipt INTEGER NOT NULL DEFAULT 0,
     providerRequestId TEXT,
@@ -190,9 +195,13 @@ export function createSqliteStorage(filename = ':memory:', {
 
   let finalizations;
   try {
-    transaction(() => {
+    const identity = transaction(() => {
       db.exec(schema);
       const columns = new Set(tx.all('PRAGMA table_info(reservations)').map(({ name }) => name));
+      if (!columns.has('latestProviderOverflowMicros')) {
+        tx.run('ALTER TABLE reservations ADD COLUMN latestProviderOverflowMicros TEXT');
+        tx.run('UPDATE reservations SET latestProviderOverflowMicros = providerOverflowMicros WHERE providerOverflowMicros IS NOT NULL');
+      }
       if (!columns.has('providerOverflowPending')) {
         tx.run(`ALTER TABLE reservations ADD COLUMN providerOverflowPending
           INTEGER NOT NULL DEFAULT 0 CHECK (providerOverflowPending IN (0, 1))`);
@@ -216,9 +225,21 @@ export function createSqliteStorage(filename = ':memory:', {
         `, row.id);
         if (Object.values(saved).some((value, i) => value !== values[i])) throw new Error('Immutable price row changed');
       }
+      return {
+        generation: tx.get('SELECT generation FROM finalization_journal_identity WHERE singleton = 1')?.generation ?? null,
+        appliedLateReceipt: tx.get('SELECT COALESCE(MAX(appliedLateReceipt), 0) AS lastApplied FROM reservations').lastApplied,
+      };
     });
-    finalizations = openFinalizationJournal(filename);
+    finalizations = openFinalizationJournal(filename, identity);
+    if (identity.generation === null) {
+      transaction(() => {
+        tx.run('INSERT OR IGNORE INTO finalization_journal_identity VALUES (1, ?)', finalizations.generation);
+        const { generation } = tx.get('SELECT generation FROM finalization_journal_identity WHERE singleton = 1');
+        if (generation !== finalizations.generation) throw new Error('Finalization journal generation does not match the ledger');
+      });
+    }
   } catch (error) {
+    finalizations?.close();
     db.close();
     throw error;
   }
@@ -502,10 +523,12 @@ function finish(tx, entry, {
   const { balanceMicros } = account(tx, entry.accountId);
   tx.run(`
     UPDATE reservations SET state = ?, costMicros = ?, balanceMicros = ?, providerActual = ?,
-      providerOverflowMicros = ?, providerOverflowPending = ?, reason = ?, settledAt = ?, overage = ?,
+      providerOverflowMicros = ?, latestProviderOverflowMicros = ?, providerOverflowPending = ?,
+      reason = ?, settledAt = ?, overage = ?,
       promptTokens = ?, outputTokens = ?, thoughtTokens = ?
     WHERE reservationId = ?
-  `, overflow ? 'provisional' : state, debit, balanceMicros, actual, overflow, Number(!!overflow), reason, now, Number(overage),
+  `, overflow ? 'provisional' : state, debit, balanceMicros, actual, overflow, overflow, Number(!!overflow),
+  reason, now, Number(overage),
   usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
   usage?.thoughtsTokenCount ?? null, entry.reservationId);
   tx.run('UPDATE idempotency SET expiresAt = ? WHERE reservationId = ?', now + IDEMPOTENCY_MS, entry.reservationId);
@@ -543,10 +566,12 @@ function reconcile(tx, entry, providerActual, { providerRequestId, providerReque
     UPDATE reservations SET providerActual = COALESCE(?, providerActual), overage = MAX(overage, ?),
       providerOverflowPending = ?,
       providerOverflowMicros = COALESCE(providerOverflowMicros, ?),
+      latestProviderOverflowMicros = COALESCE(?, latestProviderOverflowMicros),
       promptTokens = COALESCE(?, promptTokens), outputTokens = COALESCE(?, outputTokens),
       thoughtTokens = COALESCE(?, thoughtTokens)
     WHERE reservationId = ?
-  `, actual, Number(overage), Number(!!overflow), overflow, usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
+  `, actual, Number(overage), Number(!!overflow), overflow, overflow,
+  usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
   usage?.thoughtsTokenCount ?? null, entry.reservationId);
   return reservation(tx, entry.reservationId);
 }
@@ -555,9 +580,9 @@ function applyFinalization(tx, prior, outcome, now) {
   const result = tryFinish(tx, prior, { ...outcome, now });
   if (!result || result.won) return result;
   recordProviderIds(tx, prior.reservationId, outcome);
-  // Expiry could have won before this receipt was staged. Keep its reader
-  // debit and apply the receipt as late evidence, never as a new charge.
-  if (prior.state === 'provisional' && prior.providerActual === null) {
+  // Expiry could have won before this receipt was staged. Fill in missing
+  // provider evidence without superseding an overflow already on the row.
+  if (prior.state === 'provisional' && prior.providerActual === null && !prior.providerOverflowPending) {
     return { ...reconcile(tx, prior, outcome.providerActual, outcome), won: false };
   }
   return reservation(tx, prior.reservationId);
