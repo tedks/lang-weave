@@ -874,7 +874,10 @@ automatic refunds, token recovery, Firefox.
   conditions before any paid traffic:** C5's `providerMax` confirmed from the chosen route's
   documentation for every billable token class; that route's 6.3 table derived and tested; the
   route's hard provider-side limit for a leaked credential found, or its absence reported to Ted;
-  Google's retention on the route read for the disclosure. Any `overage` alarm in M1 or later
+  Google's retention on the route read for the disclosure; and a **verified paired backup and
+  restore** of the ledger and its finalization journal (taken together under the proxy's write
+  lock or with the proxy stopped; restoring either alone can lose staged but unapplied receipts,
+  LW-STORE-MK-07). Any `overage` alarm in M1 or later
   (a call costing more than its `providerMax`) stops managed calls until C5 is corrected.
 - **M3 (needs Ted):** first paid pack sold to one consenting tester, with the ceiling at a few
   dollars.
@@ -985,3 +988,12 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   still an ordinary zero-credit `granted`
   (C2 `grant`), not a refusal. Before any Checkout exists the record is `pending` as usual.
   Fixtures cover 600-with-unusable-capture → 325/1000 → Checkout, and Checkout first.
+- **LW-STORE-MK-07 (2026-11-28, lead, for mk-proxy).** Clarification of C2 durability for the
+  tracer's finalization journal (a second SQLite file the proxy uses to keep classified outcomes
+  through write contention). The ledger and journal are one unit: they are backed up and
+  restored only as a pair, under the proxy's write lock or with it stopped. Startup refuses a
+  missing, foreign, replaced or regressed journal, but it cannot detect a same-generation
+  journal restored from a backup taken before later receipts were staged, so restoring either
+  file alone is unsupported. A verified paired restore is an M2 stop condition (section 12).
+  In M1 the only evidence such a restore could lose is an overage, which already presupposes
+  that C5's `providerMax` is wrong, itself an M2 stop condition.
