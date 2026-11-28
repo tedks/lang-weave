@@ -770,3 +770,9 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   in 6.2 is deferred until a release that contains `buildSwapRequest` exists, and the proxy
   answers every other `promptVersion` with `409 managed_update_required`. Temporary exception,
   expires when the first release after the one containing `buildSwapRequest` ships.
+- **LW-STORE-MK-02 (2026-11-28, lead, for mk-ext).** Clarification: in managed mode E1 sends
+  `shownToday` filtered to forms that also appear as a word's `fr` in the same request, in stored
+  order, deduplicated. `buildSystemPrompt` uses `shownToday` only to order and hint listed words
+  (`prompt.js:55,64-68`), and `validateSwaps` rejects unlisted words, so nothing is lost, and the
+  list cannot exceed the 400-word cap. The proxy rejects a `shownToday` form not in `words`
+  (`400 request_failed`). The BYOK path is unchanged.
