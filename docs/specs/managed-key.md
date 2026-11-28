@@ -793,3 +793,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   vocabulary that alone exceeds the cap is asserted as the specified drop (zero calls, zero
   charge) and labelled an expected degradation. If ordinary-mode managed reading cannot send for
   realistic personal lists, that is reported as a finding against this spec.
+- **LW-STORE-MK-04 (2026-11-28, lead, for mk-proxy).** Clarification of C4: Stripe documents
+  `payment_intent` as nullable on Checkout, Charge and Dispute objects. A signed event of a handled
+  type with no usable `payment_intent` returns 200 and changes nothing except event-id
+  deduplication and an operator diagnostic (`no_payment_intent`), in one transaction; an unpaid or
+  async-pending session therefore creates no payment record, and its later event that does carry
+  a `payment_intent` is handled normally. Exception: a `mode: "payment"`, `payment_status:
+  "paid"` session with a null `payment_intent` is recorded as an orphan payment keyed by its
+  Checkout session id (`paid_without_payment_intent`) for the operator to refund; no credit.
