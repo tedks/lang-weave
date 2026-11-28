@@ -992,7 +992,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   Fixtures cover 600-with-unusable-capture → 325/1000 → Checkout, and Checkout first.
 - **LW-STORE-MK-07 (2026-11-28, lead, for mk-proxy).** Clarification of C2 durability for the
   tracer's finalization journal (a second SQLite file the proxy uses to keep classified outcomes
-  through write contention). The ledger and journal are one unit: they are backed up and
+  through write contention). The journal is an implementation detail of C2, not a new contract:
+  a staged but unapplied receipt leaves its reservation `open`, C2's compare-and-set still decides
+  the winner, and receipts are applied in the transaction of the next operation that reads the
+  affected state. Whether the hosted M2 build keeps a separate journal is a host choice (section
+  11); the paired-restore stop condition applies if it does, and the restore latch always does. The ledger and journal are one unit: they are backed up and
   restored only as a pair, under the proxy's write lock or with it stopped. Startup refuses a
   missing, foreign, replaced or regressed journal, but it cannot detect a same-generation
   journal restored from a backup taken before later receipts were staged, so restoring either
@@ -1000,6 +1004,8 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   Even a consistent paired restore rolls the ledger back to the backup point, which could
   reopen a day's spend that was already used, so **any restore sets the stop latch**, and
   `clearStop` follows only the operator's reconciliation of provider usage, Stripe events and
-  reservations since that point. In M1 a rollback can lose stub outcomes and their accounting,
-  but M1 has no live financial exposure; the paired restore with its latch is an M2 stop
+  reservations since that point. A lost receipt degrades its call to the timeout outcome (the reader
+  is charged `readerWorst`, capped by the reservation, and the day holds `providerMax`
+  provisionally), and a lost overage receipt loses the overage itself. In M1 a rollback can lose
+  stub outcomes and their accounting, but M1 has no live financial exposure; the paired restore with its latch is an M2 stop
   condition before paid traffic.
