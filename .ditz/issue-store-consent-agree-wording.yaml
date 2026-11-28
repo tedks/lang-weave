@@ -1,0 +1,21 @@
+id: store-consent-agree-wording
+title: 'Store: make welcome consent buttons say the reader agrees to the disclosure'
+desc: 'Source: LW-STORE store packet (PR #33, docs/STORE-SUBMISSION-PACKET.md risk
+  R1, 2026-11-28). The Chrome Web Store user-data FAQ asks for ''a specific action
+  clearly agreeing to the disclosure''; the 0.16.1 welcome-page site-access buttons
+  choose a policy without agreement wording. Likely rejection risk. Needs a small
+  code change and a 0.16.2 release; Ted approves wording (DECISIONS D3 in PR #101).
+  Preparation only: no release authorized by this issue.'
+type: task
+component: open-questions
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-28T08:29:35-00:00
+references: []
+log_events:
+- time: 2026-11-28T08:29:35-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
