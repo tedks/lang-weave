@@ -33,15 +33,15 @@ export function createProvider({ credential, fetchImpl, now = Date.now }) {
 
       const controller = new AbortController();
       let timer;
+      let providerRequestId;
       const deadline = new Promise((resolve) => {
         timer = setTimeout(() => {
-          resolve(sentWithoutResponse());
+          resolve({ ...sentWithoutResponse(), providerRequestId });
           controller.abort();
         }, timeoutMs);
       });
 
       async function send() {
-        let providerRequestId;
         try {
           const response = await fetchImpl(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
             method: 'POST',

@@ -81,6 +81,16 @@ const schema = `
   ) STRICT;
   CREATE INDEX IF NOT EXISTS payment_account ON payments(accountId);
   CREATE TABLE IF NOT EXISTS payment_events (eventId TEXT PRIMARY KEY) STRICT;
+  CREATE TABLE IF NOT EXISTS payment_diagnostics (
+    eventId TEXT PRIMARY KEY REFERENCES payment_events,
+    type TEXT NOT NULL,
+    reason TEXT NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS orphan_checkouts (
+    checkoutSessionId TEXT PRIMARY KEY,
+    eventId TEXT NOT NULL REFERENCES payment_events,
+    reason TEXT NOT NULL
+  ) STRICT;
   CREATE TABLE IF NOT EXISTS corrections (
     ref TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
@@ -173,7 +183,7 @@ function grant(tx, id) {
 }
 
 function reverse(tx, id, target) {
-  checkMicros(target);
+  checkMicros(target, -Number.MAX_SAFE_INTEGER);
   const entry = payment(tx, id);
   if (!entry) return null;
   const cappedTarget = Math.min(target, entry.packMicros);
@@ -249,6 +259,12 @@ export function createLedger(storage, { now = Date.now } = {}) {
     },
     getPayment(id) {
       return transaction((tx) => payment(tx, id));
+    },
+    getPaymentDiagnostic(eventId) {
+      return transaction((tx) => tx.get('SELECT * FROM payment_diagnostics WHERE eventId = ?', eventId));
+    },
+    getOrphanCheckout(checkoutSessionId) {
+      return transaction((tx) => tx.get('SELECT * FROM orphan_checkouts WHERE checkoutSessionId = ?', checkoutSessionId));
     },
     getIdempotency(accountId, keyHash) {
       return transaction((tx) => claim(tx, accountId, keyHash, now()));
@@ -336,6 +352,13 @@ export function createLedger(storage, { now = Date.now } = {}) {
           grant: (paymentId) => grant(tx, paymentId),
           reverse: (paymentId, target) => reverse(tx, paymentId, target),
           freeze: (accountId, reason) => freeze(tx, accountId, reason),
+          recordDiagnostic(type, reason) {
+            return tx.run('INSERT INTO payment_diagnostics (eventId, type, reason) VALUES (?, ?, ?)', id, type, reason);
+          },
+          recordOrphanCheckout(checkoutSessionId, reason) {
+            return tx.run('INSERT OR IGNORE INTO orphan_checkouts (checkoutSessionId, eventId, reason) VALUES (?, ?, ?)',
+              checkoutSessionId, id, reason);
+          },
         });
       });
     },
