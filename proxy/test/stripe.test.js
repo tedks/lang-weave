@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
+import { MAX_INBOUND_BYTES } from '../src/request-body.js';
 import { createStripeWebhook } from '../src/stripe.js';
 import { makeLedger } from './helpers.js';
 
@@ -13,26 +14,28 @@ function sign(raw, seconds, key = secret) {
   return `t=${seconds},v1=${createHmac('sha256', key).update(`${seconds}.`).update(raw).digest('hex')}`;
 }
 
-function setup() {
+function setup(options = {}) {
   const context = makeLedger();
+  const diagnostics = [];
   const webhook = createStripeWebhook({
     ledger: context.ledger, endpointSecret: secret, paymentLinkId: 'plink_fixture',
-    amountCents: 1000, packMicros, now: context.now,
+    amountCents: 1000, packMicros, now: context.now, diagnostic: (entry) => diagnostics.push(entry), ...options,
   });
   const request = (raw, header) => new Request(url, {
     method: 'POST', headers: { 'Stripe-Signature': header }, body: raw,
   });
   const seconds = () => context.now() / 1000;
   const fixture = (name) => Bun.file(new URL(`fixtures/${name}.json`, import.meta.url)).json();
-  async function deliver(name, changes = {}, eventId) {
+  async function deliver(name, changes = {}, eventId, eventChanges = {}) {
     const event = await fixture(name);
     if (eventId) event.id = eventId;
+    Object.assign(event, eventChanges);
     Object.assign(event.data.object, changes);
     const raw = JSON.stringify(event, null, 2) + '\n';
     const response = await webhook(request(raw, sign(raw, seconds())));
     expect(response.status).toBe(200);
   }
-  return { ...context, webhook, request, fixture, seconds, deliver };
+  return { ...context, webhook, request, fixture, seconds, deliver, diagnostics };
 }
 
 test('signs the raw bytes with v1, accepts the 300 s boundary and rejects tampered or stale payloads', async () => {
@@ -71,8 +74,17 @@ test('Checkout paid and async deliveries grant once; link, currency and amount m
       const payment_intent = `pi_${caseName}`;
       const eventId = `evt_bad_${caseName}`;
       await deliver('checkout-paid', { ...changes, payment_intent, id: `cs_${caseName}`, client_reference_id: id }, eventId);
-      expect(ledger.getPayment(payment_intent)).toMatchObject({ grantState: 'pending', accountId: null });
-      expect(ledger.getPaymentDiagnostic(eventId).reason).toBe('checkout_pack_mismatch');
+      if (caseName === 'link') {
+        expect(ledger.getPayment(payment_intent)).toBeNull();
+        expect(ledger.getCheckoutDisposition(`cs_${caseName}`)).toBeNull();
+        expect(ledger.getPaymentDiagnostic(eventId).reason).toBe('unowned_checkout');
+      } else {
+        expect(ledger.getPayment(payment_intent)).toMatchObject({
+          grantState: 'refused', accountId: null, paidMicros: caseName === 'amount' ? 9_990_000 : null,
+        });
+        expect(ledger.getOrphanCheckout(`cs_${caseName}`).status).toBe(caseName === 'amount' ? 'open' : 'manual');
+        expect(ledger.getPaymentDiagnostic(eventId).reason).toBe('checkout_pack_mismatch');
+      }
     }
     expect(ledger.getAccount(id).balanceMicros).toBe(0);
     await deliver('checkout-paid', { client_reference_id: id });
@@ -142,6 +154,7 @@ test('refused grants never debit or freeze; orphan amount owed follows refund an
     const { id } = account(packMicros);
     await deliver('checkout-paid', { client_reference_id: id });
     expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'open', owedMicros: packMicros });
+    expect(ledger.markOrphanSettled(intentId, 'unsupported-usd-marker')).toBe('NOT_MANUAL');
     await deliver('charge-refunded');
     expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'open', owedMicros: 7_500_000 });
     await deliver('dispute-created');
@@ -222,5 +235,182 @@ test('a session-keyed orphan links to earlier refund evidence once and warning_c
     });
     expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'open', owedMicros: 7_500_000 });
     expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 0, frozenReason: null });
+  } finally { db.close(); }
+});
+
+test('ownership and mode checks keep unrelated paid sessions and replay IDs out of the refund ledger', async () => {
+  const { deliver, ledger, db, account, diagnostics } = setup();
+  try {
+    const { id } = account();
+    for (const payment_intent of [null, intentId]) {
+      const event = `evt_unowned_${payment_intent ?? 'none'}`;
+      await deliver('checkout-paid', { payment_intent, payment_link: 'plink_unrelated', client_reference_id: id }, event);
+      expect(ledger.getPaymentDiagnostic(event).reason).toBe('unowned_checkout');
+      expect(ledger.getCheckoutDisposition(checkoutId)).toBeNull();
+    }
+    await deliver('checkout-paid', { client_reference_id: id }, 'evt_mode', { livemode: true });
+    expect(diagnostics).toContainEqual({ eventId: 'evt_mode', reason: 'livemode_mismatch' });
+    expect(ledger.getPaymentDiagnostic('evt_mode')).toBeNull();
+    expect(ledger.getPayment(intentId)).toBeNull();
+    await deliver('checkout-paid', { client_reference_id: id }, 'evt_unhandled', { type: 'charge.succeeded' });
+    expect(diagnostics).toContainEqual({ eventId: 'evt_unhandled', reason: 'verified_unhandled' });
+    expect(ledger.getPaymentDiagnostic('evt_unhandled')).toBeNull();
+    await deliver('checkout-paid', { client_reference_id: id }, 'evt_mode');
+    expect(ledger.getAccount(id).balanceMicros).toBe(packMicros);
+    expect(ledger.getPayment(intentId)).not.toHaveProperty('customerId');
+  } finally { db.close(); }
+});
+
+test('an oversized unsigned Stripe stream fails before verification and leaves the ledger empty', async () => {
+  const { webhook, request, ledger, db } = setup();
+  try {
+    const body = new ReadableStream({ start(controller) {
+      controller.enqueue(new Uint8Array(MAX_INBOUND_BYTES));
+      controller.enqueue(new Uint8Array(1));
+      controller.close();
+    } });
+    const streamed = request(body, 'invalid');
+    expect(streamed.headers.has('content-length')).toBeFalse();
+    const response = await webhook(streamed);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: { category: 'request_failed', tooLarge: 'body' } });
+    expect(db.transaction((tx) => tx.all('SELECT eventId FROM payment_events'))).toEqual([]);
+    expect(ledger.getPayment(intentId)).toBeNull();
+  } finally { db.close(); }
+});
+
+test('an unpaid missing-intent event is diagnostic only even when the session already has a disposition', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    const { id } = account();
+    await deliver('checkout-paid', { client_reference_id: id });
+    const before = ledger.getCheckoutDisposition(checkoutId);
+    await deliver('checkout-unpaid-no-intent', { customer: 'cus_new_fixture' });
+    expect(ledger.getCheckoutDisposition(checkoutId)).toEqual(before);
+    expect(ledger.getPaymentDiagnostic('evt_checkout_unpaid_no_intent').reason).toBe('no_payment_intent');
+    expect(ledger.getAccount(id).balanceMicros).toBe(packMicros);
+  } finally { db.close(); }
+});
+
+test('enrollment disqualifies owned payments and malformed session references are never attached to no-intent orphans', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    const { id } = account(0, false);
+    await deliver('checkout-paid', { client_reference_id: id });
+    expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'refused', accountId: null });
+    expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ paidMicros: packMicros, status: 'open' });
+    await deliver('checkout-paid-no-intent', { id: 'cs_reference_invalid', client_reference_id: 'malformed' });
+    expect(ledger.getOrphanCheckout('cs_reference_invalid').accountId).toBeNull();
+    expect(ledger.getAccount(id).balanceMicros).toBe(0);
+  } finally { db.close(); }
+});
+
+test('EUR Checkout, JPY refund-first and session-keyed foreign orphans remain in native minor units', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    const { id } = account();
+    await deliver('checkout-paid', { currency: 'eur', client_reference_id: id });
+    expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({
+      paidCurrency: 'eur', paidMicros: null, paidMinor: 1000, status: 'manual',
+    });
+    await deliver('charge-refunded', { currency: 'eur' });
+    await deliver('dispute-closed', { currency: 'eur' });
+    expect(ledger.getPayment(intentId)).toMatchObject({
+      paidCurrency: 'eur', refundedMinor: 250, disputeLostMinor: 300, refundedMicros: 0, disputeLostMicros: 0,
+    });
+    expect(ledger.getOrphanCheckout(checkoutId).status).toBe('manual');
+    expect(ledger.markOrphanSettled(intentId, 'confirmed-eur')).toBe('SETTLED');
+    expect(ledger.markOrphanSettled(checkoutId, 'confirmed-eur')).toBe('DUPLICATE');
+    expect(ledger.getOrphanCheckout(checkoutId).status).toBe('settled');
+
+    await deliver('charge-refunded', { currency: 'jpy', payment_intent: 'pi_jpy', amount_refunded: 125 }, 'evt_jpy_refund');
+    await deliver('checkout-paid', { currency: 'jpy', payment_intent: 'pi_jpy', id: 'cs_jpy' }, 'evt_jpy_paid');
+    expect(ledger.getOrphanCheckout('cs_jpy')).toMatchObject({
+      paidCurrency: 'jpy', paidMicros: null, paidMinor: 1000, refundedMinor: 125, status: 'manual',
+    });
+    await deliver('checkout-paid-no-intent', { id: 'cs_foreign_unlinked', currency: 'eur' });
+    expect(ledger.linkOrphan('cs_foreign_unlinked', 'pi_jpy')).toBe('CONFLICT');
+    expect(ledger.markOrphanSettled('cs_foreign_unlinked', 'confirmed-before-link')).toBe('SETTLED');
+    expect(ledger.linkOrphan('cs_foreign_unlinked', 'pi_linked_eur')).toMatchObject({ paymentIntentId: 'pi_linked_eur' });
+    expect(ledger.linkOrphan('cs_foreign_unlinked', 'pi_linked_eur')).toMatchObject({ paymentIntentId: 'pi_linked_eur' });
+    expect(ledger.getPayment('pi_linked_eur')).toMatchObject({
+      grantState: 'refused', paidCurrency: 'eur', paidMinor: 1000, paidMicros: null,
+    });
+    expect(ledger.getOrphanCheckout('cs_foreign_unlinked')).toMatchObject({ status: 'settled', paidMinor: 1000 });
+    expect(ledger.getAccount(id).balanceMicros).toBe(0);
+  } finally { db.close(); }
+});
+
+test('old pack values survive configuration changes and a refund uses amount_captured', async () => {
+  const { deliver, ledger, db, account, fixture, request, seconds } = setup();
+  try {
+    const { id } = account();
+    await deliver('checkout-paid', { client_reference_id: id });
+    const changedWebhook = createStripeWebhook({
+      ledger, endpointSecret: secret, paymentLinkId: 'plink_fixture', amountCents: 2000, packMicros: 20_000_000,
+      now: () => seconds() * 1000,
+    });
+    const refund = await fixture('charge-refunded');
+    refund.data.object.amount = 5000;
+    const raw = JSON.stringify(refund);
+    expect((await changedWebhook(request(raw, sign(raw, seconds())))).status).toBe(200);
+    expect(ledger.getPayment(intentId)).toMatchObject({ packMicros, reversalTarget: 2_500_000 });
+    expect(ledger.getAccount(id).balanceMicros).toBe(7_500_000);
+  } finally { db.close(); }
+});
+
+test('dispute close produces the same accounting in either event order or without a created event', async () => {
+  for (const outcome of ['won', 'lost']) {
+    for (const order of [['open', 'close'], ['close', 'open'], ['close']]) {
+      const { deliver, ledger, db, account } = setup();
+      try {
+        const { id } = account();
+        await deliver('checkout-paid', { client_reference_id: id });
+        for (const step of order) {
+          if (step === 'open') await deliver('dispute-created');
+          else await deliver('dispute-closed', { status: outcome });
+        }
+        const reversed = outcome === 'lost' || order.includes('open');
+        expect(ledger.getPayment(intentId)).toMatchObject({ dispute: outcome, disputeFreezeApplied: reversed });
+        expect(ledger.getAccount(id)).toMatchObject({ frozen: reversed, balanceMicros: reversed ? 0 : packMicros });
+      } finally { db.close(); }
+    }
+  }
+});
+
+test('lost close freezes the transferred credit holder once and rejects an empty freeze reason', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    const { id } = account();
+    const receiver = account().id;
+    await deliver('checkout-paid', { client_reference_id: id });
+    expect(() => ledger.freeze(receiver, '')).toThrow('reason');
+    expect(ledger.getAccount(receiver).frozen).toBeFalse();
+    ledger.transfer(id, receiver, 'move-payment');
+    await deliver('dispute-closed');
+    expect(ledger.getPayment(intentId)).toMatchObject({
+      accountId: receiver, dispute: 'lost', reversalTarget: packMicros, disputeFreezeApplied: true,
+    });
+    expect(ledger.getAccount(receiver)).toMatchObject({ balanceMicros: 0, frozen: true, frozenReason: 'dispute' });
+    expect(ledger.unfreeze(receiver, 'confirmed-closed')).toBeTrue();
+    await deliver('dispute-created');
+    expect(ledger.getAccount(receiver)).toMatchObject({ balanceMicros: 0, frozen: false });
+    expect(ledger.getAccount(id).frozenReason).toBe('transfer');
+  } finally { db.close(); }
+});
+
+test('foreign dispute evidence can arrive before an owned paid Checkout', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    const { id } = account();
+    await deliver('dispute-closed', { currency: 'cad', amount: 250 });
+    expect(ledger.getPayment(intentId)).toMatchObject({
+      paidCurrency: 'cad', paidMicros: null, dispute: 'lost', disputeLostMicros: 0, disputeLostMinor: 250,
+    });
+    await deliver('checkout-paid', { currency: 'cad', client_reference_id: id });
+    expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({
+      paidCurrency: 'cad', paidMicros: null, paidMinor: 1000, disputeLostMinor: 250, status: 'manual',
+    });
+    expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 0, frozen: false });
   } finally { db.close(); }
 });

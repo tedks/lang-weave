@@ -3,10 +3,11 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLedger, createSqliteStorage, IDEMPOTENCY_MS, STALE_MS, sha256 } from '../src/ledger.js';
+import { PRICE_ROWS } from '../src/pricing.js';
 import { makeLedger } from './helpers.js';
 
 const day = '2026-11-28';
-const tomorrow = '2026-11-29';
+const price = PRICE_ROWS[0].id;
 const ceiling = 2_000_000;
 const hash = (value = 'key') => sha256(value);
 const body = hash('body');
@@ -17,7 +18,7 @@ test('reservations check unreserved balance, daily account costs, global costs, 
   try {
     const ids = Array.from({ length: 5 }, () => account(100).id);
     const reserve = (id, reader = 100, provider = 400_000, key = 'key') =>
-      ledger.reserve(id, reader, provider, day, ceiling, hash(key), body);
+      ledger.reserve(id, reader, provider, price, ceiling, hash(key), body);
     expect(reserve(ids[0], 101)).toBe('BALANCE');
     const first = reserve(ids[0], 100, 800_000);
     expect(first).toMatch(/^[0-9a-f]{32}$/);
@@ -39,14 +40,14 @@ test('settle, release and expiry return their winner and only debit once', () =>
   const { ledger, db, account, now, tick } = makeLedger();
   try {
     const { id } = account(500);
-    const first = ledger.reserve(id, 100, 200, day, ceiling, hash(), body);
+    const first = ledger.reserve(id, 100, 200, price, ceiling, hash(), body);
     expect(ledger.release(first)).toMatchObject({ state: 'released', costMicros: 0, providerActual: 0 });
     expect(ledger.settle(first, 100, 200, 'stop').state).toBe('released');
-    const second = ledger.reserve(id, 100, 200, day, ceiling, hash('second'), body);
+    const second = ledger.reserve(id, 100, 200, price, ceiling, hash('second'), body);
     const settled = ledger.settle(second, 300, 150, 'stop');
     expect(settled).toMatchObject({ state: 'settled', balanceMicros: 400, costMicros: 100, providerActual: 150 });
     expect(ledger.release(second)).toEqual(settled);
-    const stale = ledger.reserve(id, 60, 100, day, ceiling, hash('stale'), body);
+    const stale = ledger.reserve(id, 60, 100, price, ceiling, hash('stale'), body);
     tick(STALE_MS);
     expect(ledger.expireStale(now())).toEqual([]);
     tick(1);
@@ -54,6 +55,7 @@ test('settle, release and expiry return their winner and only debit once', () =>
     expect(winner).toMatchObject({ reservationId: stale, state: 'provisional', reason: 'timeout', costMicros: 60 });
     expect(ledger.expireStale(now())).toEqual([]);
     expect(ledger.release(stale)).toEqual(winner);
+    expect(ledger.settle(stale, 0, 0, 'stop')).toEqual(winner);
   } finally { db.close(); }
 });
 
@@ -61,32 +63,33 @@ test('idempotency claims are atomic and the 60 s clock starts at settlement', ()
   const { ledger, db, account, now, tick } = makeLedger();
   try {
     const { id } = account(100);
-    const reserve = (digest = body) => ledger.reserve(id, 20, 100, day, ceiling, hash(), digest);
+    const reserve = (digest = body) => ledger.reserve(id, 20, 100, price, ceiling, hash(), digest);
     const first = reserve();
     tick(30_000);
-    expect(reserve()).toBe('BUSY');
-    expect(reserve(hash('other body'))).toBe('KEY_REUSE');
+    expect(reserve()).toMatchObject({ kind: 'BUSY' });
+    expect(reserve(hash('other body'))).toMatchObject({ kind: 'KEY_REUSE' });
     expect(ledger.getIdempotency(id, hash()).expiresAt).toBeNull();
     ledger.settle(first, 20, 70, 'stop');
     expect(ledger.getIdempotency(id, hash())).toMatchObject({ expiresAt: now() + IDEMPOTENCY_MS, costMicros: 20 });
     tick(IDEMPOTENCY_MS - 1);
-    expect(reserve()).toBe('DUPLICATE');
+    expect(reserve()).toMatchObject({ kind: 'DUPLICATE', reservationId: first, charged: true });
     tick(1);
     expect(reserve()).not.toBe(first);
-    expect(reserve()).toBe('BUSY');
+    expect(reserve()).toMatchObject({ kind: 'BUSY' });
   } finally { db.close(); }
 });
 
 test('provisional holds stay on the original day, reconcile once, and raise a global overage alarm', () => {
-  const { ledger, db, account } = makeLedger();
+  const { ledger, db, account, tick } = makeLedger();
   try {
     const { id } = account(500);
-    const first = ledger.reserve(id, 100, 200, day, 200, hash(), body);
+    const first = ledger.reserve(id, 100, 200, price, 200, hash(), body);
     expect(ledger.settle(first, 0, null, 'prompt_blocked', { providerRequestId: 'remote-id' })).toMatchObject({
       dayKey: day, providerRequestId: 'remote-id', state: 'provisional', costMicros: 0, providerActual: null,
     });
-    expect(ledger.reserve(id, 100, 1, day, 200, hash('next'), body)).toBe('CEILING');
-    const next = ledger.reserve(id, 100, 200, tomorrow, 200, hash('next'), body);
+    expect(ledger.reserve(id, 100, 1, price, 200, hash('next'), body)).toBe('CEILING');
+    tick(86_400_000);
+    const next = ledger.reserve(id, 100, 200, price, 200, hash('next'), body);
     expect(next).toMatch(/^[0-9a-f]{32}$/);
     ledger.release(next);
     expect(ledger.reconcileProviderRequest('unknown-id', 1)).toBeNull();
@@ -94,10 +97,10 @@ test('provisional holds stay on the original day, reconcile once, and raise a gl
     expect(ledger.reconcileProviderRequest('remote-id', 190))
       .toMatchObject({ providerActual: 190, overage: 0, costMicros: 0 });
     expect(ledger.reconcile(first, 201)).toMatchObject({ providerActual: 190, overage: 0 });
-    const nextDay = ledger.reserve(id, 100, 200, tomorrow, 200, hash('second day'), body);
+    const nextDay = ledger.reserve(id, 100, 200, price, 200, hash('second day'), body);
     ledger.settle(nextDay, 25, null, 'safety');
     expect(ledger.reconcile(nextDay, 201)).toMatchObject({ providerActual: 201, overage: 1, costMicros: 25 });
-    expect(ledger.reserve(id, 0, 0, day, ceiling, hash('after overage'), body)).toBe('CEILING');
+    expect(ledger.reserve(id, 0, 0, price, ceiling, hash('after overage'), body)).toBe('STOPPED');
   } finally { db.close(); }
 });
 
@@ -106,9 +109,11 @@ test('known overage records the full cost while capping the debit and closes all
   try {
     const { id } = account(100);
     const other = account(100).id;
-    const first = ledger.reserve(id, 99, 10, day, ceiling, hash(), body);
+    const first = ledger.reserve(id, 99, 10, price, ceiling, hash(), body);
     expect(ledger.settle(first, 120, 19, 'stop')).toMatchObject({ providerActual: 19, costMicros: 99, overage: 1 });
-    expect(ledger.reserve(other, 1, 1, tomorrow, ceiling, hash(), body)).toBe('CEILING');
+    expect(ledger.reserve(other, 1, 1, price, ceiling, hash(), body)).toBe('STOPPED');
+    expect(ledger.clearStop('operator: verified correction')).toBeTrue();
+    expect(ledger.reserve(other, 1, 1, price, ceiling, hash(), body)).toMatch(/^[a-f0-9]{32}$/);
   } finally { db.close(); }
 });
 
@@ -120,13 +125,13 @@ test('adjust, refund and token changes preserve reserved credit; transfer follow
     const intent = 'pi_recovery';
     ledger.recordPayment({ paymentIntentId: intent, accountId: from.id, packMicros });
     ledger.grant(intent);
-    const pending = ledger.reserve(from.id, 100, 200, day, ceiling, hash(), body);
+    const pending = ledger.reserve(from.id, 100, 200, price, ceiling, hash(), body);
     expect(ledger.transfer(from.id, to.id, 'recover')).toBe('BUSY');
     expect(ledger.adjust(from.id, -(packMicros + 1), 'correction', 'adj')).toMatchObject({ balanceMicros: 100, reservedMicros: 100 });
     expect(ledger.adjust(from.id, 1, 'correction', 'adj')).toBe('DUPLICATE');
     expect(ledger.revokeToken(from.tokenHash)).toBeTrue();
     expect(ledger.authenticate(from.tokenHash)).toBeNull();
-    expect(ledger.reserve(from.id, 0, 0, day, ceiling, hash('revoked'), body, { tokenHash: from.tokenHash }))
+    expect(ledger.reserve(from.id, 0, 0, price, ceiling, hash('revoked'), body, { tokenHash: from.tokenHash }))
       .toBe('UNAUTHORIZED');
     const token = ledger.rotateToken(from.id);
     expect(token).toMatch(/^lwk_[\w-]{43}$/);
@@ -175,14 +180,71 @@ test('a file-backed adapter preserves claims across reopening SQLite', () => {
 
   const id = withLedger((ledger) => {
     const accountId = ledger.createAccount(hash('fixture token'));
+    ledger.setEnrolled(accountId);
     ledger.adjust(accountId, 100, 'fixture', 'fixture-ref');
-    const reservation = ledger.reserve(accountId, 20, 30, day, ceiling, hash(), body);
+    const reservation = ledger.reserve(accountId, 20, 30, price, ceiling, hash(), body);
     expect(ledger.settle(reservation, 20, 15, 'stop')).toMatchObject({ costMicros: 20 });
     return accountId;
   });
   withLedger((ledger) => {
     expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 80, reservedMicros: 0 });
-    expect(ledger.reserve(id, 20, 30, day, ceiling, hash(), body)).toBe('DUPLICATE');
+    expect(ledger.reserve(id, 20, 30, price, ceiling, hash(), body)).toMatchObject({ kind: 'DUPLICATE', charged: true });
     expect(ledger.getIdempotency(id, hash())).toMatchObject({ costMicros: 20, expiresAt: now() + 60_000 });
   });
+}, { timeout: 25_000 });
+
+test('two connections arbitrate a same-day ceiling while one write transaction is open', async () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'contention-')), 'ledger.sqlite');
+  const at = Date.parse('2026-11-28T23:58:00Z');
+  const store = createSqliteStorage(filename);
+  const ledger = createLedger(store, { now: () => at });
+  const accounts = [ledger.createAccount(hash('first fixture')), ledger.createAccount(hash('second fixture'))];
+  for (const id of accounts) {
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture', id);
+  }
+
+  const worker = new Worker(new URL('./fixtures/ledger-contender.js', import.meta.url), { type: 'module' });
+  const began = Promise.withResolvers();
+  const finished = Promise.withResolvers();
+  worker.onmessage = ({ data }) => {
+    if (data.holding) began.resolve();
+    else finished.resolve(data);
+  };
+  worker.onerror = (err) => {
+    began.reject(err);
+    finished.reject(err);
+  };
+  const started = new SharedArrayBuffer(4);
+  try {
+    worker.postMessage({ filename, at, id: accounts[0], priceRowId: price, keyHash: hash(), bodyHash: body, started });
+    await began.promise;
+    expect(Atomics.load(new Int32Array(started), 0)).toBe(0);
+    expect(ledger.reserve(accounts[1], 60, 100_001, price, 1_000_000, hash(), body)).toBe('CEILING');
+    const { reservationId } = await finished.promise;
+    expect(reservationId).toMatch(/^[a-f0-9]{32}$/);
+    expect(ledger.getAccount(accounts[0])).toMatchObject({ balanceMicros: 100, reservedMicros: 60 });
+    expect(ledger.getAccount(accounts[1])).toMatchObject({ balanceMicros: 100, reservedMicros: 0 });
+    expect(ledger.lookupClaim(accounts[1], hash(), body)).toBeNull();
+  } finally {
+    worker.terminate();
+    store.close();
+  }
+}, { timeout: 25_000 });
+
+test('an active price revision supersedes an overlapping row and a stale quote writes nothing', () => {
+  const at = Date.parse('2026-11-29T12:00:00Z');
+  const old = PRICE_ROWS[0];
+  const revision = { ...old, id: 'fixture-revision', checkedOn: '2026-11-29', input: 40 };
+  const { db, account, ledger } = makeLedger(at, { priceRows: [old, revision] });
+  try {
+    const { id } = account(100);
+    const writes = () => db.transaction((tx) => tx.get('SELECT total_changes() AS count').count);
+    const before = writes();
+    expect(ledger.reserve(id, 1, 20, old.id, ceiling, hash(), body)).toBe('STALE_PRICE');
+    expect(writes()).toBe(before);
+    expect(ledger.lookupClaim(id, hash(), body)).toBeNull();
+    expect(ledger.getActivePriceRow(old.model).id).toBe(revision.id);
+    expect(ledger.reserve(id, 1, 20, revision.id, ceiling, hash(), body)).toMatch(/^[0-9a-f]{32}$/);
+  } finally { db.close(); }
 });

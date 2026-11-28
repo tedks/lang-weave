@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test';
 import { MAX_REQUEST_CHARS, selectWorkingSet } from '../../extension/src/adaptive.js';
+import { createContext } from '../../extension/src/worker-context.js';
+import { policyWords } from '../../extension/src/learning.js';
+import { cleanPack } from '../../extension/src/languages.js';
 import { memoryStorage } from '../../extension/src/cache.js';
 import { requestSwaps } from '../../extension/src/engine.js';
 import { GUARANI_PACK } from '../../extension/src/guarani.js';
@@ -12,9 +15,10 @@ import {
   BETA_EXTENSION_ID, createApi, MANAGED_MODEL, MAX_INBOUND_BYTES,
   MAX_OUTPUT_TOKENS, PROMPT_VERSION, PROVIDER_TIMEOUT_MS, validatedSwapWord,
 } from '../src/api.js';
-import { sha256 } from '../src/ledger.js';
-import { createPricing, serializedRequestBytes } from '../src/pricing.js';
+import { IN_FLIGHT_MAX, STALE_MS, sha256 } from '../src/ledger.js';
+import { createPricing, PRICE_ROWS, serializedRequestBytes } from '../src/pricing.js';
 import { makeLedger } from './helpers.js';
+import { createProvider } from '../src/provider.js';
 import { OUTCOMES, stubProvider, VALID_TEXT } from './provider-stub.js';
 
 const origin = `chrome-extension://${BETA_EXTENSION_ID}`;
@@ -29,10 +33,15 @@ const reading = {
   passages: [{ id: 'p1', text: 'She looked out the window and watched the street.' }],
 };
 
-async function setup({ outcome, balance = 1_000_000, ...params } = {}) {
-  const context = makeLedger(Date.parse('2026-11-28T23:58:00Z'));
-  const provider = stubProvider(outcome);
+async function setup({
+  outcome, balance = 1_000_000, enrolled = true, at = Date.parse('2026-11-28T23:58:00Z'), priceRows, handleOverage, ...params
+} = {}) {
   const alerts = [];
+  const context = makeLedger(at, { priceRows, onOverage(event) {
+    alerts.push(event);
+    handleOverage?.(event);
+  } });
+  const provider = stubProvider(outcome);
   const config = {
     ledger: context.ledger, provider, now: context.now,
     clientIp: () => '192.0.2.19', ipHashSecret: 'fixture-ip-hash-secret',
@@ -42,6 +51,7 @@ async function setup({ outcome, balance = 1_000_000, ...params } = {}) {
   const opened = await api(new Request(base + '/v0/accounts', { method: 'POST' }));
   expect(opened.status).toBe(201);
   const { accountId, token } = await opened.json();
+  if (enrolled) context.ledger.setEnrolled(accountId);
   if (balance) context.ledger.adjust(accountId, balance, 'fixture', 'credit');
   const getBalance = () => api(new Request(base + '/v0/balance', {
     headers: { Authorization: `Bearer ${token}` },
@@ -73,10 +83,11 @@ test('accounts start empty, token is only returned at creation, and hourly limit
     expect(denied.status).toBe(401);
     expect(await denied.json()).toEqual({ error: { category: 'managed_unauthorized' } });
 
-    const create = () => api(new Request(base + '/v0/accounts', {
+    const second = createApi(fixture.config);
+    const create = (handler = second) => handler(new Request(base + '/v0/accounts', {
       method: 'POST', headers: { 'x-forwarded-for': '198.51.100.3' },
     }));
-    for (let i = 0; i < 4; i++) expect((await create()).status).toBe(201);
+    for (let i = 0; i < 4; i++) expect((await create(i % 2 ? api : second)).status).toBe(201);
     tick(4 * 60_000);
     const limited = await create();
     expect(limited.status).toBe(429);
@@ -216,7 +227,7 @@ test('a proxy prompt equals the BYOK transport body before the output override w
     expect(reservation()).toMatchObject({
       readerWorst: pricing.worst(model, bytes, MAX_OUTPUT_TOKENS, now()).readerMicros,
       providerMax: pricing.worst(model, bytes, MAX_OUTPUT_TOKENS, now()).providerMicros +
-        pricing.maxPerCallOverage(model, MAX_OUTPUT_TOKENS, now()),
+        pricing.maxPerCallOverage(PRICE_ROWS[0].id, MAX_OUTPUT_TOKENS),
     });
     const { maxOutputTokens, ...generationConfig } = request.generationConfig;
     expect(JSON.stringify({ ...request, generationConfig })).toBe(byok);
@@ -316,6 +327,7 @@ test('admission errors and maintenance leave the call unsent', async () => {
   for (const [config, freeze, status, category] of [
     [{ balance: 0 }, false, 402, 'managed_balance'],
     [{}, true, 402, 'managed_balance'],
+    [{ enrolled: false }, false, 503, 'managed_unavailable'],
     [{ ceilingMicros: 1 }, false, 503, 'managed_unavailable'],
     [{ isInMaintenance: () => true }, false, 503, 'managed_unavailable'],
   ]) {
@@ -353,7 +365,9 @@ test('combined maximum sends every passage through the E1 splitter and the E2 en
     fr: `${source}${i}`.padEnd(frLength, 'é'), en: `gloss${source}${i}`.padEnd(enLength, 'e'),
     hint: '', ...(source === 'personal' ? { personalId: `fixture-${i}` } : {}),
   }));
-  const pack = makeWords('pack', 80, 50, 60);
+  const pack = makeWords('pack', 80, 50, 60).map((word, i) => ({
+    ...word, hint: 'h'.repeat(60), level: i < 40 ? 1 : 2,
+  }));
   const personal = makeWords('personal', 300, 80, 80);
   const passages = Array.from({ length: 8 }, (_, i) => ({
     id: `passage-${i + 1}`.padEnd(64, 'x'),
@@ -368,12 +382,33 @@ test('combined maximum sends every passage through the E1 splitter and the E2 en
       return { ...OUTCOMES.stop, text: JSON.stringify({ passages: providerPassages }) };
     } });
     try {
-      const fullCatalog = [...pack, ...personal];
+      const chrome = globalThis.chrome;
+      globalThis.chrome = {
+        permissions: { getAll: async () => ({ origins: [] }) }, runtime: { getManifest: () => ({ version: '0.16.1' }) },
+      };
+      let context;
+      try {
+        const store = memoryStorage({
+          settings: { gradual, language: 'fr', levelOverride: 2, managedProvider: true },
+          managedToken: token,
+          languagePacks: { fr: { words: pack } },
+          personalVocabularyV1: { version: 1, entries: personal.map(({ fr, en }, i) => ({
+            language: 'fr', target: fr, source: en, sense: en, direction: 'en-to-target',
+            uuid: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+          })) },
+        });
+        context = await createContext({ store, ready: Promise.resolve(), worker: {} }).context();
+      } finally {
+        if (chrome === undefined) delete globalThis.chrome;
+        else globalThis.chrome = chrome;
+      }
+      expect(context.language).toBe('fr');
+      expect(context.words.length).toBe(gradual ? 380 : 80);
       const words = gradual ? selectWorkingSet({
-        batch: passages, words: fullCatalog, scope: 'fr', language: 'fr', level: 2,
-        state: cleanReview(null, fullCatalog, now()), settings: { gradual: true, newWordsPerDay: 4 },
-        now: now(), day: '2026-11-28', revision: 'fixture',
-      }) : pack.map((word) => ({ ...word, status: 'active' }));
+        batch: passages, words: context.words, scope: context.scope, language: 'fr', level: 2,
+        state: cleanReview(null, context.words, now()), settings: context.settings,
+        now: now(), day: '2026-11-28', revision: context.revision,
+      }) : policyWords(context.words, null, context.settings, now());
       expect(words.length).toBeGreaterThan(0);
       const dispatched = [];
       const { results } = await requestManagedSwaps({
@@ -398,3 +433,267 @@ test('combined maximum sends every passage through the E1 splitter and the E2 en
 });
 
 test.todo('carry and verify a previous-release prompt snapshot once an earlier release contains the shared builder');
+
+test('pack-cleaner and proxy accept and reject the same gloss boundary cases', () => {
+  const raw = Array.from({ length: 20 }, (_, i) => ({
+    fr: `form${i}`, en: 'e'.repeat(60), hint: 'pronunciation', level: i < 10 ? 1 : 2,
+  }));
+  for (const [gloss, passes] of [['é'.repeat(60), true], ['e'.repeat(61), false], ['123', false], ['e\u200d', false]]) {
+    const words = [{ ...raw[0], en: gloss }, ...raw.slice(1)];
+    const { fr, en } = words[0];
+    expect(Boolean(cleanPack({ words }, 'fr'))).toBe(passes);
+    expect(Boolean(validatedSwapWord({ fr, en, source: 'pack', status: 'active' }, 'fr'))).toBe(passes);
+  }
+});
+
+test('account opening caps raw streams and uses an explicitly configured transport-proto header', async () => {
+  const { api, db, config } = await setup();
+  try {
+    const bytes = new ReadableStream({ start(controller) {
+      controller.enqueue(new Uint8Array(MAX_INBOUND_BYTES));
+      controller.enqueue(new Uint8Array(1));
+      controller.close();
+    } });
+    const large = new Request(base + '/v0/accounts', { method: 'POST', body: bytes });
+    expect(large.headers.has('content-length')).toBeFalse();
+    const exceeded = await api(large);
+    expect(exceeded.status).toBe(413);
+    expect(await exceeded.json()).toEqual({ error: { category: 'request_failed', tooLarge: 'body' } });
+    expect(db.transaction((tx) => tx.get('SELECT COUNT(*) AS count FROM accounts').count)).toBe(1);
+
+    const request = (protocol) => new Request('http://proxy.invalid/v0/accounts', {
+      method: 'POST', body: new ReadableStream({ start: (controller) => controller.close() }),
+      headers: { 'X-Fixture-Proto': protocol },
+    });
+    expect((await api(request('https'))).status).toBe(400);
+    const trusted = createApi({ ...config, forwardedProtoHeader: 'X-Fixture-Proto' });
+    expect((await trusted(request('http'))).status).toBe(400);
+    expect((await trusted(request('https'))).status).toBe(201);
+  } finally { db.close(); }
+});
+
+test('safe STOP output serializes only schema fields even when extras contain request text', async () => {
+  const echo = reading.passages[0].text;
+  const text = JSON.stringify({
+    request: echo,
+    passages: [{ id: 'p1', sourcePassage: echo, swaps: [
+      { o: 'window', f: 'ventana', g: 'window', h: 'ben-tana', ctx: 'out the window', extra: echo },
+    ] }],
+  });
+  const { swap, db } = await setup({ outcome: { ...OUTCOMES.stop, text } });
+  try {
+    const response = await swap();
+    expect(response.status).toBe(200);
+    const output = (await response.json()).text;
+    expect(output).not.toContain(echo);
+    expect(JSON.parse(output)).toEqual({ passages: [{ id: 'p1', swaps: [
+      { o: 'window', f: 'ventana', g: 'window', h: 'ben-tana', ctx: 'out the window' },
+    ] }] });
+  } finally { db.close(); }
+});
+
+test('day-cap refusal reports dailyCap through C1 before calling the provider', async () => {
+  const { ledger, accountId, swap, db, provider, reservation } = await setup();
+  try {
+    const held = ledger.reserve(accountId, 0, 900_000, PRICE_ROWS[0].id, 2_000_000, sha256('seed'), sha256('seed body'));
+    ledger.settle(held, 0, 900_000, 'fixture');
+    const denied = await swap();
+    expect(denied.status).toBe(402);
+    expect(await denied.json()).toEqual({ error: { category: 'managed_balance', dailyCap: true } });
+    expect(provider.calls).toHaveLength(0);
+    expect(reservation()).toBeNull();
+  } finally { db.close(); }
+});
+
+test('C1 refuses the fifth in-flight call even when it belongs to a separate account', async () => {
+  const allStarted = Promise.withResolvers();
+  const providerResult = Promise.withResolvers();
+  let started = 0;
+  const { config, ledger, account, db, token, getBalance } = await setup({
+    outcome() {
+      if (++started === IN_FLIGHT_MAX) allStarted.resolve();
+      return providerResult.promise;
+    },
+  });
+  const api = createApi(config);
+  const tokens = [token, ...Array.from({ length: IN_FLIGHT_MAX }, () => ledger.rotateToken(account(100_000).id))];
+  const dispatch = (bearer) => api(new Request(base + '/v0/swaps', {
+    method: 'POST', body: JSON.stringify(reading),
+    headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+  }));
+  const inFlight = tokens.slice(0, IN_FLIGHT_MAX).map(dispatch);
+  try {
+    await allStarted.promise;
+    const denied = await dispatch(tokens.at(-1));
+    expect(denied.status).toBe(429);
+    expect(await denied.json()).toEqual({ error: { category: 'rate_limit', retryAfterMs: 1000 } });
+    expect((await (await getBalance()).json()).reservedMicros).toBeGreaterThan(0);
+    expect(started).toBe(IN_FLIGHT_MAX);
+  } finally {
+    providerResult.resolve(OUTCOMES.stop);
+    expect((await Promise.all(inFlight)).map((response) => response.status)).toEqual(Array(IN_FLIGHT_MAX).fill(200));
+    db.close();
+  }
+});
+
+test('cached and durable claims precede maintenance, the stop latch and expired pricing', async () => {
+  let maintenance = false;
+  const { swap, db, provider, ledger, config, tick, accountId } = await setup({
+    at: Date.parse('2026-12-28T23:59:50Z'), isInMaintenance: () => maintenance,
+  });
+  try {
+    const original = await (await swap()).json();
+    const stop = ledger.reserve(accountId, 0, 100, PRICE_ROWS[0].id, 2_000_000, sha256('seed stop'), sha256('seed body'));
+    ledger.settle(stop, 0, 101, 'fixture');
+    tick(20_000);
+    maintenance = true;
+    expect(await (await swap()).json()).toEqual(original);
+    expect((await swap({ ...reading, density: 'heavy' })).status).toBe(422);
+    const other = await swap(reading, { selectedApi: createApi(config) });
+    expect(await other.json()).toEqual({ error: { category: 'request_failed', duplicate: true, charged: true } });
+    maintenance = false;
+    expect((await swap(reading, { id: nextKey })).status).toBe(503);
+    expect(ledger.lookupClaim(accountId, sha256(nextKey), sha256('unknown'))).toBeNull();
+    expect(provider.calls).toHaveLength(1);
+  } finally { db.close(); }
+});
+
+test('midnight reprices from the authoritative row, settles using that row and maps a retry refusal normally', async () => {
+  const previous = { ...PRICE_ROWS[0], id: 'fixture-previous', until: '2026-11-29' };
+  const effective = { ...PRICE_ROWS[0], id: 'fixture-effective', from: '2026-11-29', input: 60 };
+  const beforeMidnight = Date.parse('2026-11-28T23:59:59.999Z');
+  for (const balance of [1_000_000, 0]) {
+    const { config, swap, db, provider, reservation, ledger } = await setup({
+      now: () => beforeMidnight, at: beforeMidnight + 1, balance, priceRows: [previous, effective],
+      pricing: createPricing({ rows: [previous] }),
+    });
+    const attempts = [];
+    const selectedApi = createApi({ ...config, ledger: { ...ledger, reserve(...args) {
+      const result = ledger.reserve(...args);
+      attempts.push({ result, row: args[3] });
+      return result;
+    } } });
+    try {
+      const response = await swap(reading, { selectedApi });
+      expect(attempts.map(({ row }) => row)).toEqual([previous.id, effective.id]);
+      expect(attempts[0].result).toBe('STALE_PRICE');
+      if (balance) {
+        expect(response.status).toBe(200);
+        expect(reservation()).toMatchObject({ dayKey: '2026-11-29', priceRowId: effective.id, providerActual: 210 });
+        expect(provider.calls).toHaveLength(1);
+      } else {
+        expect(response.status).toBe(402);
+        expect(attempts[1].result).toBe('BALANCE');
+        expect(reservation()).toBeNull();
+        expect(provider.calls).toHaveLength(0);
+      }
+    } finally { db.close(); }
+  }
+});
+
+test('expiry and key reuse cannot make the original request return the newer outcome', async () => {
+  const firstStarted = Promise.withResolvers();
+  const delayed = Promise.withResolvers();
+  let calls = 0;
+  const { swap, db, reservation, tick, ledger, alerts } = await setup({
+    outcome() {
+      if (++calls !== 1) return OUTCOMES.beforeSend;
+      firstStarted.resolve();
+      return delayed.promise;
+    },
+  });
+  try {
+    const first = swap();
+    await firstStarted.promise;
+    const oldId = reservation().reservationId;
+    tick(STALE_MS + 1);
+    expect(ledger.expireStale()[0]).toMatchObject({ reservationId: oldId, state: 'provisional' });
+    tick(60_000);
+    expect((await swap({ ...reading, density: 'heavy' })).status).toBe(502);
+    const newer = reservation();
+    expect(newer.reservationId).not.toBe(oldId);
+    expect(newer.costMicros).toBe(0);
+
+    delayed.resolve(OUTCOMES.stop);
+    const originalReply = await first;
+    expect(originalReply.status).toBe(409);
+    expect(await originalReply.json()).toEqual({ error: { category: 'request_failed', duplicate: true, charged: true } });
+    expect(ledger.getReservation(oldId)).toMatchObject({ providerActual: 180, providerRequestId: 'stub-request' });
+    expect(reservation()).toEqual(newer);
+    expect(alerts).toEqual([]);
+  } finally { db.close(); }
+});
+
+test('late transport reconciliation uses the original UTC day after midnight and raises an overage once', async () => {
+  const delivery = Promise.withResolvers();
+  const alarm = Promise.withResolvers();
+  const transport = createProvider({
+    baseUrl: 'https://fixture.invalid/models/', credential: 'fixture-only-secret', fetchImpl: () => delivery.promise,
+  });
+  const { swap, db, reservation, ledger, tick, alerts } = await setup({
+    at: Date.parse('2026-11-28T23:59:59Z'), handleOverage: alarm.resolve,
+    provider: { call: (args) => transport.call({ ...args, timeoutMs: 12 }) },
+  });
+  try {
+    const first = await swap();
+    expect(first.status).toBe(504);
+    const original = reservation();
+    expect(original).toMatchObject({ dayKey: '2026-11-28', state: 'provisional', providerActual: null });
+    tick(2000);
+    delivery.resolve(Response.json({
+      responseId: 'late-customer-free-id',
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: VALID_TEXT }] } }],
+      usageMetadata: { promptTokenCount: 1_000_000 },
+    }));
+    expect(await alarm.promise).toEqual({ reason: 'overage', reservationId: original.reservationId });
+    expect(reservation()).toMatchObject({
+      dayKey: '2026-11-28', providerActual: 300_000, overage: 1,
+      costMicros: original.costMicros, providerRequestId: 'late-customer-free-id',
+    });
+    expect((await swap(reading, { id: nextKey })).status).toBe(503);
+    ledger.reconcileProviderRequest('late-customer-free-id', 300_000);
+    expect(alerts).toHaveLength(1);
+  } finally { db.close(); }
+});
+
+test('E1 drops an oversized single passage with no proxy request and no charge', async () => {
+  const { api, provider, token, getBalance, db } = await setup();
+  try {
+    const words = Array.from({ length: 250 }, (_, i) => ({
+      fr: `personal${i}`.padEnd(80, 'é'), en: 'e'.repeat(80), hint: '', status: 'active', personalId: `word-${i}`,
+    }));
+    let dispatched = 0;
+    const result = await requestManagedSwaps({
+      token, words, level: 2, language: 'fr', batch: reading.passages, keyStore: memoryStorage(),
+      fetchImpl: (url, init) => {
+        dispatched++;
+        return api(new Request(url, init));
+      },
+    }).catch((error) => error);
+    expect(result.category).toBe('request_failed');
+    expect(result.partialResults).toEqual({});
+    expect(dispatched).toBe(0);
+    expect(provider.calls).toHaveLength(0);
+    expect(await (await getBalance()).json()).toEqual({ balanceMicros: 1_000_000, reservedMicros: 0 });
+  } finally { db.close(); }
+});
+
+test('Spanish, Guaraní and generated pack proxy prompts match the shared builder', async () => {
+  for (const [language, row, source, gradual] of [
+    ['es', windowWord, 'bundled', true], [GUARANI_STARTER, GUARANI_PACK.words[0], 'bundled', false],
+    ['fr', { fr: 'fenêtre', en: 'window', hint: 'feh-net' }, 'pack', false],
+  ]) {
+    const { swap, db, provider } = await setup();
+    try {
+      const status = gradual ? 'due' : 'active';
+      const value = { ...reading, language, gradual, words: [{ fr: row.fr, en: row.en, status, source }], shownToday: [row.fr] };
+      expect((await swap(value)).status).toBe(200);
+      const body = buildSwapRequest({
+        ...value, batch: value.passages, words: [{ ...row, status }], unknownLimit: gradual,
+      });
+      const { generationConfig: { maxOutputTokens, ...generationConfig }, ...built } = provider.calls[0].request;
+      expect(JSON.stringify({ ...built, generationConfig })).toBe(JSON.stringify(body));
+      expect(maxOutputTokens).toBe(MAX_OUTPUT_TOKENS);
+    } finally { db.close(); }
+  }
+});
