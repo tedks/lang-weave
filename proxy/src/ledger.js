@@ -293,6 +293,13 @@ function expireStale(tx, now) {
   }));
 }
 
+function reconcile(tx, entry, providerActual) {
+  if (entry?.state !== 'provisional' || entry.providerActual !== null) return entry;
+  tx.run('UPDATE reservations SET providerActual = ?, overage = ? WHERE reservationId = ?',
+    providerActual, Number(providerActual > entry.providerMax), entry.reservationId);
+  return reservation(tx, entry.reservationId);
+}
+
 const dayCost = `
   SELECT COALESCE(SUM(CASE
     WHEN state = 'open' OR (state = 'provisional' AND providerActual IS NULL) THEN providerMax
@@ -357,12 +364,15 @@ export function createLedger(storage, { now = Date.now } = {}) {
     getIdempotency(accountId, keyHash) {
       return transaction((tx) => claim(tx, accountId, keyHash, now()));
     },
-    reserve(accountId, readerWorst, providerMax, dayKey, ceiling, keyHash, bodyHash, { model = null } = {}) {
+    reserve(accountId, readerWorst, providerMax, dayKey, ceiling, keyHash, bodyHash, { model = null, tokenHash } = {}) {
       checkMicros(readerWorst);
       checkMicros(providerMax);
       checkMicros(ceiling);
       return transaction((tx) => {
         const at = now();
+        if (tokenHash && !tx.get('SELECT 1 FROM accounts WHERE accountId = ? AND tokenHash = ?', accountId, tokenHash)) {
+          return 'UNAUTHORIZED';
+        }
         expireStale(tx, at);
         tx.run('DELETE FROM idempotency WHERE expiresAt <= ?', at);
         const prior = claim(tx, accountId, keyHash, at);
@@ -408,16 +418,16 @@ export function createLedger(storage, { now = Date.now } = {}) {
     expireStale(at = now()) {
       return transaction((tx) => expireStale(tx, at));
     },
-    // The caller already matched this exact reservation to a late response
-    // or provider export. An unmatched export must never call reconcile.
+    // Direct reconciliation is for an attributable response to this request.
     reconcile(id, providerActual) {
       checkMicros(providerActual);
+      return transaction((tx) => reconcile(tx, reservation(tx, id), providerActual));
+    },
+    reconcileProviderRequest(providerRequestId, providerActual) {
+      checkMicros(providerActual);
       return transaction((tx) => {
-        const entry = reservation(tx, id);
-        if (entry?.state !== 'provisional' || entry.providerActual !== null) return entry;
-        tx.run('UPDATE reservations SET providerActual = ?, overage = ? WHERE reservationId = ?',
-          providerActual, Number(providerActual > entry.providerMax), id);
-        return reservation(tx, id);
+        const matches = tx.all('SELECT * FROM reservations WHERE providerRequestId = ? LIMIT 2', providerRequestId);
+        return matches.length === 1 ? reconcile(tx, matches[0], providerActual) : null;
       });
     },
     recordPayment(input) {

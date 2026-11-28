@@ -190,6 +190,7 @@ function meter(pricing, model, at, outcome, bytes, readerWorst) {
 const ok = (status, body) => ({ status, body });
 const failure = (status, category = 'request_failed', extra) => ok(status, { error: { category, ...extra } });
 const ledgerFailure = {
+  UNAUTHORIZED: failure(401, 'managed_unauthorized'),
   BALANCE: failure(402, 'managed_balance'),
   DAILY_CAP: failure(402, 'managed_balance', { dailyCap: true }),
   FROZEN: failure(402, 'managed_balance'),
@@ -213,9 +214,9 @@ export function createApi({
   const rateLimit = accountRateLimiter(ipHashSecret);
   const replays = new Map();
 
-  function authenticate(request) {
+  function bearerHash(request) {
     const match = /^Bearer (lwk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.get('authorization') ?? '');
-    return match ? ledger.authenticate(sha256(match[1])) : null;
+    return match ? sha256(match[1]) : null;
   }
 
   function createAccount(request) {
@@ -238,7 +239,8 @@ export function createApi({
   async function swap(request) {
     const json = await readJson(request);
     if (json.tooLarge) return failure(413, 'request_failed', { tooLarge: 'body' });
-    const accountId = authenticate(request);
+    const tokenHash = bearerHash(request);
+    const accountId = tokenHash && ledger.authenticate(tokenHash);
     if (!accountId) return failure(401, 'managed_unauthorized');
     const input = json.value;
     if (!record(input)) return failure(400);
@@ -262,13 +264,14 @@ export function createApi({
     const providerMax = worst.providerMicros + pricing.maxPerCallOverage(model, MAX_OUTPUT_TOKENS, at);
     const keyHash = sha256(key);
     const id = ledger.reserve(accountId, worst.readerMicros, providerMax, dayOf(at), ceilingMicros,
-      keyHash, sha256(canonicalSwapBody(input)), { model });
+      keyHash, sha256(canonicalSwapBody(input)), { model, tokenHash });
     if (id === 'DUPLICATE') return duplicate(accountId, keyHash);
     if (Object.hasOwn(ledgerFailure, id)) return ledgerFailure[id];
 
     let outcome;
     try {
       outcome = await provider.call({ model, request: built, timeoutMs: PROVIDER_TIMEOUT_MS });
+      if (!outcome) outcome = { kind: 'no_response', sent: true };
     } catch {
       outcome = { kind: 'no_response', sent: true };
     }
@@ -340,7 +343,8 @@ export function createApi({
       } else if (request.method === 'POST' && url.pathname === '/v0/accounts') {
         result = createAccount(request);
       } else if (request.method === 'GET' && url.pathname === '/v0/balance') {
-        const accountId = authenticate(request);
+        const tokenHash = bearerHash(request);
+        const accountId = tokenHash && ledger.authenticate(tokenHash);
         if (!accountId) result = failure(401, 'managed_unauthorized');
         else {
           const { balanceMicros, reservedMicros } = ledger.getAccount(accountId);

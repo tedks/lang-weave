@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test';
-import { IDEMPOTENCY_MS, STALE_MS, sha256 } from '../src/ledger.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createLedger, createSqliteStorage, IDEMPOTENCY_MS, STALE_MS, sha256 } from '../src/ledger.js';
 import { makeLedger } from './helpers.js';
 
 const day = '2026-11-28';
@@ -86,7 +89,10 @@ test('provisional holds stay on the original day, reconcile once, and raise a gl
     const next = ledger.reserve(id, 100, 200, tomorrow, 200, hash('next'), body);
     expect(next).toMatch(/^[0-9a-f]{32}$/);
     ledger.release(next);
-    expect(ledger.reconcile(first, 190)).toMatchObject({ providerActual: 190, overage: 0, costMicros: 0 });
+    expect(ledger.reconcileProviderRequest('unknown-id', 1)).toBeNull();
+    expect(ledger.getReservation(first).providerActual).toBeNull();
+    expect(ledger.reconcileProviderRequest('remote-id', 190))
+      .toMatchObject({ providerActual: 190, overage: 0, costMicros: 0 });
     expect(ledger.reconcile(first, 201)).toMatchObject({ providerActual: 190, overage: 0 });
     const nextDay = ledger.reserve(id, 100, 200, tomorrow, 200, hash('second day'), body);
     ledger.settle(nextDay, 25, null, 'safety');
@@ -120,6 +126,8 @@ test('adjust, refund and token changes preserve reserved credit; transfer follow
     expect(ledger.adjust(from.id, 1, 'correction', 'adj')).toBe('DUPLICATE');
     expect(ledger.revokeToken(from.tokenHash)).toBeTrue();
     expect(ledger.authenticate(from.tokenHash)).toBeNull();
+    expect(ledger.reserve(from.id, 0, 0, day, ceiling, hash('revoked'), body, { tokenHash: from.tokenHash }))
+      .toBe('UNAUTHORIZED');
     const token = ledger.rotateToken(from.id);
     expect(token).toMatch(/^lwk_[\w-]{43}$/);
     expect(ledger.authenticate(sha256(token))).toBe(from.id);
@@ -151,4 +159,30 @@ test('failed webhook transaction rolls back the event marker and mutation', () =
     expect(ledger.applyPaymentEvent('evt_atomic', (tx) => tx.recordPayment(payment))).toBeTruthy();
     expect(ledger.applyPaymentEvent('evt_atomic', () => { throw new Error('duplicate ran'); })).toBeNull();
   } finally { db.close(); }
+});
+
+test('a file-backed adapter preserves claims across reopening SQLite', () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'idempotency-')), 'ledger.sqlite');
+  const now = () => Date.parse('2026-11-28T23:58:00Z');
+  function withLedger(operation) {
+    const db = createSqliteStorage(filename);
+    try {
+      return operation(createLedger(db, { now }));
+    } finally {
+      db.close();
+    }
+  }
+
+  const id = withLedger((ledger) => {
+    const accountId = ledger.createAccount(hash('fixture token'));
+    ledger.adjust(accountId, 100, 'fixture', 'fixture-ref');
+    const reservation = ledger.reserve(accountId, 20, 30, day, ceiling, hash(), body);
+    expect(ledger.settle(reservation, 20, 15, 'stop')).toMatchObject({ costMicros: 20 });
+    return accountId;
+  });
+  withLedger((ledger) => {
+    expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 80, reservedMicros: 0 });
+    expect(ledger.reserve(id, 20, 30, day, ceiling, hash(), body)).toBe('DUPLICATE');
+    expect(ledger.getIdempotency(id, hash())).toMatchObject({ costMicros: 20, expiresAt: now() + 60_000 });
+  });
 });
