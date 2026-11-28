@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { MAX_REQUEST_CHARS } from '../src/adaptive.js';
 import { memoryStorage } from '../src/cache.js';
 import { MANAGED_BASE, requestManagedSwaps } from '../src/managed.js';
-import { MAX_RETRY_MS, STATUS_CATEGORIES, safeModelStatus } from '../src/quota-status.js';
+import { MAX_RETRY_MS } from '../src/quota-status.js';
 import { buildSwapRequest, canonicalSwapBody } from '../src/swap-request.js';
 import manifest from '../manifest.json';
 
@@ -72,9 +72,6 @@ test('C1 errors preserve bounded diagnostics without invoking a fallback or cool
     const f = fixture(() => proxyError(status, category, { ...details, message: 'untrusted proxy text' }));
     await expect(f.run()).rejects.toMatchObject({ status, category, ...details,
       message: 'Managed reading request failed' });
-    expect(STATUS_CATEGORIES.has(category)).toBe(true);
-    expect(safeModelStatus({ category, ...details })).toEqual({ category,
-      ...(typeof details.ahead === 'boolean' ? { ahead: details.ahead } : {}) });
     expect(f.calls).toHaveLength(1);
   }
   for (const retryAfterMs of [-1, 0, 1.5, MAX_RETRY_MS + 1, '5000']) {
@@ -83,16 +80,42 @@ test('C1 errors preserve bounded diagnostics without invoking a fallback or cool
     expect(error.category).toBe('overloaded');
     expect(error.retryAfterMs).toBeUndefined();
   }
-  const unknown = fixture(() => proxyError(502, 'future_error', { blocked: 'false' }));
-  const error = await unknown.run().catch((reason) => reason);
-  expect(error.category).toBe('request_failed');
-  expect(error.blocked).toBeUndefined();
-  const timeout = fixture(() => { throw new DOMException('Synthetic timeout', 'TimeoutError'); });
-  await expect(timeout.run()).rejects.toMatchObject({ category: 'request_failed' });
-  expect(timeout.calls).toHaveLength(1);
+  for (const category of ['future_error', 'key_rejected', 'storage_failed', 'key_isolation_unavailable', 'local_budget', 'ok']) {
+    const unknown = fixture(() => proxyError(502, category, { blocked: 'false' }));
+    const error = await unknown.run().catch((reason) => reason);
+    expect(error.category).toBe('request_failed');
+    expect(error.blocked).toBeUndefined();
+    expect(unknown.calls).toHaveLength(1);
+  }
   const missing = fixture(() => success([]));
   await expect(missing.run()).rejects.toMatchObject({ category: 'request_failed' });
   expect(missing.calls).toHaveLength(1);
+});
+
+test('the managed timeout aborts a pending transport without retry', async () => {
+  const actualTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = (ms) => {
+    expect(ms).toBe(30_000);
+    return actualTimeout.call(AbortSignal, 5);
+  };
+  let abortReason;
+  const f = fixture((_wire, _number, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => {
+      abortReason = signal.reason;
+      reject(abortReason);
+    }, { once: true });
+  }));
+  try {
+    await expect(f.run()).rejects.toMatchObject({ category: 'request_failed' });
+    expect(abortReason?.name).toBe('TimeoutError');
+    expect(f.calls).toHaveLength(1);
+  } finally { AbortSignal.timeout = actualTimeout; }
+});
+
+test('a thrown primitive becomes a bounded managed failure', async () => {
+  const f = fixture(() => { throw new Error('must stop before dispatch'); }, { now: () => { throw null; } });
+  await expect(f.run()).rejects.toMatchObject({ category: 'request_failed', partialResults: {} });
+  expect(f.calls).toHaveLength(0);
 });
 
 test('unchanged canonical requests reuse the 128-bit key for 60 seconds, across worker wakes', async () => {
@@ -125,13 +148,17 @@ test('proxy-rejected key reuse renews once with identical bytes', async () => {
 
 test('400 tooLarge splits once and keeps successful child results if another child fails', async () => {
   const passages = ['one', 'two', 'three', 'four'].map((id) => ({ ...batch[0], id }));
-  const f = fixture((wire, number) => number === 2
-    ? success(wire.passages.map(({ id }) => ({ id, swaps: [] })))
-    : proxyError(400, 'request_failed', { tooLarge: 'passages' }), { batch: passages });
-  await expect(f.run()).rejects.toMatchObject({ status: 400, partialResults: { one: [], two: [] } });
-  expect(f.calls.map(({ wire }) => wire.passages.map(({ id }) => id)))
-    .toEqual([['one', 'two', 'three', 'four'], ['one', 'two'], ['three', 'four']]);
-  expect(new Set(f.calls.map(({ init }) => init.headers['Idempotency-Key'])).size).toBe(3);
+  for (const [successCall, partialResults] of [[2, { one: [], two: [] }], [3, { three: [], four: [] }]]) {
+    const f = fixture((wire, number) => number === successCall
+      ? success(wire.passages.map(({ id }) => ({ id, swaps: [] })))
+      : proxyError(400, 'request_failed', { tooLarge: 'passages' }), { batch: passages });
+    const error = await f.run().catch((reason) => reason);
+    expect(error.status).toBe(400);
+    expect(error.partialResults).toEqual(partialResults);
+    expect(f.calls.map(({ wire }) => wire.passages.map(({ id }) => id)))
+      .toEqual([['one', 'two', 'three', 'four'], ['one', 'two'], ['three', 'four']]);
+    expect(new Set(f.calls.map(({ init }) => init.headers['Idempotency-Key'])).size).toBe(3);
+  }
 
   const unsplittable = fixture(() => proxyError(400, 'request_failed'), { batch: passages });
   await expect(unsplittable.run()).rejects.toMatchObject({ status: 400 });

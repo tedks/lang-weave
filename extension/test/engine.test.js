@@ -72,6 +72,11 @@ describe('shared swap request', () => {
     expect(canonicalSwapBody(JSON.parse(bytes))).toBe(bytes);
     expect(canonicalSwapBody({ ...body, passages: [...body.passages].reverse() })).not.toBe(bytes);
   });
+
+  test('canonical C1 JSON rejects undefined values', () => {
+    for (const value of [undefined, { words: undefined }, [undefined], Array(1)])
+      expect(() => canonicalSwapBody(value)).toThrow(TypeError);
+  });
 });
 
 describe('gemini', () => {

@@ -184,12 +184,20 @@
     "description": "Managed reading status when the proxy pauses requests."
   },
   "status_managed_ahead": {
-    "message": "Managed reading is updating; try again later",
+    "message": "Managed reading is updating; try again later.",
     "description": "Managed reading status when the extension is newer than the proxy."
   },
   "status_managed_behind": {
-    "message": "Update Lang Weave to keep using managed reading",
+    "message": "Update Lang Weave to keep using managed reading.",
     "description": "Managed reading status when the extension is too old for the proxy."
+  },
+  "status_managed_duplicate_charged": {
+    "message": "This managed request was already charged. Trying again later may incur another charge.",
+    "description": "Managed reading status when a duplicate request was charged."
+  },
+  "status_managed_duplicate_free": {
+    "message": "This managed request was already handled. No charge was recorded for it.",
+    "description": "Managed reading status when a duplicate request was handled without a charge."
   },
   "badge_new_text": {
     "message": "NEW",

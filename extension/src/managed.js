@@ -1,8 +1,9 @@
 import { MAX_REQUEST_CHARS } from './adaptive.js';
 import { parseSwapsResponse } from './gemini.js';
+import { hex, sha256Hex } from './hash.js';
 import { bundledLanguage } from './language-name.js';
 import { validateBatchSwaps } from './levels.js';
-import { MAX_RETRY_MS, STATUS_CATEGORIES, readBoundedBody } from './quota-status.js';
+import { MAX_RETRY_MS, readBoundedBody } from './quota-status.js';
 import { buildSwapRequest, canonicalSwapBody } from './swap-request.js';
 
 // Reserved for the stubbed tracer. A real origin requires the launch decision.
@@ -13,9 +14,10 @@ const TIMEOUT_MS = 30_000;
 const IDEMPOTENCY_MS = 60_000;
 const MAX_WIRE_BYTES = 192 * 1024;
 const IDEMPOTENCY_STORE_KEY = 'managedBatchKeys';
+const PROXY_CATEGORIES = new Set(['managed_balance', 'managed_unauthorized', 'managed_unavailable',
+  'managed_update_required', 'rate_limit', 'overloaded', 'daily_quota', 'request_failed']);
 const encoder = new TextEncoder();
 
-const hex = (bytes) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 const failure = (category = 'request_failed', details = {}) =>
   Object.assign(new Error('Managed reading request failed'), { category, ...details });
 
@@ -37,10 +39,15 @@ async function idempotencyKey(keyStore, digest, now, replace) {
 async function proxyFailure(response) {
   let error;
   try { error = JSON.parse(await readBoundedBody(response))?.error; } catch { /* optional details */ }
-  const category = error?.category !== 'ok' && STATUS_CATEGORIES.has(error?.category) ? error.category : 'request_failed';
+  const category = PROXY_CATEGORIES.has(error?.category) ? error.category : 'request_failed';
   const details = { status: response.status };
-  for (const field of ['ahead', 'duplicate', 'charged', 'keyReuse', 'blocked', 'dailyCap'])
+  for (const field of ['ahead', 'keyReuse', 'blocked', 'dailyCap'])
     if (typeof error?.[field] === 'boolean') details[field] = error[field];
+  if (response.status === 409 && category === 'request_failed' && error?.duplicate === true &&
+      typeof error.charged === 'boolean') {
+    details.duplicate = true;
+    details.charged = error.charged;
+  }
   if (['body', 'passages', 'words'].includes(error?.tooLarge)) details.tooLarge = error.tooLarge;
   if (Number.isSafeInteger(error?.retryAfterMs) && error.retryAfterMs > 0 && error.retryAfterMs <= MAX_RETRY_MS)
     details.retryAfterMs = error.retryAfterMs;
@@ -57,7 +64,7 @@ export async function requestManagedSwaps({ token, level, language, density = 'n
   const forms = new Set(wordRows.map(({ fr }) => fr));
   const shown = [...new Set(shownToday.filter((word) => forms.has(word)))];
   const results = {};
-  let dropped = false;
+  let sizeFailure;
 
   async function dispatch(body, key) {
     try {
@@ -87,10 +94,10 @@ export async function requestManagedSwaps({ token, level, language, density = 'n
     const prompt = buildSwapRequest({ level, language, density, unknownLimit, shownToday: shown, words, batch: passages });
     if (JSON.stringify(prompt).length > MAX_REQUEST_CHARS || bytes.length > MAX_WIRE_BYTES) {
       if (passages.length > 1) await split(canSplitResponse);
-      else dropped = true;
+      else sizeFailure ??= failure();
       return;
     }
-    const digest = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
+    const digest = await sha256Hex(bytes);
     let key = await idempotencyKey(keyStore, digest, now(), false);
     let response = await dispatch(body, key);
     let error = response.status === 200 ? null : await proxyFailure(response);
@@ -99,8 +106,9 @@ export async function requestManagedSwaps({ token, level, language, density = 'n
       response = await dispatch(body, key);
       error = response.status === 200 ? null : await proxyFailure(response);
     }
-    if (error?.status === 400 && error.tooLarge && canSplitResponse && passages.length > 1) {
-      await split(false);
+    if (error?.status === 400 && error.tooLarge) {
+      if (canSplitResponse && passages.length > 1) await split(false);
+      else sizeFailure ??= error;
       return;
     }
     if (error) throw error;
@@ -112,10 +120,11 @@ export async function requestManagedSwaps({ token, level, language, density = 'n
 
   try {
     if (batch.length) await request(batch.map(({ id, text }) => ({ id, text })), true);
-    if (dropped) throw failure();
+    if (sizeFailure) throw sizeFailure;
   } catch (error) {
-    if (!error.stale) error.partialResults = results;
-    throw error;
+    if (error?.stale) throw error;
+    const details = error && typeof error === 'object' ? error : {};
+    throw Object.assign(failure(), details, { partialResults: results });
   }
   return { results, model: MANAGED_MODEL };
 }

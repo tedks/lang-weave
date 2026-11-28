@@ -13,8 +13,12 @@ export function buildSwapRequest({ level, batch, words, language, density = 'nor
 
 // Both sides hash the same JSON data. Array order is part of the prompt.
 export function canonicalSwapBody(value) {
-  if (Array.isArray(value)) return `[${value.map(canonicalSwapBody).join(',')}]`;
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${Array.from(value, canonicalSwapBody).join(',')}]`;
+  if (value === null || typeof value !== 'object') {
+    const json = JSON.stringify(value);
+    if (json === undefined) throw new TypeError('Swap request requires JSON values');
+    return json;
+  }
   return `{${Object.keys(value).sort().map((key) =>
     `${JSON.stringify(key)}:${canonicalSwapBody(value[key])}`).join(',')}}`;
 }

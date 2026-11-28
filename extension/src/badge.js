@@ -55,7 +55,7 @@ export function createBadge({ context, store, updatePending }) {
     const budgetReached = stored?.category === 'local_budget' &&
       await callsToday(chromeStorage) >= DAILY_MODEL_CALLS;
     const status = visibleModelStatus(value, data[QUOTA_STATE_KEY], data.keyEpoch,
-      budgetReached, Date.now(), config.settings.managedProvider);
+      budgetReached, Date.now(), config.managedTokenGeneration);
     return { config, data, status };
   }
 
