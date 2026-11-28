@@ -16,9 +16,9 @@
 - You can try Lang Weave without a key. The bundled reading samples, paragraph practice and word review run entirely in your browser. [C31] [C17]
 - To choose words in the pages you read, Lang Weave sends text from the sites you allow to **Google's Gemini API**, using **your own Gemini key**. That is the one place your reading leaves your browser. [C1] [C6]
 - What Google does with that text depends on your key. With a free key, Google may use it to improve its products and human reviewers may read it. With a billed key, Google says it does not use it to improve its products, but it still logs requests for a limited period to detect abuse and for legal reasons. [C30]
-- Each reading request also carries your key, your reading level, density and language, and a list of candidate words (see "What is sent" for the full inventory).
-  - With gradual learning on, the list is grouped and ordered by your progress, and a swap budget is added.
-  - With it off, there is no progress grouping. A request in a generated language lists the words already shown today. In Spanish, those words only change the order of the list.
+- Each reading request also carries your key, your reading level, density and language, and a list of candidate words (see "What is sent" for the full inventory). [C3] [C8]
+  - With gradual learning on, the list is grouped and ordered by your progress, a swap budget is added, and eligible words you saved yourself can join it. [C8]
+  - With it off, there is no progress grouping. A request in a generated language lists the words already shown today. In Spanish, those words only change the order of the list. [C8]
 - Your review history itself (ratings, schedule, reading events, dates and learning log) and the cache stay in your browser. [C4] [C8] [C15] [C16]
 - Lang Weave is for people **18 or older**. [C26]
 
@@ -144,7 +144,7 @@ If a change to Lang Weave alters what data it handles or who receives it, I will
 
 > **HOLD — pending Ted ruling (DECISIONS D3a, `docs/specs/DECISIONS.md` at commit `2cd7095` on `managed-key-spec-nov28`). Do not publish this section, and do not tick the Limited Use certification or any Dashboard certification.** With a free (Unpaid Services) key, Google's terms let Google use the submitted page text to improve its own products and let human reviewers read it. D3a's options:
 > - **Option 1:** the Store build requires a **billing attestation** (the reader confirms billing is on), and stops reading and re-prompts when a daily quota error names a quota dimension ending in `_freetier`.
-> - **Option 2:** Ted explicitly accepts the risk of rejection and of a policy statement that may be untrue for free-key readers. Not recommended. (This policy's position, not D3a's text: option 2 does not lift this hold.)
+> - **Option 2:** accept the risk with disclosure. That means Ted explicitly accepts the risk of rejection and of a policy statement that may be untrue for free-key readers. Not recommended. (This policy's position, not D3a's text: option 2 does not lift this hold.)
 > - **Option 3:** do not list; distribution stays GitHub-only, and D6 stays on hold unless Ted separately replaces its Store-usage condition.
 >
 > **The hold stands under every option.** Under option 1 it lifts only when (a) a named Limited Use exception is shown to cover the paid tier's abuse logging and any review (candidates, not established: the transfer exception "to protect against malware, spam, phishing, or other fraud or abuse" and the human-interaction exception "It's necessary for security purposes (e.g., investigating abuse)"; both are written for the developer, and whether they cover a third party's own logging is unresolved), and (b) a basis is established for free-key requests that a mistaken or false attestation lets through and that never trip the `_freetier`-suffix quota signal. If either cannot be established, option 3 applies.
@@ -154,7 +154,12 @@ If a change to Lang Weave alters what data it handles or who receives it, I will
 The use of information that Lang Weave receives from the web pages you allow, and of the key and learning state it keeps, is intended to comply with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/limited-use), including the Limited Use requirements:
 
 - **Allowed use.** Lang Weave uses page text, your key and your learning state only to provide its single purpose: choosing language-learning word swaps in the pages you read, and scheduling those words for review.
-- **Allowed transfer.** Everything in the request inventory under "What is sent" goes only to Google's Gemini API, under your own key. That covers page text; your key; your reading level, density and language; and the candidate words. With gradual learning on, the candidates are grouped and ordered by your progress, with a swap budget and eligible saved words. With it off, a generated language's request lists today's shown forms; in Spanish they only change the order. It also covers the **Test key** message ("Reply OK.") and, when you add a generated language, its code and English name. Nothing is transferred or sold to anyone else. [D3a: what Google may do with that data under a free key is the open question.]
+- **Allowed transfer.** Lang Weave sends three kinds of request, all to Google's Gemini API and all under your own key. Each request also carries the key itself. These are the only transfers.
+  1. **Reading requests.** Their contents are the inventory under "What is sent": page text; your reading level, density and language; and the candidate words. With gradual learning on, the candidates are grouped and ordered by your progress, with a swap budget and eligible saved words. With it off, a generated language's request lists today's shown forms; in Spanish they only change the order.
+  2. **Key tests.** The "Reply OK." message, as in the **Test key** row of the table under "What data Lang Weave handles".
+  3. **Language generation.** The language code and its English name, as in the generated-language row of the same table.
+
+  Nothing is transferred or sold to anyone else. [D3a: what Google may do with that data under a free key is the open question.]
 - **No advertising.** None of this data is used or transferred for advertising, including personalised or retargeted ads, or to determine creditworthiness or for lending.
 - **No human reading by Lang Weave.** No person at Lang Weave reads your data; Lang Weave has no server and the publisher receives none of it. [D3a: Google's terms allow its reviewers to read free-key requests.]
 
