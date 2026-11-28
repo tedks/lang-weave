@@ -970,3 +970,13 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   becoming a `manual` orphan then a partial refund kept in minor units, a refund-first
   sequence (JPY, zero-decimal) ending in a `manual` orphan with `paidMicros` null, and a
   dispute-first non-USD sequence whose loss stays in minor units (`disputeLostMinor`).
+- **LW-STORE-MK-06 (2026-11-28, lead, for mk-proxy).** Clarification of C2/C4 refunds. Stripe's
+  `amount_refunded` is cumulative, so a larger value is the later truth. A `charge.refunded` whose
+  `amount_captured` is unusable keeps its `amount_refunded` as evidence; once the Checkout facts
+  exist, its target is computed against that payment's own `paidMicros` (v0 sells only through a
+  card-only Payment Link with full capture, so captured equals `amount_total`). Every event's
+  target is computed from its own pair and the record keeps the maximum target (C2's monotonic
+  rule), so a later grant is `packMicros` minus that target and never credits above the
+  observed refund. A full refund before Checkout is still an ordinary zero-credit `granted`
+  (C2 `grant`), not a refusal. Before any Checkout exists the record is `pending` as usual.
+  Fixtures cover 600-with-unusable-capture → 325/1000 → Checkout, and Checkout first.
