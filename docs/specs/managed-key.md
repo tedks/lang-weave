@@ -789,10 +789,13 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
 - **LW-STORE-MK-03 (2026-11-28, lead, for mk-ext).** Clarification of C1's combined-maximum test:
   the fixture's full catalog passes through the worker's own word selection for the mode (the
   gradual working-set selector in `adaptive.js`; the ordinary path otherwise) before E1 measures,
-  splits and sends. Two cases: gradual, which must send at least one passage; and ordinary, where a
-  vocabulary that alone exceeds the cap is asserted as the specified drop (zero calls, zero
-  charge) and labelled an expected degradation. If ordinary-mode managed reading cannot send for
-  realistic personal lists, that is reported as a finding against this spec.
+  splits and sends. **Both** the gradual case and the ordinary case must send at least one
+  passage. Ordinary mode does not send personal words (`worker-context.js:82`); its list is the
+  bundled level list (at most 233 Spanish rows) or one pack (at most 80 rows), which fits the cap.
+  The single-passage drop path in C1 (zero calls, zero charge) is tested separately with a
+  synthetic over-cap request that real worker selection cannot produce. A fixture where every
+  passage is dropped fails the combined-maximum test. (Amended in round 8 after the Anthropic
+  seat checked the worker's selection.)
 - **LW-STORE-MK-04 (2026-11-28, lead, for mk-proxy).** Clarification of C4: Stripe documents
   `payment_intent` as nullable on Checkout, Charge and Dispute objects. A signed event of a handled
   type with no usable `payment_intent` returns 200 and changes nothing except event-id
