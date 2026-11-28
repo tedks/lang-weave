@@ -94,6 +94,31 @@ Open rulings `store-provider-region-ruling` and `store-site-consent-ruling` are 
 After yes: an agent fills the distribution tab (unlisted, US) and the listing from
 `docs/STORE-SUBMISSION-PACKET.md` (draft PR #33). You read it before anything is submitted.
 
+## D3a. Free Gemini keys and the store's Limited Use rule
+
+**The problem, found by the council on PR #33.** The Chrome Web Store's Limited Use policy allows
+a transfer of user data only when it is necessary for the extension's single purpose, and it bars
+humans from reading user data outside narrow exceptions. With a **free** Gemini key, Google's terms
+say it uses the page text "to provide, improve, and develop Google products" and that "human
+reviewers may read" it. A reviewer who reads the listing and the welcome page will see both.
+Nothing in the packet settles this, so the Limited Use statement and the three dashboard
+certifications are on hold.
+
+**Options:**
+1. **The Store build accepts only billed keys** (Google's paid tier, which does not use the text to
+   improve its products; it keeps limited abuse logs). This is the cleanest fit. Readers must turn
+   on billing in Google Cloud, and the extension cannot verify a key's billing status itself, so it
+   would rely on the reader's confirmation plus clear disclosure. That is a code change and a release.
+2. **Accept the risk with disclosure**, as the packet does today. Possible rejection, and a policy
+   statement that may not be true for free-key readers.
+3. **Delay submission** until the managed key (D6–D10) exists, which is always a paid project.
+
+**Recommendation: option 1** if you want to submit soon. Otherwise option 3. Not option 2.
+
+After a yes to 1: a lead drafts the key-step change (explicit "my key has billing on"
+confirmation, disclosure text, refusal wording), councils it, and the packet's certifications are
+then rewritten for a paid-key-only build. Ditz `store-provider-region-ruling` records the ruling.
+
 ## D4. Privacy policy and its URL
 
 **Recommendation: approve the refreshed policy text** in draft PR #33 and tedks/website#53, and host
