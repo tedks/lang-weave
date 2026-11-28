@@ -802,5 +802,13 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   deduplication and an operator diagnostic (`no_payment_intent`), in one transaction; an unpaid or
   async-pending session therefore creates no payment record, and its later event that does carry
   a `payment_intent` is handled normally. Exception: a `mode: "payment"`, `payment_status:
-  "paid"` session with a null `payment_intent` is recorded as an orphan payment keyed by its
-  Checkout session id (`paid_without_payment_intent`) for the operator to refund; no credit.
+  "paid"` session with no usable `payment_intent` (field missing, null or malformed) is recorded
+  as an orphan payment keyed by its Checkout session id (`paid_without_payment_intent`) for the
+  operator to refund, with no credit. **That disposition is terminal for the session:** any later
+  event for the same Checkout session id, even one that carries a `payment_intent`, grants
+  nothing and only attaches the `payment_intent` to the orphan record, so a session can never be
+  both credited and queued for refund. A `charge.refunded` or `charge.dispute.created` with no
+  usable `payment_intent` cannot occur for card payments from a payment-mode Payment Link; if one
+  ever does, its diagnostic is resolved by an operator `adjust` with `ref` set to the charge or
+  dispute id, the one sanctioned exception to "Stripe refunds reach the ledger only through the
+  webhook".
