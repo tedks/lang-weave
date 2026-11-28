@@ -1,4 +1,8 @@
 import { expect, test } from 'bun:test';
+import { Database } from 'bun:sqlite';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MAX_REQUEST_CHARS, selectWorkingSet } from '../../extension/src/adaptive.js';
 import { createContext } from '../../extension/src/worker-context.js';
 import { policyWords } from '../../extension/src/learning.js';
@@ -15,7 +19,7 @@ import {
   BETA_EXTENSION_ID, createApi, MANAGED_MODEL, MAX_INBOUND_BYTES,
   MAX_OUTPUT_TOKENS, PROMPT_VERSION, PROVIDER_TIMEOUT_MS, validatedSwapWord,
 } from '../src/api.js';
-import { IN_FLIGHT_MAX, STALE_MS, sha256 } from '../src/ledger.js';
+import { createLedger, createSqliteStorage, IN_FLIGHT_MAX, STALE_MS, sha256 } from '../src/ledger.js';
 import { createPricing, PRICE_ROWS, quotePriceRow, serializedRequestBytes } from '../src/pricing.js';
 import { makeLedger } from './helpers.js';
 import { createProvider } from '../src/provider.js';
@@ -787,8 +791,9 @@ test('settlement caps retail in integer arithmetic and latches exact unrepresent
 
       if (tooLargeForLedger) {
         expect(ledger.clearStop('fixture-correction')).toBeTrue();
-        expect(ledger.reserve(accountId, 0, 0, stored.priceRowId, stored.providerMax - 1,
-          sha256('fixture after overflow'), sha256('fixture body'))).toBe('CEILING');
+        expect((await swap(reading, { id: nextKey })).status).toBe(503);
+        expect(ledger.reserve(accountId, 0, 0, stored.priceRowId, 2_000_000,
+          sha256('fixture after overflow'), sha256('fixture body'))).toBe('STOPPED');
         expect(ledger.reconcile(stored.reservationId, 180)).toMatchObject({
           providerActual: 180, providerOverflowMicros: '10000000000000000', costMicros: stored.readerWorst,
         });
@@ -821,3 +826,125 @@ test('E2 retains a provisional hold when a 200 body fails with pre-send metadata
     expect(reservation()).toMatchObject({ state: 'provisional', providerActual: null, providerRequestId: null });
   } finally { db.close(); }
 });
+
+test('deep structured JSON is rejected before hashing or admission', async () => {
+  const { swap, db, provider, reservation } = await setup();
+  try {
+    const raw = '{"invalid":' + '['.repeat(1000) + '0' + ']'.repeat(1000) + '}';
+    const response = await swap(reading, { raw });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: { category: 'request_failed' } });
+    expect(provider.calls).toHaveLength(0);
+    expect(reservation()).toBeNull();
+  } finally { db.close(); }
+});
+
+test('header and late body IDs both survive missing usage and ambiguous export matches are unattributable', async () => {
+  const late = Promise.withResolvers();
+  let stream;
+  const transport = createProvider({
+    baseUrl: 'https://fixture.invalid/models/', credential: 'secret-not-in-response',
+    fetchImpl: async () => new Response(new ReadableStream({ start(controller) { stream = controller; } }), {
+      headers: { 'x-request-id': 'fixture-header-id' },
+    }),
+  });
+  const { swap, ledger, db, reservation, account } = await setup({
+    provider: { call: (args) => transport.call({
+      ...args, timeoutMs: 12,
+      onLateOutcome(outcome) {
+        args.onLateOutcome(outcome);
+        late.resolve(outcome);
+      },
+    }) },
+  });
+  try {
+    expect((await swap()).status).toBe(504);
+    const original = reservation();
+    expect(original.providerRequestId).toBe('fixture-header-id');
+    stream.enqueue(Buffer.from(JSON.stringify({
+      responseId: 'fixture-body-id',
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: VALID_TEXT }] } }],
+    })));
+    stream.close();
+    expect(await late.promise).toMatchObject({
+      providerRequestIds: ['fixture-header-id', 'fixture-body-id'], usage: null,
+    });
+    const aliases = db.transaction((tx) =>
+      tx.all('SELECT requestId FROM provider_request_ids WHERE reservationId = ? ORDER BY requestId', original.reservationId));
+    expect(aliases.map(({ requestId }) => requestId)).toEqual(['fixture-body-id', 'fixture-header-id']);
+
+    const second = ledger.reserve(account(1_000).id, 25, 100, PRICE_ROWS[0].id, 2_000_000,
+      sha256('independent request'), sha256('second independent body'));
+    ledger.settle(second, 0, null, 'no_usage', { providerRequestId: 'fixture-body-id' });
+    expect(ledger.reconcileProviderRequest('fixture-body-id', 80)).toBeNull();
+    expect(ledger.getReservation(original.reservationId).providerActual).toBeNull();
+    expect(ledger.getReservation(second).providerActual).toBeNull();
+    expect(ledger.reconcileProviderRequest('fixture-header-id', 180)).toMatchObject({
+      reservationId: original.reservationId, providerActual: 180, costMicros: original.costMicros,
+    });
+  } finally { db.close(); }
+});
+
+test('E2 retries a real busy release and overage settlement by reservation ID', async () => {
+  for (const overage of [false, true]) {
+    const filename = join(mkdtempSync(join(tmpdir(), 'finalization-')), 'ledger.sqlite');
+    const at = Date.parse('2026-11-28T23:58:00Z');
+    const store = createSqliteStorage(filename, { busyTimeoutMs: 0 });
+    const blocked = Promise.withResolvers();
+    const classified = Promise.withResolvers();
+    const dispatched = Promise.withResolvers();
+    const alarms = [];
+    const ledger = createLedger({
+      ...store,
+      transaction(operation, options) {
+        try {
+          return store.transaction(operation, options);
+        } catch (error) {
+          if (error.code === 'SQLITE_BUSY') blocked.resolve();
+          throw error;
+        }
+      },
+    }, { now: () => at, onOverage: (event) => alarms.push(event) });
+    const writer = new Database(filename);
+    try {
+      const id = ledger.createAccount(sha256('initial fixture'));
+      const token = ledger.rotateToken(id);
+      ledger.setEnrolled(id);
+      ledger.adjust(id, 1_000_000, 'fixture', 'credit');
+      const api = createApi({
+        ledger, clientIp: () => '192.0.2.4', ipHashSecret: 'fixture', now: () => at,
+        provider: { call() { dispatched.resolve(); return classified.promise; } },
+      });
+      const pending = api(new Request(base + '/v0/swaps', {
+        method: 'POST', body: JSON.stringify(reading),
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+      }));
+      await dispatched.promise;
+      const claim = ledger.getIdempotency(id, sha256(key));
+      writer.exec('BEGIN IMMEDIATE');
+      try {
+        classified.resolve(overage
+          ? { ...OUTCOMES.stop, usage: { promptTokenCount: 1_000_000 } }
+          : OUTCOMES.rateLimit);
+        await blocked.promise;
+        expect(writer.query('SELECT state FROM reservations WHERE reservationId = ?').get(claim.reservationId).state)
+          .toBe('open');
+        expect(store.finalizations.withSnapshot((receipts) => receipts.map(({ reservationId }) => reservationId)))
+          .toEqual([claim.reservationId]);
+      } finally {
+        writer.exec('ROLLBACK');
+      }
+      const response = await pending;
+      const record = ledger.getReservation(claim.reservationId);
+      expect(response.status).toBe(overage ? 200 : 429);
+      expect(record).toMatchObject(overage
+        ? { state: 'settled', providerActual: 300_000, overage: 1 }
+        : { state: 'released', providerActual: 0, costMicros: 0 });
+      expect(store.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+      expect(alarms).toEqual(overage ? [{ reason: 'overage', reservationId: claim.reservationId }] : []);
+    } finally {
+      writer.close();
+      store.close();
+    }
+  }
+}, { timeout: 25_000 });

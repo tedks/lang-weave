@@ -398,7 +398,7 @@ function attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId }) {
     paymentIntentId, checkoutSessionId, packMicros: previous.packMicros, accountId: previous.accountId,
     paidCurrency: previous.paidCurrency, paidMicros: previous.paidMicros, paidMinor: previous.paidMinor, fromCheckout: true,
   });
-  tx.run("UPDATE payments SET grantState = 'refused' WHERE paymentIntentId = ? AND grantState = 'pending'", paymentIntentId);
+  tx.run("UPDATE payments SET grantState = 'refused', grantDeferred = 0 WHERE paymentIntentId = ? AND grantState = 'pending'", paymentIntentId);
   return true;
 }
 
@@ -518,6 +518,7 @@ function reconcile(tx, entry, providerActual, { providerRequestId, providerReque
   const aboveBound = entry.providerActual > entry.providerMax;
   if (!pending && (!aboveBound || providerActual === null)) return reservation(tx, entry.reservationId);
   const { actual, overflow } = providerAmount(providerActual);
+  if (aboveBound && actual === entry.providerActual) return reservation(tx, entry.reservationId);
   const newOverflow = overflow && !entry.providerOverflowMicros;
   const overage = !!newOverflow || actual > entry.providerMax;
   if (overage) openStop(tx, entry.reservationId);
@@ -530,6 +531,17 @@ function reconcile(tx, entry, providerActual, { providerRequestId, providerReque
   `, actual, Number(overage), overflow, usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
   usage?.thoughtsTokenCount ?? null, entry.reservationId);
   return reservation(tx, entry.reservationId);
+}
+
+function applyFinalization(tx, prior, outcome, now) {
+  const result = tryFinish(tx, prior, { ...outcome, now });
+  if (!result || result.won) return result;
+  // Expiry could have won before this receipt was staged. Keep its reader
+  // debit and apply the receipt as late evidence, never as a new charge.
+  if (prior.state === 'provisional' && prior.providerActual === null) {
+    return { ...reconcile(tx, prior, outcome.providerActual, outcome), won: false };
+  }
+  return result;
 }
 
 const dayCost = `
@@ -554,7 +566,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
   }
   function finalize(id, outcome) {
     const { receipt, sameOutcome } = storage.finalizations.stage(id, outcome);
-    const result = checkOverage(id, (tx, prior) => tryFinish(tx, prior, { ...finalizationOutcome(receipt), now: now() }));
+    const result = checkOverage(id, (tx, prior) => applyFinalization(tx, prior, finalizationOutcome(receipt), now()));
     storage.finalizations.acknowledge(receipt);
     return result && { ...result, won: result.won && sameOutcome };
   }
@@ -751,7 +763,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         for (const receipt of receipts) {
           const { reservationId } = receipt;
           const prior = reservation(tx, reservationId);
-          const entry = finish(tx, prior, { ...finalizationOutcome(receipt), now: at });
+          const entry = applyFinalization(tx, prior, finalizationOutcome(receipt), at);
           recovered.push({ receipt, alarm: !!entry?.overage && !prior?.overage });
         }
         return expireStale(tx, at);

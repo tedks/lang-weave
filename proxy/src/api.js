@@ -82,7 +82,7 @@ function withinCanonicalDepth(value, depth = 0) {
 }
 
 async function retryLedgerWrite(operation) {
-  const delays = [20, 40, 80, 160];
+  const delays = [20, 40, 80];
   for (const delay of delays) {
     try {
       return operation();

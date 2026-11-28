@@ -115,14 +115,15 @@ test('partial refund before Checkout reduces the grant and cumulative refunds ne
   } finally { db.close(); }
 });
 
-test('fully refunded and disputed pending payments refuse credit without freezing', async () => {
+test('a full prior refund grants zero and a prior dispute refuses credit without freezing', async () => {
   const { deliver, ledger, db, account } = setup();
   try {
     const { id } = account();
     await deliver('charge-refunded', { amount_refunded: 1000 });
     await deliver('checkout-paid', { client_reference_id: id });
-    expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'refused', reversalTarget: packMicros });
-    expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'settled', reason: 'fully_refunded' });
+    expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'granted', reversalTarget: packMicros });
+    expect(ledger.getCheckoutDisposition(checkoutId)).toMatchObject({ disposition: 'granted' });
+    expect(ledger.getOrphanCheckout(checkoutId)).toBeNull();
     expect(ledger.getAccount(id).balanceMicros).toBe(0);
 
     await deliver('dispute-created', { payment_intent: 'pi_open_first' });
@@ -458,29 +459,88 @@ test('a currency-conflicting orphan link preserves both records and its operator
   } finally { db.close(); }
 });
 
-test('missing captured amount keeps cumulative refund evidence and defers credit until usable', async () => {
-  for (const amount_refunded of [600, 1000]) {
+test('with no captured amount the payment uses its own Checkout total in either delivery order', async () => {
+  for (const checkoutFirst of [false, true]) {
     const { deliver, ledger, db, account } = setup();
     try {
       const { id } = account();
-      await deliver('charge-refunded', { amount_captured: null, amount_refunded });
+      const checkout = () => deliver('checkout-paid', { client_reference_id: id });
+      if (checkoutFirst) await checkout();
+      await deliver('charge-refunded', { amount_captured: null, amount_refunded: 600 });
       expect(ledger.getPayment(intentId)).toMatchObject({
-        refundedMicros: amount_refunded * 10_000, refundCapturedMicros: null, reversalTarget: 0,
+        refundedMicros: 6_000_000, uncapturedRefundMicros: 6_000_000,
+        reversalTarget: checkoutFirst ? 6_000_000 : 0,
       });
       expect(ledger.getPaymentDiagnostic('evt_charge_refunded').reason).toBe('invalid_refund_amount');
-      await deliver('checkout-paid', { client_reference_id: id });
-      expect(ledger.getPayment(intentId).grantState).toBe('pending');
-      expect(ledger.getCheckoutDisposition(checkoutId)).toBeNull();
-      expect(ledger.getAccount(id).balanceMicros).toBe(0);
-
-      // A valid older snapshot supplies the denominator. Its smaller
-      // cumulative refund must not erase the previously observed amount.
       await deliver('charge-refunded', { amount_refunded: 325, amount_captured: 1000 }, 'evt_usable_capture');
+      if (!checkoutFirst) {
+        expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'pending', reversalTarget: 3_250_000 });
+        expect(ledger.getAccount(id).balanceMicros).toBe(0);
+        await checkout();
+      }
       expect(ledger.getPayment(intentId)).toMatchObject({
-        refundedMicros: amount_refunded * 10_000, refundCapturedMicros: packMicros,
-        reversalTarget: amount_refunded * 10_000, grantState: amount_refunded === 1000 ? 'refused' : 'granted',
+        refundedMicros: 6_000_000, reversalTarget: 6_000_000, grantState: 'granted',
       });
-      expect(ledger.getAccount(id).balanceMicros).toBe(packMicros - amount_refunded * 10_000);
+      expect(ledger.getAccount(id).balanceMicros).toBe(4_000_000);
     } finally { db.close(); }
   }
+});
+
+test('refunds preserve the max of their own ratios in both delivery orders', async () => {
+  for (const reverseOrder of [false, true]) {
+    const { deliver, ledger, db, account } = setup();
+    try {
+      const { id } = account();
+      const snapshots = [
+        ['evt_half_capture', { amount_refunded: 250, amount_captured: 500 }],
+        ['evt_full_capture', { amount_refunded: 300, amount_captured: 1000 }],
+      ];
+      if (reverseOrder) snapshots.reverse();
+      for (const [eventId, values] of snapshots) await deliver('charge-refunded', values, eventId);
+      expect(ledger.getPayment(intentId)).toMatchObject({ refundedMicros: 3_000_000, reversalTarget: 5_000_000 });
+      await deliver('checkout-paid', { client_reference_id: id });
+      expect(ledger.getAccount(id).balanceMicros).toBe(5_000_000);
+    } finally { db.close(); }
+  }
+});
+
+test('a dispute refuses unresolved paid credit before or after it enters the deferred queue', async () => {
+  for (const disputeFirst of [false, true]) {
+    const { deliver, ledger, db, account } = setup();
+    try {
+      const { id } = account();
+      await deliver('charge-refunded', { amount_captured: null });
+      // Stage the defensive case of a paid session with no usable total.
+      // The normal v0 webhook always has the fixed, validated Checkout total.
+      ledger.recordPayment({
+        paymentIntentId: intentId, checkoutSessionId: checkoutId,
+        accountId: id, paidCurrency: 'usd', packMicros,
+      });
+      if (disputeFirst) await deliver('dispute-created');
+      const outcome = ledger.grant(intentId);
+      if (!disputeFirst) {
+        expect(outcome.grantState).toBe('pending');
+        expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'deferred', owedMicros: null });
+        await deliver('dispute-created');
+      }
+      expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'refused', dispute: 'open' });
+      expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'disputed' });
+      expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 0, frozen: false });
+    } finally { db.close(); }
+  }
+});
+
+test('a frozen account terminally refuses instead of deferring an unresolved refund', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    const { id } = account();
+    await deliver('charge-refunded', { amount_captured: null });
+    ledger.recordPayment({
+      paymentIntentId: intentId, checkoutSessionId: checkoutId, accountId: id, paidCurrency: 'usd', packMicros,
+    });
+    ledger.freeze(id, 'fixture');
+    expect(ledger.grant(intentId).grantState).toBe('refused');
+    expect(ledger.getOrphanCheckout(checkoutId).status).toBe('open');
+    expect(ledger.getAccount(id).balanceMicros).toBe(0);
+  } finally { db.close(); }
 });

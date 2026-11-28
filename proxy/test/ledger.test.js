@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { Database } from 'bun:sqlite';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -113,6 +114,8 @@ test('known overage records the full cost while capping the debit and closes all
     expect(ledger.settle(first, 120, 19, 'stop')).toMatchObject({ providerActual: 19, costMicros: 99, overage: 1 });
     expect(ledger.reserve(other, 1, 1, price, ceiling, hash(), body)).toBe('STOPPED');
     expect(ledger.clearStop('operator: verified correction')).toBeTrue();
+    expect(ledger.reserve(other, 1, 1, price, ceiling, hash(), body)).toBe('STOPPED');
+    expect(ledger.reconcile(first, 9)).toMatchObject({ providerActual: 9, overage: 1 });
     expect(ledger.reserve(other, 1, 1, price, ceiling, hash(), body)).toMatch(/^[a-f0-9]{32}$/);
   } finally { db.close(); }
 });
@@ -258,3 +261,78 @@ test('an active price revision supersedes an overlapping row and a stale quote w
     expect(ledger.reserve(id, 1, 20, revision.id, ceiling, hash(), body)).toMatch(/^[0-9a-f]{32}$/);
   } finally { db.close(); }
 });
+
+test('stale expiry recovers classified outcomes after the ledger and journal are reopened', () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'outcomes-')), 'ledger.sqlite');
+  let at = Date.parse('2026-11-28T23:58:00Z');
+  const now = () => at;
+  let store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+  const make = (onOverage = () => {}) => createLedger(store, { now, onOverage });
+  const original = make();
+  const accounts = [original.createAccount(hash('release-token')), original.createAccount(hash('settle-token'))];
+  const ids = accounts.map((id) => {
+    original.setEnrolled(id);
+    original.adjust(id, 100, 'fixture', id);
+    return original.reserve(id, 60, 100, price, ceiling, hash(), body);
+  });
+  const competingWriter = new Database(filename);
+  try {
+    competingWriter.exec('BEGIN IMMEDIATE');
+    try {
+      expect(() => original.release(ids[0], { reason: 'request_failed' })).toThrow(/database is locked/);
+      expect(() => original.settle(ids[1], 70, 250, 'stop')).toThrow(/database is locked/);
+      expect(store.finalizations.withSnapshot((receipts) => receipts.map((receipt) => receipt.reservationId).sort()))
+        .toEqual([...ids].sort());
+    } finally {
+      competingWriter.exec('ROLLBACK');
+    }
+    store.close();
+    at += STALE_MS + 1;
+    store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+    const alarms = [];
+    const restarted = make((alarm) => alarms.push(alarm));
+    expect(restarted.expireStale()).toEqual([]);
+    expect(restarted.getReservation(ids[0])).toMatchObject({ state: 'released', costMicros: 0, providerActual: 0 });
+    expect(restarted.getReservation(ids[1])).toMatchObject({ state: 'settled', costMicros: 60, providerActual: 250, overage: 1 });
+    expect(restarted.getAccount(accounts[0])).toMatchObject({ balanceMicros: 100, reservedMicros: 0 });
+    expect(restarted.getAccount(accounts[1])).toMatchObject({ balanceMicros: 40, reservedMicros: 0 });
+    expect(store.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+    expect(restarted.reserve(accounts[0], 1, 1, price, ceiling, hash('next'), body)).toBe('STOPPED');
+    expect(alarms).toEqual([{ reason: 'overage', reservationId: ids[1] }]);
+  } finally {
+    competingWriter.close();
+    store.close();
+  }
+}, { timeout: 25_000 });
+
+test('recovery preserves an expiry winner while reconciling the journaled late outcome', () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'expired-outcome-')), 'ledger.sqlite');
+  let at = Date.parse('2026-11-28T23:58:00Z');
+  const now = () => at;
+  const store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+  const ledger = createLedger(store, { now, onOverage: () => {} });
+  const competingWriter = new Database(filename);
+  try {
+    const id = ledger.createAccount(hash('fixture token'));
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture', 'credit');
+    const reservationId = ledger.reserve(id, 60, 100, price, ceiling, hash(), body);
+    at += STALE_MS + 1;
+    expect(ledger.expireStale()[0]).toMatchObject({ reason: 'timeout', costMicros: 60 });
+    competingWriter.exec('BEGIN IMMEDIATE');
+    try {
+      expect(() => ledger.settle(reservationId, 5, 40, 'stop', { providerRequestId: 'fixture-late-id' }))
+        .toThrow(/database is locked/);
+    } finally {
+      competingWriter.exec('ROLLBACK');
+    }
+    expect(ledger.expireStale()).toEqual([]);
+    expect(ledger.getReservation(reservationId)).toMatchObject({
+      reason: 'timeout', costMicros: 60, providerActual: 40, providerRequestId: 'fixture-late-id', dayKey: day,
+    });
+    expect(ledger.getAccount(id).balanceMicros).toBe(40);
+  } finally {
+    competingWriter.close();
+    store.close();
+  }
+}, { timeout: 25_000 });
