@@ -12,7 +12,8 @@ const extensionOrigin = 'chrome-extension://managed-test';
 export const options = { id: page.id, url: `${extensionOrigin}/src/options.html` };
 export const emptySwaps = (passages) => passages.map(({ id }) => ({ id, swaps: [] }));
 
-export async function workerFixture({ initial = {}, isolation = true, respond, version = manifest.version, beforeTokenRemoval }) {
+export async function workerFixture({ initial = {}, isolation = true, respond, version = manifest.version,
+    beforeSet, beforeTokenRemoval }) {
   const old = { chrome: globalThis.chrome, fetch: globalThis.fetch };
   const runtimeManifest = { ...manifest, version };
   const data = { epoch: 'reading-epoch', keyEpoch: 'byok-epoch', managedToken: token,
@@ -28,6 +29,7 @@ export async function workerFixture({ initial = {}, isolation = true, respond, v
       return structuredClone(Object.fromEntries(names.filter((key) => key in data).map((key) => [key, data[key]])));
     },
     async set(patch) {
+      beforeSet?.(patch);
       if (Object.hasOwn(patch, 'managedToken')) storageEvents.push('token stored');
       Object.assign(data, structuredClone(patch));
     },

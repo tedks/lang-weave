@@ -112,6 +112,40 @@ test('a trusted sender clears the locally stored managed token and its diagnosti
   } finally { f.restore(); }
 });
 
+test('a rejected settings write preserves the managed token and its diagnostic', async () => {
+  const f = await workerFixture({ respond: () => jsonError(402, 'managed_balance'),
+    beforeSet: (patch) => {
+      if (patch.settings?.density === 'heavy') throw new Error('Synthetic settings write failure');
+    },
+  });
+  try {
+    await f.ask();
+    const before = structuredClone(f.data);
+    const reply = await f.send({ type: 'save', managedToken: '', settings: { density: 'heavy' } }, options);
+    expect(reply).toEqual({ error: 'Synthetic settings write failure' });
+    expect(f.data).toEqual(before);
+    expect(f.removals).not.toContain('managedToken');
+    expect((await f.send({ type: 'config' })).hasKey).toBe(true);
+  } finally { f.restore(); }
+});
+
+test('the logical clear survives failed cleanup of the empty managed entry', async () => {
+  const f = await workerFixture({ respond: () => jsonError(402, 'managed_balance'),
+    beforeTokenRemoval: () => { throw new Error('Synthetic removal failure'); },
+  });
+  try {
+    await f.ask();
+    const reply = await f.send({ type: 'save', managedToken: '', settings: { density: 'heavy' } }, options);
+    expect(reply).toEqual({ ok: true });
+    expect(f.removals).toContain('managedToken');
+    expect(f.data.managedToken).toBe('');
+    expect(f.data.settings.density).toBe('heavy');
+    expect(f.data.managedModelStatus).toBeNull();
+    expect((await f.ask()).reply).toEqual({ results: {}, stale: true });
+    expect(f.calls).toHaveLength(1);
+  } finally { f.restore(); }
+});
+
 test('managed reading maps proxy messages and keeps BYOK credentials and cooldowns separate', async () => {
   const byokStatus = { category: 'key_rejected', keyEpoch: 'byok-epoch' };
   const cases = [
@@ -227,27 +261,31 @@ test('managed pauses expire at the proxy retry time or one hour after the status
   const actualNow = Date.now;
   const hour = 60 * 60 * 1000;
   try {
-    for (const [status, category, retryAfterMs] of [[429, 'rate_limit', 4000], [503, 'overloaded', 2000],
-      [503, 'overloaded', undefined], [503, 'managed_unavailable', undefined]]) {
+    for (const [status, category, retryAfterMs, ahead] of [[429, 'rate_limit', 4000], [503, 'overloaded', 2000],
+      [503, 'overloaded'], [503, 'managed_unavailable'], [409, 'managed_update_required', 1000, true],
+      [409, 'managed_update_required'], [409, 'managed_update_required', undefined, false]]) {
       const at = actualNow();
       let clock = at;
       Date.now = () => clock;
       const f = await workerFixture({ initial: { quotaState: { keyEpoch: 'byok-epoch', cooldowns: {
         'gemini-3.5-flash-lite': { kind: 'short', setAt: at, durationMs: 60_000, until: at + 60_000 },
-      } } }, respond: () => jsonError(status, category, { retryAfterMs }) });
+      } } }, respond: () => jsonError(status, category, { retryAfterMs, ahead }) });
       try {
         await f.ask();
         const saved = (await f.send({ type: 'status' }, options)).modelStatus;
         expect(saved.category).toBe(category);
+        expect(saved.ahead).toBe(ahead);
         expect(saved.retryAt).toBe(retryAfterMs === undefined ? undefined : at + retryAfterMs);
         if (retryAfterMs === undefined) expect(await f.badgeTitle()).toBe('Reading is paused; review still works');
         const deadline = at + (retryAfterMs ?? hour);
         clock = deadline - 1;
         expect((await f.send({ type: 'status' }, options)).modelStatus?.category).toBe(category);
         clock = deadline;
-        expect((await f.send({ type: 'status' }, options)).modelStatus).toBeNull();
+        const expired = (await f.send({ type: 'status' }, options)).modelStatus;
+        if (ahead === false) expect(expired).toEqual(saved);
+        else expect(expired).toBeNull();
         clock++;
-        expect(await f.badgeTitle()).toBe('Lang Weave is on here');
+        expect(await f.badgeTitle()).toBe(ahead === false ? 'Reading is paused; review still works' : 'Lang Weave is on here');
         expect(f.calls).toHaveLength(1);
       } finally { f.restore(); }
     }
