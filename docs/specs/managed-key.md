@@ -762,4 +762,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
 
 ## Interpretations log
 
-(empty)
+- **LW-STORE-MK-01 (2026-11-28, lead, for mk-proxy).** Clarifications, no boundary change:
+  (1) the 192 KiB limit applies to the inbound structured request; the 25,000 `requestChars`
+  limit applies to the built provider body; C5's input bound is the built body's actual UTF-8
+  length. (2) The reader debit follows the 6.3 table in every case, including provisional
+  outcomes (C2). (3) M1 carries only the current prompt builder; the previous-release snapshot
+  in 6.2 is deferred until a release that contains `buildSwapRequest` exists, and the proxy
+  answers every other `promptVersion` with `409 managed_update_required`. Temporary exception,
+  expires when the first release after the one containing `buildSwapRequest` ships.
