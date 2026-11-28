@@ -44,7 +44,7 @@ Goals, in priority order. A worker adjudicates a deviation against these.
    text, URLs, titles or model output to disk or to logs; the host platform's request-body
    logging is turned off. It stores an opaque account id, a hash of the bearer token, a balance,
    a ledger of (time, model, token counts, reader cost, provider cost, reason), and the Stripe
-   Checkout session and customer ids needed for refunds. Those Stripe ids link an account to the
+   PaymentIntent and Checkout session ids needed for refunds (no customer id). Those Stripe ids link an account to the
    purchaser's email inside Stripe, so the account is **pseudonymous, not anonymous**, and the
    privacy text says so. Client IP addresses are used only for the account-creation rate limit,
    held as a keyed hash that rotates daily, and dropped after 24 hours. A response held for an
@@ -140,8 +140,10 @@ for byte.
   `personal`, and is checked with that class's own rules from the extension, not a new regex:**
   bundled Spanish and Guaraní rows must match a row of the catalog the proxy carries;
   pack words must pass the pack cleaner's own rules (`validPackForm`, `word-form.js:5-6`, form at
-  most 50 UTF-16 units; gloss through `validField`, `languages.js:13`, at most 60 characters);
-  personal words must pass `validForm` (`personal.js:18`, at most 80 code points); `status` comes
+  most 50 UTF-16 units; gloss through `validField`, `languages.js:13`, plus the 60-character cap at `languages.js:26`);
+  personal words must pass `validForm` (`personal.js:18`, at most 80 code points) for both `fr`
+  and `en`, as `cleanPersonal` already applies it to the entry's target and source
+  (`personal.js:53`); `status` comes
   from the extension's status set. A boundary test feeds every bundled row in both languages,
   plus pack and personal fixtures at each class's maximum length, through this validation and
   requires all to pass.
@@ -186,7 +188,8 @@ for byte.
   `shownToday`, density, words) gets a new key. If E1 nevertheless receives `keyReuse`, it mints a
   new key and sends once more.
   Errors: `402 managed_balance` when the reservation fails; `503 managed_unavailable` when the
-  global ceiling is reached or the proxy is in maintenance; provider 429/503/timeout map to the
+  global ceiling is reached, the stop latch is set or the price table is out of date (`STOPPED`),
+  or the proxy is in maintenance; provider 429/503/timeout map to the
   existing `rate_limit` / `overloaded` / `request_failed` with `retryAfterMs` passed through
   when bounded.
 - **Invariants:** a 200 or a provider error is always preceded by exactly one successful
@@ -229,9 +232,11 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
 
 - `createAccount(tokenHash) → accountId`
 - `reserve(accountId, readerWorst, providerMax, dayKey, ceiling, keyHash, bodyHash) →
-  reservationId | BALANCE | DAILY_CAP | CEILING | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
+  reservationId | BALANCE | DAILY_CAP | CEILING | STOPPED | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
   claims the idempotency key (C1) in the same transaction, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
-  largest amount the call could possibly cost the operator. It succeeds only if: the account is
+  largest amount the call could possibly cost the operator. It succeeds only if: the ledger's
+  global **stop latch** is clear, and C5 has an in-date price row for the call's date (else
+  `STOPPED`); the account is
   not frozen; it has no open reservation; `balance - reserved >= readerWorst`; fewer than
   `IN_FLIGHT_MAX` reservations are open; the account's day `providerSpent + providerHeld +
   providerMax <= ACCOUNT_DAILY_PROVIDER_MAX`; and the global day `providerSpent + providerHeld +
@@ -242,8 +247,10 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   the winner's result. The reader is charged `min(readerActual, readerWorst)`. The day's
   `providerHeld` drops by `providerMax` and `providerSpent` rises by the **full**
   `providerActual`, which includes input, output and thinking tokens. A `providerActual` above
-  `providerMax` means C5's maximum is wrong: it raises an `overage` alarm, which stops all managed
-  calls (section 12), and the full amount stays recorded. The **reader debit and the provider
+  `providerMax` means C5's maximum is wrong: it raises an `overage` alarm and **sets the stop
+  latch in the same transaction**, so every later `reserve`, on any instance, returns `STOPPED`
+  (section 12); the full amount stays recorded. Only the operator clears the latch
+  (`clearStop(ref)`), after C5 is corrected. Calls already reserved settle normally. The **reader debit and the provider
   accounting are independent**: the reader is always charged the 6.3 table's reader amount for
   the outcome, capped at `readerWorst`, whatever the provider state. For an **unknown-cost
   outcome** (6.3) the provider side moves to state `provisional`: the full `providerMax` stays
@@ -256,7 +263,7 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   cost can be attributed to **that** reservation: a late response for its own request, or a
   provider usage-export row matched by its request id. It replaces the provisional `providerMax`
   with the full confirmed `providerActual` for the original day; if that is above `providerMax`,
-  it raises the same `overage` alarm and stop as `settle`. Unattributable costs never lower a
+  it raises the same `overage` alarm and sets the same stop latch as `settle`. Unattributable costs never lower a
   hold. The reader is not charged again or refunded automatically.
 - `release(reservationId)` — releases the whole reservation. Same compare-and-set.
 - **Payment record**, keyed by Stripe `payment_intent` (refund and dispute events carry it;
@@ -265,6 +272,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   refused, reversalTarget, reversedMicros, refundedMicros, dispute: none | open | won | lost,
   disputeLostMicros}`.
   Stripe amounts are integer cents and are converted to micros (×10,000) on the way in.
+  `packMicros` comes from v0's single Payment Link's pack-table entry, so a record created by a
+  `charge.refunded` or dispute event before any Checkout event (whose Charge carries no
+  payment-link reference) still has it.
   `recordPayment(...)` creates or updates it from any handled event, so **no evidence is lost
   whatever the order**: `refundedMicros` is the monotonic maximum of every cumulative
   `amount_refunded` seen, in every grant state. `dispute` only moves forward: `none` → `open` →
@@ -291,7 +301,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   identifies its `payment_intent` in Stripe and links it (`linkOrphan(checkoutSessionId,
   paymentIntentId)`, unique), which creates the payment record from the session's facts
   (`paidMicros` from `amount_total`, `accountId` if known, `grantState: refused`) if no webhook
-  has created it yet, after which its status is derived from that payment record like any
+  has created it yet. If a refund or dispute event created the record first, `linkOrphan` merges
+  into it instead: it moves `pending` to `refused`, sets `checkoutSessionId` and `paidMicros`
+  from the session, and keeps every refund, reversal and dispute field already recorded; after which its status is derived from that payment record like any
   other orphan.
 - **The orphan status is advisory.** It drives the operator's refund queue and never moves reader
   credit; goals 1 and 2 do not depend on it. Before refunding any orphan the operator confirms
@@ -306,7 +318,7 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   successful purchase into an orphan.
 - `reverse(paymentIntentId, target)` — for refunds and disputes. `target` is the **cumulative**
   credit that should be reversed, in ledger micro-dollars: `ceil(packMicros × amount_refunded /
-  amount_paid)` for a refund event, `packMicros` for a dispute. The record keeps `reversalTarget =
+  amount_captured)` (both from the Charge, in cents) for a refund event, `packMicros` for a dispute. The record keeps `reversalTarget =
   max(reversalTarget, min(target, packMicros))`, so it is monotonic and never negative, whatever
   order events arrive in or however refunds and disputes overlap. For a `granted` payment it then
   debits only the increase, at most `balance - reserved` of the account currently holding the
@@ -382,8 +394,12 @@ order and any number of times.
   `mode: "payment"` and `payment_status: "paid"`, calls `grant` if **all** of these hold:
   `payment_link` is the one configured link; `currency` is `usd`; `amount_total` equals that
   link's configured price exactly (so a discount, a changed price or a misconfigured link grants
-  nothing and is logged for the operator); `client_reference_id` matches `^acct_[A-Z2-7]{26}$`.
-  The pack size comes from the proxy's own table for that link, never from the event. `grant`
+  nothing and becomes an orphan, below); `client_reference_id` matches `^acct_[A-Z2-7]{26}$`.
+  The pack size comes from the proxy's own table for that link, never from the event. While
+  `ENROLLMENT=allowlist` (the v0 default, and the only mode M3 allows), the account must also be
+  on the operator's `ENROLLED_ACCOUNTS` list; `reserve` refuses unlisted accounts too (as
+  `STOPPED`), so a stranger who creates an account and pays gets an orphan and a refund, never
+  managed calls. `grant`
   itself applies the remaining checks (account exists and is unfrozen, payment not disputed,
   balance below one pack) and subtracts any reversal that arrived first. A completed session
   with `payment_status` other than `paid` grants nothing; its later `async_payment_succeeded`
@@ -398,14 +414,21 @@ order and any number of times.
   marked `disputed`.
   Unfreezing is a manual operator action after the dispute closes. A dispute on an already
   refunded payment reverses only the remaining difference.
-- **Orphan payment.** A paid session whose `client_reference_id` is missing (someone opened the
-  bare link), malformed or unknown, or whose grant `grant` refuses, returns 200 (so Stripe stops
+- **Orphan payment.** Every `paid` session that does not grant is an orphan: one whose
+  `payment_link`, `currency` or `amount_total` fails the checks above, whose
+  `client_reference_id` is missing (someone opened the bare link), malformed or unknown, whose
+  account is not enrolled (M3 allowlist, below), or whose grant `grant` refuses. Its payment
+  record moves to `grantState: refused` (terminal: a later notification does not grant it). It returns 200 (so Stripe stops
   retrying), grants nothing, and is recorded as an orphan for the operator to refund.
 - The Payment Link is configured with a fixed quantity of one, no promotion codes and cards only;
   the amount check above catches a link changed later. A reusable link still allows several
   purchases by one account; `grant`'s one-pack rule limits how much credit one account holds.
 - **Dispute closed.** `charge.dispute.closed` records `dispute: won` or `lost` from the event's
-  status. It changes no balance and unfreezes nothing by itself: for a granted payment the
+  status. A `lost` close applies the same `reverse(packMicros)` and, for a `granted` payment, the
+  same freeze as `charge.dispute.created` (both idempotent through the monotonic target), so a
+  loss whose `created` event is late or never delivered still removes the credit. Tests cover
+  created→closed, closed→created, and closed with no created, for won and lost. Otherwise it
+  changes no balance and unfreezes nothing by itself: for a granted payment the
   operator decides on unfreezing; for an orphan it only records the outcome (and
   `disputeLostMicros`), and the orphan's status is recomputed by C2's derivation, which alone
   decides whether money is still owed.
@@ -444,8 +467,10 @@ micro-dollar. Reader micros include the markup; provider micros do not.
   tokenizer assumption and the output bound on a model-card figure; both must be confirmed from
   the provider's documentation (not by sampling `countTokens`, which cannot prove a maximum) before
   M2. Until then the bound in goal 2 is conditional and the spec says so.
-- **Freshness:** the table is data with a `checkedOn` date and the price source URL. A test fails
-  when `checkedOn` is older than 30 days, and the table carries announced future prices with their
+- **Freshness:** the table is data with a `checkedOn` date and the price source URL. It is
+  enforced at **runtime**, not only in tests: `worst` returns no price, and `reserve` therefore
+  `STOPPED`, for a call date more than 30 days after `checkedOn` or with no effective price row.
+  A test also fails when `checkedOn` is older than 30 days, and the table carries announced future prices with their
   effective dates (3.8 Flash doubles on 2027-01-01), selecting by the call's date. The test is
   meant to fail on the calendar alone: the fix is to re-read the price page and update the
   price and `checkedOn` together, never to bump the date.
@@ -541,7 +566,9 @@ mode refuses to turn on and says why.
 A lost token loses the balance unless the reader recovers it. Recovery needs **two** things: the
 Stripe receipt, and the account id that Settings shows and the reader can copy (the account id is
 not a credential; the token is). A forwarded receipt alone is not enough. The operator then moves
-the balance to a new account with `adjust` and records both references. This keeps "no login and
+the balance to a new account with C2's `transfer`, whose `ref` records the receipt and the old
+account id; `transfer` also reassigns the payment records, revokes the old token and freezes the
+old account, which a bare `adjust` would not. This keeps "no login and
 no email held by Lang Weave" true, while being honest that Stripe holds the purchaser's email and
 card details under Stripe's own terms.
 
@@ -568,7 +595,9 @@ and must keep the BYOK statement intact for BYOK readers. Managed calls go throu
 provider account, which changes the Google data-use terms that apply to the passage text
 (section 10 quotes them). The store data disclosure gains "website content transmitted to the
 developer's server", "authentication information" (the token) and "financial and payment
-information: processed by Stripe, not collected by Lang Weave". Limited Use must be restated.
+information: processed by Stripe, not collected by Lang Weave". Limited Use must be restated,
+and it faces the same exception question as DECISIONS D3a(a) for the provider's abuse logging
+(and Vertex abuse logging, not yet checked, section 10.1).
 
 **In-extension payment.** The Chrome Web Store appears to offer no payments of its own any more
 [inference: the old payments page returns 404 and no current page documents one]; an extension
@@ -594,12 +623,12 @@ Evidence that would change this, in the order it could arrive:
 2. **At least 20 distinct readers** take an explicit "I'd rather pay than get a key" action: a
    link on the key step to a static page with a GitHub discussion or a mailto. It is counted by
    hand, not by telemetry.
-3. Of the readers who reach the key step, **more than half abandon it** (visible as Store users
-   without a key, which only a reader can tell us: ask in the discussion). That would mean the
-   key is the bottleneck the managed path removes.
+3. Supporting only, not a gate: readers report that they gave up at the key step. No denominator
+   for an abandonment rate is available without telemetry, so these reports inform the key-flow
+   work but cannot replace (2).
 
-If (1) never happens, the managed path does not matter. If (1) happens without (2) or (3), the
-cheaper fix is a better key flow, not a server.
+The gate (DECISIONS D6) is (1) **and** (2). If (1) never happens, the managed path does not
+matter. If (1) happens without (2), the cheaper fix is a better key flow, not a server.
 
 ## 10. Provider terms, pricing and unit economics
 
@@ -635,8 +664,9 @@ on the proxy's shape, which is why 6.2 builds the prompt on the server.
   key is always a paid project, so a managed reader's passages get the paid-tier treatment, which
   is **better** than what a free-key BYOK reader gets today. On the recommended Vertex route the
   governing text is instead the Google Cloud Service Specific Terms (section 20.h of the
-  generative AI terms, which the brief summarizes as keeping prompts and output inside the
-  customer's account). Whether Vertex also logs prompts for abuse monitoring, and for how long,
+  generative AI terms: absent the customer's permission, Google will not store prompts outside the
+  customer's account "for longer than is reasonably necessary to create the Generated Output",
+  nor the output itself; so prompts may leave the account transiently). Whether Vertex also logs prompts for abuse monitoring, and for how long,
   was not checked tonight and must be read before the privacy text is written.
 - **Google Cloud Terms of Service** (Vertex AI route, last modified 2026-11-18), 1.1: Customer
   "may use the Services, and integrate the GCP Services ... into any Customer Application that
@@ -669,7 +699,8 @@ credit limit they control; "Their requests are billed to their own OpenRouter cr
 don't pay for their inference or manage keys on their behalf"
 (<https://openrouter.ai/docs/guides/overview/auth/oauth>). It serves `gemini-3.5-flash-lite` at
 Google's list price. Lang Weave would hold no key, no money, no ledger and no stored value, and
-needs no Stripe account, trader status or physical address. Its costs: a second provider client
+needs no Stripe account or seller-of-record address; trader status still turns on DECISIONS
+D2's trade-or-business test. Its costs: a second provider client
 in the extension, an OpenRouter account and card for each reader, and OpenRouter's terms, which
 make unused credit non-refundable after 24 hours. It removes the key-setup friction without
 making Lang Weave a seller. **If the problem to solve is key friction rather than revenue, this
@@ -701,8 +732,8 @@ Output dominates the cost, so the first thing M1 measures is `usageMetadata` on 
 | One passage (estimate) | 960 | 700 | $0.0020 |
 | Worst-case reservation (input bound = request bytes, ≤ 100,000; output = `maxOutputTokens` 2,048; thinking beyond the cap unverified, see C5) | 100,000 | 2,048 | $0.0351 |
 
-Provider cost per reader per 30 days at $0.0031 a call: 20 calls a day $1.87; 50 a day $4.67; 150 a
-day $14.00; the local cap of 1,000 a day $93.30. Calls per day are themselves an estimate (20 to
+Provider cost per reader per 30 days at $0.0031 a call: 20 calls a day $1.86; 50 a day $4.65; 150 a
+day $13.95; the local cap of 1,000 a day $93.00. Calls per day are themselves an estimate (20 to
 50 for a typical reader). This spread is why v0 sells credits, not a flat subscription: a $4.99
 monthly plan loses money on a 50-call-a-day reader at this model.
 
@@ -744,7 +775,7 @@ Stripe's Restricted Businesses list (updated 2026-09-22) has no AI category; it 
 "No-value-added services, including the sale or resale of a service without added benefit to
 the buyer" and lists "Seller-maintained stored value or credits" as restricted ("may be subject
 to limits"). Expect due-diligence questions about the credits; keep them small,
-non-transferable and refundable on request.
+non-transferable between readers (operator token recovery excepted) and refundable on request.
 
 ## 11. Smallest version that could take a first dollar
 
@@ -809,9 +840,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
    and does selling to EU readers require VAT OSS registration? (v0 is US only.)
 6. Google APIs ToS 5(e) bars selling or distributing "content returned from the APIs", while the
    Gemini Additional Terms disclaim ownership of generated content. Does showing paying readers
-   swaps built from model output fall under the more specific Additional Terms (AI Studio), and
-   does the Google Cloud clause making generated output Customer Data settle it on Vertex? The
-   research brief leaves this unresolved; DECISIONS D7 carries it.
+   swaps built from model output fall under the more specific Additional Terms? This is an AI
+   Studio (Developer API) question. On Vertex the governing contract is the Google Cloud terms,
+   and the quoted material does not establish that APIs ToS 5(e) applies there; whether the
+   Cloud terms' treatment of Generated Output as Customer Data settles output rights is a
+   separate open question. DECISIONS D7 carries both.
 7. Will Google raise the project quota for a sole proprietor's consumer service, and on what
    terms?
 8. Unmeasured: real input, output and thinking tokens per call, calls per reader per day, and

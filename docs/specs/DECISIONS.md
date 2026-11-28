@@ -115,7 +115,8 @@ certifications are on hold.
    under option 1** until the packet (a) names the policy exception that covers the paid tier's
    abuse review and (b) establishes a basis that covers free-key requests that succeed without ever
    tripping the quota signal, since a false or mistaken attestation still sends page text under the
-   free terms. If either cannot be established, the hold stays and option 3 applies. This option
+   free terms. If either cannot be established, the hold stays and option 3 applies, including its
+   after-yes step (naming the replacement demand signal). This option
    also means basic use requires paying Google, which the Store policy says the description must
    state; the listing changes, and D3's US-only rationale (which rests on not being able to tell
    keys apart, still true under an attestation) is revisited. That is a code change and a release.
@@ -127,8 +128,8 @@ certifications are on hold.
    Even a later Store build that offers managed reading still has to settle free-key BYOK by
    option 1, by removing BYOK from the Store build, or by accepting option 2.
 
-**Recommendation: option 1** if you want to submit soon, knowing the certifications still need the
-exception named before signing. If you would rather wait, option 3 with an explicit D6 override.
+**Recommendation: option 1** if you want to submit soon, knowing the certifications still need
+both conditions (a) and (b) above before signing. If you would rather wait, option 3 with an explicit D6 override.
 Not option 2.
 
 After a yes to 1: a lead drafts the key-step change (an explicit "my key has billing on"
@@ -172,13 +173,18 @@ After yes:
 **Recommendation: not yet.** Build nothing live until **both** of these are true:
 - the free listing shows **at least 200 weekly users for four weeks in a row** (the dashboard
   shows this, so no telemetry is needed); and
-- **at least 20 readers** take an explicit "I'd rather pay than get a key" step (a link on the key
-  page to a GitHub discussion, counted by hand), or readers tell us they give up at the key step.
+- **at least 20 distinct readers** take an explicit "I'd rather pay than get a key" step (a link on
+  the key page to a GitHub discussion, counted by hand). Reports of giving up at the key step are
+  supporting evidence, not a substitute (there is no denominator without telemetry). This is the
+  same gate as spec section 9.
+
+If you choose D3a option 3 (no listing), this gate stays on hold until you separately approve a
+replacement for the first condition.
 
 The question behind this: **is the goal revenue, or is it removing the key step?** If it is the key
 step, OpenRouter's sign-in flow (spec 10.2) lets each reader fund their own key with a spending limit
-they set. Lang Weave then holds no money and no provider key, and needs no Stripe account, address or
-trader status. That is less work and less risk than the managed key, and it earns nothing.
+they set. Lang Weave then holds no money and no provider key, and needs no Stripe account or
+seller address (trader status still follows D2's test). That is less work and less risk than the managed key, and it earns nothing.
 
 After "build it anyway": the tracer drafts (default-off flag, stub provider, Stripe test fixtures)
 can be finished and councilled with no account. The live steps are D7–D10.
@@ -191,10 +197,11 @@ value independent of the Services". The AI Studio terms say "not for consumer us
 whole billing account at the tier cap ($250 a month at first). Global-endpoint prices match AI
 Studio's. No separate agreement with Google is required by any published clause we found. Raising
 quota later goes through Google's increase forms. That is our reading of the quoted clauses, not
-Google's confirmation. One question stays open on both routes: the APIs Terms bar selling or
-distributing "content returned from the APIs" (5(e)), and nobody has checked how that applies to
-showing paying readers swaps built from model output. Ask Google or a lawyer before the first sale
-if you want it settled (spec section 13, question 6).
+Google's confirmation. Output rights stay open, separately per route: on AI Studio the APIs Terms
+bar selling or distributing "content returned from the APIs" (5(e)), and nobody has checked how
+that applies to showing paying readers swaps built from model output; on Vertex the Cloud terms
+govern, and whether 5(e) applies there at all is not established by the quoted text. Ask Google
+or a lawyer before the first sale if you want either settled (spec section 13, question 6).
 
 After yes:
 1. You: create or choose a Google Cloud billing account (card, identity) and a project
@@ -213,20 +220,22 @@ After yes:
 
 **Recommendation: one Stripe account, as an individual or sole proprietor, US cards only, one $10
 Payment Link.** Stripe lists "Seller-maintained stored value or credits" as restricted ("may be
-subject to limits"), so expect questions. Credits stay small, never expire, cannot be transferred,
-and are refundable on request.
+subject to limits"), so expect questions. Credits stay small, never expire, cannot be transferred
+between readers (the operator's token recovery excepted), and are refundable on request.
 
-After yes:
+After yes, in this order (D9's host and the published terms page come first):
 1. You: open the account and complete identity verification (legal name, address, tax ID, bank
    account). Choose a statement descriptor such as `LANGWEAVE`.
-2. Agent: create the product "Lang Weave reading credit, $10" and a Payment Link with quantity
-   fixed at one, no promotion codes and cards only; add a Radar rule that blocks non-US cards (a
-   Payment Link setting that limits billing country was **not verified** tonight; Radar rules are
-   the documented lever); link the terms-of-sale and refund page; and create a webhook endpoint
-   for `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+2. A lead writes the terms-of-sale and refund page (draft PR); you approve it and it is
+   published. D9's host and proxy URL exist.
+3. Agent: create the product "Lang Weave reading credit, $10" and a Payment Link with quantity
+   fixed at one, no promotion codes and cards only, created **deactivated**; add a Radar rule that
+   blocks non-US cards (a Payment Link setting that limits billing country was **not verified**
+   tonight; Radar rules are the documented lever); link the published terms page; and create a
+   webhook endpoint for `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
    `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed` on the proxy URL.
-3. You: copy the webhook signing secret into the host's secret store.
-4. A lead writes the terms-of-sale and refund page (draft PR) for you to approve.
+4. You: copy the webhook signing secret into the host's secret store.
+5. The link is activated only at D10 step 2, for the enrolled tester.
 
 ## D9. Host and domain
 
@@ -251,7 +260,9 @@ After yes, in this order:
    both published, that name the new data recipient (the proxy), what it keeps (ledger rows, not
    passage text or model output), Stripe's role, the seller (you, not Google) and the refund
    terms. The tester reads the in-extension disclosure before the first managed call.
-2. A lead turns on the flag in that one build, and the tester buys one pack. The day after
+2. A lead turns on the flag in that one build, adds the tester's account id to the proxy's
+   `ENROLLED_ACCOUNTS` allowlist (spec C4; any other buyer gets a refund, not credit), activates
+   the Payment Link, and the tester buys one pack. The day after
    (provider billing lags by up to about a day), the lead reconciles two separate pairs:
    Stripe payments and refunds against the ledger's grants and reversals (amounts paid and
    refunded; Stripe's fee is not in the ledger and is checked separately on the Stripe payout);

@@ -363,7 +363,8 @@ integrating the services "into any Customer Application that has material value
 independent of the Services". Lang Weave has that value: the curriculum, validation,
 scheduler and UI. Section 3.3(c) "sell, resell ... the Services" then draws the same line
 as Q1: sell the application, not the model. Vertex has a **defined End User** concept,
-an explicit no-retention-outside-account clause (20.h), output indemnity on paid use, and
+a clause limiting storage outside the customer's account (20.h: prompts no longer than
+reasonably necessary to create the output; output not at all), output indemnity on paid use, and
 no "not for consumer use" sentence. That makes Vertex **contractually cleaner than AI
 Studio keys** for a consumer SaaS. Its costs are operational: a GCP billing account and
 service-account auth (no simple key), and no free tier. The 18+ rule and the anti-quota-splitting clause (3.3(d)(iii)) apply to Vertex as well.
