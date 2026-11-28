@@ -84,3 +84,10 @@ test('a transport response that completes after its deadline reports the late ou
   transport.resolve(Response.json({ candidates: [candidate('STOP')], responseId: 'late-response' }));
   expect(await late.promise).toMatchObject({ kind: 'ok', finishReason: 'STOP', providerRequestId: 'late-response' });
 });
+
+test('a body read failure after 200 headers keeps the request classified as sent', async () => {
+  const transportError = Object.assign(new Error('fixture stream closed'), { sent: false });
+  const provider = createProvider({ credential, baseUrl, fetchImpl: async () =>
+    new Response(new ReadableStream({ start(controller) { controller.error(transportError); } })) });
+  expect(await provider.call(callArgs)).toMatchObject({ kind: 'no_response', sent: true });
+});

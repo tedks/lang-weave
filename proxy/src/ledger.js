@@ -160,10 +160,15 @@ const schema = `
 // The ledger requires a synchronous transaction that supplies get/all/run
 // with SQLite-compatible SQL and positional parameters. A thrown operation
 // rolls back the entire transaction, including webhook deduplication.
-export function createSqliteStorage(filename = ':memory:', { priceRows = PRICE_ROWS, now = Date.now } = {}) {
+export function createSqliteStorage(filename = ':memory:', {
+  priceRows = PRICE_ROWS, now = Date.now, busyTimeoutMs = 2000,
+} = {}) {
+  if (!Number.isInteger(busyTimeoutMs) || busyTimeoutMs < 0 || busyTimeoutMs > 2_147_483_647) {
+    throw new RangeError('Invalid SQLite busy timeout');
+  }
   const db = new Database(filename, { strict: true });
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('PRAGMA busy_timeout = 2000');
+  db.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}`);
   const tx = {
     get: (sql, ...params) => db.query(sql).get(...params),
     all: (sql, ...params) => db.query(sql).all(...params),
@@ -626,6 +631,10 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         }
         const prior = claimResult(claim(tx, accountId, keyHash, at), bodyHash);
         if (prior) return prior.kind === 'OPEN' ? { ...prior, kind: 'BUSY' } : prior;
+
+        // Only trusted ledger callers may supply precomputed C2 amounts.
+        // Authenticated API requests always use the row read here.
+        if (tokenHash && !priceRequest) return 'NO_PRICE';
 
         const dayKey = utcDay(at);
         if (tx.get('SELECT 1 FROM managed_stop WHERE singleton = 1')) return 'STOPPED';

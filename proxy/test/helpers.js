@@ -5,7 +5,7 @@ export function makeLedger(at = Date.parse('2026-11-28T00:00:00Z'), { onOverage 
   const now = () => at;
   const db = createSqliteStorage(':memory:', { priceRows, now });
   const storage = {
-    transaction(operation) {
+    transaction(operation, options) {
       return db.transaction((tx) => {
         const result = operation(tx);
         expect(tx.all(`
@@ -17,7 +17,7 @@ export function makeLedger(at = Date.parse('2026-11-28T00:00:00Z'), { onOverage 
              ), 0)
         `)).toEqual([]);
         return result;
-      });
+      }, options);
     },
   };
   const ledger = createLedger(storage, { now, onOverage });

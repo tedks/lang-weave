@@ -21,8 +21,10 @@ function setup(options = {}) {
     ledger: context.ledger, endpointSecret: secret, paymentLinkId: 'plink_fixture',
     amountCents: 1000, packMicros, now: context.now, diagnostic: (entry) => diagnostics.push(entry), ...options,
   });
-  const request = (raw, header) => new Request(url, {
-    method: 'POST', headers: { 'Stripe-Signature': header }, body: raw,
+  const request = (raw, header, mediaType = 'application/json') => new Request(url, {
+    method: 'POST', headers: {
+      'Stripe-Signature': header, ...(mediaType ? { 'Content-Type': mediaType } : {}),
+    }, body: raw,
   });
   const seconds = () => context.now() / 1000;
   const fixture = (name) => Bun.file(new URL(`fixtures/${name}.json`, import.meta.url)).json();
@@ -113,13 +115,14 @@ test('partial refund before Checkout reduces the grant and cumulative refunds ne
   } finally { db.close(); }
 });
 
-test('a full refund before completion produces a zero grant; a dispute before completion refuses without freezing', async () => {
+test('fully refunded and disputed pending payments refuse credit without freezing', async () => {
   const { deliver, ledger, db, account } = setup();
   try {
     const { id } = account();
     await deliver('charge-refunded', { amount_refunded: 1000 });
     await deliver('checkout-paid', { client_reference_id: id });
-    expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'granted', reversalTarget: packMicros });
+    expect(ledger.getPayment(intentId)).toMatchObject({ grantState: 'refused', reversalTarget: packMicros });
+    expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({ status: 'settled', reason: 'fully_refunded' });
     expect(ledger.getAccount(id).balanceMicros).toBe(0);
 
     await deliver('dispute-created', { payment_intent: 'pi_open_first' });
@@ -413,4 +416,71 @@ test('foreign dispute evidence can arrive before an owned paid Checkout', async 
     });
     expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 0, frozen: false });
   } finally { db.close(); }
+});
+
+test('a signed Stripe event requires JSON before it enters the ledger', async () => {
+  const { webhook, request, ledger, db, account, fixture, seconds } = setup();
+  try {
+    const { id } = account();
+    const event = await fixture('checkout-paid');
+    event.data.object.client_reference_id = id;
+    const raw = JSON.stringify(event, null, 2);
+    const header = sign(raw, seconds());
+    for (const mime of [null, 'text/plain', 'application/jsonp']) {
+      expect((await webhook(request(raw, header, mime))).status).toBe(400);
+      expect(ledger.getPayment(intentId)).toBeNull();
+    }
+    expect((await webhook(request(raw, header, 'application/json; charset=utf-8'))).status).toBe(200);
+    expect(ledger.getAccount(id).balanceMicros).toBe(packMicros);
+  } finally { db.close(); }
+});
+
+test('a currency-conflicting orphan link preserves both records and its operator marker', async () => {
+  const { deliver, ledger, db, account } = setup();
+  try {
+    expect(ledger.linkOrphan(checkoutId, intentId)).toBe('NOT_ORPHAN');
+    const { id } = account();
+    await deliver('checkout-paid-no-intent', { currency: 'eur', client_reference_id: id });
+    await deliver('charge-refunded', { currency: 'usd' });
+    expect(ledger.markOrphanSettled(checkoutId, 'verified-by-operator')).toBe('SETTLED');
+    const originalSession = ledger.getOrphanCheckout(checkoutId);
+    const originalIntent = ledger.getPayment(intentId);
+    expect(ledger.linkOrphan(checkoutId, intentId)).toBe('CONFLICT');
+    expect(ledger.getOrphanCheckout(checkoutId)).toEqual(originalSession);
+    expect(ledger.getPayment(intentId)).toEqual(originalIntent);
+    await deliver('checkout-paid', { client_reference_id: id });
+    expect(ledger.getOrphanCheckout(checkoutId)).toMatchObject({
+      paymentIntentId: null, paidCurrency: 'eur', status: 'settled',
+    });
+    expect(ledger.getPayment(intentId)).toEqual(originalIntent);
+    expect(ledger.getPaymentDiagnostic('evt_checkout_paid').reason).toBe('checkout_intent_conflict');
+    expect(ledger.getAccount(id).balanceMicros).toBe(0);
+  } finally { db.close(); }
+});
+
+test('missing captured amount keeps cumulative refund evidence and defers credit until usable', async () => {
+  for (const amount_refunded of [600, 1000]) {
+    const { deliver, ledger, db, account } = setup();
+    try {
+      const { id } = account();
+      await deliver('charge-refunded', { amount_captured: null, amount_refunded });
+      expect(ledger.getPayment(intentId)).toMatchObject({
+        refundedMicros: amount_refunded * 10_000, refundCapturedMicros: null, reversalTarget: 0,
+      });
+      expect(ledger.getPaymentDiagnostic('evt_charge_refunded').reason).toBe('invalid_refund_amount');
+      await deliver('checkout-paid', { client_reference_id: id });
+      expect(ledger.getPayment(intentId).grantState).toBe('pending');
+      expect(ledger.getCheckoutDisposition(checkoutId)).toBeNull();
+      expect(ledger.getAccount(id).balanceMicros).toBe(0);
+
+      // A valid older snapshot supplies the denominator. Its smaller
+      // cumulative refund must not erase the previously observed amount.
+      await deliver('charge-refunded', { amount_refunded: 325, amount_captured: 1000 }, 'evt_usable_capture');
+      expect(ledger.getPayment(intentId)).toMatchObject({
+        refundedMicros: amount_refunded * 10_000, refundCapturedMicros: packMicros,
+        reversalTarget: amount_refunded * 10_000, grantState: amount_refunded === 1000 ? 'refused' : 'granted',
+      });
+      expect(ledger.getAccount(id).balanceMicros).toBe(packMicros - amount_refunded * 10_000);
+    } finally { db.close(); }
+  }
 });

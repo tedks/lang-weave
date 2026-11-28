@@ -16,7 +16,7 @@ import {
   MAX_OUTPUT_TOKENS, PROMPT_VERSION, PROVIDER_TIMEOUT_MS, validatedSwapWord,
 } from '../src/api.js';
 import { IN_FLIGHT_MAX, STALE_MS, sha256 } from '../src/ledger.js';
-import { createPricing, PRICE_ROWS, serializedRequestBytes } from '../src/pricing.js';
+import { createPricing, PRICE_ROWS, quotePriceRow, serializedRequestBytes } from '../src/pricing.js';
 import { makeLedger } from './helpers.js';
 import { createProvider } from '../src/provider.js';
 import { OUTCOMES, stubProvider, VALID_TEXT } from './provider-stub.js';
@@ -696,4 +696,128 @@ test('Spanish, Guaraní and generated pack proxy prompts match the shared builde
       expect(maxOutputTokens).toBe(MAX_OUTPUT_TOKENS);
     } finally { db.close(); }
   }
+});
+
+test('an existing key with a different prompt version returns keyReuse before version validation', async () => {
+  const { swap, db, provider } = await setup();
+  try {
+    expect((await swap()).status).toBe(200);
+    const repeat = await swap({ ...reading, promptVersion: '0.99' });
+    expect(repeat.status).toBe(422);
+    expect(await repeat.json()).toEqual({ error: { category: 'request_failed', keyReuse: true } });
+    expect((await swap(reading, { raw: 'null' })).status).toBe(422);
+    expect((await swap({ ...reading, promptVersion: '0.99' }, { id: nextKey })).status).toBe(409);
+    expect(provider.calls).toHaveLength(1);
+  } finally { db.close(); }
+});
+
+test('when expiry wins the same timeout classification, the afterwards-learned request ID is still stored', async () => {
+  const started = Promise.withResolvers();
+  const completion = Promise.withResolvers();
+  const { swap, db, reservation, tick, ledger } = await setup({
+    outcome() {
+      started.resolve();
+      return completion.promise;
+    },
+  });
+  try {
+    const pending = swap();
+    await started.promise;
+    const original = reservation();
+    tick(STALE_MS + 1);
+    expect(ledger.expireStale()).toHaveLength(1);
+    completion.resolve({ kind: 'no_response', sent: true, providerRequestId: 'fixture-after-expiry' });
+    const late = await pending;
+    expect(await late.json()).toEqual({ error: { category: 'request_failed', duplicate: true, charged: true } });
+    expect(reservation()).toMatchObject({
+      providerRequestId: 'fixture-after-expiry', providerActual: null, reservationId: original.reservationId,
+    });
+    expect(ledger.reconcileProviderRequest('fixture-after-expiry', 123)).toMatchObject({
+      providerActual: 123, costMicros: original.readerWorst, dayKey: original.dayKey,
+    });
+  } finally { db.close(); }
+});
+
+test('conflicting caches and a cache miss both use SQLite rates, markup and output bounds', async () => {
+  const authoritative = { ...PRICE_ROWS[0], input: 75, output: 320, modelMaxOutputTokens: 70_000, readerMarkup: 3 };
+  const { swap, db, config, provider, reservation } = await setup({ priceRows: [authoritative] });
+  const cases = [
+    [key, createPricing({ rows: [{ ...authoritative, input: 0, output: 1, readerMarkup: 1, modelMaxOutputTokens: 2048 }] })],
+    [nextKey, createPricing({ rows: [] })],
+  ];
+  try {
+    for (const [id, pricing] of cases) {
+      const selectedApi = createApi({ ...config, pricing });
+      const response = await swap(reading, { id, selectedApi });
+      expect(response.status).toBe(200);
+      const { costMicros } = await response.json();
+      const bytes = serializedRequestBytes(JSON.stringify(provider.calls.at(-1).request));
+      const quote = quotePriceRow(authoritative, bytes, MAX_OUTPUT_TOKENS);
+      expect(reservation(id)).toMatchObject({
+        priceRowId: authoritative.id, readerWorst: quote.readerMicros, providerMax: quote.providerMax,
+        providerActual: 267, costMicros: 801,
+      });
+      expect(costMicros).toBe(801);
+    }
+    expect(provider.calls).toHaveLength(2);
+  } finally { db.close(); }
+});
+
+test('settlement caps retail in integer arithmetic and latches exact unrepresentable provider costs', async () => {
+  for (const candidatesTokenCount of [2_000_000_000_000_000, 4_000_000_000_000_000]) {
+    const tooLargeForLedger = candidatesTokenCount === 4_000_000_000_000_000;
+    const { swap, db, reservation, alerts, ledger, getBalance, accountId } = await setup({
+      outcome: { ...OUTCOMES.stop, usage: { promptTokenCount: 0, candidatesTokenCount } },
+    });
+    try {
+      const response = await swap();
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      const stored = reservation();
+      expect(result.costMicros).toBe(stored.readerWorst);
+      expect(stored).toMatchObject({
+        state: tooLargeForLedger ? 'provisional' : 'settled',
+        providerActual: tooLargeForLedger ? null : 5_000_000_000_000_000,
+        providerOverflowMicros: tooLargeForLedger ? '10000000000000000' : null,
+        outputTokens: candidatesTokenCount, overage: 1,
+      });
+      expect(alerts).toEqual([{ reason: 'overage', reservationId: stored.reservationId }]);
+      expect((await swap(reading, { id: nextKey })).status).toBe(503);
+      expect(await (await getBalance()).json()).toEqual({ balanceMicros: 1_000_000 - stored.readerWorst, reservedMicros: 0 });
+
+      if (tooLargeForLedger) {
+        expect(ledger.clearStop('fixture-correction')).toBeTrue();
+        expect(ledger.reserve(accountId, 0, 0, stored.priceRowId, stored.providerMax - 1,
+          sha256('fixture after overflow'), sha256('fixture body'))).toBe('CEILING');
+        expect(ledger.reconcile(stored.reservationId, 180)).toMatchObject({
+          providerActual: 180, providerOverflowMicros: '10000000000000000', costMicros: stored.readerWorst,
+        });
+      }
+    } finally { db.close(); }
+  }
+});
+
+test('when the ledger also has no current price the API refuses without taking a claim', async () => {
+  const { swap, db, provider, reservation } = await setup({ at: Date.parse('2026-12-29T00:00:00Z') });
+  try {
+    const response = await swap();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: { category: 'managed_unavailable' } });
+    expect(reservation()).toBeNull();
+    expect(provider.calls).toHaveLength(0);
+  } finally { db.close(); }
+});
+
+test('E2 retains a provisional hold when a 200 body fails with pre-send metadata', async () => {
+  const transport = createProvider({
+    baseUrl: 'https://fixture.invalid/models/', credential: 'fixture',
+    fetchImpl: async () => new Response(new ReadableStream({
+      start(controller) { controller.error(Object.assign(new Error('body interrupted'), { sent: false })); },
+    })),
+  });
+  const { swap, db, reservation } = await setup({ provider: transport });
+  try {
+    expect((await swap()).status).toBe(504);
+    expect(reservation()).toMatchObject({ state: 'provisional', providerActual: null, providerRequestId: null });
+  } finally { db.close(); }
 });

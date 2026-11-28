@@ -8,8 +8,7 @@ globalThis.onmessage = ({ data: { filename, at, id, priceRowId, keyHash, bodyHas
       return storage.transaction((tx) => {
         const result = operation(tx);
         globalThis.postMessage({ holding: true });
-        Atomics.wait(latch, 0, 0, 250);
-        Atomics.store(latch, 0, 1);
+        Atomics.wait(latch, 0, 0);
         return result;
       });
     },

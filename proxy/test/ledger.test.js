@@ -46,7 +46,7 @@ test('settle, release and expiry return their winner and only debit once', () =>
     const second = ledger.reserve(id, 100, 200, price, ceiling, hash('second'), body);
     const settled = ledger.settle(second, 300, 150, 'stop');
     expect(settled).toMatchObject({ state: 'settled', balanceMicros: 400, costMicros: 100, providerActual: 150 });
-    expect(ledger.release(second)).toEqual(settled);
+    expect(ledger.release(second)).toEqual({ ...settled, won: false });
     const stale = ledger.reserve(id, 60, 100, price, ceiling, hash('stale'), body);
     tick(STALE_MS);
     expect(ledger.expireStale(now())).toEqual([]);
@@ -54,8 +54,8 @@ test('settle, release and expiry return their winner and only debit once', () =>
     const [winner] = ledger.expireStale(now());
     expect(winner).toMatchObject({ reservationId: stale, state: 'provisional', reason: 'timeout', costMicros: 60 });
     expect(ledger.expireStale(now())).toEqual([]);
-    expect(ledger.release(stale)).toEqual(winner);
-    expect(ledger.settle(stale, 0, 0, 'stop')).toEqual(winner);
+    expect(ledger.release(stale)).toEqual({ ...winner, won: false });
+    expect(ledger.settle(stale, 0, 0, 'stop')).toEqual({ ...winner, won: false });
   } finally { db.close(); }
 });
 
@@ -196,7 +196,7 @@ test('a file-backed adapter preserves claims across reopening SQLite', () => {
 test('two connections arbitrate a same-day ceiling while one write transaction is open', async () => {
   const filename = join(mkdtempSync(join(tmpdir(), 'contention-')), 'ledger.sqlite');
   const at = Date.parse('2026-11-28T23:58:00Z');
-  const store = createSqliteStorage(filename);
+  const store = createSqliteStorage(filename, { busyTimeoutMs: 0 });
   const ledger = createLedger(store, { now: () => at });
   const accounts = [ledger.createAccount(hash('first fixture')), ledger.createAccount(hash('second fixture'))];
   for (const id of accounts) {
@@ -216,17 +216,27 @@ test('two connections arbitrate a same-day ceiling while one write transaction i
     finished.reject(err);
   };
   const started = new SharedArrayBuffer(4);
+  const latch = new Int32Array(started);
+  function releaseWorker() {
+    Atomics.store(latch, 0, 1);
+    Atomics.notify(latch, 0);
+  }
   try {
     worker.postMessage({ filename, at, id: accounts[0], priceRowId: price, keyHash: hash(), bodyHash: body, started });
     await began.promise;
-    expect(Atomics.load(new Int32Array(started), 0)).toBe(0);
-    expect(ledger.reserve(accounts[1], 60, 100_001, price, 1_000_000, hash(), body)).toBe('CEILING');
+    expect(ledger.lookupClaim(accounts[0], hash(), body)).toBeNull();
+    const competingReserve = () => ledger.reserve(accounts[1], 60, 100_001, price, 1_000_000, hash(), body);
+    expect(competingReserve).toThrow(/database is locked/);
+
+    releaseWorker();
     const { reservationId } = await finished.promise;
+    expect(competingReserve()).toBe('CEILING');
     expect(reservationId).toMatch(/^[a-f0-9]{32}$/);
     expect(ledger.getAccount(accounts[0])).toMatchObject({ balanceMicros: 100, reservedMicros: 60 });
     expect(ledger.getAccount(accounts[1])).toMatchObject({ balanceMicros: 100, reservedMicros: 0 });
     expect(ledger.lookupClaim(accounts[1], hash(), body)).toBeNull();
   } finally {
+    releaseWorker();
     worker.terminate();
     store.close();
   }
