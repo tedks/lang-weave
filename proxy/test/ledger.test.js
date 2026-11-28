@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { mkdtempSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLedger, createSqliteStorage, IDEMPOTENCY_MS, STALE_MS, sha256 } from '../src/ledger.js';
@@ -408,7 +408,7 @@ test('an unrepresentable late reconcile keeps the day closed until a correction'
   } finally { db.close(); }
 });
 
-test('a settled overage retains the known cost through overflow and accepts a correction', () => {
+test('a settled overage retains distinct first and latest exact overflow amounts through correction', () => {
   const { db, ledger, account } = makeLedger();
   try {
     const id = account(1_000).id;
@@ -417,16 +417,22 @@ test('a settled overage retains the known cost through overflow and accepts a co
     const overflow = ledger.reconcile(reservationId, 10_000_000_000_000_000n);
     expect(overflow).toMatchObject({
       state: 'settled', providerActual: 600, providerOverflowPending: 1,
-      providerOverflowMicros: '10000000000000000', costMicros: 35,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000000', costMicros: 35,
+    });
+    const second = ledger.reconcile(reservationId, 10_000_000_000_000_001n);
+    expect(second).toMatchObject({
+      state: 'settled', providerActual: 600, providerOverflowPending: 1,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000001', costMicros: 35,
     });
     expect(ledger.reconcile(reservationId, null)).toMatchObject({
-      state: 'settled', providerActual: 600, providerOverflowPending: 1, costMicros: 35,
+      state: 'settled', providerActual: 600, providerOverflowPending: 1,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000001', costMicros: 35,
     });
     expect(ledger.clearStop('fixture-clear-before-correction')).toBeTrue();
     expect(ledger.reserve(id, 15, 20, price, ceiling, hash('next'), body)).toBe('STOPPED');
     expect(ledger.reconcileProviderRequest('settled-overage', 400)).toMatchObject({
       state: 'settled', providerActual: 400, providerOverflowPending: 0,
-      providerOverflowMicros: '10000000000000000', costMicros: 35,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000001', costMicros: 35,
     });
     expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 965, reservedMicros: 0 });
     expect(ledger.reserve(id, 15, 20, price, ceiling, hash('next'), body)).toMatch(/^[a-f0-9]{32}$/);
@@ -513,6 +519,7 @@ test('an older SQLite ledger reopens with only unresolved historical overflows m
     store.transaction((tx) => {
       tx.run('ALTER TABLE reservations DROP COLUMN appliedLateReceipt');
       tx.run('ALTER TABLE reservations DROP COLUMN providerOverflowPending');
+      tx.run('ALTER TABLE reservations DROP COLUMN latestProviderOverflowMicros');
       tx.run("UPDATE reservations SET providerOverflowMicros = '10000000000000000', overage = 1");
       tx.run('UPDATE reservations SET providerActual = 300 WHERE reservationId = ?', ids[0]);
       tx.run('UPDATE reservations SET providerActual = NULL WHERE reservationId = ?', ids[1]);
@@ -522,7 +529,104 @@ test('an older SQLite ledger reopens with only unresolved historical overflows m
     store = createSqliteStorage(filename, { now });
     const reopened = createLedger(store, { now });
     expect(reopened.getReservation(ids[0])).toMatchObject({ providerActual: 300, providerOverflowPending: 0 });
-    expect(reopened.getReservation(ids[1])).toMatchObject({ state: 'settled', providerActual: null, providerOverflowPending: 1 });
+    expect(reopened.getReservation(ids[1])).toMatchObject({
+      state: 'settled', providerActual: null, providerOverflowPending: 1,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000000',
+    });
     expect(reopened.reconcile(ids[1], 400)).toMatchObject({ providerActual: 400, providerOverflowPending: 0 });
   } finally { store.close(); }
+});
+
+test('startup refuses missing, foreign-generation, and stale copies of a journal with applied late receipts', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'journal-pair-'));
+  const filename = join(directory, 'ledger.sqlite');
+  const journal = filename + '.finalizations';
+  const staleJournal = join(directory, 'stale.finalizations');
+  const originalJournal = join(directory, 'original.finalizations');
+  const otherFilename = join(directory, 'other.sqlite');
+  const now = () => Date.parse('2026-11-28T00:00:00Z');
+  let store = createSqliteStorage(filename, { now });
+  try {
+    const ledger = createLedger(store, { now });
+    const generation = store.finalizations.generation;
+    const id = ledger.createAccount(hash('journal-pair'));
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture credit', 'journal-pair-credit');
+    const reservationId = ledger.reserve(id, 20, 500, price, ceiling, hash(), body);
+    ledger.settle(reservationId, 15, null, 'timeout');
+    copyFileSync(journal, staleJournal);
+    ledger.reconcile(reservationId, 100);
+    expect(ledger.getReservation(reservationId).appliedLateReceipt).toBe(1);
+    // This second receipt is durable but has yet to reach the ledger.
+    store.finalizations.stageLate(reservationId, { providerActual: null, providerRequestId: 'pending-journal-alias' });
+    store.close();
+    renameSync(journal, originalJournal);
+
+    const openAndClose = () => createSqliteStorage(filename, { now }).close();
+    expect(openAndClose).toThrow(/unable to open database file|Finalization journal/i);
+    expect(existsSync(journal)).toBeFalse();
+
+    new Database(journal).close();
+    expect(openAndClose).toThrow('Finalization journal generation does not match the ledger');
+    const other = createSqliteStorage(otherFilename, { now });
+    try {
+      expect(other.finalizations.generation).not.toBe(generation);
+      other.finalizations.stageLate(reservationId, { providerActual: 99 });
+      other.finalizations.stageLate(reservationId, { providerActual: 98 });
+    } finally { other.close(); }
+    copyFileSync(otherFilename + '.finalizations', journal);
+    expect(openAndClose).toThrow('Finalization journal generation does not match the ledger');
+    copyFileSync(staleJournal, journal);
+    expect(openAndClose).toThrow('Finalization journal is older than the ledger');
+
+    renameSync(originalJournal, journal);
+    store = createSqliteStorage(filename, { now });
+    expect(store.finalizations.generation).toBe(generation);
+    const reopened = createLedger(store, { now });
+    expect(reopened.getAccount(id)).toMatchObject({ balanceMicros: 85, reservedMicros: 0 });
+    expect(reopened.reconcileProviderRequest('pending-journal-alias', 101)).toMatchObject({
+      appliedLateReceipt: 2, providerActual: 100, costMicros: 15,
+    });
+    expect(store.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+  } finally { store.close(); }
+});
+
+test('startup cannot bind an identity-free legacy ledger after late receipts have been applied', () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'unbound-journal-')), 'ledger.sqlite');
+  const now = () => Date.parse('2026-11-28T00:00:00Z');
+  const store = createSqliteStorage(filename, { now });
+  try {
+    const ledger = createLedger(store, { now });
+    const id = ledger.createAccount(hash('unbound-pair'));
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture credit', 'unbound-pair-credit');
+    const reservationId = ledger.reserve(id, 20, 500, price, ceiling, hash(), body);
+    ledger.settle(reservationId, 15, null, 'timeout');
+    ledger.reconcile(reservationId, 100);
+    store.transaction((tx) => tx.run('DELETE FROM finalization_journal_identity'));
+  } finally { store.close(); }
+
+  expect(() => createSqliteStorage(filename, { now }).close()).toThrow('Cannot verify journal generation');
+});
+
+test('acknowledgement retry of a primary overflow cannot restore it as the latest overflow', () => {
+  const now = () => Date.parse('2026-11-28T00:00:00Z');
+  const db = createSqliteStorage(':memory:', { now });
+  const ledger = createLedger({
+    ...db,
+    finalizations: { ...db.finalizations, acknowledge() { throw new Error('fixture journal write failed'); } },
+  }, { now, onOverage() {}, onJournalError() {} });
+  try {
+    const id = ledger.createAccount(hash('overflow-retry'));
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture credit', 'overflow-retry-credit');
+    const reservationId = ledger.reserve(id, 20, 500, price, ceiling, hash(), body);
+    ledger.settle(reservationId, 15, 10_000_000_000_000_000n, 'stop');
+    ledger.reconcile(reservationId, 10_000_000_000_000_001n);
+    expect(db.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['primary', 'late']);
+    expect(ledger.getAccount(id)).toMatchObject({ balanceMicros: 85, reservedMicros: 0 });
+    expect(ledger.getReservation(reservationId)).toMatchObject({
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000001',
+    });
+  } finally { db.close(); }
 });
