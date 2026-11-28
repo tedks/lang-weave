@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { bodyTooLarge, readBoundedBytes } from './request-body.js';
+import { bodyTooLarge, hasJsonMediaType, readBoundedBytes } from './request-body.js';
 
 const TOLERANCE_SECONDS = 300;
 const CHECKOUT_EVENTS = new Set(['checkout.session.completed', 'checkout.session.async_payment_succeeded']);
@@ -76,7 +76,11 @@ export function createStripeWebhook({
         });
         return;
       }
-      if (checkout && tx.attachCheckoutIds({ checkoutSessionId: sessionId, paymentIntentId })) return;
+      if (checkout) {
+        const attached = tx.attachCheckoutIds({ checkoutSessionId: sessionId, paymentIntentId });
+        if (attached === 'CONFLICT') return note('checkout_intent_conflict');
+        if (attached) return;
+      }
 
       const payment = { paymentIntentId, packMicros, paidCurrency: currency };
       if (checkout) {
@@ -90,24 +94,30 @@ export function createStripeWebhook({
           tx.refuse(paymentIntentId, 'grant_refused');
           return note('grant_refused');
         }
-        if (tx.grant(paymentIntentId).grantState === 'refused') return note('grant_refused');
+        const grant = tx.grant(paymentIntentId);
+        if (grant.grantState === 'refused') return note('grant_refused');
+        if (grant.grantState === 'pending') return note('refund_capture_pending');
         return;
       }
 
       if (type === REFUND) {
         const captured = object.amount_captured;
         const refunded = object.amount_refunded;
-        if (!currency || !validAmount(captured, currency) || captured <= 0 || !validAmount(refunded, currency)) {
-          tx.recordPayment(payment);
-          return note('invalid_refund_amount');
-        }
+        const captureKnown = currency && validAmount(captured, currency) && captured > 0;
+        const refundKnown = currency && validAmount(refunded, currency);
         const usd = currency === 'usd';
         const entry = tx.recordPayment({
-          ...payment, ...paidFacts(currency, captured),
-          refundedMicros: usd ? refunded * 10_000 : 0, refundedMinor: usd ? 0 : refunded,
+          ...payment, ...paidFacts(currency, captureKnown ? captured : null),
+          refundedMicros: usd && refundKnown ? refunded * 10_000 : 0,
+          refundedMinor: !usd && refundKnown ? refunded : 0,
+          refundCapturedMicros: usd && captureKnown ? captured * 10_000 : null,
         });
-        if (entry.paidCurrency !== currency) return note('payment_currency_mismatch');
-        if (usd) tx.reverse(paymentIntentId, refundTarget(entry.packMicros, captured, refunded));
+        if (currency && entry.paidCurrency !== currency) return note('payment_currency_mismatch');
+        if (!captureKnown || !refundKnown) note('invalid_refund_amount');
+        if (usd && entry.refundCapturedMicros && entry.refundedMicros > 0) {
+          tx.reverse(paymentIntentId, refundTarget(entry.packMicros, entry.refundCapturedMicros, entry.refundedMicros));
+          if (entry.grantState === 'pending' && entry.checkoutSessionId && entry.accountId) tx.grant(paymentIntentId);
+        }
         return;
       }
 
@@ -137,7 +147,8 @@ export function createStripeWebhook({
     try {
       const raw = await readBoundedBytes(request);
       if (raw.tooLarge) return Response.json(bodyTooLarge(), { status: 413 });
-      if (!raw.bytes || !validSignature(raw.bytes, request.headers.get('stripe-signature'), endpointSecret, now())) {
+      if (!raw.bytes || !hasJsonMediaType(request) ||
+          !validSignature(raw.bytes, request.headers.get('stripe-signature'), endpointSecret, now())) {
         return badRequest();
       }
       event = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw.bytes));

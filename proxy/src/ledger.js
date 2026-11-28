@@ -117,6 +117,7 @@ const schema = `
     paidCurrency TEXT,
     paidMinor INTEGER,
     refundedMicros INTEGER NOT NULL DEFAULT 0,
+    refundCapturedMicros INTEGER CHECK (refundCapturedMicros > 0),
     refundedMinor INTEGER NOT NULL DEFAULT 0,
     disputeLostMicros INTEGER NOT NULL DEFAULT 0,
     disputeLostMinor INTEGER NOT NULL DEFAULT 0,
@@ -284,24 +285,25 @@ function freeze(tx, id, reason) {
 function recordPayment(tx, {
   paymentIntentId, packMicros, checkoutSessionId = null, accountId = null, dispute = 'none',
   paidCurrency = null, paidMicros = null, paidMinor = null, fromCheckout = false,
-  refundedMicros = 0, refundedMinor = 0, disputeLostMicros = 0, disputeLostMinor = 0,
+  refundedMicros = 0, refundedMinor = 0, refundCapturedMicros = null, disputeLostMicros = 0, disputeLostMinor = 0,
 }) {
   checkMicros(packMicros, 1);
   for (const amount of [paidMicros, paidMinor, refundedMicros, refundedMinor, disputeLostMicros, disputeLostMinor]) {
     if (amount !== null) checkMicros(amount);
   }
+  if (refundCapturedMicros !== null) checkMicros(refundCapturedMicros, 1);
   const prior = payment(tx, paymentIntentId);
   const currencyMatches = !prior?.paidCurrency || !paidCurrency || prior.paidCurrency === paidCurrency;
   if (!currencyMatches) {
     dispute = 'none';
-    paidMicros = paidMinor = null;
+    paidMicros = paidMinor = refundCapturedMicros = null;
     refundedMicros = refundedMinor = disputeLostMicros = disputeLostMinor = 0;
   }
   const paid = fromCheckout && currencyMatches;
   tx.run(`
     INSERT INTO payments (paymentIntentId, packMicros, checkoutSessionId, accountId, dispute, paidCurrency,
-      paidMicros, paidMinor, refundedMicros, refundedMinor, disputeLostMicros, disputeLostMinor)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      paidMicros, paidMinor, refundedMicros, refundedMinor, refundCapturedMicros, disputeLostMicros, disputeLostMinor)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (paymentIntentId) DO UPDATE SET
       checkoutSessionId = COALESCE(payments.checkoutSessionId, excluded.checkoutSessionId),
       accountId = COALESCE(payments.accountId, excluded.accountId),
@@ -316,12 +318,16 @@ function recordPayment(tx, {
         ELSE COALESCE(payments.paidMinor, excluded.paidMinor) END,
       refundedMicros = MAX(payments.refundedMicros, excluded.refundedMicros),
       refundedMinor = MAX(payments.refundedMinor, excluded.refundedMinor),
+      refundCapturedMicros = CASE
+        WHEN excluded.refundCapturedMicros IS NULL THEN payments.refundCapturedMicros
+        ELSE MAX(COALESCE(payments.refundCapturedMicros, 0), excluded.refundCapturedMicros)
+      END,
       disputeLostMicros = CASE WHEN payments.dispute = 'won' THEN payments.disputeLostMicros
         ELSE MAX(payments.disputeLostMicros, excluded.disputeLostMicros) END,
       disputeLostMinor = CASE WHEN payments.dispute = 'won' THEN payments.disputeLostMinor
         ELSE MAX(payments.disputeLostMinor, excluded.disputeLostMinor) END
   `, paymentIntentId, packMicros, checkoutSessionId, accountId, dispute, paidCurrency,
-  paidMicros, paidMinor, refundedMicros, refundedMinor, disputeLostMicros, disputeLostMinor, Number(paid), Number(paid));
+  paidMicros, paidMinor, refundedMicros, refundedMinor, refundCapturedMicros, disputeLostMicros, disputeLostMinor, Number(paid), Number(paid));
 
   const entry = payment(tx, paymentIntentId);
   const freezingEvent = dispute === 'open' || dispute === 'lost' && entry.dispute === 'lost';
@@ -357,7 +363,8 @@ function attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId }) {
   const reservedSession = tx.get('SELECT checkoutSessionId FROM checkout_dispositions WHERE paymentIntentId = ?', paymentIntentId);
   const entry = payment(tx, paymentIntentId);
   if (reservedSession || entry?.grantState === 'granted' ||
-      entry?.checkoutSessionId && entry.checkoutSessionId !== checkoutSessionId) return true;
+      entry?.checkoutSessionId && entry.checkoutSessionId !== checkoutSessionId) return 'CONFLICT';
+  if (previous.paidCurrency && entry?.paidCurrency && previous.paidCurrency !== entry.paidCurrency) return 'CONFLICT';
 
   tx.run('UPDATE checkout_dispositions SET paymentIntentId = ? WHERE checkoutSessionId = ?', paymentIntentId, checkoutSessionId);
   recordPayment(tx, {
@@ -379,6 +386,10 @@ function finishGrant(tx, entry, allowed, eventId, reason) {
 function grant(tx, id, eventId = null) {
   const entry = payment(tx, id);
   if (entry?.grantState !== 'pending') return entry;
+  if (entry.refundedMicros > 0 && !entry.refundCapturedMicros) return entry;
+  if (entry.refundCapturedMicros && entry.refundedMicros >= entry.refundCapturedMicros) {
+    return finishGrant(tx, entry, false, eventId, 'fully_refunded');
+  }
   const current = account(tx, entry.accountId);
   const prior = checkoutDisposition(tx, entry.checkoutSessionId);
   const allowed = !prior && current && !current.frozen && isEnrolled(tx, current.accountId) &&
