@@ -37,7 +37,7 @@ const schema = `
     reservedMicros INTEGER NOT NULL DEFAULT 0,
     frozen INTEGER NOT NULL DEFAULT 0 CHECK (frozen IN (0, 1)),
     frozenReason TEXT,
-    CHECK ((frozen = 0 AND frozenReason IS NULL) OR (frozen = 1 AND length(trim(frozenReason)) > 0)),
+    CHECK ((frozen = 0 AND frozenReason IS NULL) OR (frozen = 1 AND frozenReason IS NOT NULL AND length(trim(frozenReason)) > 0)),
     CHECK (balanceMicros >= reservedMicros AND reservedMicros >= 0)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS enrolled_accounts (
@@ -210,7 +210,8 @@ function checkMicros(value, minimum = 0) {
 }
 
 function account(tx, accountId) {
-  return tx.get('SELECT accountId, balanceMicros, reservedMicros, frozen, frozenReason FROM accounts WHERE accountId = ?', accountId);
+  const row = tx.get('SELECT accountId, balanceMicros, reservedMicros, frozen, frozenReason FROM accounts WHERE accountId = ?', accountId);
+  return row && { ...row, frozen: !!row.frozen };
 }
 
 function reservation(tx, id) {
@@ -218,7 +219,8 @@ function reservation(tx, id) {
 }
 
 function payment(tx, id) {
-  return tx.get('SELECT * FROM payments WHERE paymentIntentId = ?', id);
+  const row = tx.get('SELECT * FROM payments WHERE paymentIntentId = ?', id);
+  return row && { ...row, disputeFreezeApplied: !!row.disputeFreezeApplied };
 }
 
 function claim(tx, accountId, keyHash, now) {
@@ -509,14 +511,12 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         const disposition = checkoutDisposition(tx, id);
         if (disposition?.disposition !== 'orphan') return null;
         const entry = payment(tx, disposition.paymentIntentId);
-        if (tx.get('SELECT 1 FROM orphan_settlements WHERE checkoutSessionId = ? LIMIT 1', id)) {
-          return { ...disposition, status: 'settled', owedMicros: null };
-        }
         const paidCurrency = entry?.paidCurrency ?? disposition.paidCurrency;
         if (paidCurrency && paidCurrency !== 'usd') {
+          const marked = tx.get('SELECT 1 FROM orphan_settlements WHERE checkoutSessionId = ? LIMIT 1', id);
           return { ...disposition, paidCurrency, paidMinor: entry?.paidMinor ?? disposition.paidMinor,
             paidMicros: null, refundedMinor: entry?.refundedMinor ?? 0, disputeLostMinor: entry?.disputeLostMinor ?? 0,
-            status: 'manual', owedMicros: null };
+            status: marked ? 'settled' : 'manual', owedMicros: null };
         }
         const refundedMicros = entry?.refundedMicros ?? 0;
         const paidMicros = entry?.paidMicros ?? disposition.paidMicros;
@@ -540,10 +540,12 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       validReason(ref);
       return transaction((tx) => {
         const orphan = tx.get(`
-          SELECT checkoutSessionId FROM checkout_dispositions
-          WHERE disposition = 'orphan' AND (checkoutSessionId = ? OR paymentIntentId = ?)
+          SELECT c.checkoutSessionId, COALESCE(p.paidCurrency, c.paidCurrency) AS currency
+          FROM checkout_dispositions c LEFT JOIN payments p USING (paymentIntentId)
+          WHERE c.disposition = 'orphan' AND (c.checkoutSessionId = ? OR c.paymentIntentId = ?)
         `, id, id);
         if (!orphan) return 'NOT_ORPHAN';
+        if (!orphan.currency || orphan.currency === 'usd') return 'NOT_MANUAL';
         return tx.run('INSERT OR IGNORE INTO orphan_settlements (ref, checkoutSessionId) VALUES (?, ?)',
           ref, orphan.checkoutSessionId).changes ? 'SETTLED' : 'DUPLICATE';
       });
@@ -638,8 +640,13 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     },
     unfreeze(id, ref) {
       validReason(ref);
-      return transaction((tx) =>
-        tx.run('UPDATE accounts SET frozen = 0, frozenReason = NULL WHERE accountId = ? AND frozen = 1', id).changes > 0);
+      return transaction((tx) => {
+        if (tx.get('SELECT 1 FROM corrections WHERE ref = ?', ref)) return false;
+        const changed = tx.run('UPDATE accounts SET frozen = 0, frozenReason = NULL WHERE accountId = ? AND frozen = 1', id);
+        if (!changed.changes) return false;
+        tx.run("INSERT INTO corrections (ref, kind, accountId, deltaMicros) VALUES (?, 'unfreeze', ?, 0)", ref, id);
+        return true;
+      });
     },
     applyPaymentEvent(id, operation) {
       return transaction((tx) => {
