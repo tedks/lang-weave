@@ -285,8 +285,6 @@ export function createApi({
     if (admission.kind !== 'RESERVED') return claimResponse(admission);
 
     const { reservationId: id, priceRow, readerWorst } = admission;
-    let firstFinished = false;
-    let pendingLate = null;
     function reconcileLate(outcome) {
       const cost = isHttpError(outcome) ? 0 : meter(priceRow, outcome, bytes, readerWorst).provider;
       return retryLedgerWrite(() => ledger.reconcile(id, cost, {
@@ -294,10 +292,6 @@ export function createApi({
       }));
     }
     function receiveLate(outcome) {
-      if (!firstFinished) {
-        pendingLate = outcome;
-        return;
-      }
       void reconcileLate(outcome).catch(() => alert({ reason: 'reconcile_failed', reservationId: id }));
     }
 
@@ -310,46 +304,38 @@ export function createApi({
     }
     let response;
     let winner;
-    try {
-      if (isHttpError(outcome)) {
-        const category = outcome.status === 429 ? 'rate_limit' : outcome.status === 503 ? 'overloaded' : 'request_failed';
-        winner = await retryLedgerWrite(() => ledger.release(id, {
-          providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, reason: category,
-        }));
-        if (!winner.won) {
-          await reconcileLate(outcome);
-          return replay(id, winner.costMicros > 0);
-        }
-        const retryAfterMs = outcome.retryAfterMs;
-        const extras = Number.isSafeInteger(retryAfterMs) && retryAfterMs > 0 && retryAfterMs <= MAX_RETRY_MS
-          ? { retryAfterMs } : undefined;
-        response = failure(outcome.status === 429 || outcome.status === 503 ? outcome.status : 502, category, extras);
-      } else {
-        const charge = meter(priceRow, outcome, bytes, readerWorst);
-        winner = await retryLedgerWrite(() => ledger.settle(id, charge.reader, charge.provider, charge.reason, charge.details));
-        if (!winner.won) {
-          await reconcileLate(outcome);
-          return replay(id, winner.costMicros > 0);
-        }
-        if (charge.alert) alert({ reason: charge.alert, reservationId: id });
-
-        const text = charge.status === 200 ? safeProviderText(outcome.text, input.passages) : null;
-        if (text !== null) {
-          const usage = outcome.usage ? {
-            promptTokens: outcome.usage.promptTokenCount,
-            outputTokens: outcome.usage.candidatesTokenCount ?? 0,
-            thoughtTokens: outcome.usage.thoughtsTokenCount ?? 0,
-          } : null;
-          response = ok(200, { text, usage, costMicros: winner.costMicros, balanceMicros: winner.balanceMicros });
-        } else {
-          response = failure(charge.status === 200 ? 502 : charge.status, 'request_failed', charge.error);
-        }
+    if (isHttpError(outcome)) {
+      const category = outcome.status === 429 ? 'rate_limit' : outcome.status === 503 ? 'overloaded' : 'request_failed';
+      winner = await retryLedgerWrite(() => ledger.release(id, {
+        providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, reason: category,
+      }));
+      if (!winner.won) {
+        await reconcileLate(outcome);
+        return replay(id, winner.costMicros > 0);
       }
-    } finally {
-      firstFinished = true;
-      if (pendingLate) {
-        receiveLate(pendingLate);
-        pendingLate = null;
+      const retryAfterMs = outcome.retryAfterMs;
+      const extras = Number.isSafeInteger(retryAfterMs) && retryAfterMs > 0 && retryAfterMs <= MAX_RETRY_MS
+        ? { retryAfterMs } : undefined;
+      response = failure(outcome.status === 429 || outcome.status === 503 ? outcome.status : 502, category, extras);
+    } else {
+      const charge = meter(priceRow, outcome, bytes, readerWorst);
+      winner = await retryLedgerWrite(() => ledger.settle(id, charge.reader, charge.provider, charge.reason, charge.details));
+      if (!winner.won) {
+        await reconcileLate(outcome);
+        return replay(id, winner.costMicros > 0);
+      }
+      if (charge.alert) alert({ reason: charge.alert, reservationId: id });
+
+      const text = charge.status === 200 ? safeProviderText(outcome.text, input.passages) : null;
+      if (text !== null) {
+        const usage = outcome.usage ? {
+          promptTokens: outcome.usage.promptTokenCount,
+          outputTokens: outcome.usage.candidatesTokenCount ?? 0,
+          thoughtTokens: outcome.usage.thoughtsTokenCount ?? 0,
+        } : null;
+        response = ok(200, { text, usage, costMicros: winner.costMicros, balanceMicros: winner.balanceMicros });
+      } else {
+        response = failure(charge.status === 200 ? 502 : charge.status, 'request_failed', charge.error);
       }
     }
 
