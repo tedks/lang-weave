@@ -175,7 +175,7 @@ const schema = `
 // with SQLite-compatible SQL and positional parameters. A thrown operation
 // rolls back the entire transaction, including webhook deduplication.
 export function createSqliteStorage(filename = ':memory:', {
-  priceRows = PRICE_ROWS, now = Date.now, busyTimeoutMs = 2000,
+  priceRows = PRICE_ROWS, now = Date.now, busyTimeoutMs = 2000, restoring = false,
 } = {}) {
   if (!Number.isInteger(busyTimeoutMs) || busyTimeoutMs < 0 || busyTimeoutMs > 2_147_483_647) {
     throw new RangeError('Invalid SQLite busy timeout');
@@ -224,6 +224,7 @@ export function createSqliteStorage(filename = ':memory:', {
         `, row.id);
         if (Object.values(saved).some((value, i) => value !== values[i])) throw new Error('Immutable price row changed');
       }
+      if (restoring) openStop(tx, 'restore');
       return {
         generation: tx.get('SELECT generation FROM finalization_journal_identity WHERE singleton = 1')?.generation ?? null,
         appliedLateReceipt: tx.get('SELECT COALESCE(MAX(appliedLateReceipt), 0) AS lastApplied FROM reservations').lastApplied,

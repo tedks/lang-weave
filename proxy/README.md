@@ -29,5 +29,11 @@ the ledger's last applied receipt, even if it predates receipts staged later.
 A legacy ledger with applied late receipts and no recorded generation cannot
 be paired automatically.
 
-A verified paired backup and restore is an M2 stop condition before any paid
-traffic under LW-STORE-MK-07.
+Open a restored pair with `createSqliteStorage(filename, { restoring: true })`.
+This sets the durable stop latch before the ledger opens for use. The latch
+also blocks admission on subsequent starts. The operator may call
+`clearStop(ref)` only after reconciling provider usage, Stripe events, and
+reservations since the backup point into the ledger.
+
+A verified paired backup and restore with this latch is an M2 stop condition
+before any paid traffic under LW-STORE-MK-07.

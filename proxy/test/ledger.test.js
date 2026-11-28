@@ -640,3 +640,35 @@ test('acknowledgement retry of a primary overflow cannot restore it as the lates
     });
   } finally { db.close(); }
 });
+
+test('opening a restored SQLite pair sets a durable stop latch before admission', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'restore-latch-'));
+  const backup = join(directory, 'backup.sqlite');
+  const restored = join(directory, 'restored.sqlite');
+  const now = () => Date.parse('2026-11-28T00:00:00Z');
+  const source = createSqliteStorage(backup, { now });
+  let id;
+  try {
+    const ledger = createLedger(source, { now });
+    id = ledger.createAccount(hash('restore-latch'));
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 100, 'fixture credit', 'restore-credit');
+  } finally { source.close(); }
+  copyFileSync(backup, restored);
+  copyFileSync(backup + '.finalizations', restored + '.finalizations');
+
+  const admit = (ledger) => ledger.reserve(id, 20, 500, price, ceiling, hash('after-restore'), body);
+  const restoring = createSqliteStorage(restored, { now, restoring: true });
+  try {
+    expect(admit(createLedger(restoring, { now }))).toBe('STOPPED');
+  } finally { restoring.close(); }
+
+  const reopened = createSqliteStorage(restored, { now });
+  try {
+    const ledger = createLedger(reopened, { now });
+    expect(admit(ledger)).toBe('STOPPED');
+    expect(ledger.getIdempotency(id, hash('after-restore'))).toBeNull();
+    expect(ledger.clearStop('fixture reconciliation complete')).toBeTrue();
+    expect(admit(ledger)).toMatch(/^[a-f0-9]{32}$/);
+  } finally { reopened.close(); }
+});
