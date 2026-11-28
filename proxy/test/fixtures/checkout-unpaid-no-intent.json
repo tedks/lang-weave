@@ -1,0 +1,20 @@
+{
+  "id": "evt_checkout_unpaid_no_intent",
+  "object": "event",
+  "livemode": false,
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_test_fixture",
+      "object": "checkout.session",
+      "mode": "payment",
+      "payment_status": "unpaid",
+      "payment_intent": null,
+      "payment_link": "plink_fixture",
+      "client_reference_id": null,
+      "currency": "usd",
+      "amount_total": 1000,
+      "customer": "cus_fixture"
+    }
+  }
+}

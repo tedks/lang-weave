@@ -1,0 +1,17 @@
+{
+  "id": "evt_dispute_created",
+  "object": "event",
+  "livemode": false,
+  "type": "charge.dispute.created",
+  "data": {
+    "object": {
+      "id": "dp_fixture",
+      "object": "dispute",
+      "charge": "ch_fixture",
+      "amount": 1000,
+      "currency": "usd",
+      "payment_intent": "pi_fixture",
+      "status": "needs_response"
+    }
+  }
+}
