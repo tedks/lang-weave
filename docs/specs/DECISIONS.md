@@ -115,21 +115,23 @@ certifications are on hold.
    under option 1** until the packet (a) names the policy exception that covers the paid tier's
    abuse review and (b) establishes a basis that covers free-key requests that succeed without ever
    tripping the quota signal, since a false or mistaken attestation still sends page text under the
-   free terms. If either cannot be established, the hold stays and option 3 applies, including its
-   after-yes step (naming the replacement demand signal). This option
+   free terms. If either cannot be established, the hold stays and the fallback is GitHub-only distribution
+   (option 3); D6 then stays on hold unless you separately choose to replace its Store-usage
+   condition. This option
    also means basic use requires paying Google, which the Store policy says the description must
    state; the listing changes, and D3's US-only rationale (which rests on not being able to tell
    keys apart, still true under an attestation) is revisited. That is a code change and a release.
 2. **Accept the risk with disclosure**, as the packet does today. Possible rejection, and a policy
    statement that may not be true for free-key readers.
 3. **Do not list for now; keep GitHub distribution.** This is not a route to the managed key on
-   its own: D6 waits for Store usage, so choosing 3 means also overriding D6 with a different
-   demand signal (GitHub beta readers plus the "I'd rather pay" link, which needs a public page).
+   its own: D6 waits for Store usage, so under option 3 D6 stays on hold. Replacing its first
+   condition with another signal (GitHub beta readers plus the "I'd rather pay" link, which
+   needs a public page) is a separate choice you can make or not.
    Even a later Store build that offers managed reading still has to settle free-key BYOK by
    option 1, by removing BYOK from the Store build, or by accepting option 2.
 
 **Recommendation: option 1** if you want to submit soon, knowing the certifications still need
-both conditions (a) and (b) above before signing. If you would rather wait, option 3 with an explicit D6 override.
+both conditions (a) and (b) above before signing. If you would rather wait, option 3.
 Not option 2.
 
 After a yes to 1: a lead drafts the key-step change (an explicit "my key has billing on"
@@ -139,8 +141,9 @@ description, shows the basis covering undetected free-key requests, and is re-co
 any certification is signed. Ditz
 `store-provider-region-ruling` records the ruling and revisits the region basis.
 
-After a yes to 3: say which demand signal replaces D6's Store-usage gate; a lead amends D6 and
-evidence item 1 in `managed-key.md` section 9 to match.
+After a yes to 3: nothing further is needed. Only if you also choose to replace D6's Store-usage
+condition, say with what; a lead then amends D6 and evidence item 1 in `managed-key.md` section 9
+to match.
 
 ## D4. Privacy policy and its URL
 
@@ -223,7 +226,8 @@ Payment Link.** Stripe lists "Seller-maintained stored value or credits" as rest
 subject to limits"), so expect questions. Credits stay small, never expire, cannot be transferred
 between readers (the operator's token recovery excepted), and are refundable on request.
 
-After yes, in this order (D9's host and the published terms page come first):
+After yes, in this order (D9's host and the published terms page must exist before the link is
+created in step 3):
 1. You: open the account and complete identity verification (legal name, address, tax ID, bank
    account). Choose a statement descriptor such as `LANGWEAVE`.
 2. A lead writes the terms-of-sale and refund page (draft PR); you approve it and it is
@@ -243,10 +247,15 @@ After yes, in this order (D9's host and the published terms page come first):
 already own (for example `api.` on your existing domain), so no new domain is needed. Current host
 prices were **not checked tonight**; a lead checks before you choose.
 
-After yes: you create the host account and add the secrets (the Stripe webhook signing secret,
-and the provider credential unless D7 used workload identity); an agent creates the database and the
-DNS record; a lead deploys from a reviewed commit and runs the stub-provider tests against the
-deployment with the ceiling at $2 a day.
+After yes, in two parts around D8:
+1. **Before D8 step 3 (provision the URL):** you create the host account and add the provider
+   credential unless D7 used workload identity; an agent creates the database and the DNS
+   record; a lead deploys from a reviewed commit and runs the stub-provider tests against the
+   deployment with the ceiling at $2 a day. The proxy URL now exists.
+2. **After D8 step 4 (configure and verify the webhook):** the Stripe webhook signing secret is
+   in the host's secret store; a lead sends a Stripe test-mode event to the endpoint and checks
+   it is verified and recorded, and that a bad signature is refused. D10 activates the link only
+   after this check passes.
 
 ## D10. Price and first sale
 
@@ -261,8 +270,9 @@ After yes, in this order:
    passage text or model output), Stripe's role, the seller (you, not Google) and the refund
    terms. The tester reads the in-extension disclosure before the first managed call.
 2. A lead turns on the flag in that one build, adds the tester's account id to the proxy's
-   `ENROLLED_ACCOUNTS` allowlist (spec C4; any other buyer gets a refund, not credit), activates
-   the Payment Link, and the tester buys one pack. The day after
+   `ENROLLED_ACCOUNTS` allowlist (spec C4: any other account gets a refund, not credit), checks
+   D9 part 2 passed, activates the Payment Link, the tester buys one pack, and the lead
+   deactivates the link straight afterwards. The day after
    (provider billing lags by up to about a day), the lead reconciles two separate pairs:
    Stripe payments and refunds against the ledger's grants and reversals (amounts paid and
    refunded; Stripe's fee is not in the ledger and is checked separately on the Stripe payout);

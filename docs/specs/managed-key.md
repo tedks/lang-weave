@@ -231,12 +231,16 @@ ledger change it causes.
 Invariant, checked after every operation: **`balance >= reserved >= 0`** for every account.
 
 - `createAccount(tokenHash) → accountId`
-- `reserve(accountId, readerWorst, providerMax, dayKey, ceiling, keyHash, bodyHash) →
+- `reserve(accountId, readerWorst, providerMax, priceRowId, dayKey, ceiling, keyHash, bodyHash) →
   reservationId | BALANCE | DAILY_CAP | CEILING | STOPPED | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
   claims the idempotency key (C1) in the same transaction, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
   largest amount the call could possibly cost the operator. It succeeds only if: the ledger's
-  global **stop latch** is clear, and C5 has an in-date price row for the call's date (else
-  `STOPPED`); the account is
+  global **stop latch** is clear, the price row `priceRowId` that E2 priced the call with is
+  in date for `dayKey` (its effective window contains `dayKey` and `dayKey` is at most 30 days
+  after its `checkedOn`; the table is read in the same transaction, so a row that expires
+  between pricing and reservation is caught here), and, while
+  `ENROLLMENT=allowlist`, the account is on `ENROLLED_ACCOUNTS` (a ledger table the operator
+  edits, so every instance reads the same list) (else `STOPPED`); the account is
   not frozen; it has no open reservation; `balance - reserved >= readerWorst`; fewer than
   `IN_FLIGHT_MAX` reservations are open; the account's day `providerSpent + providerHeld +
   providerMax <= ACCOUNT_DAILY_PROVIDER_MAX`; and the global day `providerSpent + providerHeld +
@@ -270,7 +274,10 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   Checkout session events carry both it and the session id): `{paymentIntentId,
   checkoutSessionId?, accountId?, packMicros, paidMicros, grantState: pending | granted |
   refused, reversalTarget, reversedMicros, refundedMicros, dispute: none | open | won | lost,
-  disputeLostMicros}`.
+  disputeLostMicros, disputeFreezeApplied}`. `disputeFreezeApplied` is set the first time a
+  dispute event freezes the account for this payment; later dispute events for it (a late
+  `created` after a `lost` close, a retry) never freeze again, so an operator's unfreeze
+  sticks. Tests cover lost-close → operator unfreeze → late `created`.
   Stripe amounts are integer cents and are converted to micros (×10,000) on the way in.
   `packMicros` comes from v0's single Payment Link's pack-table entry, so a record created by a
   `charge.refunded` or dispute event before any Checkout event (whose Charge carries no
@@ -386,7 +393,8 @@ ceiling, while the reader is still charged only as the 6.3 table says.
 secret and a 300-second tolerance before it is parsed; a bad or stale signature is `400` and
 changes nothing.
 
-Every handled event first calls `recordPayment` (C2) for its `payment_intent`, in the same
+Every handled event (except a Checkout session that fails the ownership check below) first
+calls `recordPayment` (C2) for its `payment_intent`, in the same
 transaction as the event-id deduplication and any ledger change, so events may arrive in any
 order and any number of times.
 
@@ -398,8 +406,13 @@ order and any number of times.
   The pack size comes from the proxy's own table for that link, never from the event. While
   `ENROLLMENT=allowlist` (the v0 default, and the only mode M3 allows), the account must also be
   on the operator's `ENROLLED_ACCOUNTS` list; `reserve` refuses unlisted accounts too (as
-  `STOPPED`), so a stranger who creates an account and pays gets an orphan and a refund, never
-  managed calls. `grant`
+  `STOPPED`, which the reader sees as `503 managed_unavailable`; that is intended for v0's single
+  tester), so a stranger who creates an account and pays gets an orphan and a refund, never
+  managed calls. A `transfer` target must be enrolled before recovery. The allowlist limits which
+  **accounts** get credit and calls, not who pays: someone else paying with the tester's account
+  id would credit the tester's account. M3 bounds that by activating the link only for the
+  tester's purchase and deactivating it straight afterwards (DECISIONS D10); any such incidental
+  payment shows in Stripe and is refunded on request. `grant`
   itself applies the remaining checks (account exists and is unfrozen, payment not disputed,
   balance below one pack) and subtracts any reversal that arrived first. A completed session
   with `payment_status` other than `paid` grants nothing; its later `async_payment_succeeded`
@@ -409,13 +422,22 @@ order and any number of times.
   `amount_refunded` (C2). Stale or out-of-order refund events lower nothing. If the payment was
   not yet granted, the later grant is reduced or, for a full refund, becomes zero.
 - **Dispute.** `charge.dispute.created` marks the payment disputed, calls `reverse` with target
-  `packMicros`, and freezes the account holding the payment **if the payment is `granted`** (C2).
+  `packMicros`, and freezes the account holding the payment **if the payment is `granted`** and
+  `disputeFreezeApplied` is not yet set (C2).
   A not-yet-granted disputed payment never grants and freezes nothing; a disputed orphan is
   marked `disputed`.
   Unfreezing is a manual operator action after the dispute closes. A dispute on an already
   refunded payment reverses only the remaining difference.
-- **Orphan payment.** Every `paid` session that does not grant is an orphan: one whose
-  `payment_link`, `currency` or `amount_total` fails the checks above, whose
+- **Ownership first.** Only a session whose `payment_link` is a configured credit link is Lang
+  Weave credit. Any other session on the same Stripe account (a different link or product,
+  whatever its `client_reference_id`) returns 200 with an operator diagnostic, creates no
+  payment record and never enters the refund queue. A refund or dispute event for a
+  `payment_intent` with no record still creates a `pending` record holding its evidence (C2,
+  so order does not matter), but a `pending` record is never in the refund queue and never
+  grants without a credit-link session, so another product's refunds and disputes stay out of
+  the queue.
+- **Orphan payment.** Every `paid` session on a configured credit link that does not grant is an
+  orphan: one whose `currency` or `amount_total` fails the checks above, whose
   `client_reference_id` is missing (someone opened the bare link), malformed or unknown, whose
   account is not enrolled (M3 allowlist, below), or whose grant `grant` refuses. Its payment
   record moves to `grantState: refused` (terminal: a later notification does not grant it). It returns 200 (so Stripe stops
@@ -442,7 +464,8 @@ provider cost a day, and Stripe Radar sees a repeated card.
 
 ### C5 — Pricing (owner E6; consumer E2)
 
-`worst(model, requestBytes, maxOutputTokens) → {readerMicros, providerMicros}` and
+`worst(model, requestBytes, maxOutputTokens, dayKey) → {readerMicros, providerMicros, priceRowId} |
+NO_PRICE` (E2 answers `NO_PRICE` with `503 managed_unavailable` and makes no reservation) and
 `actual(model, outcome) → {readerMicros, providerMicros}`, both rounding **up** to the next
 micro-dollar. Reader micros include the markup; provider micros do not.
 
@@ -470,6 +493,8 @@ micro-dollar. Reader micros include the markup; provider micros do not.
 - **Freshness:** the table is data with a `checkedOn` date and the price source URL. It is
   enforced at **runtime**, not only in tests: `worst` returns no price, and `reserve` therefore
   `STOPPED`, for a call date more than 30 days after `checkedOn` or with no effective price row.
+  The reservation records the price row it used, and `actual` prices from that row, so a call
+  reserved on the last in-date day still settles after the cut-off.
   A test also fails when `checkedOn` is older than 30 days, and the table carries announced future prices with their
   effective dates (3.8 Flash doubles on 2027-01-01), selecting by the call's date. The test is
   meant to fail on the calendar alone: the fix is to re-read the price page and update the
@@ -530,7 +555,7 @@ priced as the class says; when `usage` is missing, the reader is charged the cla
 
 | # | Outcome (C3) → class | Reader charged | Provider counted | API response (C1) |
 |---|---|---|---|---|
-| 1 | Validation, auth, balance, cap, ceiling, busy or frozen | nothing; no reservation | nothing | the matching 4xx/503 |
+| 1 | Validation, auth, balance, cap, ceiling, stopped, busy or frozen | nothing; no reservation | nothing | the matching 4xx/503 |
 | 2 | `http_error` (any non-200), or failure before sending | nothing; released | nothing | mapped error, `retryAfterMs` if bounded |
 | 3 | `no_response`, `sent: true` | `readerWorst`, reason `timeout` | `providerMax`, provisional | `504 request_failed` |
 | 4 | `ok`, `blockReason` set (prompt blocked, no candidate) | nothing | `providerMax`, provisional (the FAQ does not settle whether this input is billed) | `502 request_failed`, `"blocked": true` |
@@ -566,7 +591,7 @@ mode refuses to turn on and says why.
 A lost token loses the balance unless the reader recovers it. Recovery needs **two** things: the
 Stripe receipt, and the account id that Settings shows and the reader can copy (the account id is
 not a credential; the token is). A forwarded receipt alone is not enough. The operator then moves
-the balance to a new account with C2's `transfer`, whose `ref` records the receipt and the old
+the balance to a new account with C2's `transfer`, whose `ref` records the Stripe payment id from the receipt (not the receipt itself) and the old
 account id; `transfer` also reassigns the payment records, revokes the old token and freezes the
 old account, which a bare `adjust` would not. This keeps "no login and
 no email held by Lang Weave" true, while being honest that Stripe holds the purchaser's email and
