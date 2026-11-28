@@ -2,8 +2,9 @@
 // local reading events. Consent, title, revision and generations are rechecked after every await.
 import { chromeStorage } from './cache.js';
 import { requestSwaps } from './engine.js';
-import { cleanQuotaState, newCooldownEntry, retainedRetryAt, safeModelStatus, STATUS_KEY, QUOTA_STATE_KEY,
-  MODEL_IDS, rejectedForEpoch } from './quota-status.js';
+import { requestManagedSwaps } from './managed.js';
+import { cleanQuotaState, newCooldownEntry, retainedRetryAt, safeModelStatus, statusLabel, MANAGED_STATUS_KEY,
+  STATUS_KEY, QUOTA_STATE_KEY, MODEL_IDS, rejectedForEpoch } from './quota-status.js';
 import { exactTarget, isZeroFrench, wordCount } from './levels.js';
 import { hashKey } from './hash.js';
 import { localDay, queueEvents, shownToday } from './events.js';
@@ -48,15 +49,17 @@ export async function liveGradualDocument(sender) {
 export function createReading({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds, context,
     adaptiveReviewState, commitAdaptive }) {
   // Model status is diagnostic; failure to save it must not hide a valid reading result.
-  async function saveModelStatus(status, epoch) {
+  async function saveModelStatus(status, epoch, { managed, token, generation } = {}) {
     try {
       await locked(async () => {
-        const current = await store.get(['keyEpoch', STATUS_KEY]);
-        if ((current.keyEpoch || '') !== epoch) return;
-        const previous = safeModelStatus(current[STATUS_KEY]);
+        const key = managed ? MANAGED_STATUS_KEY : STATUS_KEY;
+        const current = await store.get([key, managed ? 'managedToken' : 'keyEpoch']);
+        if (managed ? !generation || current.managedToken !== token : (current.keyEpoch || '') !== epoch) return;
+        const previous = safeModelStatus(current[key]);
         const retryAt = status.retryAt ?? (status.coolingDown ? retainedRetryAt(previous,
           status.category, Date.now(), status.retryAfterMs) : undefined);
-        await store.set({ [STATUS_KEY]: safeModelStatus({ at: Date.now(), ...status, keyEpoch: epoch, retryAt }) });
+        const safe = safeModelStatus({ at: Date.now(), ...status, keyEpoch: managed ? undefined : epoch, retryAt });
+        await store.set({ [key]: managed ? { ...safe, tokenGeneration: generation } : safe });
       });
     } catch { /* diagnostic only */ }
   }
@@ -78,10 +81,13 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
 
   async function swaps(msg, sender) {
     const ctx = await context();
+    const managed = ctx.settings.managedProvider === true;
+    const credential = { managed, token: ctx.managedToken, generation: ctx.managedTokenGeneration };
     const consentGeneration = worker.permissionGeneration;
     const settingsAtStart = worker.settingsGeneration;
     let policyDay = '';
-    const sameReadingPool = (latest) => latest.revision === ctx.revision && latest.retainedWordsKey === ctx.retainedWordsKey;
+    const sameReadingPool = (latest) => latest.revision === ctx.revision && latest.retainedWordsKey === ctx.retainedWordsKey &&
+      latest.managedToken === ctx.managedToken;
     const stillSafe = async () => {
       const latest = await context();
       if (!sameReadingPool(latest) || !activeOn(latest, sender.url) ||
@@ -228,7 +234,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     try {
       fresh = await modelCall(async () => {
         if (!sameReadingPool(await context())) return null;
-        const keyData = await store.get(['apiKey', 'keyEpoch', QUOTA_STATE_KEY, STATUS_KEY, 'consentShown']);
+        const keyData = await store.get(managed ? ['consentShown'] : ['apiKey', 'keyEpoch', QUOTA_STATE_KEY, STATUS_KEY, 'consentShown']);
         const { apiKey } = keyData;
         // The only UI transition is false -> true. A false snapshot cannot dispatch, even
         // if the user chooses a policy while this request is queued.
@@ -236,18 +242,20 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
           throw Object.assign(new Error('Choose site access on the welcome page first'), { category: 'consent_required' });
         const keyEpoch = keyData.keyEpoch || '';
         requestEpoch = keyEpoch;
-        if ((keyEpoch && worker.keyRejectedEpoch === keyEpoch) || rejectedForEpoch(keyData[STATUS_KEY], keyEpoch))
+        if (!managed && ((keyEpoch && worker.keyRejectedEpoch === keyEpoch) || rejectedForEpoch(keyData[STATUS_KEY], keyEpoch)))
           throw Object.assign(new Error('Gemini rejected this key. Paste a new one.'), { category: 'key_rejected' });
-        const persisted = cleanQuotaState(keyData[QUOTA_STATE_KEY], keyEpoch);
         if (await callsToday(chromeStorage) >= DAILY_MODEL_CALLS) {
-          await saveModelStatus({ category: 'local_budget' }, requestEpoch);
+          if (!managed) await saveModelStatus({ category: 'local_budget' }, requestEpoch);
           throw Object.assign(new Error('Daily local model-call budget reached'), { category: 'local_budget' });
         }
-        cooldown.clear();
-        cooldownKinds.clear();
-        for (const [model, entry] of Object.entries(persisted.cooldowns)) {
-          cooldown.set(model, entry.until);
-          cooldownKinds.set(model, entry.kind);
+        if (!managed) {
+          const persisted = cleanQuotaState(keyData[QUOTA_STATE_KEY], keyEpoch);
+          cooldown.clear();
+          cooldownKinds.clear();
+          for (const [model, entry] of Object.entries(persisted.cooldowns)) {
+            cooldown.set(model, entry.until);
+            cooldownKinds.set(model, entry.kind);
+          }
         }
         const fetchImpl = async (...args) => {
           // Storage and review reads above can yield while a site is turned off. Dispatch under
@@ -256,6 +264,9 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
             if (!(await stillSafe())) {
               throw Object.assign(new Error('Page context changed before model request'), { stale: true });
             }
+            // Every managed split or key-reuse call shares the original daily cap.
+            if (managed && await callsToday(chromeStorage) >= DAILY_MODEL_CALLS)
+              throw Object.assign(new Error('Daily local model-call budget reached'), { category: 'local_budget' });
             // Counting can yield to a browser permission change; keep the second check.
             try { await countCall(chromeStorage); }
             catch { throw Object.assign(new Error('Local reading storage failed'), { category: 'storage_failed' }); }
@@ -266,9 +277,12 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
           });
           return response;
         };
-        return requestSwaps({ apiKey, model: ctx.settings.model, level: ctx.level, language: ctx.language,
-          density: ctx.settings.density, unknownLimit: ctx.settings.gradual, words: candidates, fetchImpl, cooldownKinds,
-          shownToday: shown || await shownToday(scopedStorage(chromeStorage, ctx.scope)), cooldown, batch: misses.map((i) => ({ id: i.key, text: i.text })),
+        const inputs = { level: ctx.level, language: ctx.language, density: ctx.settings.density,
+          unknownLimit: ctx.settings.gradual, words: candidates, fetchImpl,
+          shownToday: shown || await shownToday(scopedStorage(chromeStorage, ctx.scope)),
+          batch: misses.map((i) => ({ id: i.key, text: i.text })) };
+        if (managed) return requestManagedSwaps({ ...inputs, token: ctx.managedToken, keyStore: chrome.storage.session });
+        return requestSwaps({ ...inputs, apiKey, model: ctx.settings.model, cooldownKinds, cooldown,
           onFailure: async (model, category, wait, startedAt) => {
             cooldownKinds.set(model, category === 'daily_quota' ? 'daily' : category === 'overloaded' ? 'overloaded'
               : category === 'rate_limit' ? 'short' : 'transient');
@@ -280,25 +294,31 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       const category = e?.category || 'request_failed';
       // Provider rejection belongs to the key, not this page. A site/settings
       // change while the response was in flight cannot authorize another call.
-      if (category === 'key_rejected') {
+      if (!managed && category === 'key_rejected') {
         worker.keyRejectedEpoch = requestEpoch;
         await saveModelStatus({ category }, requestEpoch);
       }
       const latest = await context();
       if (!sameReadingPool(latest) || !activeOn(latest, sender.url)) return { results: {}, stale: true };
-      const error = category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
+      const error = managed && (category.startsWith('managed_') || e?.duplicate === true)
+        ? statusLabel(e)
+        : category === 'daily_quota' ? 'Daily model quota reached' : category === 'rate_limit'
         ? 'Model rate limit reached' : category === 'overloaded' ? 'Model service is busy'
         : category === 'key_rejected' ? 'Gemini rejected this key. Paste a new one.'
         : category === 'local_budget' ? 'Daily local model-call budget reached'
         : category === 'storage_failed' ? 'Local reading storage failed'
         : category === 'consent_required' ? 'Choose site access on the welcome page first' : 'Model request failed';
       // A missing site choice is local policy, not a model failure or quota diagnostic.
-      if (category !== 'consent_required' && category !== 'key_rejected') await saveModelStatus({ category, retryAt: e?.retryAt,
-        coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch);
+      if (category !== 'consent_required' && (managed || category !== 'key_rejected'))
+        await saveModelStatus({ category, ahead: e?.ahead, duplicate: e?.duplicate, charged: e?.charged, retryAt: e?.retryAt ??
+          (managed && e?.retryAfterMs ? Date.now() + e.retryAfterMs : undefined),
+          coolingDown: e?.coolingDown === true, retryAfterMs: e?.retryAfterMs }, requestEpoch, credential);
       try {
         // Cache entries are raw validated swaps. They still need the current gradual
         // quota and cards, even when another item in this batch failed at the model.
-        const delivered = await deliver(results);
+        const partial = managed && e?.partialResults;
+        const delivered = partial && Object.keys(partial).length
+          ? await deliver({ ...results, ...partial }, partial) : await deliver(results);
         return { ...delivered, error, retryAfterMs: e?.retryAfterMs };
       } catch (storageError) {
         return { results: {}, error: 'Learning state could not be saved' };
@@ -308,7 +328,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
     try {
       const delivered = await deliver({ ...results, ...fresh.results }, fresh.results);
       if (!delivered.stale) {
-        await saveModelStatus({ category: 'ok', model: fresh.model }, requestEpoch);
+        await saveModelStatus({ category: 'ok', model: fresh.model }, requestEpoch, credential);
         // A popup save must not commit between this last context read and title lookup.
         return locked(async () => await stillSafe() ? delivered : { results: {}, stale: true });
       }
@@ -319,7 +339,7 @@ export function createReading({ store, cache, locked, modelCall, worker, cooldow
       if (!sameReadingPool(latest) || !activeOn(latest, sender.url)) return { results: {}, stale: true };
       const category = 'storage_failed';
       const error = 'Local reading storage failed';
-      await saveModelStatus({ category }, requestEpoch);
+      await saveModelStatus({ category }, requestEpoch, credential);
       try {
         const cached = await deliver(results);
         return { ...cached, error, retryAfterMs: e?.retryAfterMs };

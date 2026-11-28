@@ -20,7 +20,7 @@ export function readingState(config, url, modelStatus, consentShown = true) {
   if (!hasSiteAccess(url, config.origins)) return 'needs_site';
   const category = safeModelStatus(modelStatus)?.category;
   if (category === 'key_rejected') return 'key_rejected';
-  if (['daily_quota', 'rate_limit', 'overloaded'].includes(category)) return 'cooldown';
+  if (category?.startsWith('managed_') || ['daily_quota', 'rate_limit', 'overloaded'].includes(category)) return 'cooldown';
   if (category === 'local_budget') return 'local_budget';
   if (['request_failed', 'storage_failed'].includes(category)) return 'model_error';
   return 'working';

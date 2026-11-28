@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { languageCode, cleanPack, cleanPacks, generatePack, packWords } from '../src/languages.js';
+import { languageCode, cleanPack, cleanPacks, generatePack, packWords, validPackGloss } from '../src/languages.js';
 import { validateSwaps } from '../src/levels.js';
 import { scopedStorage } from '../src/scope.js';
 import { memoryStorage } from '../src/cache.js';
@@ -23,6 +23,17 @@ test('language codes and generated packs are bounded, normalized, and reject mal
   expect(cleanPack({ words: fixture('mot').words.map((w, i) => i ? w : { ...w, en: '<script>' }) }, 'fr')).toBeNull();
   expect(cleanPack({ words: fixture('mot').words.slice(0, 19) }, 'fr')).toBeNull();
   expect(cleanPacks({ fr, ja, invalid: { words: [] } })).toEqual({ fr, ja });
+});
+
+test('pack gloss validation uses the same rules alone and inside cleanPack', () => {
+  const longest = '𐐀'.repeat(30);
+  for (const [gloss, valid] of [['a window', true], [longest, true], [`${longest}a`, false],
+    ['123 !', false], [' window', false], ['win\u200ddow', false], ['<window>', false], [undefined, false]]) {
+    const pack = fixture('mot');
+    pack.words[0].en = gloss;
+    expect(validPackGloss(gloss)).toBe(valid);
+    expect(Boolean(cleanPack(pack, 'fr'))).toBe(valid);
+  }
 });
 
 test('Latin and non-Latin packs require exact target forms and matching English glosses', () => {

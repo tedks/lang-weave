@@ -1,14 +1,18 @@
 // Provider quota diagnostics are deliberately small, allowlisted, and secret-free.
 import { t } from './i18n.js';
 export const STATUS_KEY = 'modelStatus';
+export const MANAGED_STATUS_KEY = 'managedModelStatus';
 export const QUOTA_STATE_KEY = 'quotaState';
 export const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const MAX_SHORT_COOLDOWN_MS = 60 * 60 * 1000;
 export const MAX_RETRY_MS = 24 * 60 * 60 * 1000;
 export const MODEL_IDS = new Set(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
-export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'key_rejected', 'request_failed', 'storage_failed', 'local_budget', 'key_isolation_unavailable', 'ok']);
+export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overloaded', 'key_rejected', 'request_failed',
+  'storage_failed', 'local_budget', 'key_isolation_unavailable', 'ok', 'managed_balance', 'managed_unauthorized',
+  'managed_unavailable', 'managed_update_required']);
 const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
 const COOLDOWN_KINDS = new Set(['daily', 'short', 'overloaded', 'transient']);
+const STATUS_TTL_MS = 60 * 60 * 1000;
 
 const finite = (n) => Number.isFinite(n) && n >= 0;
 const boundedRetry = (n) => finite(n) && n > 0 ? Math.min(n, MAX_RETRY_MS) : undefined;
@@ -136,6 +140,11 @@ export function safeModelStatus(value) {
   if (finite(value.at)) out.at = value.at;
   if (finite(value.retryAt)) out.retryAt = value.retryAt;
   if (MODEL_IDS.has(value.model)) out.model = value.model;
+  if (value.category === 'managed_update_required' && typeof value.ahead === 'boolean') out.ahead = value.ahead;
+  if (value.category === 'request_failed' && value.duplicate === true && typeof value.charged === 'boolean') {
+    out.duplicate = true;
+    out.charged = value.charged;
+  }
   if (typeof value.keyEpoch === 'string' && value.keyEpoch.length > 0 && value.keyEpoch.length <= 64)
     out.keyEpoch = value.keyEpoch;
   return out;
@@ -145,10 +154,17 @@ export const rejectedForEpoch = (value, keyEpoch) => !!keyEpoch &&
   safeModelStatus(value)?.category === 'key_rejected' && value.keyEpoch === keyEpoch;
 
 // The popup and toolbar must ignore the same expired or stale operational status.
-export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReached, now = Date.now()) {
+export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReached, now = Date.now(), managedGeneration) {
+  const managed = typeof managedGeneration === 'string';
+  if (managed && (!managedGeneration || value?.tokenGeneration !== managedGeneration)) return null;
   let status = safeModelStatus(value);
   if (status?.category === 'key_rejected' && !rejectedForEpoch(status, keyEpoch)) status = null;
-  if (status && ['daily_quota', 'rate_limit', 'overloaded'].includes(status.category)) {
+  if (managed && (['daily_quota', 'rate_limit', 'overloaded', 'managed_unavailable'].includes(status?.category) ||
+      status?.category === 'managed_update_required' && status.ahead !== false)) {
+    const until = status.retryAt ?? status.at + STATUS_TTL_MS;
+    if (!finite(status.at) || status.at > now || until <= now) return null;
+  }
+  if (!managed && status && ['daily_quota', 'rate_limit', 'overloaded'].includes(status.category)) {
     const kind = status.category === 'daily_quota' ? 'daily'
       : status.category === 'overloaded' ? 'overloaded' : 'short';
     const quota = cleanQuotaState(quotaState, keyEpoch, now);
@@ -156,7 +172,7 @@ export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReach
   }
   if (status?.category === 'local_budget' && !localBudgetReached) status = null;
   if (['request_failed', 'storage_failed'].includes(status?.category) &&
-      (!Number.isFinite(status.at) || status.at > now || now - status.at > 3600000)) status = null;
+      (!Number.isFinite(status.at) || status.at > now || now - status.at > STATUS_TTL_MS)) status = null;
   return status;
 }
 
@@ -176,6 +192,12 @@ export function statusLabel(status, now = Date.now()) {
   if (safe.category === 'key_rejected') return t('status_key_rejected');
   if (safe.category === 'key_isolation_unavailable') return t('status_key_isolation');
   if (safe.category === 'local_budget') return t('status_local_budget');
+  if (safe.category === 'managed_balance') return t('status_managed_balance');
+  if (safe.category === 'managed_unauthorized') return t('status_managed_unauthorized');
+  if (safe.category === 'managed_unavailable') return t('status_managed_unavailable');
+  if (safe.category === 'managed_update_required')
+    return safe.ahead === false ? t('status_managed_behind') : t('status_managed_ahead');
+  if (safe.duplicate) return safe.charged ? t('status_managed_duplicate_charged') : t('status_managed_duplicate_free');
   const guided = Number.isFinite(now) && safe.retryAt > now && safe.retryAt <= now + MAX_RETRY_MS;
   const time = guided ? new Date(safe.retryAt).toLocaleString([], {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',

@@ -23,7 +23,7 @@ import { createBackupHandlers } from './backup-handlers.js';
 import { createProgressHandlers } from './progress-handlers.js';
 import { createSites } from './sites.js';
 import { createBadge } from './badge.js';
-import { STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+import { MANAGED_STATUS_KEY, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 export { RELOADED_KEY } from './update.js';
 
 const store = chrome.storage.local;
@@ -56,6 +56,14 @@ const locked = serial(); // storage read-modify-writes one at a time, or concurr
 const { connectBackupPage, recoverLearningImport, learningExport, learningPreview, learningImport } =
   createBackupHandlers({ store, locked, worker, backupPages });
 
+async function removeUnisolatedManagedToken(retry = true) {
+  try { await store.remove('managedToken'); }
+  catch {
+    // Retry once on this wake. The next worker start attempts cleanup again.
+    if (retry) setTimeout(() => void removeUnisolatedManagedToken(false), 1000);
+  }
+}
+
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
   if (typeof store.setAccessLevel === 'function') {
@@ -64,6 +72,8 @@ const ready = (async () => {
       worker.keyIsolationUnavailable = false;
     } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
   }
+  // Keep managed access disabled while a token from an earlier run is being cleared.
+  if (worker.keyIsolationUnavailable) void removeUnisolatedManagedToken();
   const { settings } = await store.get('settings');
   // Install defaults need storage that nothing has written yet: an absent settings object beside a key or
   // progress is not a new install. Read everything only in that rare case, never on an ordinary wake.
@@ -186,7 +196,8 @@ chrome.tabs.onUpdated?.addListener((tabId, change) => {
     void badge.refresh(tabId).catch(() => {});
 });
 chrome.storage.onChanged?.addListener((changes, area) => {
-  if (area === 'local' && ['settings', 'apiKey', 'keyEpoch', 'consentShown', STATUS_KEY, QUOTA_STATE_KEY]
+  if (area === 'local' && ['settings', 'apiKey', 'managedToken', 'keyEpoch', 'consentShown',
+    MANAGED_STATUS_KEY, STATUS_KEY, QUOTA_STATE_KEY]
     .some((key) => Object.hasOwn(changes, key))) void badge.refreshAll().catch(() => {});
 });
 

@@ -1,7 +1,7 @@
 // Popup handlers: settings, key, language packs, cache and status.
 import { chromeStorage } from './cache.js';
 import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, readBoundedBody,
-  safeModelStatus, statusLabel, visibleModelStatus, rejectedForEpoch, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+  safeModelStatus, statusLabel, visibleModelStatus, rejectedForEpoch, MANAGED_STATUS_KEY, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 import { API_BASE } from './gemini.js';
 import { cleanSettings } from './settings.js';
 import { MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
@@ -116,8 +116,14 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
     return { ok: true };
   }
 
-  // msg.settings: a partial patch; msg.siteOverride: { host, enabled: true | false | null (reset) }; msg.apiKey.
+  // The trusted save route also provisions tracer tokens. An empty managedToken clears it.
   async function save(msg, forceKeyRotation = false) {
+    const writesManagedToken = Object.hasOwn(msg, 'managedToken');
+    if (worker.keyIsolationUnavailable && (msg.settings?.managedProvider === true || writesManagedToken))
+      throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
+    if (writesManagedToken && (typeof msg.managedToken !== 'string' ||
+        (msg.managedToken !== '' && !/^lwk_[A-Za-z0-9_-]{43}$/.test(msg.managedToken))))
+      throw new Error('Invalid managed reading token.');
     if (worker.keyIsolationUnavailable && typeof msg.apiKey === 'string' && msg.apiKey.trim())
       throw new Error(statusLabel({ category: 'key_isolation_unavailable' }));
     if (typeof msg.apiKey === 'string' && !msg.apiKey.trim() && !forceKeyRotation)
@@ -161,13 +167,18 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         if (msg.apiKey.length > 500) throw new Error('Key is too long');
         patch.apiKey = msg.apiKey.trim();
       }
+      if (writesManagedToken) {
+        patch.managedToken = msg.managedToken;
+        patch[MANAGED_STATUS_KEY] = null;
+      }
       // Target recall affects only review scheduling, and guess first only how a hover answers, so
       // changing either alone keeps the reading epoch and its cached results.
       const reading = ({ desiredRetention, guessFirst, ...rest }) => JSON.stringify(rest);
       const before = cleanSettings(saved.settings);
       const keyChanged = forceKeyRotation || (Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey);
       if (reading(next) === reading(before) && !keyChanged) {
-        if (JSON.stringify(next) !== JSON.stringify(before) || msg.consentShown === true) await store.set(patch);
+        if (writesManagedToken || JSON.stringify(next) !== JSON.stringify(before) || msg.consentShown === true)
+          await store.set(patch);
       } else {
         patch.epoch = crypto.randomUUID();
         if (forceKeyRotation || Object.hasOwn(patch, 'apiKey') && patch.apiKey !== saved.apiKey) {
@@ -179,6 +190,10 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
           worker.keyRejectedEpoch = '';
         }
         await store.set(patch);
+      }
+      if (patch.managedToken === '') {
+        // The clear already committed with the other settings. Only the empty entry remains.
+        try { await store.remove('managedToken'); } catch { /* best-effort cleanup */ }
       }
     });
     await broadcast();
@@ -294,11 +309,12 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
   async function status() {
     const config = await context();
     const data = await store.get(['apiKey', 'settings', 'keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, PACKS_KEY, 'consentShown',
-      RELOADED_KEY]);
+      MANAGED_STATUS_KEY, RELOADED_KEY]);
     const { state } = await reviewState(config);
-    const modelStatus = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch,
-      safeModelStatus(data[STATUS_KEY])?.category === 'local_budget' &&
-        await callsToday(chromeStorage) >= DAILY_MODEL_CALLS);
+    const status = data[config.settings.managedProvider ? MANAGED_STATUS_KEY : STATUS_KEY];
+    const modelStatus = visibleModelStatus(status, data[QUOTA_STATE_KEY], data.keyEpoch,
+      safeModelStatus(status)?.category === 'local_budget' &&
+        await callsToday(chromeStorage) >= DAILY_MODEL_CALLS, Date.now(), config.managedTokenGeneration);
     return { config: publicContext(config), words: config.words.length,
       languages: ['es', GUARANI_STARTER, ...Object.keys(cleanPacks(data[PACKS_KEY]))].map((code) =>
         ({ code, name: languageName(code), experimental: !bundledLanguage(code) })),

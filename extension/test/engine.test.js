@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { buildRequest, callGemini, parseSwapsResponse, API_BASE } from '../src/gemini.js';
 import { requestSwaps, timeoutFor } from '../src/engine.js';
+import { buildSwapRequest, canonicalSwapBody } from '../src/swap-request.js';
 import { DEFAULT_SETTINGS } from '../src/settings.js';
 import { createCache, memoryStorage } from '../src/cache.js';
 import { hashKey } from '../src/hash.js';
@@ -14,6 +15,68 @@ const geminiReply = (tweets) => ({
   ok: true,
   status: 200,
   json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ tweets }) }] } }] }),
+});
+
+// Reference body construction from engine.js at 39b264a, before the extraction.
+function previousRequestBody({ level, batch, words, language, density = 'normal', unknownLimit = false, shownToday }) {
+  const ordinarySpanish = !unknownLimit && (language === undefined || language === 'es') &&
+    words?.every((word) => word.status === 'active');
+  const promptWords = ordinarySpanish ? possibleSpanishPromptWords(level, words, batch) : words;
+  return JSON.stringify(buildRequest({ system: buildSystemPrompt(level, promptWords, shownToday, language, density,
+    unknownLimit ? unknownBudget(batch) : null), user: buildUserContent(batch), schema: RESPONSE_SCHEMA }));
+}
+
+describe('shared swap request', () => {
+  const batch = [{ id: 'first', text: 'Open the window and listen to the rain.' },
+    { id: 'second', text: 'Rain fell when we opened the window.' }];
+  const spanish = [{ fr: 'la ventana', en: 'the window', hint: 'lah ven-TAH-nah', status: 'active' },
+    { fr: 'la manzana', en: 'the apple', hint: 'lah mahn-SAH-nah', status: 'active' }];
+  const guarani = [{ fr: 'okẽ', en: 'door', status: 'active' }];
+  const pack = [{ fr: 'mado', en: 'window', status: 'new' }, { fr: 'ame', en: 'rain', status: 'known' }];
+
+  for (const [label, inputs] of Object.entries({
+    'ordinary Spanish': { language: 'es', words: spanish, shownToday: ['la ventana'] },
+    'gradual Spanish': { language: 'es', words: spanish, unknownLimit: true, density: 'heavy' },
+    'Guaraní': { language: GUARANI_STARTER, words: guarani, density: 'light' },
+    'generated pack': { language: 'ja', words: pack, unknownLimit: true, shownToday: ['ame'] },
+  })) {
+    test(`preserves the pre-extraction request bytes for ${label}`, async () => {
+      const args = { ...inputs, batch, level: 2, apiKey: 'synthetic', model: 'gemini-3.5-flash-lite' };
+      const expected = previousRequestBody(args);
+      const calls = [];
+      await requestSwaps({ ...args, fetchImpl: async (url, { method, headers, body }) => {
+        calls.push({ url, method, headers, body });
+        return geminiReply(batch.map(({ id }) => ({ id, swaps: [] })));
+      } });
+      expect(JSON.stringify(buildSwapRequest(args))).toBe(expected);
+      expect(calls).toEqual([{ url: `${API_BASE}${args.model}:generateContent`, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': args.apiKey }, body: expected }]);
+    });
+  }
+
+  test('loads and builds in a fresh runtime without a chrome global', () => {
+    const moduleUrl = new URL('../src/swap-request.js', import.meta.url).href;
+    const child = Bun.spawnSync([process.execPath, '-e', `
+      if ('chrome' in globalThis) throw new Error('Unexpected chrome global');
+      const { buildSwapRequest } = await import(${JSON.stringify(moduleUrl)});
+      buildSwapRequest({ level: 1, batch: [], words: [] });
+    `]);
+    expect({ exitCode: child.exitCode, stderr: child.stderr.toString() }).toEqual({ exitCode: 0, stderr: '' });
+  });
+
+  test('canonical C1 JSON sorts object keys and preserves array order', () => {
+    const bytes = '{"passages":[{"id":"b","text":"Rain \\"fell\\"."},{"id":"a","text":"Rain stopped."}],"words":[{"en":"window","fr":"okẽ","source":"bundled"}]}';
+    const body = { words: [{ fr: 'okẽ', source: 'bundled', en: 'window' }],
+      passages: [{ text: 'Rain "fell".', id: 'b' }, { id: 'a', text: 'Rain stopped.' }] };
+    expect(canonicalSwapBody(body)).toBe(bytes);
+    expect(canonicalSwapBody(JSON.parse(bytes))).toBe(bytes);
+    expect(canonicalSwapBody({ ...body, passages: [...body.passages].reverse() })).not.toBe(bytes);
+  });
+
+  test('canonical C1 JSON rejects undefined values', () => {
+    for (const value of [undefined, { words: undefined }, [undefined], Array(1)])
+      expect(() => canonicalSwapBody(value)).toThrow(TypeError);
+  });
 });
 
 describe('gemini', () => {
