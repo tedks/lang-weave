@@ -33,7 +33,7 @@ export function createStripeWebhook({
   ledger, endpointSecret, paymentLinkId, amountCents, packMicros, now = Date.now,
 }) {
   if (typeof endpointSecret !== 'string' || !endpointSecret || !stripeId(paymentLinkId, 'plink_') ||
-      !Number.isSafeInteger(amountCents) || amountCents <= 0 ||
+      !Number.isSafeInteger(amountCents) || !Number.isSafeInteger(amountCents * 10_000) || amountCents <= 0 ||
       !Number.isSafeInteger(packMicros) || packMicros <= 0) {
     throw new TypeError('Invalid Stripe webhook configuration');
   }
@@ -43,10 +43,18 @@ export function createStripeWebhook({
     const paid = isCheckout && object.mode === 'payment' && object.payment_status === 'paid';
     const paymentIntentId = stripeId(object.payment_intent, 'pi_');
     const checkoutSessionId = isCheckout ? stripeId(object.id, 'cs_') : null;
+    const customerId = isCheckout ? stripeId(object.customer, 'cus_') : null;
     return ledger.applyPaymentEvent(eventId, (tx) => {
+      if (!paymentIntentId) tx.recordDiagnostic(type, 'no_payment_intent');
+      if (checkoutSessionId && tx.attachCheckoutIds({ checkoutSessionId, paymentIntentId, customerId, packMicros })) {
+        return;
+      }
       if (!paymentIntentId) {
-        tx.recordDiagnostic(type, 'no_payment_intent');
-        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent');
+        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId);
+        return;
+      }
+      if (isCheckout && !checkoutSessionId) {
+        tx.recordDiagnostic(type, 'no_checkout_session');
         return;
       }
 
@@ -56,8 +64,8 @@ export function createStripeWebhook({
           object.currency === 'usd' && object.amount_total === amountCents;
         const reference = object.client_reference_id;
         tx.recordPayment({
-          ...payment, checkoutSessionId,
-          customerId: stripeId(object.customer, 'cus_'),
+          ...payment, checkoutSessionId, customerId,
+          paidMicros: paid && matchingPack ? amountCents * 10_000 : null,
           accountId: paid && matchingPack && typeof reference === 'string' && ACCOUNT_ID.test(reference)
             ? reference : null,
         });
@@ -74,15 +82,18 @@ export function createStripeWebhook({
         // Reversal is relative to the money actually paid.
         const captured = object.amount_captured ?? object.amount;
         const refunded = object.amount_refunded;
-        if (!Number.isSafeInteger(captured) || captured <= 0 ||
-            !Number.isSafeInteger(refunded) || refunded < 0) {
+        if (object.currency !== 'usd' || !Number.isSafeInteger(captured * 10_000) || captured <= 0 ||
+            !Number.isSafeInteger(refunded * 10_000) || refunded < 0 ||
+            !Number.isInteger(captured) || !Number.isInteger(refunded)) {
           tx.recordDiagnostic(type, 'invalid_refund_amount');
           return;
         }
-        tx.reverse(paymentIntentId, refundTarget(packMicros, captured, refunded));
+        tx.reverse(paymentIntentId, refundTarget(packMicros, captured, refunded), {
+          paidMicros: captured * 10_000, refundedMicros: refunded * 10_000,
+        });
       } else {
-        // recordPayment also freezes the account atomically when known,
-        // or defers the freeze until a validated Checkout identifies it.
+        // Only a granted payment can freeze an account. Refused and
+        // pending payments never credited it.
         tx.recordPayment({ ...payment, disputed: true });
         tx.reverse(paymentIntentId, packMicros);
       }
