@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { createHash, randomBytes } from 'node:crypto';
+import { finalizationOutcome, openFinalizationJournal } from './finalizations.js';
 import { activePriceRow, PRICE_ROWS, quotePriceRow, utcDay } from './pricing.js';
 
 export const ACCOUNT_DAILY_PROVIDER_MAX = 1_000_000;
@@ -185,6 +186,7 @@ export function createSqliteStorage(filename = ':memory:', {
     return readOnly ? run.deferred() : run.immediate();
   }
 
+  let finalizations;
   try {
     transaction(() => {
       db.exec(schema);
@@ -203,6 +205,7 @@ export function createSqliteStorage(filename = ':memory:', {
         if (Object.values(saved).some((value, i) => value !== values[i])) throw new Error('Immutable price row changed');
       }
     });
+    finalizations = openFinalizationJournal(filename);
   } catch (error) {
     db.close();
     throw error;
@@ -220,8 +223,10 @@ export function createSqliteStorage(filename = ':memory:', {
   sweep.unref();
   return {
     transaction,
+    finalizations,
     close() {
       clearInterval(sweep);
+      finalizations.close();
       db.close();
     },
   };
@@ -547,6 +552,13 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     if (result.alarm) onOverage({ reason: 'overage', reservationId: result.entry.reservationId });
     return result.entry;
   }
+  function finalize(id, outcome) {
+    const { receipt, sameOutcome } = storage.finalizations.stage(id, outcome);
+    const result = checkOverage(id, (tx, prior) => tryFinish(tx, prior, { ...finalizationOutcome(receipt), now: now() }));
+    storage.finalizations.acknowledge(receipt);
+    return result && { ...result, won: result.won && sameOutcome };
+  }
+
   return {
     createAccount(tokenHash, { digestForDay } = {}) {
       return transaction((tx) => {
@@ -667,7 +679,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         checkMicros(readerWorst);
         checkMicros(providerMax);
       }
-      return transaction((tx) => {
+      return storage.finalizations.withSnapshot((receipts) => transaction((tx) => {
         const at = now();
         if (tokenHash && !tx.get('SELECT 1 FROM accounts WHERE accountId = ? AND tokenHash = ?', accountId, tokenHash)) {
           return 'UNAUTHORIZED';
@@ -680,7 +692,8 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         if (tokenHash && !priceRequest) return 'NO_PRICE';
 
         const dayKey = utcDay(at);
-        if (tx.get('SELECT 1 FROM managed_stop WHERE singleton = 1')) return 'STOPPED';
+        if (tx.get('SELECT 1 FROM managed_stop WHERE singleton = 1') ||
+            receipts.some(({ reservationId }) => reservation(tx, reservationId)?.state === 'open')) return 'STOPPED';
         const quotedModel = model ?? tx.get('SELECT model FROM price_rows WHERE id = ?', priceRowId)?.model ?? null;
         const priceRow = currentPrice(tx, quotedModel, dayKey);
         if (priceRowId && priceRow?.id !== priceRowId) return 'STALE_PRICE';
@@ -717,22 +730,37 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
           accountId, keyHash, bodyHash, id);
         tx.run('UPDATE accounts SET reservedMicros = reservedMicros + ? WHERE accountId = ?', readerWorst, accountId);
         return priceRequest ? { kind: 'RESERVED', reservationId: id, priceRow, readerWorst } : id;
-      });
+      }));
     },
     settle(id, readerActual, providerActual, reason, { providerRequestId, providerRequestIds, usage = null } = {}) {
       checkMicros(readerActual);
-      return checkOverage(id, (tx, prior) => tryFinish(tx, prior, {
+      providerAmount(providerActual);
+      return finalize(id, {
         state: providerActual === null ? 'provisional' : 'settled',
-        readerActual, providerActual, reason, now: now(), providerRequestId, providerRequestIds, usage,
-      }));
+        readerActual, providerActual, reason, providerRequestId, providerRequestIds, usage,
+      });
     },
     release(id, { providerRequestId, providerRequestIds, reason = 'release' } = {}) {
-      return transaction((tx) => tryFinish(tx, reservation(tx, id), {
-        state: 'released', readerActual: 0, providerActual: 0, reason, now: now(), providerRequestId, providerRequestIds,
-      }));
+      return finalize(id, {
+        state: 'released', readerActual: 0, providerActual: 0, reason, providerRequestId, providerRequestIds,
+      });
     },
     expireStale(at = now()) {
-      return transaction((tx) => expireStale(tx, at));
+      const recovered = [];
+      const expired = storage.finalizations.withSnapshot((receipts) => transaction((tx) => {
+        for (const receipt of receipts) {
+          const { reservationId } = receipt;
+          const prior = reservation(tx, reservationId);
+          const entry = finish(tx, prior, { ...finalizationOutcome(receipt), now: at });
+          recovered.push({ receipt, alarm: !!entry?.overage && !prior?.overage });
+        }
+        return expireStale(tx, at);
+      }));
+      for (const { receipt, alarm } of recovered) {
+        storage.finalizations.acknowledge(receipt);
+        if (alarm) onOverage({ reason: 'overage', reservationId: receipt.reservationId });
+      }
+      return expired;
     },
     // Direct reconciliation is for an attributable response to this request.
     reconcile(id, providerActual, details) {

@@ -9,6 +9,7 @@ import { MAX_RETRY_MS } from '../../extension/src/quota-status.js';
 import { buildSwapRequest, canonicalSwapBody } from '../../extension/src/swap-request.js';
 import { wordsForLevel } from '../../extension/src/vocabulary.js';
 import { validPackForm } from '../../extension/src/word-form.js';
+import { isSqliteBusy } from './finalizations.js';
 import { IDEMPOTENCY_MS, newToken, sha256 } from './ledger.js';
 import { actualFromPriceRow, createPricing, serializedRequestBytes } from './pricing.js';
 import { bodyTooLarge, hasJsonMediaType, readBoundedBytes } from './request-body.js';
@@ -71,6 +72,26 @@ function validateSwap(input) {
   const listedForms = new Set(words.map((word) => word.fr));
   if (shownToday.some((form) => !listedForms.has(form))) return null;
   return { level, language, density, unknownLimit: gradual, words: promptWords, shownToday, batch: passages };
+}
+
+const MAX_CANONICAL_DEPTH = 32;
+
+function withinCanonicalDepth(value, depth = 0) {
+  if (value === null || typeof value !== 'object') return true;
+  return depth < MAX_CANONICAL_DEPTH && Object.values(value).every((child) => withinCanonicalDepth(child, depth + 1));
+}
+
+async function retryLedgerWrite(operation) {
+  const delays = [20, 40, 80, 160];
+  for (const delay of delays) {
+    try {
+      return operation();
+    } catch (error) {
+      if (!isSqliteBusy(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  return operation();
 }
 
 function aheadOfCurrent(version) {
@@ -226,7 +247,7 @@ export function createApi({
     if (!accountId) return failure(401, 'managed_unauthorized');
     const input = json.value;
     const key = request.headers.get('idempotency-key');
-    if (input === undefined || !key || !/^[a-fA-F0-9]{32}$/.test(key)) return failure(400);
+    if (input === undefined || !key || !/^[a-fA-F0-9]{32}$/.test(key) || !withinCanonicalDepth(input)) return failure(400);
 
     const keyHash = sha256(key);
     const bodyHash = sha256(canonicalSwapBody(input));
@@ -268,20 +289,16 @@ export function createApi({
     let pendingLate = null;
     function reconcileLate(outcome) {
       const cost = isHttpError(outcome) ? 0 : meter(priceRow, outcome, bytes, readerWorst).provider;
-      ledger.reconcile(id, cost, {
+      return retryLedgerWrite(() => ledger.reconcile(id, cost, {
         providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, usage: outcome.usage,
-      });
+      }));
     }
     function receiveLate(outcome) {
       if (!firstFinished) {
         pendingLate = outcome;
         return;
       }
-      try {
-        reconcileLate(outcome);
-      } catch {
-        alert({ reason: 'reconcile_failed', reservationId: id });
-      }
+      void reconcileLate(outcome).catch(() => alert({ reason: 'reconcile_failed', reservationId: id }));
     }
 
     let outcome;
@@ -296,11 +313,11 @@ export function createApi({
     try {
       if (isHttpError(outcome)) {
         const category = outcome.status === 429 ? 'rate_limit' : outcome.status === 503 ? 'overloaded' : 'request_failed';
-        winner = ledger.release(id, {
+        winner = await retryLedgerWrite(() => ledger.release(id, {
           providerRequestId: outcome.providerRequestId, providerRequestIds: outcome.providerRequestIds, reason: category,
-        });
+        }));
         if (!winner.won) {
-          reconcileLate(outcome);
+          await reconcileLate(outcome);
           return replay(id, winner.costMicros > 0);
         }
         const retryAfterMs = outcome.retryAfterMs;
@@ -309,9 +326,9 @@ export function createApi({
         response = failure(outcome.status === 429 || outcome.status === 503 ? outcome.status : 502, category, extras);
       } else {
         const charge = meter(priceRow, outcome, bytes, readerWorst);
-        winner = ledger.settle(id, charge.reader, charge.provider, charge.reason, charge.details);
+        winner = await retryLedgerWrite(() => ledger.settle(id, charge.reader, charge.provider, charge.reason, charge.details));
         if (!winner.won) {
-          reconcileLate(outcome);
+          await reconcileLate(outcome);
           return replay(id, winner.costMicros > 0);
         }
         if (charge.alert) alert({ reason: charge.alert, reservationId: id });

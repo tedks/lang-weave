@@ -4,6 +4,7 @@ globalThis.onmessage = ({ data: { filename, at, id, priceRowId, keyHash, bodyHas
   const storage = createSqliteStorage(filename);
   const latch = new Int32Array(started);
   const ledger = createLedger({
+    ...storage,
     transaction(operation) {
       return storage.transaction((tx) => {
         const result = operation(tx);
