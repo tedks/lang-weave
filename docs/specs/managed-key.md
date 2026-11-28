@@ -152,8 +152,10 @@ for byte.
   `RESPONSE_SCHEMA`. A golden test requires the proxy-built body to equal the BYOK body for the same
   inputs, and the module closure must load with no `chrome` global. The proxy then sets
   `generationConfig.maxOutputTokens`. **Size cap: the same measure and the same limit the
-  extension already uses**, `requestChars` (`adaptive.js:40-47`, the length of the serialized
-  body) at most `MAX_REQUEST_CHARS` = 25,000 (`adaptive.js:10`); `requestChars` counts UTF-16 code
+  extension already uses**: the length of `JSON.stringify(buildSwapRequest(inputs))`, measured
+  by both E1 and the proxy on the same structured inputs **before** the proxy adds
+  `maxOutputTokens` (the same quantity `requestChars`, `adaptive.js:40-47`, measures for the
+  gradual path), at most `MAX_REQUEST_CHARS` = 25,000 (`adaptive.js:10`); `requestChars` counts UTF-16 code
   units, each at most 3 UTF-8 bytes, so the UTF-8 body is at most 75,000 bytes; the cost bounds
   use 100,000 as a deliberately loose upper figure, and no validator should be tightened to it. Over the cap → `400 request_failed` with `"tooLarge": "passages"` when the batch has more
   than one passage, or `"tooLarge": "words"` when a single passage is still over. E1 checks the
@@ -244,8 +246,11 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   accounting are independent**: the reader is always charged the 6.3 table's reader amount for
   the outcome, capped at `readerWorst`, whatever the provider state. For an **unknown-cost
   outcome** (6.3) the provider side moves to state `provisional`: the full `providerMax` stays
-  counted for the day and waits for reconciliation. A provisional hold that is never reconciled
-  stays counted for its own day only; the next UTC day starts with no holds from earlier days.
+  counted for the day and waits for reconciliation. A provisional row and its hold stay on their original
+  `dayKey` until an attributable reconciliation, however long that takes, so a late response can
+  still reconcile and still raise the overage alarm, and a clock correction cannot reopen that
+  day's admission against an understated total. Admission on a later day sums only that day's
+  rows, so old holds never block new days.
 - `reconcile(reservationId, providerActual)` — once, for a `provisional` row, and only when the
   cost can be attributed to **that** reservation: a late response for its own request, or a
   provider usage-export row matched by its request id. It replaces the provisional `providerMax`
@@ -262,7 +267,8 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   disputed, the account is frozen at that moment.
 - `grant(paymentIntentId)` — from `pending` only: adds `packMicros - reversalTarget` and moves to
   `granted`, if the payment is not disputed, the account exists and is not frozen, and the
-  account's balance is below one pack (so an account holds at most two packs' credit at once).
+  account's balance is below one pack (so normal grants never leave an account holding more
+  than two packs' credit; a `transfer` can).
   Otherwise it moves to `refused`, recorded as an orphan for the operator to refund. From
   `granted` or `refused` it is a no-op, so a second payment notification never turns a
   successful purchase into an orphan.
@@ -300,7 +306,8 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
 - Every outcome carries `providerRequestId` when the route supplies one (for example a response
   id or request-id header); E2 stores it on the reservation so `reconcile` can match a provider
   usage-export row to it. `no_response` usually has none; such a hold is reconciled only by a
-  late response or not at all, and is then released with its day (C2).
+  late response or never; it then stays held on its original day (C2), which does not affect
+  later days' admission.
 - `{kind: "ok", text, finishReason, blockReason, usage}`: HTTP 200. `finishReason` from the first
   candidate (or `null` when there is none); `blockReason` from `promptFeedback.blockReason` (or
   `null`); `usage` from `usageMetadata` (`promptTokenCount`, `candidatesTokenCount`,
@@ -357,7 +364,7 @@ order and any number of times.
 Disputes can arrive weeks after purchase, so freezing does not stop disputes on packs already
 spent. The commercial bound is therefore **per disputed pack**: at most its price plus the $15
 dispute fee. It is not a per-account or per-day bound. What limits the rate is that an account
-holds at most two packs' credit at once and spends at most `ACCOUNT_DAILY_PROVIDER_MAX` of
+acquires at most two packs' credit through normal grants and spends at most `ACCOUNT_DAILY_PROVIDER_MAX` of
 provider cost a day, and Stripe Radar sees a repeated card.
 
 ### C5 — Pricing (owner E6; consumer E2)
@@ -467,7 +474,8 @@ the ceiling anything that might be. Row 3, and rows 5, 7 and 8 without `usage`, 
 billed, because charging zero would let a retry loop spend without limit. The per-call worst case
 is about seven cents to the reader at the 2× markup (section 10.4), and about two cents for a
 typical request, whose reservation is computed from its own size. In managed mode E1 makes no
-automatic retries (C1), the per-account limit of one open reservation stops parallel retries, the
+automatic retries (C1) apart from the single resend with a fresh key after `422 keyReuse`, which
+cannot double-charge because the rejected request made no reservation or provider call; the per-account limit of one open reservation stops parallel retries, the
 local daily call cap still applies, and the ledger shows the reason.
 
 ### 6.4 Bearer token, no email held by Lang Weave
@@ -496,7 +504,7 @@ card details under Stripe's own terms.
 | Proxy used as a cheap general LLM, or read by Google as resold API access | Content-policy and contract exposure for the operator | Server-built prompt; only passages and validated word forms are free input; fixed schema, model allowlist, size caps, output cap, prepaid only | Instructions inside passage text can still steer string fields. Bounded by balance and the cap, and the same as any reading app. |
 | One project's provider quota and spend cap | All managed readers pause together; on AI Studio Tier 1 the billing account pauses at $250 a month | Global daily ceiling well under the tier cap; one project, honest quota-increase requests (splitting projects to multiply quota is circumvention under both contracts) | A busy day returns `managed_unavailable` to everyone |
 | Card testing on the Payment Link | Stripe fees, disputes | Stripe Radar defaults; one fixed-price pack; no free credit | Dispute fees per incident |
-| Chargeback after spending | Loss of up to one pack plus the $15 fee, per disputed pack | At most two packs held at once; per-account daily cap; freeze on dispute | Accepted |
+| Chargeback after spending | Loss of up to one pack plus the $15 fee, per disputed pack | Normal grants never leave more than two packs held; per-account daily cap; freeze on dispute | Accepted |
 | Sybil accounts | Ledger rows | Accounts start at zero; per-IP rate limit on creation | Harmless rows; periodic deletion of zero-balance accounts older than 30 days |
 | Prompt injection from page text | Bad swaps | Response schema plus existing client validation (`validateSwaps`) | Unchanged from BYOK |
 | Replay or reordering of Stripe events | Double credit, or credit after a refund | Event-id deduplication in the same transaction as the ledger change; one grant per `payment_intent`; monotonic reversal target | None known |
