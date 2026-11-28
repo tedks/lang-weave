@@ -41,11 +41,14 @@ export function createProvider({ baseUrl, credential, fetchImpl, now = Date.now 
         timer = setTimeout(() => {
           timedOut = true;
           resolve({ ...sentWithoutResponse(), providerRequestId });
+          // Ordinary fetch stops reading on abort. A transport that can still
+          // report a completed response uses the reservation's late callback.
           controller.abort();
         }, timeoutMs);
       });
 
       async function send() {
+        let receivedHeaders = false;
         try {
           const response = await fetchImpl(`${base.href}${encodeURIComponent(model)}:generateContent`, {
             method: 'POST',
@@ -54,6 +57,7 @@ export function createProvider({ baseUrl, credential, fetchImpl, now = Date.now 
             signal: controller.signal,
             redirect: 'manual',
           });
+          receivedHeaders = true;
           providerRequestId = safeRequestId(response.headers.get('x-request-id')) ?? undefined;
           if (response.status !== 200) {
             // An HTTP status is enough to classify the charge. Provider error
@@ -86,7 +90,7 @@ export function createProvider({ baseUrl, credential, fetchImpl, now = Date.now 
             providerRequestId: safeRequestId(data?.responseId) ?? providerRequestId,
           };
         } catch (error) {
-          if (error?.sent === false && !providerRequestId) return failedBeforeSend();
+          if (error?.sent === false && !receivedHeaders) return failedBeforeSend();
           return { ...sentWithoutResponse(), providerRequestId };
         }
       }

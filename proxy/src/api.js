@@ -10,9 +10,8 @@ import { buildSwapRequest, canonicalSwapBody } from '../../extension/src/swap-re
 import { wordsForLevel } from '../../extension/src/vocabulary.js';
 import { validPackForm } from '../../extension/src/word-form.js';
 import { IDEMPOTENCY_MS, newToken, sha256 } from './ledger.js';
-import { createPricing, serializedRequestBytes } from './pricing.js';
-
-import { bodyTooLarge, readBoundedBytes } from './request-body.js';
+import { actualFromPriceRow, createPricing, serializedRequestBytes } from './pricing.js';
+import { bodyTooLarge, hasJsonMediaType, readBoundedBytes } from './request-body.js';
 
 export { MAX_INBOUND_BYTES } from './request-body.js';
 export const PROMPT_VERSION = '0.16';
@@ -85,8 +84,7 @@ function aheadOfCurrent(version) {
 async function readJson(request) {
   const raw = await readBoundedBytes(request);
   if (raw.tooLarge) return raw;
-  const mime = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
-  if (mime !== 'application/json' || !raw.bytes?.length) return {};
+  if (!hasJsonMediaType(request) || !raw.bytes?.length) return {};
   try {
     return { value: JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw.bytes)) };
   } catch {
@@ -120,7 +118,7 @@ function safeProviderText(text, passages) {
   return JSON.stringify(projectSchema(RESPONSE_SCHEMA, data));
 }
 
-function meter(pricing, priceRowId, outcome, bytes, readerWorst) {
+function meter(priceRow, outcome, bytes, readerWorst) {
   const details = { providerRequestId: outcome.providerRequestId, usage: outcome.usage };
   const provisional = (reader, reason, status, error = {}) =>
     ({ reader, provider: null, reason, status, error, details });
@@ -131,9 +129,9 @@ function meter(pricing, priceRowId, outcome, bytes, readerWorst) {
 
   const { finishReason, usage } = outcome;
   if (finishReason === 'SAFETY') {
-    if (!usage) return provisional(pricing.actual(priceRowId, { usage: { promptTokenCount: bytes } }).readerMicros, 'safety', 502, blocked);
+    if (!usage) return provisional(actualFromPriceRow(priceRow, { usage: { promptTokenCount: bytes } }, readerWorst).readerMicros, 'safety', 502, blocked);
     const inputOnly = { usage: { promptTokenCount: usage.promptTokenCount } };
-    const cost = pricing.actual(priceRowId, inputOnly);
+    const cost = actualFromPriceRow(priceRow, inputOnly, readerWorst);
     return { reader: cost.readerMicros, provider: cost.providerMicros, reason: 'safety', status: 502,
       error: blocked, details };
   }
@@ -142,7 +140,7 @@ function meter(pricing, priceRowId, outcome, bytes, readerWorst) {
   }
 
   const truncated = finishReason === 'MAX_TOKENS';
-  const actual = usage ? pricing.actual(priceRowId, outcome) : null;
+  const actual = usage ? actualFromPriceRow(priceRow, outcome, readerWorst) : null;
   return {
     reader: actual?.readerMicros ?? readerWorst,
     provider: actual?.providerMicros ?? null,
@@ -225,19 +223,21 @@ export function createApi({
     const accountId = tokenHash && ledger.authenticate(tokenHash);
     if (!accountId) return failure(401, 'managed_unauthorized');
     const input = json.value;
-    if (!record(input)) return failure(400);
-    if (input.promptVersion !== PROMPT_VERSION) {
-      return failure(409, 'managed_update_required', { ahead: aheadOfCurrent(input.promptVersion) });
-    }
     const key = request.headers.get('idempotency-key');
-    const args = validateSwap(input);
-    if (!key || !/^[a-fA-F0-9]{32}$/.test(key) || !args) return failure(400);
+    if (input === undefined || !key || !/^[a-fA-F0-9]{32}$/.test(key)) return failure(400);
 
     const keyHash = sha256(key);
     const bodyHash = sha256(canonicalSwapBody(input));
     ledger.expireStale();
     const prior = ledger.lookupClaim(accountId, keyHash, bodyHash);
     if (prior) return claimResponse(prior);
+
+    if (!record(input)) return failure(400);
+    if (input.promptVersion !== PROMPT_VERSION) {
+      return failure(409, 'managed_update_required', { ahead: aheadOfCurrent(input.promptVersion) });
+    }
+    const args = validateSwap(input);
+    if (!args) return failure(400);
 
     const built = buildSwapRequest(args);
     if (JSON.stringify(built).length > MAX_REQUEST_CHARS) {
@@ -248,28 +248,25 @@ export function createApi({
     const bytes = serializedRequestBytes(JSON.stringify(built));
     const model = input.model;
 
-    function admit(quote) {
-      if (quote === 'NO_PRICE') return quote;
-      const max = quote.providerMicros + pricing.maxPerCallOverage(quote.priceRowId, MAX_OUTPUT_TOKENS);
-      return ledger.reserve(accountId, quote.readerMicros, max, quote.priceRowId, ceilingMicros,
-        keyHash, bodyHash, { model, tokenHash });
+    function admit(priceRowId) {
+      return ledger.reserve(accountId, null, null, priceRowId, ceilingMicros, keyHash, bodyHash, {
+        model, tokenHash, requestBytes: bytes, maxOutputTokens: MAX_OUTPUT_TOKENS,
+      });
     }
 
-    let quote = pricing.worst(model, bytes, MAX_OUTPUT_TOKENS, now());
-    let id = admit(quote);
-    if (id === 'STALE_PRICE') {
-      quote = pricing.quoteRow(ledger.getActivePriceRow(model), bytes, MAX_OUTPUT_TOKENS);
-      id = admit(quote);
+    let admission = admit(pricing.priceRowHint(model, now())?.id ?? null);
+    if (admission === 'STALE_PRICE') {
+      admission = admit(ledger.getActivePriceRow(model)?.id ?? null);
     }
-    if (typeof id === 'object') return claimResponse(id);
-    if (Object.hasOwn(ledgerFailure, id)) return ledgerFailure[id];
+    if (typeof admission === 'string') return ledgerFailure[admission];
+    if (admission.kind !== 'RESERVED') return claimResponse(admission);
 
-    const { priceRowId, readerMicros } = quote;
+    const { reservationId: id, priceRow, readerWorst } = admission;
     let firstFinished = false;
     let pendingLate = null;
     function reconcileLate(outcome) {
-      const cost = isHttpError(outcome) ? 0 : meter(pricing, priceRowId, outcome, bytes, readerMicros).provider;
-      ledger.reconcile(id, cost, { providerRequestId: outcome.providerRequestId });
+      const cost = isHttpError(outcome) ? 0 : meter(priceRow, outcome, bytes, readerWorst).provider;
+      ledger.reconcile(id, cost, { providerRequestId: outcome.providerRequestId, usage: outcome.usage });
     }
     function receiveLate(outcome) {
       if (!firstFinished) {
@@ -296,7 +293,7 @@ export function createApi({
       if (isHttpError(outcome)) {
         const category = outcome.status === 429 ? 'rate_limit' : outcome.status === 503 ? 'overloaded' : 'request_failed';
         winner = ledger.release(id, { providerRequestId: outcome.providerRequestId, reason: category });
-        if (winner.state !== 'released') {
+        if (!winner.won) {
           reconcileLate(outcome);
           return replay(id, winner.costMicros > 0);
         }
@@ -305,10 +302,9 @@ export function createApi({
           ? { retryAfterMs } : undefined;
         response = failure(outcome.status === 429 || outcome.status === 503 ? outcome.status : 502, category, extras);
       } else {
-        const charge = meter(pricing, priceRowId, outcome, bytes, readerMicros);
-        const state = charge.provider === null ? 'provisional' : 'settled';
+        const charge = meter(priceRow, outcome, bytes, readerWorst);
         winner = ledger.settle(id, charge.reader, charge.provider, charge.reason, charge.details);
-        if (winner.reason !== charge.reason || winner.state !== state) {
+        if (!winner.won) {
           reconcileLate(outcome);
           return replay(id, winner.costMicros > 0);
         }

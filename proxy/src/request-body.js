@@ -1,5 +1,9 @@
 export const MAX_INBOUND_BYTES = 192 * 1024;
 
+export function hasJsonMediaType(request) {
+  return request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() === 'application/json';
+}
+
 export async function readBoundedBytes(request) {
   if (Number(request.headers.get('content-length')) > MAX_INBOUND_BYTES) return { tooLarge: true };
   if (!request.body) return { bytes: Buffer.alloc(0) };
