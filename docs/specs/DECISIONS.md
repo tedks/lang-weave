@@ -262,7 +262,7 @@ After yes, in two parts around D8:
    locally signed fixture, spec C4);
    (c) a harmless signed **live** delivery before activation: the lead temporarily adds an
    unhandled event type (for example `product.updated`) to the live endpoint, edits the
-   product's description, confirms the proxy logged "verified, unhandled" and changed no
+   product's description, confirms the proxy logged the diagnostic `verified_unhandled` and changed no
    ledger row, then removes that event type.
    D10 activates the link only after (a), (b) and (c) pass. If the tester's purchase still is not
    credited within one hour, the lead checks Stripe's delivery log, fixes and replays the event,

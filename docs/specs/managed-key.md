@@ -245,8 +245,11 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   global **stop latch** is clear, the price row `priceRowId` that E2 priced the call with is
   the **active** row for the call's model and that `dayKey` in the authoritative table (so a
   proxy instance holding a superseded row cannot admit with it; a quoted row that is no longer
-  active returns `STALE_PRICE`, on which E2 prices once more and calls `reserve` again, and
-  answers `503 managed_unavailable` only if the second attempt also fails) and in date (at most 30 days
+  active returns `STALE_PRICE` and, like every refusal, claims no key and writes nothing; E2 then
+  prices once more from the authoritative active row and calls `reserve` again, and maps that
+  second result exactly as usual (`BALANCE` → 402, `DUPLICATE` / `KEY_REUSE` / `BUSY` → C1's
+  repeat answers, and so on), using `503 managed_unavailable` only for a second `STALE_PRICE`,
+  `NO_PRICE` or `STOPPED`) and in date (at most 30 days
   after its `checkedOn`) (superseded rows stay readable for `actual` at settlement; the table is read in the same transaction, so a row that expires
   between pricing and reservation, including across UTC midnight, is caught here), and, while
   `ENROLLMENT=allowlist`, the account is on `ENROLLED_ACCOUNTS` (a ledger table the operator
@@ -289,7 +292,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   dispute event freezes the account for this payment; later dispute events for it (a late
   `created` after a `lost` close, a retry) never freeze again, so an operator's unfreeze
   sticks. Tests cover lost-close → operator unfreeze → late `created`.
-  Stripe amounts are integer cents and are converted to micros (×10,000) on the way in.
+  Stripe amounts are integer cents and are converted to micros (×10,000) on the way in, for
+  `usd` only; a record whose first object is in another currency keeps minor units
+  (LW-STORE-MK-05).
   `packMicros` comes from v0's single Payment Link's pack-table entry, so a record created by a
   `charge.refunded` or dispute event before any Checkout event (whose Charge carries no
   payment-link reference) still has it.
@@ -368,6 +373,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   checks, and afterwards changes only through `transfer`; a later Checkout notification carrying
   the original account id does not move it back. `grant`'s one-pack rule does not apply to a
   transfer, which may leave `to` holding more than two packs. Unique per `ref`.
+- `markOrphanSettled(paymentIntentId | checkoutSessionId, ref)` — operator, unique per `ref`:
+  records that the operator has confirmed in Stripe that nothing more is owed on an orphan.
+  Advisory only; moves no credit (LW-STORE-MK-05 uses it for `manual` orphans).
 - `revokeToken(tokenHash)` and `rotateToken(accountId) → newToken` — take effect for the next
   reservation; an open reservation settles normally.
 - `expireStale(now)` — a reservation open longer than 5 minutes (well past the provider timeout)
@@ -949,5 +957,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   and `refundedMinor` / `disputeLostMinor` for its later events), with `paidMicros` null. Those
   amounts are never converted into USD micros and never credit. Its derived orphan status is
   `manual`: it stays in the refund queue until the operator, having checked Stripe, marks it
-  settled (advisory only, like every orphan status). USD records are unchanged. A fixture covers
-  a EUR paid session becoming a `manual` orphan, then a partial refund kept in minor units.
+  settled with `markOrphanSettled(paymentIntentId | checkoutSessionId, ref)` (C2 operator
+  operation, unique per `ref`, advisory only, no credit movement). The currency rule applies at
+  **intake**, whichever object arrives first: a `charge.refunded` or dispute event that creates
+  the record before Checkout keys on the Charge's own `currency` and, if it is not `usd`, keeps
+  minor units (never cents ×10,000), and `linkOrphan` for a session-keyed non-USD orphan sets
+  `paidMinor`, not `paidMicros`. USD records are unchanged. Fixtures cover a EUR paid session
+  becoming a `manual` orphan then a partial refund kept in minor units, and a refund-first
+  sequence (JPY, zero-decimal) ending in a `manual` orphan with `paidMicros` null.
