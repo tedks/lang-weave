@@ -877,7 +877,9 @@ automatic refunds, token recovery, Firefox.
   Google's retention on the route read for the disclosure; and a **verified paired backup and
   restore** of the ledger and its finalization journal (taken together under the proxy's write
   lock or with the proxy stopped; restoring either alone can lose staged but unapplied receipts,
-  LW-STORE-MK-07). Any `overage` alarm in M1 or later
+  LW-STORE-MK-07), where a restored deployment starts with the stop latch set and the operator
+  clears it only after reconciling everything since the backup point (provider usage, Stripe
+  events, reservations) into the ledger. Any `overage` alarm in M1 or later
   (a call costing more than its `providerMax`) stops managed calls until C5 is corrected.
 - **M3 (needs Ted):** first paid pack sold to one consenting tester, with the ceiling at a few
   dollars.
@@ -995,5 +997,9 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   missing, foreign, replaced or regressed journal, but it cannot detect a same-generation
   journal restored from a backup taken before later receipts were staged, so restoring either
   file alone is unsupported. A verified paired restore is an M2 stop condition (section 12).
-  In M1 the only evidence such a restore could lose is an overage, which already presupposes
-  that C5's `providerMax` is wrong, itself an M2 stop condition.
+  Even a consistent paired restore rolls the ledger back to the backup point, which could
+  reopen a day's spend that was already used, so **any restore sets the stop latch**, and
+  `clearStop` follows only the operator's reconciliation of provider usage, Stripe events and
+  reservations since that point. In M1 a rollback can lose stub outcomes and their accounting,
+  but M1 has no live financial exposure; the paired restore with its latch is an M2 stop
+  condition before paid traffic.
