@@ -247,9 +247,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   proxy instance holding a superseded row cannot admit with it; a quoted row that is no longer
   active returns `STALE_PRICE` and, like every refusal, claims no key and writes nothing; E2 then
   prices once more from the authoritative active row and calls `reserve` again, and maps that
-  second result exactly as usual (`BALANCE` → 402, `DUPLICATE` / `KEY_REUSE` / `BUSY` → C1's
-  repeat answers, and so on), using `503 managed_unavailable` only for a second `STALE_PRICE`,
-  `NO_PRICE` or `STOPPED`) and in date (at most 30 days
+  second result exactly as usual under C1 (`BALANCE` → 402, `CEILING` and `STOPPED` → 503,
+  `DUPLICATE` / `KEY_REUSE` / `BUSY` → C1's repeat answers, and so on), adding only that a second
+  `STALE_PRICE` or a `NO_PRICE` also becomes `503 managed_unavailable`) and in date (at most 30 days
   after its `checkedOn`) (superseded rows stay readable for `actual` at settlement; the table is read in the same transaction, so a row that expires
   between pricing and reservation, including across UTC midnight, is caught here), and, while
   `ENROLLMENT=allowlist`, the account is on `ENROLLED_ACCOUNTS` (a ledger table the operator
@@ -373,9 +373,11 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   checks, and afterwards changes only through `transfer`; a later Checkout notification carrying
   the original account id does not move it back. `grant`'s one-pack rule does not apply to a
   transfer, which may leave `to` holding more than two packs. Unique per `ref`.
-- `markOrphanSettled(paymentIntentId | checkoutSessionId, ref)` — operator, unique per `ref`:
-  records that the operator has confirmed in Stripe that nothing more is owed on an orphan.
-  Advisory only; moves no credit (LW-STORE-MK-05 uses it for `manual` orphans).
+- `markOrphanSettled(paymentIntentId | checkoutSessionId, ref)` — operator, unique per `ref`,
+  for **`manual` orphans only** (LW-STORE-MK-05); refused for a USD orphan, whose status stays
+  derived. Records that the operator has confirmed in Stripe that nothing more is owed.
+  Advisory only; moves no credit. `linkOrphan` keeps the marker when it merges a session-keyed
+  orphan into its PaymentIntent record.
 - `revokeToken(tokenHash)` and `rotateToken(accountId) → newToken` — take effect for the next
   reservation; an open reservation settles normally.
 - `expireStale(now)` — a reservation open longer than 5 minutes (well past the provider timeout)
@@ -960,8 +962,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   settled with `markOrphanSettled(paymentIntentId | checkoutSessionId, ref)` (C2 operator
   operation, unique per `ref`, advisory only, no credit movement). The currency rule applies at
   **intake**, whichever object arrives first: a `charge.refunded` or dispute event that creates
-  the record before Checkout keys on the Charge's own `currency` and, if it is not `usd`, keeps
-  minor units (never cents ×10,000), and `linkOrphan` for a session-keyed non-USD orphan sets
+  the record before Checkout keys on its own object's `currency` (a `charge.refunded` on the
+  Charge's `currency`, `charge.dispute.created` / `.closed` on the Dispute's `currency` and
+  `amount`, a Checkout event on the session's `currency`) and, if it is not `usd`, keeps minor
+  units (never cents ×10,000), and `linkOrphan` for a session-keyed non-USD orphan sets
   `paidMinor`, not `paidMicros`. USD records are unchanged. Fixtures cover a EUR paid session
-  becoming a `manual` orphan then a partial refund kept in minor units, and a refund-first
-  sequence (JPY, zero-decimal) ending in a `manual` orphan with `paidMicros` null.
+  becoming a `manual` orphan then a partial refund kept in minor units, a refund-first
+  sequence (JPY, zero-decimal) ending in a `manual` orphan with `paidMicros` null, and a
+  dispute-first non-USD sequence whose loss stays in minor units (`disputeLostMinor`).
