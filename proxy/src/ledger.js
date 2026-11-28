@@ -117,7 +117,9 @@ const schema = `
     paidCurrency TEXT,
     paidMinor INTEGER,
     refundedMicros INTEGER NOT NULL DEFAULT 0,
-    refundCapturedMicros INTEGER CHECK (refundCapturedMicros > 0),
+    uncapturedRefundMicros INTEGER NOT NULL DEFAULT 0,
+    pairedRefundedMicros INTEGER NOT NULL DEFAULT 0,
+    grantDeferred INTEGER NOT NULL DEFAULT 0 CHECK (grantDeferred IN (0, 1)),
     refundedMinor INTEGER NOT NULL DEFAULT 0,
     disputeLostMicros INTEGER NOT NULL DEFAULT 0,
     disputeLostMinor INTEGER NOT NULL DEFAULT 0,
@@ -290,25 +292,28 @@ function freeze(tx, id, reason) {
 function recordPayment(tx, {
   paymentIntentId, packMicros, checkoutSessionId = null, accountId = null, dispute = 'none',
   paidCurrency = null, paidMicros = null, paidMinor = null, fromCheckout = false,
-  refundedMicros = 0, refundedMinor = 0, refundCapturedMicros = null, disputeLostMicros = 0, disputeLostMinor = 0,
-}) {
+  refundedMicros = 0, refundedMinor = 0, uncapturedRefundMicros = 0, pairedRefundedMicros = 0,
+  disputeLostMicros = 0, disputeLostMinor = 0,
+}, eventId = null) {
   checkMicros(packMicros, 1);
-  for (const amount of [paidMicros, paidMinor, refundedMicros, refundedMinor, disputeLostMicros, disputeLostMinor]) {
+  for (const amount of [paidMicros, paidMinor, refundedMicros, refundedMinor, uncapturedRefundMicros, pairedRefundedMicros,
+    disputeLostMicros, disputeLostMinor]) {
     if (amount !== null) checkMicros(amount);
   }
-  if (refundCapturedMicros !== null) checkMicros(refundCapturedMicros, 1);
   const prior = payment(tx, paymentIntentId);
   const currencyMatches = !prior?.paidCurrency || !paidCurrency || prior.paidCurrency === paidCurrency;
   if (!currencyMatches) {
     dispute = 'none';
-    paidMicros = paidMinor = refundCapturedMicros = null;
+    paidMicros = paidMinor = null;
+    uncapturedRefundMicros = pairedRefundedMicros = 0;
     refundedMicros = refundedMinor = disputeLostMicros = disputeLostMinor = 0;
   }
   const paid = fromCheckout && currencyMatches;
   tx.run(`
     INSERT INTO payments (paymentIntentId, packMicros, checkoutSessionId, accountId, dispute, paidCurrency,
-      paidMicros, paidMinor, refundedMicros, refundedMinor, refundCapturedMicros, disputeLostMicros, disputeLostMinor)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      paidMicros, paidMinor, refundedMicros, refundedMinor, uncapturedRefundMicros, pairedRefundedMicros,
+      disputeLostMicros, disputeLostMinor)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (paymentIntentId) DO UPDATE SET
       checkoutSessionId = COALESCE(payments.checkoutSessionId, excluded.checkoutSessionId),
       accountId = COALESCE(payments.accountId, excluded.accountId),
@@ -323,18 +328,26 @@ function recordPayment(tx, {
         ELSE COALESCE(payments.paidMinor, excluded.paidMinor) END,
       refundedMicros = MAX(payments.refundedMicros, excluded.refundedMicros),
       refundedMinor = MAX(payments.refundedMinor, excluded.refundedMinor),
-      refundCapturedMicros = CASE
-        WHEN excluded.refundCapturedMicros IS NULL THEN payments.refundCapturedMicros
-        ELSE MAX(COALESCE(payments.refundCapturedMicros, 0), excluded.refundCapturedMicros)
-      END,
+      uncapturedRefundMicros = MAX(payments.uncapturedRefundMicros, excluded.uncapturedRefundMicros),
+      pairedRefundedMicros = MAX(payments.pairedRefundedMicros, excluded.pairedRefundedMicros),
       disputeLostMicros = CASE WHEN payments.dispute = 'won' THEN payments.disputeLostMicros
         ELSE MAX(payments.disputeLostMicros, excluded.disputeLostMicros) END,
       disputeLostMinor = CASE WHEN payments.dispute = 'won' THEN payments.disputeLostMinor
         ELSE MAX(payments.disputeLostMinor, excluded.disputeLostMinor) END
   `, paymentIntentId, packMicros, checkoutSessionId, accountId, dispute, paidCurrency,
-  paidMicros, paidMinor, refundedMicros, refundedMinor, refundCapturedMicros, disputeLostMicros, disputeLostMinor, Number(paid), Number(paid));
+  paidMicros, paidMinor, refundedMicros, refundedMinor, uncapturedRefundMicros, pairedRefundedMicros,
+  disputeLostMicros, disputeLostMinor, Number(paid), Number(paid));
 
-  const entry = payment(tx, paymentIntentId);
+  let entry = payment(tx, paymentIntentId);
+  // Missing captures are paired only with this payment's known Checkout
+  // amount. Valid Charge snapshots are priced independently in E5.
+  if (entry.paidMicros > 0 && entry.uncapturedRefundMicros > 0) {
+    entry = reverse(tx, paymentIntentId,
+      proportionalRefundTarget(entry.packMicros, entry.paidMicros, entry.uncapturedRefundMicros));
+  }
+  if (entry.grantDeferred && entry.grantState === 'pending' && entry.dispute !== 'none') {
+    return finishGrant(tx, entry, false, eventId, 'grant_refused');
+  }
   const freezingEvent = dispute === 'open' || dispute === 'lost' && entry.dispute === 'lost';
   if (freezingEvent && entry.grantState === 'granted' && !entry.disputeFreezeApplied) {
     freeze(tx, entry.accountId, 'dispute');
@@ -381,7 +394,8 @@ function attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId }) {
 }
 
 function finishGrant(tx, entry, allowed, eventId, reason) {
-  tx.run('UPDATE payments SET grantState = ? WHERE paymentIntentId = ?', allowed ? 'granted' : 'refused', entry.paymentIntentId);
+  tx.run('UPDATE payments SET grantState = ?, grantDeferred = 0 WHERE paymentIntentId = ?',
+    allowed ? 'granted' : 'refused', entry.paymentIntentId);
   setDisposition(tx, entry.checkoutSessionId, allowed ? 'granted' : 'orphan', {
     ...entry, eventId, reason,
   });
@@ -391,16 +405,22 @@ function finishGrant(tx, entry, allowed, eventId, reason) {
 function grant(tx, id, eventId = null) {
   const entry = payment(tx, id);
   if (entry?.grantState !== 'pending') return entry;
-  if (entry.refundedMicros > 0 && !entry.refundCapturedMicros) return entry;
-  if (entry.refundCapturedMicros && entry.refundedMicros >= entry.refundCapturedMicros) {
-    return finishGrant(tx, entry, false, eventId, 'fully_refunded');
-  }
   const current = account(tx, entry.accountId);
   const prior = checkoutDisposition(tx, entry.checkoutSessionId);
   const allowed = !prior && current && !current.frozen && isEnrolled(tx, current.accountId) &&
     (!entry.paidCurrency || entry.paidCurrency === 'usd') && entry.dispute === 'none' && current.balanceMicros < entry.packMicros;
-  if (allowed) changeBalance(tx, current, entry.packMicros - entry.reversalTarget);
-  return finishGrant(tx, entry, allowed, eventId, allowed ? null : 'grant_refused');
+  if (!allowed) return finishGrant(tx, entry, false, eventId, 'grant_refused');
+  if (!entry.paidMicros && entry.uncapturedRefundMicros > entry.pairedRefundedMicros) {
+    tx.run('UPDATE payments SET grantDeferred = 1 WHERE paymentIntentId = ?', id);
+    return payment(tx, id);
+  }
+  changeBalance(tx, current, entry.packMicros - entry.reversalTarget);
+  return finishGrant(tx, entry, true, eventId, null);
+}
+
+export function proportionalRefundTarget(packMicros, paid, refunded) {
+  const denominator = BigInt(paid);
+  return Number((BigInt(packMicros) * BigInt(Math.min(refunded, paid)) + denominator - 1n) / denominator);
 }
 
 function reverse(tx, id, target) {
@@ -568,7 +588,14 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     getOrphanCheckout(id) {
       return transaction((tx) => {
         const disposition = checkoutDisposition(tx, id);
-        if (disposition?.disposition !== 'orphan') return null;
+        if (!disposition) {
+          const deferred = tx.get(`
+            SELECT checkoutSessionId, paymentIntentId, accountId, paidMicros, packMicros
+            FROM payments WHERE checkoutSessionId = ? AND grantState = 'pending' AND grantDeferred = 1
+          `, id);
+          return deferred ? { ...deferred, status: 'deferred', owedMicros: null } : null;
+        }
+        if (disposition.disposition !== 'orphan') return null;
         const entry = payment(tx, disposition.paymentIntentId);
         const paidCurrency = entry?.paidCurrency ?? disposition.paidCurrency;
         if (paidCurrency && paidCurrency !== 'usd') {
@@ -726,7 +753,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       return transaction((tx) => {
         if (!tx.run('INSERT OR IGNORE INTO payment_events (eventId) VALUES (?)', id).changes) return null;
         return operation({
-          recordPayment: (input) => recordPayment(tx, input),
+          recordPayment: (input) => recordPayment(tx, input, id),
           grant: (paymentId) => grant(tx, paymentId, id),
           refuse(paymentId, reason) {
             const entry = payment(tx, paymentId);

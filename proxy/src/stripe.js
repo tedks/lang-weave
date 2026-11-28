@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { proportionalRefundTarget } from './ledger.js';
 import { bodyTooLarge, hasJsonMediaType, readBoundedBytes } from './request-body.js';
 
 const TOLERANCE_SECONDS = 300;
@@ -36,11 +37,6 @@ function paidFacts(currency, amount) {
     paidMicros: valid && currency === 'usd' ? amount * 10_000 : null,
     paidMinor: valid && currency !== 'usd' ? amount : null,
   };
-}
-
-function refundTarget(packMicros, paid, refunded) {
-  const denominator = BigInt(paid);
-  return Number((BigInt(packMicros) * BigInt(Math.min(refunded, paid)) + denominator - 1n) / denominator);
 }
 
 export function createStripeWebhook({
@@ -106,17 +102,20 @@ export function createStripeWebhook({
         const captureKnown = currency && validAmount(captured, currency) && captured > 0;
         const refundKnown = currency && validAmount(refunded, currency);
         const usd = currency === 'usd';
+        const refundMicros = usd && refundKnown ? refunded * 10_000 : 0;
         const entry = tx.recordPayment({
-          ...payment, ...paidFacts(currency, captureKnown ? captured : null),
-          refundedMicros: usd && refundKnown ? refunded * 10_000 : 0,
+          ...payment,
+          paidMinor: !usd && captureKnown ? captured : null,
+          refundedMicros: refundMicros,
           refundedMinor: !usd && refundKnown ? refunded : 0,
-          refundCapturedMicros: usd && captureKnown ? captured * 10_000 : null,
+          uncapturedRefundMicros: captureKnown ? 0 : refundMicros,
+          pairedRefundedMicros: captureKnown ? refundMicros : 0,
         });
         if (currency && entry.paidCurrency !== currency) return note('payment_currency_mismatch');
         if (!captureKnown || !refundKnown) note('invalid_refund_amount');
-        if (usd && entry.refundCapturedMicros && entry.refundedMicros > 0) {
-          tx.reverse(paymentIntentId, refundTarget(entry.packMicros, entry.refundCapturedMicros, entry.refundedMicros));
-          if (entry.grantState === 'pending' && entry.checkoutSessionId && entry.accountId) tx.grant(paymentIntentId);
+        if (usd && captureKnown && refundKnown) {
+          tx.reverse(paymentIntentId, proportionalRefundTarget(entry.packMicros, captured, refunded));
+          if (entry.grantDeferred) tx.grant(paymentIntentId);
         }
         return;
       }
