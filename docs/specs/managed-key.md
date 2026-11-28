@@ -280,7 +280,7 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   `paidMicros - refundedMicros` still owed. A dispute the operator **won** returns the orphan to
   `open` with that amount owed, so the operator refunds it normally.
 - `grant(paymentIntentId)` — from `pending` only: adds `packMicros - reversalTarget` and moves to
-  `granted`, if the payment is not disputed, the account exists and is not frozen, and the
+  `granted`, if the payment's `dispute` is `none`, the account exists and is not frozen, and the
   account's balance is below one pack (so normal grants never leave an account holding more
   than two packs' credit; a `transfer` can).
   Otherwise it moves to `refused`, recorded as an orphan for the operator to refund. From
