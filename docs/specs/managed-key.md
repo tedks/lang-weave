@@ -263,9 +263,15 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   Checkout session events carry both it and the session id): `{paymentIntentId,
   checkoutSessionId?, accountId?, packMicros, grantState: pending | granted | refused,
   reversalTarget, reversedMicros, disputed}`. `recordPayment(...)` creates or updates it from any
-  of the four events, so the order in which events arrive does not matter. When a Checkout event
-  that passed C4's link and amount checks supplies the `accountId` for a record that is already
-  disputed, the account is frozen at that moment.
+  of the four events, so the order in which events arrive does not matter. **Freezing on a
+  dispute applies only to a `granted` payment**, the only case where credit was given and can be
+  spent. A payment disputed while still `pending` is refused at grant time (no credit, no freeze);
+  a `refused` payment never freezes.
+- **Orphan refund state**, kept separately from the reversal target: `{refundedMicros, status:
+  open | refunded | disputed}`. `refundedMicros` is the monotonic maximum of the cumulative
+  `amount_refunded` seen. `status` becomes `refunded` only when `refundedMicros` reaches the amount
+  paid; it becomes `disputed` when a dispute opens, which tells the operator **not** to refund it
+  in Stripe while the dispute is open.
 - `grant(paymentIntentId)` — from `pending` only: adds `packMicros - reversalTarget` and moves to
   `granted`, if the payment is not disputed, the account exists and is not frozen, and the
   account's balance is below one pack (so normal grants never leave an account holding more
@@ -281,21 +287,23 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   debits only the increase, at most `balance - reserved` of the account currently holding the
   payment (below); any remainder is operator loss and freezes that account. For a `pending`
   payment it only records the target, which the later grant subtracts. For a **`refused`**
-  payment (a refused grant or an orphan) it only records the target and marks the orphan
-  refunded: it **never debits and never freezes**, because that credit was never given. A
+  payment (a refused grant or an orphan) it only records the target and updates the orphan refund
+  state above: it **never debits and never freezes**, because that credit was never given. A
   boundary test covers a refused grant followed by a Stripe refund (balance unchanged) and a
   dispute on an orphan (no freeze).
 - **Session disposition:** each Checkout session id has at most one disposition, `granted` or
   `orphan`, set once in the same transaction that grants or records the orphan, and checked by
   **both** paths: a grant is refused if the session is already `orphan`, and an orphan is not
-  recorded if the session is already `granted`. Whichever event arrives first decides; later
-  events for the session only attach ids. `granted` and `orphan` are mutually exclusive in every
+  recorded if the session is already `granted`. The first event **that sets a disposition**
+  decides (an unpaid or async-pending notification sets none); later events for the session only
+  attach ids. `granted` and `orphan` are mutually exclusive in every
   event order.
 - `freeze(accountId, reason)` — no new reservations. An open reservation settles normally.
 - `adjust(accountId, deltaMicros, reason, ref)` — an operator credit or debit for corrections
   that are **not** Stripe refunds. A debit takes at most `balance - reserved`. Unique per `ref`.
-  A refund on request is always issued in Stripe and reaches the ledger only through the
-  `charge.refunded` webhook, so it can never be debited twice.
+  A refund on request is always issued in Stripe and reaches the ledger only through `reverse`
+  (normally from the `charge.refunded` webhook; see LW-STORE-MK-04 for the operator-applied
+  case), so it can never be debited twice.
 - `transfer(fromAccountId, toAccountId, ref)` — token recovery in one step. Refused if `from` is
   frozen (a frozen account's balance stays put until the operator resolves the dispute or
   refund), if `to` is frozen, or if `from` has an open reservation. Otherwise it moves `balance`
@@ -360,8 +368,9 @@ order and any number of times.
   `amount_refunded` (C2). Stale or out-of-order refund events lower nothing. If the payment was
   not yet granted, the later grant is reduced or, for a full refund, becomes zero.
 - **Dispute.** `charge.dispute.created` marks the payment disputed, calls `reverse` with target
-  `packMicros`, and freezes the account holding the payment (or, if no Checkout event has
-  arrived yet, freezes it when one does, C2). A not-yet-granted disputed payment never grants.
+  `packMicros`, and freezes the account holding the payment **if the payment is `granted`** (C2).
+  A not-yet-granted disputed payment never grants and freezes nothing; a disputed orphan is
+  marked `disputed`.
   Unfreezing is a manual operator action after the dispute closes. A dispute on an already
   refunded payment reverses only the remaining difference.
 - **Orphan payment.** A paid session whose `client_reference_id` is missing (someone opened the
