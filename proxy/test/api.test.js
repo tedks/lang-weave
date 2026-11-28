@@ -956,3 +956,115 @@ test('E2 retries a real busy release and overage settlement by reservation ID', 
     }
   }
 }, { timeout: 25_000 });
+
+test('late transport evidence survives exhaustion of the primary and late SQLite retries', async () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'late-retry-')), 'ledger.sqlite');
+  let at = Date.parse('2026-11-28T23:58:00Z');
+  const now = () => at;
+  let store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+  const writer = new Database(filename);
+  const dispatched = Promise.withResolvers();
+  const primary = Promise.withResolvers();
+  const retriesExhausted = Promise.withResolvers();
+  const alarms = [];
+  const make = () => createLedger(store, { now, onOverage: (event) => alarms.push(event) });
+  const ledger = make();
+  try {
+    const id = ledger.createAccount(sha256('late retries'));
+    const token = ledger.rotateToken(id);
+    ledger.setEnrolled(id);
+    ledger.adjust(id, 1_000_000, 'fixture', 'credit');
+    const api = createApi({
+      ledger, clientIp: () => '192.0.2.4', ipHashSecret: 'fixture', now,
+      alert: (event) => retriesExhausted.resolve(event),
+      provider: { call(args) { dispatched.resolve(args); return primary.promise; } },
+    });
+    const running = api(new Request(base + '/v0/swaps', {
+      method: 'POST', body: JSON.stringify(reading),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    }));
+    const { onLateOutcome } = await dispatched.promise;
+    const { reservationId } = ledger.getIdempotency(id, sha256(key));
+    const original = ledger.getReservation(reservationId);
+    writer.exec('BEGIN IMMEDIATE');
+    try {
+      primary.resolve({ kind: 'no_response', sent: true, providerRequestId: 'held-header' });
+      expect((await running).status).toBe(503);
+      expect(store.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['primary']);
+      onLateOutcome({ ...OUTCOMES.stop, providerRequestId: 'held-body', usage: { promptTokenCount: 1_000_000 } });
+      expect(await retriesExhausted.promise).toEqual({ reason: 'reconcile_failed', reservationId });
+      expect(store.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['primary', 'late']);
+      expect(writer.query('SELECT state FROM reservations WHERE reservationId = ?').get(reservationId).state).toBe('open');
+    } finally {
+      writer.exec('ROLLBACK');
+    }
+
+    store.close();
+    at += STALE_MS + 1;
+    store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+    const recovered = make();
+    expect(recovered.expireStale()).toEqual([]);
+    expect(recovered.getReservation(reservationId)).toMatchObject({
+      state: 'provisional', reason: 'timeout', costMicros: original.readerWorst,
+      dayKey: original.dayKey, providerActual: 300_000, overage: 1,
+    });
+    expect(recovered.getAccount(id)).toMatchObject({ balanceMicros: 1_000_000 - original.readerWorst, reservedMicros: 0 });
+    expect(alarms).toEqual([{ reason: 'overage', reservationId }]);
+    expect(store.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+  } finally {
+    writer.close();
+    store.close();
+  }
+}, { timeout: 25_000 });
+
+test('admission applies a late receipt staged by another connection after the expiry sweep', async () => {
+  for (const providerActual of [40, 250]) {
+    const filename = join(mkdtempSync(join(tmpdir(), 'admission-replay-')), 'ledger.sqlite');
+    let at = Date.parse('2026-11-28T23:30:00Z');
+    const now = () => at;
+    const store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+    const other = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+    const alarms = [];
+    const ledger = createLedger(store, { now, onOverage: (event) => alarms.push(event) });
+    const otherLedger = createLedger(other, { now });
+    const provider = stubProvider();
+    try {
+      const id = ledger.createAccount(sha256('admission-window'));
+      const token = ledger.rotateToken(id);
+      ledger.setEnrolled(id);
+      ledger.adjust(id, 1_000_000, 'fixture', 'window-balance');
+      const old = ledger.reserve(id, 20, 100, PRICE_ROWS[0].id, 2_000_000,
+        sha256('old window'), sha256('old body'));
+      at += STALE_MS + 1;
+
+      const api = createApi({
+        ledger: { ...ledger, expireStale() {
+          const [expired] = ledger.expireStale();
+          expect(expired).toMatchObject({ reservationId: old, state: 'provisional', providerActual: null });
+          store.transaction((tx) => {
+            expect(() => otherLedger.reconcile(old, providerActual, { providerRequestId: 'between-sweep-and-reserve' }))
+              .toThrow(/database is locked/);
+            expect(tx.get('SELECT providerActual FROM reservations WHERE reservationId = ?', old).providerActual).toBeNull();
+            expect(other.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['late']);
+          });
+          return [expired];
+        } },
+        provider, clientIp: () => '192.0.2.4', ipHashSecret: 'fixture', now,
+      });
+      const response = await api(new Request(base + '/v0/swaps', {
+        method: 'POST', body: JSON.stringify(reading),
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+      }));
+      const overage = providerActual > 100;
+      expect(response.status).toBe(overage ? 503 : 200);
+      expect(provider.calls).toHaveLength(overage ? 0 : 1);
+      expect(ledger.getReservation(old)).toMatchObject({ providerActual, costMicros: 20, overage: Number(overage) });
+      if (overage) expect(ledger.getIdempotency(id, sha256(key))).toBeNull();
+      expect(alarms).toEqual(overage ? [{ reason: 'overage', reservationId: old }] : []);
+      expect(other.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+    } finally {
+      other.close();
+      store.close();
+    }
+  }
+}, { timeout: 25_000 });

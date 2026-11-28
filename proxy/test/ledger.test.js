@@ -336,3 +336,74 @@ test('recovery preserves an expiry winner while reconciling the journaled late o
     store.close();
   }
 }, { timeout: 25_000 });
+
+test('export matching sees aliases in a durable receipt even before ledger finalization', () => {
+  const filename = join(mkdtempSync(join(tmpdir(), 'pending-alias-')), 'ledger.sqlite');
+  const now = () => Date.parse('2026-11-28T23:58:00Z');
+  const store = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+  const second = createSqliteStorage(filename, { busyTimeoutMs: 0, now });
+  const ledger = createLedger(store, { now });
+  const otherLedger = createLedger(second, { now });
+  try {
+    const ids = ['first', 'second'].map((fixture) => {
+      const accountId = ledger.createAccount(hash(fixture));
+      ledger.setEnrolled(accountId);
+      ledger.adjust(accountId, 100, 'fixture', fixture);
+      return ledger.reserve(accountId, 15, 200, price, ceiling, hash(), body);
+    });
+    ledger.settle(ids[0], 0, null, 'no_usage', { providerRequestId: 'shared-export-id' });
+    store.transaction((tx) => {
+      expect(() => otherLedger.settle(ids[1], 0, null, 'no_usage', { providerRequestId: 'shared-export-id' }))
+        .toThrow(/database is locked/);
+      expect(tx.get('SELECT COUNT(*) AS count FROM provider_request_ids WHERE requestId = ?', 'shared-export-id').count).toBe(1);
+      expect(second.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['primary']);
+    });
+
+    expect(ledger.reconcileProviderRequest('shared-export-id', 55)).toBeNull();
+    for (const id of ids) {
+      expect(ledger.getReservation(id)).toMatchObject({ state: 'provisional', providerActual: null });
+    }
+    expect(second.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+  } finally {
+    second.close();
+    store.close();
+  }
+}, { timeout: 25_000 });
+
+test('export matching sees an alias from late evidence still waiting on an open reservation', () => {
+  const { db, ledger, account } = makeLedger();
+  try {
+    const provisional = ledger.reserve(account(100).id, 15, 200, price, ceiling, hash(), body);
+    const open = ledger.reserve(account(100).id, 15, 200, price, ceiling, hash(), body);
+    ledger.settle(provisional, 0, null, 'no_usage', { providerRequestId: 'shared-late-id' });
+    db.finalizations.stageLate(open, { providerActual: 80, providerRequestId: 'shared-late-id' });
+    expect(ledger.reconcileProviderRequest('shared-late-id', 55)).toBeNull();
+    expect(ledger.getReservation(provisional).providerActual).toBeNull();
+    expect(ledger.getReservation(open)).toMatchObject({ state: 'open', providerRequestId: 'shared-late-id' });
+    expect(db.finalizations.withSnapshot((receipts) => receipts.map(({ kind }) => kind))).toEqual(['late']);
+    expect(ledger.reserve(account(100).id, 15, 200, price, ceiling, hash(), body)).toBe('STOPPED');
+
+    ledger.settle(open, 15, null, 'timeout');
+    expect(ledger.expireStale()).toEqual([]);
+    expect(ledger.getReservation(open)).toMatchObject({ state: 'provisional', providerActual: 80, costMicros: 15 });
+    expect(db.finalizations.withSnapshot((receipts) => receipts)).toEqual([]);
+  } finally { db.close(); }
+});
+
+test('an unrepresentable late reconcile keeps the day closed until a correction', () => {
+  const { db, ledger, account } = makeLedger();
+  try {
+    const id = account(1_000).id;
+    const reservationId = ledger.reserve(id, 20, 500, price, ceiling, hash(), body);
+    ledger.settle(reservationId, 20, null, 'timeout');
+    expect(ledger.reconcile(reservationId, 10_000_000_000_000_000n)).toMatchObject({
+      providerActual: null, providerOverflowMicros: '10000000000000000', overage: 1, costMicros: 20,
+    });
+    expect(ledger.clearStop('fixture-reconcile-repair')).toBeTrue();
+    expect(ledger.reserve(id, 20, 500, price, ceiling, hash('next'), body)).toBe('STOPPED');
+    expect(ledger.reconcile(reservationId, 180)).toMatchObject({
+      providerActual: 180, providerOverflowMicros: '10000000000000000', costMicros: 20,
+    });
+    expect(ledger.reserve(id, 20, 500, price, ceiling, hash('next'), body)).toMatch(/^[a-f0-9]{32}$/);
+  } finally { db.close(); }
+});

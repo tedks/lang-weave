@@ -544,3 +544,19 @@ test('a frozen account terminally refuses instead of deferring an unresolved ref
     expect(ledger.getAccount(id).balanceMicros).toBe(0);
   } finally { db.close(); }
 });
+
+test('MK-06 applies a nonround Checkout fallback in cents and leaves foreign refunds in minor units', async () => {
+  for (const currency of ['usd', 'eur']) {
+    const { deliver, ledger, db, account } = setup();
+    try {
+      const { id } = account();
+      await deliver('charge-refunded', { currency, amount_refunded: 333, amount_captured: null });
+      expect(ledger.getPayment(intentId).reversalTarget).toBe(0);
+      await deliver('checkout-paid', { currency, amount_total: 999, client_reference_id: id });
+      expect(ledger.getPayment(intentId)).toMatchObject(currency === 'usd'
+        ? { paidMicros: 9_990_000, refundedMicros: 3_330_000, reversalTarget: 3_333_334, grantState: 'refused' }
+        : { paidMicros: null, paidMinor: 999, refundedMinor: 333, reversalTarget: 0, grantState: 'refused' });
+      expect(ledger.getAccount(id).balanceMicros).toBe(0);
+    } finally { db.close(); }
+  }
+});
