@@ -68,7 +68,7 @@ export function createBadge({ context, store, updatePending }) {
         chrome.tabs.get(tabId), sharedSnapshot || snapshot(),
       ]);
       const state = updatePending() ? 'new' : readingState(config, tab.url, status, data.consentShown);
-      const badge = badgeAppearance(state, status, data[QUOTA_STATE_KEY], data.keyEpoch);
+      const badge = badgeAppearance(state, status, config.settings.managedProvider ? null : data[QUOTA_STATE_KEY], data.keyEpoch);
       const options = { tabId };
       const write = (writes.get(tabId) || Promise.resolve()).catch(() => {}).then(async () => {
         if (generations.get(tabId) !== generation) return;

@@ -56,6 +56,14 @@ const locked = serial(); // storage read-modify-writes one at a time, or concurr
 const { connectBackupPage, recoverLearningImport, learningExport, learningPreview, learningImport } =
   createBackupHandlers({ store, locked, worker, backupPages });
 
+async function removeUnisolatedManagedToken(retry = true) {
+  try { await store.remove('managedToken'); }
+  catch {
+    // Retry once on this wake. The next worker start attempts cleanup again.
+    if (retry) setTimeout(() => void removeUnisolatedManagedToken(false), 1000);
+  }
+}
+
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
   if (typeof store.setAccessLevel === 'function') {
@@ -64,8 +72,8 @@ const ready = (async () => {
       worker.keyIsolationUnavailable = false;
     } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
   }
-  // Clear a token left by an earlier run before starting page registration or handling messages.
-  if (worker.keyIsolationUnavailable) await store.remove('managedToken');
+  // Keep managed access disabled while a token from an earlier run is being cleared.
+  if (worker.keyIsolationUnavailable) void removeUnisolatedManagedToken();
   const { settings } = await store.get('settings');
   // Install defaults need storage that nothing has written yet: an absent settings object beside a key or
   // progress is not a new install. Read everything only in that rare case, never on an ordinary wake.
