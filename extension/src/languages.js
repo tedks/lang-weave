@@ -11,7 +11,7 @@ export const PACKS_KEY = 'languagePacks';
 export const MAX_PACKS = 5;
 const MAX_RESPONSE = 48000;
 const FIELD = /^[^\p{Cc}<>\[\]{}\r\n]{1,80}$/u;
-const validField = (s, joiners = false) => typeof s === 'string' && FIELD.test(s) &&
+export const validField = (s, joiners = false) => typeof s === 'string' && FIELD.test(s) &&
   s.trim() === s && !/\p{Cf}/u.test(joiners ? s.replace(/[\u200c\u200d]/g, '') : s);
 
 export function cleanPack(raw, code) {

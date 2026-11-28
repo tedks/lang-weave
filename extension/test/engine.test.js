@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { buildRequest, callGemini, parseSwapsResponse, API_BASE } from '../src/gemini.js';
 import { requestSwaps, timeoutFor } from '../src/engine.js';
-import { buildSwapRequest } from '../src/swap-request.js';
+import { buildSwapRequest, canonicalSwapBody } from '../src/swap-request.js';
 import { DEFAULT_SETTINGS } from '../src/settings.js';
 import { createCache, memoryStorage } from '../src/cache.js';
 import { hashKey } from '../src/hash.js';
@@ -62,6 +62,15 @@ describe('shared swap request', () => {
       buildSwapRequest({ level: 1, batch: [], words: [] });
     `]);
     expect({ exitCode: child.exitCode, stderr: child.stderr.toString() }).toEqual({ exitCode: 0, stderr: '' });
+  });
+
+  test('canonical C1 JSON sorts object keys and preserves array order', () => {
+    const bytes = '{"passages":[{"id":"b","text":"Rain \\"fell\\"."},{"id":"a","text":"Rain stopped."}],"words":[{"en":"window","fr":"okẽ","source":"bundled"}]}';
+    const body = { words: [{ fr: 'okẽ', source: 'bundled', en: 'window' }],
+      passages: [{ text: 'Rain "fell".', id: 'b' }, { id: 'a', text: 'Rain stopped.' }] };
+    expect(canonicalSwapBody(body)).toBe(bytes);
+    expect(canonicalSwapBody(JSON.parse(bytes))).toBe(bytes);
+    expect(canonicalSwapBody({ ...body, passages: [...body.passages].reverse() })).not.toBe(bytes);
   });
 });
 

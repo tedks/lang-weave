@@ -10,3 +10,11 @@ export function buildSwapRequest({ level, batch, words, language, density = 'nor
   return buildRequest({ system: buildSystemPrompt(level, promptWords, shownToday, language, density,
     unknownLimit ? unknownBudget(batch) : null), user: buildUserContent(batch), schema: RESPONSE_SCHEMA });
 }
+
+// Both sides hash the same JSON data. Array order is part of the prompt.
+export function canonicalSwapBody(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalSwapBody).join(',')}]`;
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  return `{${Object.keys(value).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalSwapBody(value[key])}`).join(',')}}`;
+}
