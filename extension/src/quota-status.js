@@ -12,6 +12,7 @@ export const STATUS_CATEGORIES = new Set(['daily_quota', 'rate_limit', 'overload
   'managed_unavailable', 'managed_update_required']);
 const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
 const COOLDOWN_KINDS = new Set(['daily', 'short', 'overloaded', 'transient']);
+const STATUS_TTL_MS = 60 * 60 * 1000;
 
 const finite = (n) => Number.isFinite(n) && n >= 0;
 const boundedRetry = (n) => finite(n) && n > 0 ? Math.min(n, MAX_RETRY_MS) : undefined;
@@ -158,6 +159,10 @@ export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReach
   if (managed && (!managedGeneration || value?.tokenGeneration !== managedGeneration)) return null;
   let status = safeModelStatus(value);
   if (status?.category === 'key_rejected' && !rejectedForEpoch(status, keyEpoch)) status = null;
+  if (managed && ['daily_quota', 'rate_limit', 'overloaded', 'managed_unavailable'].includes(status?.category)) {
+    const until = status.retryAt ?? status.at + STATUS_TTL_MS;
+    if (!finite(status.at) || status.at > now || until <= now) return null;
+  }
   if (!managed && status && ['daily_quota', 'rate_limit', 'overloaded'].includes(status.category)) {
     const kind = status.category === 'daily_quota' ? 'daily'
       : status.category === 'overloaded' ? 'overloaded' : 'short';
@@ -166,7 +171,7 @@ export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReach
   }
   if (status?.category === 'local_budget' && !localBudgetReached) status = null;
   if (['request_failed', 'storage_failed'].includes(status?.category) &&
-      (!Number.isFinite(status.at) || status.at > now || now - status.at > 3600000)) status = null;
+      (!Number.isFinite(status.at) || status.at > now || now - status.at > STATUS_TTL_MS)) status = null;
   return status;
 }
 

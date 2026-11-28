@@ -168,7 +168,8 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         patch.apiKey = msg.apiKey.trim();
       }
       if (writesManagedToken) {
-        patch.managedToken = msg.managedToken;
+        if (msg.managedToken) patch.managedToken = msg.managedToken;
+        else await store.remove('managedToken');
         patch[MANAGED_STATUS_KEY] = null;
       }
       // Target recall affects only review scheduling, and guess first only how a hover answers, so

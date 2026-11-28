@@ -88,7 +88,7 @@ export function createContext({ store, ready, worker }) {
     const token = saved.managedProvider && !worker.keyIsolationUnavailable
       ? (await store.get('managedToken')).managedToken : undefined;
     const managedToken = typeof token === 'string' && token ? token : undefined;
-    const managedTokenGeneration = managedToken ? await sha256Hex(new TextEncoder().encode(managedToken))
+    const managedTokenGeneration = managedToken ? await sha256Hex(new TextEncoder().encode(`lw-status-gen:${managedToken}`))
       : saved.managedProvider ? '' : undefined;
     const hasKey = saved.managedProvider ? !!managedToken : !!data.apiKey;
     const paused = false; // retained in the page config protocol; pause is settings.enabled
