@@ -280,7 +280,17 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   order events arrive in or however refunds and disputes overlap. For a `granted` payment it then
   debits only the increase, at most `balance - reserved` of the account currently holding the
   payment (below); any remainder is operator loss and freezes that account. For a `pending`
-  payment it only records the target, which the later grant subtracts.
+  payment it only records the target, which the later grant subtracts. For a **`refused`**
+  payment (a refused grant or an orphan) it only records the target and marks the orphan
+  refunded: it **never debits and never freezes**, because that credit was never given. A
+  boundary test covers a refused grant followed by a Stripe refund (balance unchanged) and a
+  dispute on an orphan (no freeze).
+- **Session disposition:** each Checkout session id has at most one disposition, `granted` or
+  `orphan`, set once in the same transaction that grants or records the orphan, and checked by
+  **both** paths: a grant is refused if the session is already `orphan`, and an orphan is not
+  recorded if the session is already `granted`. Whichever event arrives first decides; later
+  events for the session only attach ids. `granted` and `orphan` are mutually exclusive in every
+  event order.
 - `freeze(accountId, reason)` — no new reservations. An open reservation settles normally.
 - `adjust(accountId, deltaMicros, reason, ref)` — an operator credit or debit for corrections
   that are **not** Stripe refunds. A debit takes at most `balance - reserved`. Unique per `ref`.
@@ -806,9 +816,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   as an orphan payment keyed by its Checkout session id (`paid_without_payment_intent`) for the
   operator to refund, with no credit. **That disposition is terminal for the session:** any later
   event for the same Checkout session id, even one that carries a `payment_intent`, grants
-  nothing and only attaches the `payment_intent` to the orphan record, so a session can never be
-  both credited and queued for refund. A `charge.refunded` or `charge.dispute.created` with no
-  usable `payment_intent` cannot occur for card payments from a payment-mode Payment Link; if one
-  ever does, its diagnostic is resolved by an operator `adjust` with `ref` set to the charge or
-  dispute id, the one sanctioned exception to "Stripe refunds reach the ledger only through the
-  webhook".
+  nothing and only attaches the `payment_intent` to the orphan record; conversely a session
+  already `granted` is never later recorded as an orphan (C2 "Session disposition"). A
+  `charge.refunded` or `charge.dispute.created` with no usable `payment_intent` cannot occur for
+  card payments from a payment-mode Payment Link. If one ever does, the operator identifies the
+  payment in Stripe and applies the event's **cumulative** refunded amount (or the dispute)
+  through the same `reverse` path, keyed by that `payment_intent`, never through `adjust`, so a
+  later event that does carry the id raises nothing further (the reversal target is monotonic)
+  and the usual dispute freeze applies.
