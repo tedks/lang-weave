@@ -1,4 +1,3 @@
-import { API_BASE } from '../../extension/src/gemini.js';
 import { parseRetryAfter } from '../../extension/src/quota-status.js';
 
 const failedBeforeSend = () => ({ kind: 'http_error', status: 0, category: 'request_failed' });
@@ -14,16 +13,19 @@ function usageMetadata(value) {
 // The M1 adapter follows the AI Studio outcome table in section 6.3.
 // An injected transport can prove a pre-send failure by rejecting with
 // `sent: false`. An ordinary Fetch rejection cannot provide that proof.
-export function createProvider({ credential, fetchImpl, now = Date.now }) {
-  if (typeof credential !== 'string' || !credential || typeof fetchImpl !== 'function') {
-    throw new TypeError('Provider credential and transport are required');
+export function createProvider({ baseUrl, credential, fetchImpl, now = Date.now } = {}) {
+  const base = typeof baseUrl === 'string' ? URL.parse(baseUrl) : null;
+  if (!base || base.protocol !== 'https:' || !base.hostname.endsWith('.invalid') ||
+      base.username || base.password || base.search || base.hash || !base.pathname.endsWith('/') ||
+      typeof credential !== 'string' || !credential || typeof fetchImpl !== 'function') {
+    throw new TypeError('An HTTPS fixture base URL, credential and transport are required');
   }
 
   const safeString = (value) => typeof value === 'string' && !value.includes(credential) ? value : null;
   const safeRequestId = (value) => /^[A-Za-z0-9._:-]{1,128}$/.test(value ?? '') ? safeString(value) : null;
 
   return {
-    async call({ model, request, timeoutMs }) {
+    async call({ model, request, timeoutMs, onLateOutcome }) {
       let body;
       try {
         body = JSON.stringify(request);
@@ -34,8 +36,10 @@ export function createProvider({ credential, fetchImpl, now = Date.now }) {
       const controller = new AbortController();
       let timer;
       let providerRequestId;
+      let timedOut = false;
       const deadline = new Promise((resolve) => {
         timer = setTimeout(() => {
+          timedOut = true;
           resolve({ ...sentWithoutResponse(), providerRequestId });
           controller.abort();
         }, timeoutMs);
@@ -43,7 +47,7 @@ export function createProvider({ credential, fetchImpl, now = Date.now }) {
 
       async function send() {
         try {
-          const response = await fetchImpl(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
+          const response = await fetchImpl(`${base.href}${encodeURIComponent(model)}:generateContent`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': credential },
             body,
@@ -88,7 +92,11 @@ export function createProvider({ credential, fetchImpl, now = Date.now }) {
       }
 
       try {
-        return await Promise.race([send(), deadline]);
+        const sending = send().then((outcome) => {
+          if (timedOut) onLateOutcome?.(outcome);
+          return outcome;
+        });
+        return await Promise.race([sending, deadline]);
       } finally {
         clearTimeout(timer);
       }
