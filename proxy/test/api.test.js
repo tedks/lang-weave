@@ -828,12 +828,18 @@ test('E2 retains a provisional hold when a 200 body fails with pre-send metadata
 });
 
 test('deep structured JSON is rejected before hashing or admission', async () => {
-  const { swap, db, provider, reservation } = await setup();
+  const { swap, db, provider, reservation, ledger, config } = await setup();
   try {
+    let lookups = 0;
+    const selectedApi = createApi({ ...config, ledger: { ...ledger, lookupClaim(...args) {
+      lookups++;
+      return ledger.lookupClaim(...args);
+    } } });
     const raw = '{"invalid":' + '['.repeat(1000) + '0' + ']'.repeat(1000) + '}';
-    const response = await swap(reading, { raw });
+    const response = await swap(reading, { raw, selectedApi });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: { category: 'request_failed' } });
+    expect(lookups).toBe(0);
     expect(provider.calls).toHaveLength(0);
     expect(reservation()).toBeNull();
   } finally { db.close(); }
