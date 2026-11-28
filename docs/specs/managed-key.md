@@ -96,9 +96,12 @@ graph LR
 
 ### C1 — Proxy API v0 (owner E2; consumer E1)
 
-All requests are HTTPS, JSON, `Content-Type: application/json`, at most 64 KiB. Responses never
+All requests are HTTPS, JSON, `Content-Type: application/json`, at most 192 KiB (larger is
+`413` with `"tooLarge": "body"`, no reservation). Responses never
 echo request text. Every error body is `{"error": {"category": <string>, "retryAfterMs"?: <int>,
-"ahead"?: <bool>, "duplicate"?: <bool>, "blocked"?: <bool>}}`
+"ahead"?: <bool>, "duplicate"?: <bool>, "charged"?: <bool>, "keyReuse"?: <bool>,
+"blocked"?: <bool>, "tooLarge"?: "body"|"passages"|"words", "dailyCap"?: <bool>}}`. A 200 body's
+`usage` is `null` when the provider sent none (6.3).
 with `category` drawn from the extension's existing set in `quota-status.js` plus four new
 values, which E1 adds to `STATUS_CATEGORIES` (`quota-status.js:9`) and to the message mapping in
 `reading.js`: `managed_balance`, `managed_unauthorized`, `managed_unavailable`,
@@ -149,19 +152,31 @@ for byte.
   `gradual` is true, and calls `buildSystemPrompt`, `buildUserContent` and `buildRequest` with
   `RESPONSE_SCHEMA`. A golden test requires the proxy-built body to equal the BYOK body for the same
   inputs, and the module closure must load with no `chrome` global. The proxy then sets
-  `generationConfig.maxOutputTokens`. A serialized body over 64,000 UTF-8 bytes, including the
-  schema, is rejected. That limit is sized on the worst legitimate request, not the median:
-  eight 2,000-character passages that are JSON-escaped twice (a string inside a body), plus 400
-  maximum-length words, stay under it. E1 answers that `400` by splitting the batch in half once;
-  a `400` costs nothing because it never reserves. Any violation → `400 request_failed` with no
-  provider call.
-  Idempotency: the ledger stores `(accountId, SHA-256(Idempotency-Key)) → reservationId and
-  outcome` in the same transactional store, for 60 seconds after settlement. This holds no
-  reading content, and it works across serverless instances. A repeat within that window makes
-  no new reservation or provider call. It returns the held response if the instance that served
-  the original still holds it in memory; otherwise it returns `409 request_failed` with
-  `"duplicate": true` ("already charged, no result"). A repeat while the original is still open
-  returns `429 rate_limit` with `retryAfterMs`. After 60 seconds a repeat is a new call.
+  `generationConfig.maxOutputTokens`. **Size cap: the same measure and the same limit the
+  extension already uses**, `requestChars` (`adaptive.js:40-47`, the length of the serialized
+  body) at most `MAX_REQUEST_CHARS` = 25,000 (`adaptive.js:10`); as UTF-8 that is at most 100,000
+  bytes. Over the cap → `400 request_failed` with `"tooLarge": "passages"` when the batch has more
+  than one passage, or `"tooLarge": "words"` when a single passage is still over. E1 checks the
+  same measure **before** sending, so a conforming client never gets either: it splits the
+  passages until each request fits (down to one passage), and for a single passage still over,
+  it drops that passage from managed weaving with `request_failed` and no call. A `400` costs
+  nothing because it never reserves. E1 only splits on `tooLarge`, never on other `400`s. Other
+  violations → `400 request_failed` with no provider call. A boundary test builds the combined
+  maximum (eight 2,000-character passages, the largest pack of 80 words at their field maxima,
+  and a personal-word list at its maxima) and checks that E1's splitting always yields requests
+  the proxy accepts.
+  Idempotency: `reserve` claims `(accountId, SHA-256(Idempotency-Key))` together with
+  `SHA-256` of the canonical request body **in the same transaction** as the reservation (C2), so
+  a crash cannot leave a charged call without its key. The claim is kept for 60 seconds after
+  settlement and holds no reading content. A repeat within that window makes no new reservation
+  or provider call: with the same body it returns the held response if the serving instance
+  still holds it in memory, otherwise `409 request_failed` with `"duplicate": true` and
+  `"charged": <bool>` from the recorded outcome; with a different body it returns
+  `422 request_failed` with `"keyReuse": true`. A repeat while the original is still open returns
+  `429 rate_limit` with `retryAfterMs`. After 60 seconds a repeat is a new call. **Key lifetime in
+  E1:** one key per logical batch (the same passage keys and words), reused if E1 asks for the
+  same batch again within 60 seconds (for example after the page re-renders it), so a re-request
+  of an abandoned call returns `duplicate` instead of a second charge.
   Errors: `402 managed_balance` when the reservation fails; `503 managed_unavailable` when the
   global ceiling is reached or the proxy is in maintenance; provider 429/503/timeout map to the
   existing `rate_limit` / `overloaded` / `request_failed` with `retryAfterMs` passed through
@@ -178,8 +193,11 @@ for byte.
   does not abandon a call it will be charged for. It is not a guarantee: a slow network can still
   cost the reader a call whose result never arrives, and a retry within 60 s then gets
   `"duplicate": true` rather than a second charge); `IN_FLIGHT_MAX` 4; per-account daily
-  cap `ACCOUNT_DAILY_PROVIDER_MAX` (v0: $0.50 of provider cost, about 160 typical calls) so one
-  account or stolen token cannot exhaust the global ceiling; stale-reservation expiry 5 minutes;
+  cap `ACCOUNT_DAILY_PROVIDER_MAX` (v0: $1.00 of provider cost) so one account or stolen token
+  cannot exhaust the global ceiling. Because admission needs room for the next call's
+  `providerMax` (about $0.17 for a typical request with the placeholder overage), an account is
+  admitted until about $0.83 of settled provider cost, roughly 260 typical calls a day; a call
+  refused by this cap gets `402 managed_balance` with `"dailyCap": true`; stale-reservation expiry 5 minutes;
   day key is the UTC date of the proxy's clock **at reservation time**.
 - **E1 behaviour in managed mode:** one model only (the allowlisted one, whatever
   `settings.model` says); no `FALLBACK_MODEL` and no client cooldown retry, because every retry
@@ -202,8 +220,9 @@ ledger change it causes.
 Invariant, checked after every operation: **`balance >= reserved >= 0`** for every account.
 
 - `createAccount(tokenHash) → accountId`
-- `reserve(accountId, readerWorst, providerMax, dayKey, ceiling) → reservationId | BALANCE |
-  CEILING | BUSY | FROZEN`, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
+- `reserve(accountId, readerWorst, providerMax, dayKey, ceiling, keyHash, bodyHash) →
+  reservationId | BALANCE | DAILY_CAP | CEILING | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
+  claims the idempotency key (C1) in the same transaction, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
   largest amount the call could possibly cost the operator. It succeeds only if: the account is
   not frozen; it has no open reservation; `balance - reserved >= readerWorst`; fewer than
   `IN_FLIGHT_MAX` reservations are open; the account's day `providerSpent + providerHeld +
@@ -213,38 +232,50 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
 - `settle(reservationId, readerActual, providerActual, reason)` — compare-and-set on state
   `open`: the first of `settle`, `release` or `expireStale` wins; the others are no-ops that return
   the winner's result. The reader is charged `min(readerActual, readerWorst)`. The day's
-  `providerHeld` drops by `providerMax` and `providerSpent` rises by `min(providerActual,
-  providerMax)`; a `providerActual` above `providerMax` would mean C5's maximum is wrong, and is
-  recorded as an `overage` alarm (section 12 stop condition). For an **unknown-cost outcome**
+  `providerHeld` drops by `providerMax` and `providerSpent` rises by the **full**
+  `providerActual`, which includes input, output and thinking tokens. A `providerActual` above
+  `providerMax` means C5's maximum is wrong: it raises an `overage` alarm, which stops all managed
+  calls (section 12), and the full amount stays recorded. For an **unknown-cost outcome**
   (6.3) the reservation instead moves to state `provisional`: the reader is charged
   `readerWorst`, the full `providerMax` stays counted for the day, and the row waits for
   reconciliation.
-- `reconcile(reservationId, providerActual)` — once, for a `provisional` row, when a late
-  response or the provider's usage export supplies the real cost: replaces the provisional
-  `providerMax` with `min(providerActual, providerMax)` for the original day. The reader is not
-  charged again or refunded automatically.
+- `reconcile(reservationId, providerActual)` — once, for a `provisional` row, and only when the
+  cost can be attributed to **that** reservation: a late response for its own request, or a
+  provider usage-export row matched by its request id. It replaces the provisional `providerMax`
+  with the full confirmed `providerActual` for the original day; if that is above `providerMax`,
+  it raises the same `overage` alarm and stop as `settle`. Unattributable costs never lower a
+  hold. The reader is not charged again or refunded automatically.
 - `release(reservationId)` — releases the whole reservation. Same compare-and-set.
 - **Payment record**, keyed by Stripe `payment_intent` (refund and dispute events carry it;
   Checkout session events carry both it and the session id): `{paymentIntentId,
-  checkoutSessionId?, accountId?, packMicros, granted, reversedMicros, disputed}`.
-  `recordPayment(...)` creates or updates it from any of the four events, so the order in which
-  events arrive does not matter.
-- `grant(paymentIntentId)` — adds `packMicros - reversedMicros` once (state `granted`), only if the
-  payment is not disputed, the account exists and is not frozen, and the account's balance is
-  below one pack (so an account holds at most two packs' credit at once). A refused grant is
-  recorded as an orphan for the operator to refund.
-- `reverse(paymentIntentId, micros)` — for refunds and disputes. Cumulative `reversedMicros` never
-  exceeds `packMicros`. If the payment is already granted, debits `min(micros, balance -
-  reserved)` now; any remainder is recorded as operator loss and the account is frozen. If it is
-  not yet granted, it only raises `reversedMicros`, which the later grant subtracts. A partial
-  refund reverses `packMicros × refunded / paid`, rounded up.
+  checkoutSessionId?, accountId?, packMicros, grantState: pending | granted | refused,
+  reversalTarget, reversedMicros, disputed}`. `recordPayment(...)` creates or updates it from any
+  of the four events, so the order in which events arrive does not matter. When a Checkout event
+  that passed C4's link and amount checks supplies the `accountId` for a record that is already
+  disputed, the account is frozen at that moment.
+- `grant(paymentIntentId)` — from `pending` only: adds `packMicros - reversalTarget` and moves to
+  `granted`, if the payment is not disputed, the account exists and is not frozen, and the
+  account's balance is below one pack (so an account holds at most two packs' credit at once).
+  Otherwise it moves to `refused`, recorded as an orphan for the operator to refund. From
+  `granted` or `refused` it is a no-op, so a second payment notification never turns a
+  successful purchase into an orphan.
+- `reverse(paymentIntentId, target)` — for refunds and disputes. `target` is the **cumulative**
+  credit that should be reversed, in ledger micro-dollars: `ceil(packMicros × amount_refunded /
+  amount_paid)` for a refund event, `packMicros` for a dispute. The record keeps `reversalTarget =
+  max(reversalTarget, min(target, packMicros))`, so it is monotonic and never negative, whatever
+  order events arrive in or however refunds and disputes overlap. For a `granted` payment it then
+  debits only the increase, at most `balance - reserved` of the account currently holding the
+  payment (below); any remainder is operator loss and freezes that account. For a `pending`
+  payment it only records the target, which the later grant subtracts.
 - `freeze(accountId, reason)` — no new reservations. An open reservation settles normally.
-- `adjust(accountId, deltaMicros, reason, ref)` — an operator credit or debit (a refund on
-  request). A debit takes at most `balance - reserved`. Unique per `ref`, so a retried call
-  changes nothing.
+- `adjust(accountId, deltaMicros, reason, ref)` — an operator credit or debit for corrections
+  that are **not** Stripe refunds. A debit takes at most `balance - reserved`. Unique per `ref`.
+  A refund on request is always issued in Stripe and reaches the ledger only through the
+  `charge.refunded` webhook, so it can never be debited twice.
 - `transfer(fromAccountId, toAccountId, ref)` — token recovery in one step: requires no open
-  reservation on `from`, moves `balance` from `from` to `to`, revokes `from`'s token, and freezes
-  `from`. Unique per `ref`.
+  reservation on `from`, moves `balance` from `from` to `to`, **reassigns `from`'s payment records
+  to `to`** (so later refunds, disputes and freezes apply to the account now holding the credit),
+  revokes `from`'s token, and freezes `from`. Unique per `ref`.
 - `revokeToken(tokenHash)` and `rotateToken(accountId) → newToken` — take effect for the next
   reservation; an open reservation settles normally.
 - `expireStale(now)` — a reservation open longer than 5 minutes (well past the provider timeout)
@@ -291,13 +322,14 @@ order and any number of times.
   with `payment_status` other than `paid` grants nothing; its later `async_payment_succeeded`
   event grants once. v0 configures the link for card payments only, so the asynchronous case
   should not occur, but it is handled.
-- **Refund.** `charge.refunded` calls `reverse` for the newly refunded amount (the event's
-  cumulative `amount_refunded` minus what the record already reversed). If the payment was not
-  yet granted, the later grant is reduced or, for a full refund, becomes zero.
-- **Dispute.** `charge.dispute.created` marks the payment disputed, calls `reverse` for the
-  pack's remaining credit and `freeze`s the account. A not-yet-granted disputed payment never
-  grants. Unfreezing is a manual operator action after the dispute closes. A dispute on an
-  already refunded payment reverses nothing more (cumulative reversal is capped at the pack).
+- **Refund.** `charge.refunded` calls `reverse` with the cumulative target from the event's
+  `amount_refunded` (C2). Stale or out-of-order refund events lower nothing. If the payment was
+  not yet granted, the later grant is reduced or, for a full refund, becomes zero.
+- **Dispute.** `charge.dispute.created` marks the payment disputed, calls `reverse` with target
+  `packMicros`, and freezes the account holding the payment (or, if no Checkout event has
+  arrived yet, freezes it when one does, C2). A not-yet-granted disputed payment never grants.
+  Unfreezing is a manual operator action after the dispute closes. A dispute on an already
+  refunded payment reverses only the remaining difference.
 - **Orphan payment.** A paid session whose `client_reference_id` is missing (someone opened the
   bare link), malformed or unknown, or whose grant `grant` refuses, returns 200 (so Stripe stops
   retrying), grants nothing, and is recorded as an orphan for the operator to refund.
@@ -322,15 +354,16 @@ micro-dollar. Reader micros include the markup; provider micros do not.
   `responseSchema` and the system instruction. A tokenizer with
   byte fallback never produces more tokens than bytes [assumption about Google's tokenizer, to be
   checked against `countTokens` in M1]. This is far above the real count (about four bytes per
-  token) and still small: 64,000 bytes of request body costs at most $0.0192 at $0.30 per million.
+  token) and still small: the 100,000-byte maximum body (C1) costs at most $0.030 at $0.30 per
+  million.
 - **Output bound:** `maxOutputTokens`. Whether that cap also bounds thinking tokens on 3.5
   Flash-Lite is **unverified**, so the reservation does not rely on it for the operator bound:
   the per-call overage a reservation can miss is limited by the model's maximum output length.
   `maxPerCallOverage = (modelMaxOutputTokens − maxOutputTokens) × output price`, a table value.
   Until M1 reads `modelMaxOutputTokens` from the model card, the table uses 65,536 [placeholder,
-  unverified], which makes `maxPerCallOverage` about $0.16 and `providerMax` about $0.18. It is
-  held only while a call is open or unreconciled, so four calls in flight hold about $0.73 of a $2
-  ceiling; about a dozen unreconciled timeouts in a day stop managed reading for everyone until
+  unverified], which makes `maxPerCallOverage` about $0.16 and `providerMax` between about $0.17
+  (a typical 8 KB request) and $0.19 (the 100,000-byte maximum). It is held only while a call is
+  open or unreconciled, so four calls in flight hold at most about $0.78 of a $2 ceiling; about a dozen unreconciled timeouts in a day stop managed reading for everyone until
   midnight UTC, which is the safe failure.
 - **Condition for paid traffic:** `providerMax` must be a verified maximum for the chosen route
   covering **every** billable token class (input, cached input, output, thinking, and any other
@@ -391,30 +424,33 @@ with `finishReason: SAFETY` bills input but not output. It also warns that `usag
 can carry `promptTokenCount` on a 200 whose input was not charged. So settlement keys on the
 outcome:
 
-Rows are checked **in order; the first match wins**. "Provider" is what is counted against the
-day's ceiling (C2).
+Settlement is decided in two steps. **First the billing class**, from the outcome alone (rows
+are checked in order; the first match wins). **Then the amount**: when `usage` is present it is
+priced as the class says; when `usage` is missing, the reader is charged the class's own worst case
+(never more than the class bills) and the provider amount is held at `providerMax`, provisional.
+"Provider" is what is counted against the day's ceiling (C2); it always includes thinking tokens.
 
-| # | Outcome (C3) | Reader charged | Provider counted | API response (C1) |
+| # | Outcome (C3) → class | Reader charged | Provider counted | API response (C1) |
 |---|---|---|---|---|
-| 1 | Validation, auth, balance, ceiling, busy or frozen | nothing; no reservation | nothing | the matching 4xx/503 |
+| 1 | Validation, auth, balance, cap, ceiling, busy or frozen | nothing; no reservation | nothing | the matching 4xx/503 |
 | 2 | `http_error` (any non-200), or failure before sending | nothing; released | nothing | mapped error, `retryAfterMs` if bounded |
 | 3 | `no_response`, `sent: true` | `readerWorst`, reason `timeout` | `providerMax`, provisional | `504 request_failed` |
-| 4 | `ok`, `blockReason` set (prompt blocked, no candidate) | nothing | input at the worst case (the FAQ does not say whether this input is billed) | `502 request_failed`, `"blocked": true` |
-| 5 | `ok`, `usage` is `null` | `readerWorst`, reason `no_usage` | `providerMax`, provisional | the 200 body below, with `usage: null` |
-| 6 | `ok`, `finishReason` `STOP` | input + output + thinking from `usage`, at most `readerWorst` | the same at list price | 200 |
-| 7 | `ok`, `finishReason` `MAX_TOKENS` | as row 6 (Google bills it); counted and alerted on, since the JSON is truncated | as row 6 | 200 (E1's parser will reject the text) |
-| 8 | `ok`, `finishReason` `SAFETY` | input only (the FAQ: input billed, output not) | input | `502 request_failed`, `"blocked": true` |
-| 9 | `ok`, any other `finishReason` (`RECITATION`, `PROHIBITED_CONTENT`, `BLOCKLIST`, `SPII`, `OTHER`, unknown) | nothing, reason `unclassified`, flagged for review | input + output from `usage` | `502 request_failed`, `"blocked": true` |
+| 4 | `ok`, `blockReason` set (prompt blocked, no candidate) | nothing | `providerMax`, provisional (the FAQ does not settle whether this input is billed) | `502 request_failed`, `"blocked": true` |
+| 5 | `ok`, `finishReason` `SAFETY` | input only (the FAQ: input billed, output not); without `usage`, the input worst case | input from `usage`; without it, `providerMax`, provisional | `502 request_failed`, `"blocked": true` |
+| 6 | `ok`, any `finishReason` other than `STOP`, `MAX_TOKENS` or `SAFETY` (`RECITATION`, `PROHIBITED_CONTENT`, `BLOCKLIST`, `SPII`, `OTHER`, unknown) | nothing, reason `unclassified`, flagged for review | `providerMax`, provisional, until the route's table classifies it | `502 request_failed`, `"blocked": true` |
+| 7 | `ok`, `finishReason` `MAX_TOKENS` | input + output + thinking, at most `readerWorst`; counted and alerted on | full cost from `usage`; without it, `providerMax`, provisional | `502 request_failed` (the JSON is truncated and fails the shape check below) |
+| 8 | `ok`, `finishReason` `STOP` | input + output + thinking from `usage`, at most `readerWorst`; without `usage`, `readerWorst`, reason `no_usage` | full cost from `usage`; without it, `providerMax`, provisional | 200, `usage` as received or `null` |
 
-Before a 200 is returned (rows 5–7), the proxy checks that `text` parses as JSON matching
+Before a 200 is returned (row 8), the proxy checks that `text` parses as JSON matching
 `RESPONSE_SCHEMA` and that every passage `id` in it was in the request; a failure turns it into
 `502 request_failed` with the same charge. The full swap validation stays in the extension
 (`validateSwaps`), because only the extension holds the page context.
 
 The rule is: charge the reader only for classes the billing FAQ says are billed, and count against
-the ceiling anything that might be. Rows 3 and 5 charge the reader for a call Google may have
+the ceiling anything that might be. Row 3, and rows 5, 7 and 8 without `usage`, charge the reader for a call Google may have
 billed, because charging zero would let a retry loop spend without limit. The per-call worst case
-is about five cents to the reader at the 2× markup (section 10.4). In managed mode E1 makes no
+is about seven cents to the reader at the 2× markup (section 10.4), and about two cents for a
+typical request, whose reservation is computed from its own size. In managed mode E1 makes no
 automatic retries (C1), the per-account limit of one open reservation stops parallel retries, the
 local daily call cap still applies, and the ledger shows the reason.
 
@@ -447,7 +483,7 @@ card details under Stripe's own terms.
 | Chargeback after spending | Loss of up to one pack plus the $15 fee, per disputed pack | At most two packs held at once; per-account daily cap; freeze on dispute | Accepted |
 | Sybil accounts | Ledger rows | Accounts start at zero; per-IP rate limit on creation | Harmless rows; periodic deletion of zero-balance accounts older than 30 days |
 | Prompt injection from page text | Bad swaps | Response schema plus existing client validation (`validateSwaps`) | Unchanged from BYOK |
-| Replay of a Stripe event | Double credit | `grant` idempotent on event id | None known |
+| Replay or reordering of Stripe events | Double credit, or credit after a refund | Event-id deduplication in the same transaction as the ledger change; one grant per `payment_intent`; monotonic reversal target | None known |
 | Clock or retry races in reservation | Overspend | One transaction per reservation; settlement clamps | Covered by boundary tests |
 
 ## 8. Privacy, store and provider implications
@@ -589,7 +625,7 @@ Output dominates the cost, so the first thing M1 measures is `usageMetadata` on 
 |---|---:|---:|---:|
 | Eight passages, typical (estimate) | 2,000 | 1,000 | $0.0031 |
 | One passage (estimate) | 960 | 700 | $0.0020 |
-| Worst-case reservation (input bound = request bytes, ≤ 64,000; output = `maxOutputTokens` 2,048; thinking beyond the cap unverified, see C5) | 64,000 | 2,048 | $0.0243 |
+| Worst-case reservation (input bound = request bytes, ≤ 100,000; output = `maxOutputTokens` 2,048; thinking beyond the cap unverified, see C5) | 100,000 | 2,048 | $0.0351 |
 
 Provider cost per reader per 30 days at $0.0031 a call: 20 calls a day $1.87; 50 a day $4.67; 150 a
 day $14.00; the local cap of 1,000 a day $93.30. Calls per day are themselves an estimate (20 to
@@ -656,7 +692,8 @@ US** on a beta build with the flag on, before any listing changes.
    Google's own retention on the chosen route, stated in the approved text (on AI Studio's paid
    tier Google "logs prompts and responses for a limited period of time" for abuse detection;
    Vertex's retention is still to be read); 18 or older; US only; Lang Weave, not Google, is
-   the seller; refund terms), a balance line, a "Buy $10 of reading" link, and the existing
+   the seller; refund terms, including that a purchase made while the account already holds a
+   pack is refunded rather than credited), a balance line, a "Buy $10 of reading" link, and the existing
    error UI for the new categories.
 4. **Ted's part:** sections in DECISIONS.md: choose the route, open the Stripe account (KYC),
    open the cloud billing project, pick a host and domain, approve the privacy-policy revision.

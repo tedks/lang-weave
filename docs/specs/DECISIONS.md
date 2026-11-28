@@ -34,10 +34,18 @@ After yes:
      (`lkbkmlgogcpcacjmdmoecgacdbfddbnh`).
    - **Key kept**: the upload tells you whether the Store accepts or rejects a supplied key, which
      is ditz `store-first-upload-key`. It may simply be refused.
-   **Recommendation: key stripped**, and treat the Store item as a new ID. Existing beta readers
-   then move with the backup export and import that 0.16.x already has, never a silent migration
-   (AGENTS.md: a new ID strands progress otherwise). The Store ID also goes into the managed
-   proxy's CORS list if D6 ever says yes.
+   **Recommendation: key stripped**, and treat the Store item as a new ID. AGENTS.md says the
+   manifest `key` may be removed from a package "only with a CEO ruling"; **your yes to this step
+   is that ruling**, for the Store package only (the unpacked GitHub build keeps its key and ID).
+   Adopting a new Store ID is a decision in its own right, made here before any reader is asked
+   to move: existing beta readers then move their learning progress with the backup export and
+   import that 0.16.x already has, never a silent migration. A managed-key balance does not move
+   that way (the token is excluded from backups on purpose); if D6 ever says yes, a balance moves
+   with the ledger's `transfer` (spec C2). The Store ID also goes into the managed proxy's CORS
+   list.
+   The key-kept upload is **not** part of this procedure. It is an exception only you can choose,
+   to answer `store-first-upload-key` directly; D3 otherwise requires the key stripped before any
+   upload.
 
 ## D2. Publisher identity, contact and trader status
 
@@ -78,8 +86,8 @@ Open rulings `store-provider-region-ruling` and `store-site-consent-ruling` are 
   specific action clearly agreeing to the disclosure", and the 0.16.1 welcome buttons choose a site
   policy without saying "agree". This is the packet's top rejection risk (R1). It needs a small code
   change and a 0.16.2 release, which a lead can prepare as a draft PR.
-- **Store package deltas:** before any upload the Store ZIP must drop the development manifest
-  `key` and the dead content loader, and the Duolingo Score field needs a "not affiliated with
+- **Store package deltas:** before any upload (except a key-kept test you choose under D1) the
+  Store ZIP must drop the development manifest `key` and the dead content loader, and the Duolingo Score field needs a "not affiliated with
   Duolingo" line (ditz `store-manifest-key-delta`, `store-first-upload-key`; packet R2, R11).
 
 After yes: an agent fills the distribution tab (unlisted, US) and the listing from
@@ -197,7 +205,8 @@ After yes, in this order:
    terms. The tester reads the in-extension disclosure before the first managed call.
 2. A lead turns on the flag in that one build, and the tester buys one pack. The day after
    (provider billing lags by up to about a day), the lead reconciles two separate pairs:
-   Stripe payments and refunds against the ledger's grants and reversals (the $10 and its fee);
+   Stripe payments and refunds against the ledger's grants and reversals (amounts paid and
+   refunded; Stripe's fee is not in the ledger and is checked separately on the Stripe payout);
    and the ledger's **confirmed** provider costs (not provisional holds) against the provider's
    bill for the same calls over the same billing window, within a cent.
 3. Only then are the store listing and data disclosures revised (new data recipient, seller
