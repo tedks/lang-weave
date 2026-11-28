@@ -253,9 +253,16 @@ After yes, in two parts around D8:
    record; a lead deploys from a reviewed commit and runs the stub-provider tests against the
    deployment with the ceiling at $2 a day. The proxy URL now exists.
 2. **After D8 step 4 (configure and verify the webhook):** the Stripe webhook signing secret is
-   in the host's secret store; a lead sends a Stripe test-mode event to the endpoint and checks
-   it is verified and recorded, and that a bad signature is refused. D10 activates the link only
-   after this check passes.
+   in the host's secret store. Stripe signs test-mode events only for test-mode endpoints, so the
+   live secret cannot be checked with a test event. The checks are:
+   (a) a separate test-mode endpoint on a separate test deployment and ledger, with its own test
+   secret, receives Stripe test events and records them correctly;
+   (b) the live endpoint refuses a bad-signature request, and refuses a test-mode event by its
+   `livemode` (spec C4);
+   (c) the tester's purchase in D10 is the first live event and is the check of the live secret.
+   If it fails verification nothing is credited; Stripe retries for up to three days, the lead
+   corrects the secret, and the retried event grants once. D10 activates the link only after
+   (a) and (b) pass.
 
 ## D10. Price and first sale
 

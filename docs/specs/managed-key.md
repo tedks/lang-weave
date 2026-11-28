@@ -231,14 +231,20 @@ ledger change it causes.
 Invariant, checked after every operation: **`balance >= reserved >= 0`** for every account.
 
 - `createAccount(tokenHash) → accountId`
-- `reserve(accountId, readerWorst, providerMax, priceRowId, dayKey, ceiling, keyHash, bodyHash) →
+- `lookupClaim(accountId, keyHash, bodyHash) → none | OPEN | DUPLICATE(charged, response?) | KEY_REUSE`
+  — read-only. E2 calls it **before** pricing, so an existing claim always gets C1's repeat
+  answer, even when pricing or the stop latch would now refuse a new call.
+- `reserve(accountId, readerWorst, providerMax, priceRowId, ceiling, keyHash, bodyHash) →
   reservationId | BALANCE | DAILY_CAP | CEILING | STOPPED | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
   claims the idempotency key (C1) in the same transaction, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
-  largest amount the call could possibly cost the operator. It succeeds only if: the ledger's
+  largest amount the call could possibly cost the operator. It checks the
+  idempotency claim first (`DUPLICATE` / `KEY_REUSE` / `BUSY` for an open one, as C1), so a
+  repeat never sees a refusal meant for a new call. It sets `dayKey` itself, from the ledger's
+  own clock in the transaction (the UTC date at admission), and succeeds only if: the ledger's
   global **stop latch** is clear, the price row `priceRowId` that E2 priced the call with is
-  in date for `dayKey` (its effective window contains `dayKey` and `dayKey` is at most 30 days
-  after its `checkedOn`; the table is read in the same transaction, so a row that expires
-  between pricing and reservation is caught here), and, while
+  in date for that `dayKey` (its effective window contains it and it is at most 30 days after
+  the row's `checkedOn`; the table is read in the same transaction, so a row that expires
+  between pricing and reservation, including across UTC midnight, is caught here), and, while
   `ENROLLMENT=allowlist`, the account is on `ENROLLED_ACCOUNTS` (a ledger table the operator
   edits, so every instance reads the same list) (else `STOPPED`); the account is
   not frozen; it has no open reservation; `balance - reserved >= readerWorst`; fewer than
@@ -274,7 +280,8 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   Checkout session events carry both it and the session id): `{paymentIntentId,
   checkoutSessionId?, accountId?, packMicros, paidMicros, grantState: pending | granted |
   refused, reversalTarget, reversedMicros, refundedMicros, dispute: none | open | won | lost,
-  disputeLostMicros, disputeFreezeApplied}`. `disputeFreezeApplied` is set the first time a
+  disputeLostMicros, disputeFreezeApplied}`. `disputeFreezeApplied` is a boolean, initially
+  false, carried with the record by `transfer`; it is set the first time a
   dispute event freezes the account for this payment; later dispute events for it (a late
   `created` after a `lost` close, a retry) never freeze again, so an operator's unfreeze
   sticks. Tests cover lost-close → operator unfreeze → late `created`.
@@ -393,8 +400,8 @@ ceiling, while the reader is still charged only as the 6.3 table says.
 secret and a 300-second tolerance before it is parsed; a bad or stale signature is `400` and
 changes nothing.
 
-Every handled event (except a Checkout session that fails the ownership check below) first
-calls `recordPayment` (C2) for its `payment_intent`, in the same
+Every handled event (except a Checkout session that fails the ownership check below, and
+LW-STORE-MK-04's events with no usable `payment_intent`) first calls `recordPayment` (C2) for its `payment_intent`, in the same
 transaction as the event-id deduplication and any ledger change, so events may arrive in any
 order and any number of times.
 
@@ -446,7 +453,8 @@ order and any number of times.
   the amount check above catches a link changed later. A reusable link still allows several
   purchases by one account; `grant`'s one-pack rule limits how much credit one account holds.
 - **Dispute closed.** `charge.dispute.closed` records `dispute: won` or `lost` from the event's
-  status. A `lost` close applies the same `reverse(packMicros)` and, for a `granted` payment, the
+  status. C4 also refuses (200, diagnostic, no change) any event whose `livemode` differs from
+  the deployment's, so test-mode events never enter a live ledger. A `lost` close applies the same `reverse(packMicros)` and, for a `granted` payment, the
   same freeze as `charge.dispute.created` (both idempotent through the monotonic target), so a
   loss whose `created` event is late or never delivered still removes the credit. Tests cover
   created→closed, closed→created, and closed with no created, for won and lost. Otherwise it
@@ -464,9 +472,12 @@ provider cost a day, and Stripe Radar sees a repeated card.
 
 ### C5 — Pricing (owner E6; consumer E2)
 
-`worst(model, requestBytes, maxOutputTokens, dayKey) → {readerMicros, providerMicros, priceRowId} |
-NO_PRICE` (E2 answers `NO_PRICE` with `503 managed_unavailable` and makes no reservation) and
-`actual(model, outcome) → {readerMicros, providerMicros}`, both rounding **up** to the next
+`worst(model, requestBytes, maxOutputTokens, date) → {readerMicros, providerMicros, priceRowId} |
+NO_PRICE` (E2 answers `NO_PRICE` with `503 managed_unavailable` and makes no reservation, after
+`lookupClaim` found no claim) and
+`actual(priceRowId, outcome) → {readerMicros, providerMicros}`, which prices from exactly the row
+that backed the reservation. Price rows are **immutable**: a price change adds a new row with a
+new id, so a `priceRowId` always means the same prices. Both round **up** to the next
 micro-dollar. Reader micros include the markup; provider micros do not.
 
 - **Input bound:** the number of UTF-8 bytes of the full serialized request body, including
@@ -908,8 +919,10 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   type with no usable `payment_intent` returns 200 and changes nothing except event-id
   deduplication and an operator diagnostic (`no_payment_intent`), in one transaction; an unpaid or
   async-pending session therefore creates no payment record, and its later event that does carry
-  a `payment_intent` is handled normally. Exception: a `mode: "payment"`, `payment_status:
-  "paid"` session with no usable `payment_intent` (field missing, null or malformed) is recorded
+  a `payment_intent` is handled normally. Exception, applied only after C4's ownership check (the
+  session's `payment_link` is a configured credit link; an unrelated paid session with no
+  usable `payment_intent` is a diagnostic only, with a fixture for it): a `mode: "payment"`,
+  `payment_status: "paid"` session with no usable `payment_intent` (field missing, null or malformed) is recorded
   as an orphan payment keyed by its Checkout session id (`paid_without_payment_intent`) for the
   operator to refund, with no credit. **That disposition is terminal for the session:** any later
   event for the same Checkout session id, even one that carries a `payment_intent`, grants
