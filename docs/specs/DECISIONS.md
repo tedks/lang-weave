@@ -177,7 +177,7 @@ After yes:
    Payment Link setting that limits billing country was **not verified** tonight; Radar rules are
    the documented lever); link the terms-of-sale and refund page; and create a webhook endpoint
    for `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-   `charge.refunded` and `charge.dispute.created` on the proxy URL.
+   `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed` on the proxy URL.
 3. You: copy the webhook signing secret into the host's secret store.
 4. A lead writes the terms-of-sale and refund page (draft PR) for you to approve.
 

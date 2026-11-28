@@ -87,7 +87,7 @@ graph LR
   API -- "C3 provider client" --> PROV[E4 provider client]
   PROV -- "Gemini generateContent (server credential)" --> G[(Google)]
   API -- "C5 pricing" --> PR[E6 pricing]
-  STR[(Stripe)] -- "C4 webhook: session completed / async succeeded, charge refunded, dispute created" --> WH[E5 webhook]
+  STR[(Stripe)] -- "C4 webhook: session completed / async succeeded, charge refunded, dispute created / closed" --> WH[E5 webhook]
   WH -- "C2 recordPayment / grant / reverse / freeze" --> LED
   EXT -. "opens Payment Link with client_reference_id" .-> STR
 ```
@@ -261,17 +261,24 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
 - `release(reservationId)` — releases the whole reservation. Same compare-and-set.
 - **Payment record**, keyed by Stripe `payment_intent` (refund and dispute events carry it;
   Checkout session events carry both it and the session id): `{paymentIntentId,
-  checkoutSessionId?, accountId?, packMicros, grantState: pending | granted | refused,
-  reversalTarget, reversedMicros, disputed}`. `recordPayment(...)` creates or updates it from any
-  of the four events, so the order in which events arrive does not matter. **Freezing on a
+  checkoutSessionId?, accountId?, packMicros, paidMicros, grantState: pending | granted |
+  refused, reversalTarget, reversedMicros, refundedMicros, dispute: none | open | won | lost}`.
+  Stripe amounts are integer cents and are converted to micros (×10,000) on the way in.
+  `recordPayment(...)` creates or updates it from any handled event, so **no evidence is lost
+  whatever the order**: `refundedMicros` is the monotonic maximum of every cumulative
+  `amount_refunded` seen, in every grant state; `dispute` follows the dispute events. The
+  **outcome** can still depend on order, explicitly: a dispute that arrives before the grant
+  decision means no credit and no freeze; one that arrives after a grant freezes the account
+  (below). **Freezing on a
   dispute applies only to a `granted` payment**, the only case where credit was given and can be
   spent. A payment disputed while still `pending` is refused at grant time (no credit, no freeze);
   a `refused` payment never freezes.
-- **Orphan refund state**, kept separately from the reversal target: `{refundedMicros, status:
-  open | refunded | disputed}`. `refundedMicros` is the monotonic maximum of the cumulative
-  `amount_refunded` seen. `status` becomes `refunded` only when `refundedMicros` reaches the amount
-  paid; it becomes `disputed` when a dispute opens, which tells the operator **not** to refund it
-  in Stripe while the dispute is open.
+- **Orphan refund status** is **derived** from the payment record, never stored separately, so
+  an orphan created after a refund or a dispute starts in the right state: `disputed` while
+  `dispute` is `open`; `settled` when `dispute` is `lost` (the buyer already has the money back);
+  otherwise `refunded` when `refundedMicros >= paidMicros`, else `open` with
+  `paidMicros - refundedMicros` still owed. A dispute the operator **won** returns the orphan to
+  `open` with that amount owed, so the operator refunds it normally.
 - `grant(paymentIntentId)` — from `pending` only: adds `packMicros - reversalTarget` and moves to
   `granted`, if the payment is not disputed, the account exists and is not frozen, and the
   account's balance is below one pack (so normal grants never leave an account holding more
@@ -379,6 +386,10 @@ order and any number of times.
 - The Payment Link is configured with a fixed quantity of one, no promotion codes and cards only;
   the amount check above catches a link changed later. A reusable link still allows several
   purchases by one account; `grant`'s one-pack rule limits how much credit one account holds.
+- **Dispute closed.** `charge.dispute.closed` records `dispute: won` or `lost` from the event's
+  status. It changes no balance and unfreezes nothing by itself: for a granted payment the
+  operator decides on unfreezing; for an orphan the derived status moves to `open` (won: refund
+  what is still owed) or `settled` (lost).
 - Every other event type returns 200 and changes nothing.
 
 Disputes can arrive weeks after purchase, so freezing does not stop disputes on packs already
