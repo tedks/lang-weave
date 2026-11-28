@@ -200,7 +200,6 @@ export function createSqliteStorage(filename = ':memory:', {
       const columns = new Set(tx.all('PRAGMA table_info(reservations)').map(({ name }) => name));
       if (!columns.has('latestProviderOverflowMicros')) {
         tx.run('ALTER TABLE reservations ADD COLUMN latestProviderOverflowMicros TEXT');
-        tx.run('UPDATE reservations SET latestProviderOverflowMicros = providerOverflowMicros WHERE providerOverflowMicros IS NOT NULL');
       }
       if (!columns.has('providerOverflowPending')) {
         tx.run(`ALTER TABLE reservations ADD COLUMN providerOverflowPending

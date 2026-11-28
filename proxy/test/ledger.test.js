@@ -528,12 +528,22 @@ test('an older SQLite ledger reopens with only unresolved historical overflows m
 
     store = createSqliteStorage(filename, { now });
     const reopened = createLedger(store, { now });
-    expect(reopened.getReservation(ids[0])).toMatchObject({ providerActual: 300, providerOverflowPending: 0 });
+    const corrected = reopened.getReservation(ids[0]);
+    expect(corrected).toMatchObject({
+      providerActual: 300, providerOverflowPending: 0,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: null,
+    });
     expect(reopened.getReservation(ids[1])).toMatchObject({
       state: 'settled', providerActual: null, providerOverflowPending: 1,
-      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: '10000000000000000',
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: null,
     });
-    expect(reopened.reconcile(ids[1], 400)).toMatchObject({ providerActual: 400, providerOverflowPending: 0 });
+    const admit = () => reopened.reserve(corrected.accountId, 20, 500, price, ceiling, hash('next'), body);
+    expect(admit()).toBe('STOPPED');
+    expect(reopened.reconcile(ids[1], 400)).toMatchObject({
+      providerActual: 400, providerOverflowPending: 0,
+      providerOverflowMicros: '10000000000000000', latestProviderOverflowMicros: null,
+    });
+    expect(admit()).toMatch(/^[a-f0-9]{32}$/);
   } finally { store.close(); }
 });
 
