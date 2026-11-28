@@ -38,3 +38,10 @@ log_events:
     which the Store and Edge add (test/update-gate.test.js). The key is still kept
     on purpose: extension/test/package.test.js:158 asserts store.key equals dev.key.
     Whether to drop it waits on store-first-upload-key.'
+- time: 2026-11-28T08:29:47-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'LW-STORE 2026-11-28: store packet (PR #33) found the 0.16.1 store ZIP
+    still carries ''key'' and also ships the dead content-loader.js/content.js modules;
+    drop both in the Store delta. DECISIONS D1 (PR #101) recommends key stripped +
+    new Store ID, with Ted''s yes being the CEO ruling AGENTS.md requires.'
