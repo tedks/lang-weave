@@ -1,0 +1,26 @@
+id: managed-key-restore-procedure
+title: 'Managed key: specify the M2 restore procedure (latch setter, post-backup accounts,
+  Stripe replay)'
+desc: 'Follow-ups from council rounds 30 on PR #101 (spec CLEAN at 1063c0f; these
+  are M2 operational nits, not gate findings): (1) name what sets the stop latch on
+  restore (restore procedure writes it before start, or a ''restored'' marker startup
+  refuses to admit past); (2) reconciliation must cover accounts/tokens created after
+  the backup point (their readers get 401; replayed Checkouts become orphans; operator
+  recreates via transfer-style recovery and notifies); (3) Stripe will not resend
+  acknowledged events: reconcile by replaying from Stripe''s events list (about 30
+  days) through C4; (4) align section 12 with MK-07: a verified restore is required
+  in every deployment, paired when the host uses a separate journal; the latch applies
+  in both.'
+type: task
+component: default
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-11-28T10:38:27-00:00
+references: []
+log_events:
+- time: 2026-11-28T10:38:27-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
