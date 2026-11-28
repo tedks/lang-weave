@@ -1,0 +1,48 @@
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "suite_cases",
+    srcs = glob(
+        ["**"],
+        allow_empty = False,
+        exclude = [
+            "BUILD",
+            "BUILD.bazel",
+        ],
+    ),
+    visibility = ["//:__pkg__"],
+)
+
+filegroup(
+    name = "fsrs_cases",
+    srcs = [
+        "fsrs.test.js",
+        "fsrs-reference.json",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+filegroup(
+    name = "release_cases",
+    srcs = [
+        "backup-fixture.js",
+        "curriculum.test.js",
+        "engine.test.js",
+        "guarani.test.js",
+        "language-worker.test.js",
+        "languages.test.js",
+        "learning-log.test.js",
+        "placement.test.js",
+        "portability.test.js",
+        "portability-v2.test.js",
+        "review-tabs.test.js",
+        "router.test.js",
+        "spanish-everyday-corpus.json",
+        "spanish-everyday.test.js",
+        "spanish-prose.test.js",
+        "spanish.test.js",
+        "update-gate.test.js",
+        "web-accessible.test.js",
+    ],
+    visibility = ["//:__pkg__"],
+)

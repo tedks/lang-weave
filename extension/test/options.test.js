@@ -45,19 +45,28 @@ test('options works without a tab; settings, exception reset and key removal rou
   const messages = [];
   let storageChanged;
   let generateFails = false;
+  let workerAvailable = false;
+  let delayedStatus;
   let due = 2;
+  let isolationUnavailable = false;
+  let testCategory = 'key_rejected';
   const status = () => ({ config: { settings: cleanSettings(data.settings), language: 'es',
     hasKey: !!data.apiKey, origins: [] }, update: '', languages: [{ code: 'es', name: 'Spanish' }],
-    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, consentShown: true, modelStatus: null });
+    words: 30, review: { due, new: 12 }, pastedKey: !!data.apiKey, consentShown: true,
+    modelStatus: isolationUnavailable ? { category: 'key_isolation_unavailable' } : null });
   globalThis.chrome = {
     runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.5' }),
       sendMessage: async (msg) => {
         messages.push({ ...msg, ...(msg.apiKey ? { apiKey: '[redacted]' } : {}) });
-        if (msg.type === 'status') return status();
+        if (msg.type === 'status') {
+          if (delayedStatus) return delayedStatus;
+          if (!workerAvailable) throw new Error('Worker unavailable');
+          return status();
+        }
         if (msg.type === 'save') return handlers.save(msg);
         if (msg.type === 'removeKey') return handlers.removeKey();
         if (msg.type === 'clearCache') return handlers.clearCache();
-        if (msg.type === 'testKey') return { ok: false, category: 'key_rejected',
+        if (msg.type === 'testKey') return { ok: false, category: testCategory,
           providerText: 'secret provider text' };
         if (msg.type === 'addLanguage') {
           if (generateFails) throw new Error('Generation failed');
@@ -73,8 +82,31 @@ test('options works without a tab; settings, exception reset and key removal rou
   try {
     await import('../src/options.js?options-roundtrip');
     const $ = (id) => window.document.getElementById(id);
-    await waitFor(() => $('version').textContent === '0.12.5');
-    expect($('wordInfo').textContent).toBe('30 Spanish words');
+    await waitFor(() => $('notice').textContent === 'Worker unavailable');
+    expect($('version').textContent).toBe('0.12.5');
+    expect($('update').hidden).toBe(true);
+    workerAvailable = true;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('wordInfo').textContent === '30 Spanish words');
+    expect($('notice').textContent).toBe('');
+    // A superseded request can reject after the latest refresh has already recovered.
+    let rejectStatus;
+    delayedStatus = new Promise((_, reject) => { rejectStatus = reject; });
+    storageChanged({ settings: {} }, 'local');
+    delayedStatus = null;
+    due = 3;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('reviewInfo').textContent === '3');
+    rejectStatus(new Error('Late worker failure'));
+    await new Promise((done) => setTimeout(done, 0));
+    expect($('notice').textContent).toBe('');
+    due = 2;
+    isolationUnavailable = true;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('keyFeedback').textContent === 'This browser cannot keep the key private. Update Chrome to 140 or newer.');
+    isolationUnavailable = false;
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('keyFeedback').textContent === '');
     expect($('reviewInfo').textContent).toBe('2');
     expect(window.document.querySelector('a[href="https://aistudio.google.com/apikey"]')).not.toBeNull();
     expect($('siteList').textContent).toContain('example.com: off');
@@ -86,6 +118,10 @@ test('options works without a tab; settings, exception reset and key removal rou
     await waitFor(() => $('siteList').textContent === 'None');
     expect(data.settings.siteOverrides).toEqual({});
     expect(messages.some((m) => m.siteOverride?.host === 'example.com' && m.siteOverride.enabled === null)).toBe(true);
+    data.settings.siteOverrides = { 'x.com': true };
+    storageChanged({ settings: {} }, 'local');
+    await waitFor(() => $('siteList').textContent.includes('Open x.com and turn on site access in the Lang Weave popup.'));
+    expect(data.settings.siteOverrides['x.com']).toBe(true);
     $('newLanguage').value = 'fr';
     $('addLanguage').click();
     await waitFor(() => $('operation').textContent === '' && !$('addLanguage').disabled);
@@ -93,10 +129,16 @@ test('options works without a tab; settings, exception reset and key removal rou
     $('addLanguage').click();
     await waitFor(() => $('notice').textContent === 'Generation failed');
     expect($('operation').textContent).toBe('');
+    workerAvailable = false;
+    storageChanged({ settings: {} }, 'local');
+    await new Promise((done) => setTimeout(done, 0));
+    expect($('notice').textContent).toBe('Generation failed');
+    workerAvailable = true;
     $('apiKey').value = 'unsaved-draft';
     data.settings.density = 'light';
     storageChanged({ settings: {} }, 'local');
     await waitFor(() => $('density').value === 'light');
+    expect($('notice').textContent).toBe('Generation failed');
     expect($('apiKey').value).toBe('unsaved-draft');
     due = 5;
     storageChanged({ recallReview: {} }, 'local');
@@ -126,6 +168,9 @@ test('options works without a tab; settings, exception reset and key removal rou
     $('testKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Gemini rejected this key. Paste a new one.');
     expect(window.document.body.textContent).not.toContain('secret provider text');
+    testCategory = 'consent_required';
+    $('testKey').click();
+    await waitFor(() => $('keyFeedback').textContent === 'Review the privacy choices on the welcome page before testing your key.');
     const beforeRemoval = { epoch: data.epoch, keyEpoch: data.keyEpoch };
     $('removeKey').click();
     await waitFor(() => $('keyFeedback').textContent === 'Key removed.');
@@ -137,6 +182,50 @@ test('options works without a tab; settings, exception reset and key removal rou
     expect($('removeKey').disabled).toBe(true);
     expect(messages.some((m) => m.type === 'removeKey')).toBe(true);
     expect(messages.every((m) => m.apiKey !== 'synthetic-key')).toBe(true);
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.chrome = oldChrome;
+    window.happyDOM.abort();
+  }
+});
+
+test('options renders its multi-part sentences and dynamic notes as the exact English', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-options/src/options.html' });
+  window.document.write(readFileSync(new URL('../src/options.html', import.meta.url), 'utf8'));
+  window.setInterval = () => 1;
+  globalThis.document = window.document;
+  const status = { config: { settings: cleanSettings({ newSitesEnabled: true, siteOverrides: { 'a.example': true } }), language: 'fr', hasKey: false,
+    origins: ['https://a.example/*'] },
+    update: '0.12.19', languages: [{ code: 'es', name: 'Spanish' }, { code: 'fr', name: 'French', experimental: true }],
+    words: 21, review: { due: 4, new: 0 }, pastedKey: false, consentShown: false, modelStatus: null };
+  globalThis.chrome = {
+    runtime: { id: 'fw-options', getManifest: () => ({ version: '0.12.18' }),
+      sendMessage: async (msg) => { if (msg.type === 'status') return status; throw new Error('no progress'); } },
+    storage: { onChanged: { addListener: () => {} } },
+    permissions: { contains: async () => false, request: async () => true,
+      onAdded: { addListener: () => {} }, onRemoved: { addListener: () => {} } },
+    tabs: { create: async () => ({ id: 1 }) },
+  };
+  try {
+    await import('../src/options.js?options-english');
+    const $ = (id) => window.document.getElementById(id);
+    await waitFor(() => $('wordInfo').textContent === '21 French words');
+    const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
+    expect(text($('levelInfo').parentElement)).toBe('Current effective level: L1');
+    expect(text($('wordInfo').parentElement)).toBe('Eligible vocabulary: 21 French words (not words learned). Recall reviews due: 4.');
+    expect(text($('version').parentElement)).toBe('Lang Weave version 0.12.18 · AGPL-3.0-or-later license · NOTICE and upstream credits');
+    expect(text($('updateVersion').parentElement)).toBe("Update 0.12.19 didn't load by itself: click the reload arrow on Lang Weave in the extensions page.");
+    expect(text($('welcomeLink'))).toBe('Review the first-run privacy choices before testing a key or generating vocabulary.');
+    expect($('welcomeLink').querySelector('a').getAttribute('href')).toBe('welcome.html');
+    expect([...$('language').options].map((o) => o.textContent)).toEqual(['Spanish', 'French · experimental']);
+    expect($('consentNote').textContent).toBe('Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.');
+    expect($('newSitesEnabled').disabled).toBe(true);
+    expect($('grantSites').hidden).toBe(true);
+    expect($('accessNote').textContent).toBe('Chrome needs your OK before it can run on other sites.');
+    expect($('siteList').textContent).toBe('a.example: onReset');
+    expect($('apiKey').placeholder).toBe('AIza…');
+    expect(text($('openMyWords').parentElement)).toBe('My words shows every word\'s stage and next review, lets you practise or reset one, and answers "is this working?".');
   } finally {
     globalThis.document = oldDocument;
     globalThis.chrome = oldChrome;

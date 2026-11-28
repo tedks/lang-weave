@@ -2,6 +2,10 @@
 
 Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (MIT, preserved in LICENSE-MIT). Lang Weave itself is licensed AGPL-3.0-or-later (LICENSE, NOTICE); keep both files and the NOTICE attribution in any release payload. Spanish is its bundled default. Global workflow rules apply from the shared agent configuration. AGENTS.md is canonical; other agent instruction files are symlinks.
 
+## GitHub destination
+
+In a fresh clone, run `gh repo set-default tedks/lang-weave` and verify `gh repo set-default --view` prints `tedks/lang-weave`. Linked worktrees share this setting. For Lang Weave PRs, specify the destination on each write, for example `gh pr create --repo tedks/lang-weave --base main --head <feature-branch> --draft`. Pass `GH_REPO=tedks/lang-weave` to review tools that infer their repository. Use an explicit upstream target for upstream reads. Opening or modifying an upstream PR requires a request to contribute there.
+
 ## Project structure
 
 - `extension/` — shipped MV3 extension, no build step or runtime dependencies; `src/` is code and `test/` holds Bun/happy-dom tests.
@@ -12,10 +16,16 @@ Lang Weave is a standalone Chrome extension fork of jackieoliver/french-weave (M
 
 ## Environment and gates
 
-No Nix flake or Bazel configuration. The extension loads directly from `extension/`.
-Run `bun install --frozen-lockfile` and `bun test` inside `extension/`.
-For highlight styling changes, run `npm run test:highlights` inside `extension/` for real Chromium light/dark CSS checks.
-Run `python3 -m unittest discover -s tests` from the root for inherited Python tooling.
+The extension loads directly from `extension/`; nothing needs building to load it.
+Bazel 8.7.0 comes from the root `flake.nix`. `nix develop --command bazel test //:fsrs_test //:package_boundary_test //:version_classifier_test` runs the original three Bazel targets. Run the full extension Bun suite with `nix develop --command bazel test --spawn_strategy=linux-sandbox //:extension_test`. The unpacked ZIP, targeted extension regressions, and Chromium install smoke have separate targets. See `docs/bazel-fsrs.md` for the commands.
+Agent validation follows the Bazel-only rule in the shared agent configuration. The CTO's exception for standalone evidence applied to PR #50 (tedks/lang-weave#50) only. Where a needed gate has no Bazel target, close the gap through ditz `bazel-graph-remaining-gates` or seek a new ruling.
+`BUILD` and `BUILD.bazel` files under `extension/` are left out of both ZIPs and exempt from the version check.
+Standalone entrypoints, kept for people who work in this repo without Bazel or the parent workspace (they are not agent validation evidence):
+- `bun install --frozen-lockfile && bun test` inside `extension/`.
+- `npm run test:highlights` inside `extension/`, the real Chromium light/dark CSS checks for highlight styling.
+
+For release acceptance, run `nix develop --command bazel test --spawn_strategy=linux-sandbox //:inherited_python_test` and compare candidate commits with `nix develop --command bazel run //:release_version_check`. See [the Bazel release commands](docs/bazel-fsrs.md#python-and-release-version-gates). The inherited Python suite also supports standalone `python3 -m unittest discover -s tests` from the root.
+
 Keep Chrome runtime verification separate from mocked model verification; never imply a live Gemini check without one.
 
 ## Repo specifics

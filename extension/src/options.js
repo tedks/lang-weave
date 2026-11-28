@@ -1,12 +1,21 @@
+import { localize, t } from './i18n.js';
 import { statusLabel } from './quota-status.js';
 import { resolveLevel } from './levels.js';
 import { MODELS } from './gemini.js';
 import { weekLine, headline } from './progress-text.js';
+import { mountPlacement } from './placement-page.js';
+import { hasSiteAccess } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
+localize();
+$('version').textContent = chrome.runtime.getManifest().version;
+const placementPanel = $('placement');
+mountPlacement(placementPanel);
+const placementSummary = placementPanel.firstElementChild;
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 let status;
 let refreshGeneration = 0;
+let hasActionError = false;
 
 const send = async (msg) => {
   const res = await chrome.runtime.sendMessage(msg);
@@ -16,6 +25,16 @@ const send = async (msg) => {
 
 async function refresh() {
   const generation = ++refreshGeneration;
+  try {
+    await renderSettings(generation);
+    if (generation === refreshGeneration && !hasActionError) $('notice').textContent = '';
+  } catch (e) {
+    if (generation === refreshGeneration && !hasActionError)
+      $('notice').textContent = e.message || t('options_error_refresh');
+  }
+}
+
+async function renderSettings(generation) {
   const next = await send({ type: 'status' });
   const all = await chrome.permissions.contains({ origins: ALL_SITES });
   const progress = await send({ type: 'progress' }).catch(() => null); // informational only
@@ -23,58 +42,72 @@ async function refresh() {
   status = next;
   const c = status.config;
   const s = c.settings;
-  $('version').textContent = chrome.runtime.getManifest().version;
   $('update').hidden = !status.update;
   $('updateVersion').textContent = status.update || '';
   $('newSitesEnabled').value = String(s.newSitesEnabled);
-  $('consentNote').textContent = status.consentShown ? 'Your site policy has been chosen. You can change it below.'
-    : 'Choose a site policy on the welcome page before Lang Weave sends anything to Gemini.';
+  $('newSitesEnabled').disabled = !status.consentShown;
+  $('consentNote').textContent = status.consentShown ? t('options_consent_chosen') : t('options_consent_pending');
   $('welcomeLink').hidden = status.consentShown;
-  $('grantSites').hidden = all || !s.newSitesEnabled;
+  $('grantSites').hidden = !status.consentShown || all || !s.newSitesEnabled;
   $('accessNote').textContent = s.newSitesEnabled
-    ? (all ? 'On for every site except the ones you turn off. Webmail, messaging, AI chat, banking, health, government and local addresses start off. Reload pages already open to start there.' : 'Chrome needs your OK before it can run on other sites.')
-    : 'Off on sites until you turn them on here.';
-  const { effective } = resolveLevel(s);
-  $('levelInfo').textContent = `L${effective}`;
+    ? (all ? t('options_access_all') : t('options_access_needs_ok'))
+    : t('options_access_off');
+  const effective = c.level ?? resolveLevel(s).effective;
+  $('levelInfo').textContent = t('options_level_value', effective);
   $('levelOverride').value = String(s.levelOverride || 0);
+  $('levelOverride').disabled = !!s.spanishPlacement;
+  $('levelHint').textContent = s.spanishPlacement ? t('placement_level_hint') : t('options_level_hint');
+  if (s.spanishPlacement) placementSummary.setAttribute('aria-describedby', 'levelHint');
+  else placementSummary.removeAttribute('aria-describedby');
+  placementPanel.hidden = c.language !== 'es';
+  if (placementPanel.hidden) placementPanel.open = false;
   $('gradual').checked = s.gradual;
   $('newWordsPerDay').value = String(s.newWordsPerDay);
   $('newWordsPerDay').disabled = !s.gradual;
   $('density').value = s.density;
   $('inlineRecall').checked = s.inlineRecall;
   $('inlineRecall').disabled = !s.gradual;
+  $('guessFirst').checked = s.guessFirst === true;
+  $('guessFirst').disabled = !s.gradual;
   $('language').replaceChildren();
   for (const item of status.languages) {
     const option = document.createElement('option');
     option.value = item.code;
-    option.textContent = `${item.name}${item.experimental ? ' · experimental' : ''}`;
+    option.textContent = item.experimental ? t('options_language_experimental', item.name) : item.name;
     $('language').append(option);
   }
   $('language').value = c.language;
-  $('removeLanguage').hidden = c.language === 'es';
+  const selected = status.languages.find((item) => item.code === c.language);
+  $('removeLanguage').hidden = !selected?.experimental;
   $('model').value = s.model;
-  $('wordInfo').textContent = `${status.words} ${status.languages.find((item) => item.code === c.language)?.name || c.language} words`;
+  $('wordInfo').textContent = t('options_word_count', status.words, selected?.name || c.language);
   $('reviewInfo').textContent = String(status.review.due);
   $('progressSummary').textContent = progress ? `${headline(progress.verifiedKnown)} · ${weekLine(progress.practisedThisWeek)}` : '';
-  $('apiKey').placeholder = status.pastedKey ? 'saved (paste to replace)' : 'AIza…';
+  $('apiKey').placeholder = status.pastedKey ? t('options_key_saved_placeholder') : 'AIza…';
   $('testKey').disabled = !status.pastedKey || !status.consentShown;
   $('addLanguage').disabled = !status.consentShown;
   $('removeKey').disabled = !status.pastedKey;
+  if (status.modelStatus?.category === 'key_isolation_unavailable')
+    $('keyFeedback').textContent = statusLabel(status.modelStatus);
+  else if ($('keyFeedback').textContent === statusLabel({ category: 'key_isolation_unavailable' }))
+    $('keyFeedback').textContent = '';
   const list = $('siteList');
   list.replaceChildren();
   for (const [name, enabled] of Object.entries(s.siteOverrides)) {
     const row = document.createElement('div');
     row.className = 'row';
     const label = document.createElement('span');
-    label.textContent = `${name}: ${enabled ? 'on' : 'off'}`;
+    const hasAccess = hasSiteAccess(`https://${name}/`, c.origins) || hasSiteAccess(`http://${name}/`, c.origins);
+    label.textContent = !enabled ? t('options_site_off', name)
+      : hasAccess ? t('options_site_on', name) : t('options_site_access_needed', name);
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Reset';
+    button.textContent = t('options_site_reset');
     button.addEventListener('click', () => run(() => save({ siteOverride: { host: name, enabled: null } })));
     row.append(label, button);
     list.append(row);
   }
-  if (!list.childNodes.length) list.textContent = 'None';
+  if (!list.childNodes.length) list.textContent = t('options_no_exceptions');
 }
 
 async function save(msg) {
@@ -83,9 +116,15 @@ async function save(msg) {
 }
 
 async function run(fn) {
+  hasActionError = false;
   $('notice').textContent = '';
   $('operation').textContent = '';
-  try { await fn(); } catch (e) { $('notice').textContent = e.message || 'Could not do that'; }
+  try {
+    await fn();
+  } catch (e) {
+    hasActionError = true;
+    $('notice').textContent = e.message || t('options_error_generic');
+  }
 }
 
 for (const [id, label] of Object.entries(MODELS)) {
@@ -101,11 +140,12 @@ $('gradual').addEventListener('change', (e) => run(() => save({ settings: { grad
 $('newWordsPerDay').addEventListener('change', (e) => run(() => save({ settings: { newWordsPerDay: Number(e.target.value) } })));
 $('density').addEventListener('change', (e) => run(() => save({ settings: { density: e.target.value } })));
 $('inlineRecall').addEventListener('change', (e) => run(() => save({ settings: { inlineRecall: e.target.checked } })));
+$('guessFirst').addEventListener('change', (e) => run(() => save({ settings: { guessFirst: e.target.checked } })));
 $('language').addEventListener('change', (e) => run(() => save({ settings: { language: e.target.value } })));
 $('addLanguage').addEventListener('click', () => run(async () => {
   const button = $('addLanguage');
   button.disabled = true;
-  $('operation').textContent = 'Generating experimental vocabulary…';
+  $('operation').textContent = t('options_generating');
   try { await send({ type: 'addLanguage', code: $('newLanguage').value.trim() }); await refresh(); }
   finally { button.disabled = false; $('operation').textContent = ''; }
 }));
@@ -117,10 +157,10 @@ $('model').addEventListener('change', (e) => run(() => save({ settings: { model:
 const saveKey = () => run(async () => {
   $('keyFeedback').textContent = '';
   const key = $('apiKey').value.trim();
-  if (!key) { $('keyFeedback').textContent = 'Paste a key first.'; return; }
+  if (!key) { $('keyFeedback').textContent = t('options_key_paste_first'); return; }
   await save({ apiKey: key });
   $('apiKey').value = '';
-  $('keyFeedback').textContent = 'Saved ✓';
+  $('keyFeedback').textContent = t('options_key_saved');
 });
 $('saveKey').addEventListener('click', saveKey);
 $('apiKey').addEventListener('keydown', (e) => {
@@ -129,13 +169,14 @@ $('apiKey').addEventListener('keydown', (e) => {
 $('testKey').addEventListener('click', () => run(async () => {
   const button = $('testKey');
   button.disabled = true;
-  $('keyFeedback').textContent = 'Testing key…';
+  $('keyFeedback').textContent = t('options_key_testing');
   try {
     const result = await send({ type: 'testKey' });
     await refresh();
-    $('keyFeedback').textContent = result.ok ? 'Key works.' : result.category === 'no_key'
-      ? 'Add a Gemini key first.' : result.category === 'changed' ? 'Key or settings changed. Test again.'
-      : statusLabel({ category: result.category }) || 'Model request failed. Try again later.';
+    $('keyFeedback').textContent = result.ok ? t('options_key_works') : result.category === 'no_key'
+      ? t('options_key_add_first') : result.category === 'changed' ? t('options_key_changed')
+      : result.category === 'consent_required' ? t('options_key_consent_required')
+      : statusLabel({ category: result.category }) || t('options_key_model_failed');
   } finally { button.disabled = !status?.pastedKey || !status?.consentShown; }
 }));
 $('removeKey').addEventListener('click', () => run(async () => {
@@ -143,7 +184,7 @@ $('removeKey').addEventListener('click', () => run(async () => {
   await send({ type: 'removeKey' });
   await refresh();
   $('apiKey').value = '';
-  $('keyFeedback').textContent = 'Key removed.';
+  $('keyFeedback').textContent = t('options_key_removed');
 }));
 $('grantSites').addEventListener('click', () => run(async () => {
   if (await chrome.permissions.request({ origins: ALL_SITES })) await refresh();
@@ -151,7 +192,7 @@ $('grantSites').addEventListener('click', () => run(async () => {
 $('clearCache').addEventListener('click', () => run(async () => {
   const res = await send({ type: 'clearCache' });
   await refresh();
-  $('operation').textContent = `Cleared ${res.removed}`;
+  $('operation').textContent = t('options_cleared', res.removed);
 }));
 $('openExtensions').addEventListener('click', () => {
   void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
@@ -159,11 +200,11 @@ $('openExtensions').addEventListener('click', () => {
 
 const refreshAfterExternalChange = () => {
   $('operation').textContent = '';
-  void refresh().catch((e) => { $('notice').textContent = e.message || 'Could not refresh settings'; });
+  void refresh();
 };
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && Object.keys(changes).some((key) =>
-    ['settings', 'apiKey', 'languagePacks', 'recallReview', 'personalVocabularyV1'].includes(key) ||
+    ['settings', 'apiKey', 'languagePacks', 'recallReview', 'personalVocabularyV1', 'spanishPlacement'].includes(key) ||
     key.endsWith(':recallReview'))) {
     refreshAfterExternalChange();
   }
@@ -178,4 +219,4 @@ document.defaultView.setInterval(() => {
   if (!document.hidden) refreshAfterExternalChange();
 }, 5 * 60 * 1000);
 
-void run(refresh);
+void refresh();

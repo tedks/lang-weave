@@ -1,33 +1,47 @@
-// Real MV3 Chromium gate for the "My words" page. No network, no Gemini, no API key: every card
-// is seeded through the real worker's review messages, and every assertion reads the page or the
-// worker's own storage. Throwaway profile; the scratch directory is removed in finally.
+// Real MV3 Chromium gate for My words and opening review. Use the extracted beta ZIP when
+// run by Bazel. All learner actions and storage stay in a fresh disposable profile.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, chromiumBinary, markExtensionWorkerForRestart, waitForExtensionWorker } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-words-'));
-const extension = join(scratch, 'extension');
+const unpackedBeta = process.env.LANG_WEAVE_WELCOME_EXTENSION;
+const extension = unpackedBeta || join(scratch, 'extension');
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
+  if (!unpackedBeta) {
+    await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
+    await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true });
+    await cp(join(root, '_locales'), join(extension, '_locales'), { recursive: true });
+    await writeFile(join(extension, 'manifest.json'), await readFile(join(root, 'manifest.json')));
+  }
+  const shortcutTool = process.env.LANG_WEAVE_REVIEW_XDOTOOL;
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: !shortcutTool, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
-      '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
+      '--host-resolver-rules=MAP * ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
-  const extensionId = await worker.evaluate(() => chrome.runtime.id);
+  const extensionId = 'lkbkmlgogcpcacjmdmoecgacdbfddbnh';
+  let worker = await waitForExtensionWorker(browser, {
+    url: `chrome-extension://${extensionId}/src/background.js`,
+  });
+  assert.equal(await worker.evaluate(() => chrome.runtime.id), extensionId);
   const url = (page) => `chrome-extension://${extensionId}/src/${page}.html`;
   const send = (page, message) => page.evaluate((m) => chrome.runtime.sendMessage(m), message);
   const stored = () => worker.evaluate(() => chrome.storage.local.get(['recallReview', 'learningRetrievals']));
+  const reviewPages = () => browser.pages().filter((page) => page.url() === url('review'));
+  const tabOf = (page) => page.evaluate(() => chrome.tabs.getCurrent());
+  // Count browser pages independently of the worker's discovery. Chrome 140's
+  // URL-filtered tabs.query returns no matches even for our own open Review.
+  const reviewTabs = () => Promise.all(reviewPages().map(tabOf));
+  const grants = () => worker.evaluate(() => chrome.permissions.getAll());
+  const initialGrants = await grants();
   const until = async (read, check, what) => {
     let value;
     for (let i = 0; i < 100; i++) {
@@ -42,20 +56,123 @@ try {
   const settings = await worker.evaluate(async () => (await chrome.storage.local.get('settings')).settings);
   assert.ok(!settings?.language || settings.language === 'es', `unexpected default language ${settings?.language}`);
 
-  // 2. Seed through the real review flow: introduce 5, rate one 'medium'.
-  const seed = await browser.newPage();
-  await seed.goto(url('review'));
-  const introduced = await send(seed, { type: 'reviewIntroduce' });
-  assert.equal(introduced.added, 5);
-  const next = await send(seed, { type: 'reviewNext' });
-  assert.ok(next.card?.ticket, 'a card is served');
-  const revealed = await send(seed, { type: 'reviewReveal', ticket: next.card.ticket });
-  const rated = revealed.answer.fr; // the Spanish form of the card rated here
-  const ratedGloss = next.card.en;
-  const rateReply = await send(seed, { type: 'reviewRate', ticket: next.card.ticket, rating: 'medium' });
-  assert.equal(rateReply.ok, true);
-  await seed.close(); // no other review tab may race the cards under test
-  let data = await stored();
+  const popup = await browser.newPage();
+  await popup.goto(url('popup'));
+  await popup.locator('#primary').getByText('Add words', { exact: true }).waitFor();
+  const openedPage = async (name) => until(async () => {
+    const error = await popup.locator('#notice').textContent();
+    assert.equal(error, '', `popup failed to open ${name}`);
+    return browser.pages().find((page) => page.url() === url(name));
+  }, Boolean, `popup to open ${name}`);
+  assert.deepEqual(await reviewTabs(), []);
+  await popup.locator('#primary').click();
+  const review = await openedPage('review');
+  const { id: reviewId, windowId: reviewWindow } = await tabOf(review);
+  const reviewDocument = () => worker.evaluate(async (tabId) => (await chrome.runtime.getContexts({
+    contextTypes: ['TAB'], tabIds: [tabId], frameIds: [0],
+  }))[0]?.documentId, reviewId);
+  const waitForReview = () => until(reviewTabs, (tabs) => tabs.some((tab) => tab.id === reviewId && tab.active),
+    'the same review tab to refocus');
+  await review.locator('#introduce').click();
+  const prompt = review.locator('#prompt');
+  const answer = review.locator('#answer');
+  await prompt.waitFor();
+  const ratedGloss = await prompt.textContent();
+  await review.locator('#reveal').click();
+  await answer.waitFor();
+  const rated = await answer.textContent();
+  const firstOffer = (await stored()).recallReview.current;
+  const documentId = await reviewDocument();
+  assert.ok(documentId);
+  assert.equal(firstOffer.revealed, true);
+  // Restart the worker with the revealed card still on screen. The popup click
+  // wakes it and must find the same document even with no in-memory tab IDs.
+  const { id: popupId } = await popup.evaluate(() => chrome.tabs.getCurrent());
+  const unrelated = await worker.evaluate((windowId) => chrome.tabs.create({ windowId, url: 'about:blank' }), reviewWindow);
+  const otherWindow = await worker.evaluate((tabId) => chrome.windows.create({ tabId, focused: true }), popupId);
+  assert.notEqual(otherWindow.id, reviewWindow);
+  await popup.bringToFront();
+  const cdp = await browser.newCDPSession(popup);
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const initialWorker = targetInfos.find((target) => target.type === 'service_worker' && target.url === worker.url());
+  assert.ok(initialWorker);
+  const previous = await markExtensionWorkerForRestart(worker);
+  await cdp.send('Target.closeTarget', { targetId: initialWorker.targetId });
+  await until(() => cdp.send('Target.getTargets'), ({ targetInfos }) =>
+    targetInfos.every((target) => target.targetId !== initialWorker.targetId), 'the old review worker to stop');
+  await popup.locator('#primary').click();
+  await until(async () => {
+    assert.equal(await popup.locator('#notice').textContent(), '');
+    return (await cdp.send('Target.getTargets')).targetInfos;
+  }, (targets) => targets.some((target) => target.type === 'service_worker' && target.url === previous.url),
+  'the popup to wake the review worker');
+  worker = await waitForExtensionWorker(browser, previous);
+  await waitForReview();
+  assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
+  assert.equal(await prompt.textContent(), ratedGloss);
+  assert.equal(await answer.isVisible(), true);
+  assert.equal(await answer.textContent(), rated);
+  assert.equal(await reviewDocument(), documentId);
+  const focusedWindow = () => worker.evaluate(async () => (await chrome.windows.getLastFocused()).id);
+  if (shortcutTool) await until(focusedWindow, (id) => id === reviewWindow, 'the review window to focus');
+  const neighboringTab = await worker.evaluate((tabId) => chrome.tabs.get(tabId), unrelated.id);
+  assert.equal(neighboringTab.id, unrelated.id);
+  assert.equal(neighboringTab.windowId, reviewWindow);
+  assert.equal(neighboringTab.active, false);
+  assert.deepEqual((await stored()).recallReview.current, firstOffer);
+  assert.equal((await stored()).learningRetrievals?.retrievals.length ?? 0, 0);
+
+  await review.locator('[data-rating="medium"]').click();
+  const position = review.locator('#progress');
+  await position.getByText(/^Card 2 of /).waitFor();
+  await review.locator('#reveal').click();
+  await answer.waitFor();
+  const shown = async () => ({
+    prompt: await prompt.textContent(),
+    answer: await answer.textContent(),
+    revealed: await answer.isVisible(),
+    position: await position.textContent(),
+    documentId: await reviewDocument(),
+    saved: await stored(),
+  });
+  const session = await shown();
+  assert.equal(session.documentId, documentId);
+  assert.equal(session.saved.recallReview.current.revealed, true);
+  assert.equal(session.saved.learningRetrievals.retrievals.length, 1);
+  await worker.evaluate((id) => chrome.tabs.update(id, { active: true }), unrelated.id);
+  await popup.locator('#primary').click();
+  await waitForReview();
+  assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
+  assert.deepEqual(await shown(), session);
+
+  if (shortcutTool) {
+    // Send the real browser accelerator using the dedicated disposable X
+    // display; a renderer keyboard event cannot invoke chrome.commands.
+    const reviewShortcut = () => worker.evaluate(async () => (await chrome.commands.getAll())
+      .find((command) => command.name === 'open-review').shortcut);
+    let binding = await reviewShortcut();
+    if (!binding) {
+      // New Chromium versions reserve Alt+Shift+R for Reading mode.
+      const shortcuts = await browser.newPage();
+      await shortcuts.goto('chrome://extensions/shortcuts');
+      const input = shortcuts.locator('.command-entry').filter({ hasText: 'Open Lang Weave review' }).locator('cr-shortcut-input');
+      await input.getByRole('button', { name: /edit/i }).click();
+      await input.getByRole('textbox').press('Control+Shift+Y');
+      binding = await until(reviewShortcut, (value) => value === 'Ctrl+Shift+Y', 'the fixture review shortcut to bind');
+      await shortcuts.close();
+    }
+    const title = 'Lang Weave review shortcut fixture';
+    await popup.evaluate((title) => { document.title = title; }, title);
+    execFileSync(shortcutTool, ['search', '--sync', '--onlyvisible', '--name', title, 'windowactivate', '--sync'],
+      { timeout: 4000 });
+    await until(focusedWindow, (id) => id === otherWindow.id, 'the shortcut source window to focus');
+    execFileSync(shortcutTool, ['key', '--clearmodifiers', binding.toLowerCase()], { timeout: 4000 });
+    await until(focusedWindow, (id) => id === reviewWindow, 'the browser shortcut to focus the review window');
+    assert.deepEqual((await reviewTabs()).map((tab) => tab.id), [reviewId]);
+    assert.deepEqual(await shown(), session);
+    console.log(`PASS: the native Open Review shortcut (${binding}) preserves the revealed card and rating session in the existing review window.`);
+  }
+  let data = session.saved;
   const cardIds = Object.keys(data.recallReview.cards);
   assert.equal(cardIds.length, 5);
   assert.ok(cardIds.includes(rated));
@@ -66,8 +183,8 @@ try {
   assert.equal(untouched.length, 4);
 
   // 3. The words page: count, incremental rendering, today line, strip, measurements.
-  const words = await browser.newPage();
-  await words.goto(url('words'));
+  await popup.locator('#openWords').click();
+  const words = await openedPage('words');
   await words.locator('#words li[data-id]').first().waitFor();
   const total = Number((await words.locator('#count').textContent()).match(/^(\d+) words$/)?.[1]);
   assert.ok(total >= 200, `count says ${await words.locator('#count').textContent()}`);
@@ -81,8 +198,9 @@ try {
   assert.match(today, /5 introduced/);
   assert.match(today, /1 reviewed/);
   assert.equal(await words.locator('#strip > *').count(), 30);
-  assert.equal(await words.locator('#measures > li').count(), 7);
+  assert.equal(await words.locator('#measures > li').count(), 8);
   assert.match(await words.locator('#measures').textContent(), /Not enough data yet/);
+  assert.match(await words.locator('#measures').textContent(), /Measurements skipped.*0 measurements skipped\./s);
 
   // 4. Search: seeded form, English gloss, accent-insensitive, arrow-key focus.
   const list = (await send(words, { type: 'wordsList' }));
@@ -113,14 +231,26 @@ try {
   await search(accented.target.toUpperCase());
   assert.equal(await row(accented.id).count(), 1);
 
-  // 5. Practice now on the not-due word opens the review tab on exactly that card.
-  await search(rated);
-  const [review] = await Promise.all([browser.waitForEvent('page'),
-    row(rated).getByRole('button', { name: 'Practice now' }).click()]);
-  await review.waitForLoadState();
-  assert.equal(new URL(review.url()).pathname, '/src/review.html');
-  await review.locator('#prompt').getByText(ratedGloss, { exact: true }).waitFor();
-  assert.equal((await review.locator('#prompt').textContent()), ratedGloss);
+  // 5. Choose a different card in the open review, then choose the early card.
+  const current = data.recallReview.current;
+  const different = list.rows.find((item) => untouched.includes(item.id) && item.id !== current.word);
+  assert.ok(different);
+  const practice = async ({ id, target, gloss }) => {
+    await words.bringToFront();
+    await search(target);
+    await row(id).getByRole('button', { name: 'Practice now' }).click();
+    await prompt.getByText(gloss, { exact: true }).waitFor();
+    assert.equal(await answer.isVisible(), false);
+    assert.deepEqual((await reviewTabs()).map((tab) => [tab.id, tab.active]), [[reviewId, true]]);
+  };
+  await practice(different);
+  assert.match(await review.locator('#progress').textContent(), /^Card 2 of /);
+  const stale = await send(review, { type: 'reviewRate', ticket: current.ticket, rating: 'medium' });
+  assert.match(stale.error, /stale/);
+  await practice({ id: rated, target: rated, gloss: ratedGloss });
+  const prior = await stored();
+  assert.deepEqual(prior.recallReview.cards, data.recallReview.cards);
+  assert.deepEqual(prior.learningRetrievals, data.learningRetrievals);
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText(rated, { exact: true }).waitFor();
   await review.locator('[data-rating="medium"]').click();
@@ -132,7 +262,6 @@ try {
   assert.equal(log[1][0], rated);
   assert.equal(typeof log[1][9], 'number', `early review predicted recall: ${JSON.stringify(log[1])}`);
   assert.ok(log[1][9] > 0 && log[1][9] <= 1);
-  await review.close();
 
   // 6. Reset: two clicks, Cancel leaves the card, Confirm removes it.
   await words.bringToFront();
@@ -193,8 +322,6 @@ try {
   }
 
   // 8. The popup links to the page and stays within Chrome's popup cap.
-  const popup = await browser.newPage();
-  await popup.goto(url('popup'));
   await popup.waitForFunction(() => document.querySelector('#today')?.textContent.trim() &&
     document.querySelector('#primary')?.textContent.trim());
   assert.equal(await popup.locator('#openWords').getAttribute('href'), 'words.html');
@@ -203,7 +330,74 @@ try {
   assert.equal(popupSize.width, 300);
   assert.ok(popupSize.height <= 600, `popup exceeds Chrome's 600px cap: ${popupSize.height}px`);
 
-  console.log(`PASS: My words in real MV3 Chromium: ${total} words rendered in batches, today/strip/measures, search (form, gloss, accent-insensitive, ArrowDown focus), Practice now opened the review card with an FSRS early-review prediction, Reset confirm/cancel/guards, no URLs on the page, popup link and size. No network or model call.`);
+  // Concurrent ordinary opens after closing the review must create one replacement.
+  await review.close();
+  assert.deepEqual(await Promise.all([send(popup, { type: 'openReview' }), send(popup, { type: 'openReview' })]),
+    [{ ok: true }, { ok: true }]);
+  const replacement = await openedPage('review');
+  await replacement.locator('#prompt').waitFor();
+  assert.equal((await reviewTabs()).length, 1);
+  assert.equal((await stored()).learningRetrievals.retrievals.length, 2);
+
+  // Switch to the bundled Guaraní scope. In this fresh scope the same review
+  // tab is idle, so Practice now must refresh it even without a visible card.
+  const options = await browser.newPage();
+  await options.goto(url('options'));
+  await options.locator('#language').selectOption('gn-PY-x-weave');
+  await replacement.locator('#language').getByText(/Paraguayan Guaraní/).waitFor();
+  await replacement.locator('#empty').waitFor();
+  const spanish = await stored();
+  await words.bringToFront();
+  await words.reload();
+  await words.locator('#language').getByText(/Paraguayan Guaraní/).waitFor();
+  await search('mbo’ehára');
+  await row('mbo’ehára').getByRole('button', { name: 'Practice now' }).click();
+  await replacement.locator('#prompt').getByText('teacher (at school)', { exact: true }).waitFor();
+  assert.equal((await reviewTabs()).length, 1);
+  assert.deepEqual(await stored(), spanish);
+
+  // With two live reviews, the source-window review wins even if a different
+  // window also has an active review tab.
+  const localReview = await tabOf(replacement);
+  const popupTab = await tabOf(popup);
+  assert.equal(localReview.windowId, popupTab.windowId);
+  const remoteWindow = await worker.evaluate((url) => chrome.windows.create({ url, focused: false }), url('review'));
+  const remoteReview = await until(() => reviewPages().find((page) => page !== replacement),
+    Boolean, 'the competing Review document');
+  await remoteReview.locator('#prompt').getByText('teacher (at school)', { exact: true }).waitFor();
+  const remoteTab = await tabOf(remoteReview);
+  assert.equal(remoteTab.windowId, remoteWindow.id);
+  assert.equal(remoteTab.active, true);
+  assert.notEqual(remoteTab.windowId, localReview.windowId);
+  await popup.bringToFront();
+  assert.equal((await tabOf(replacement)).active, false);
+  assert.deepEqual(await send(popup, { type: 'openReview' }), { ok: true });
+  assert.equal((await tabOf(replacement)).active, true);
+  if (shortcutTool) assert.equal(await focusedWindow(), localReview.windowId);
+  assert.equal(reviewPages().length, 2);
+  await remoteReview.close();
+
+  // After that tab navigates to a protected Chrome page, Practice now creates
+  // one new Review, leaving both the old tab and other Lang Weave pages intact.
+  await replacement.goto('chrome://version/');
+  await replacement.evaluate(() => { globalThis.protectedFixture = true; });
+  await options.evaluate(() => { globalThis.optionsFixture = true; });
+  await words.bringToFront();
+  await search('y');
+  await row('y').getByRole('button', { name: 'Practice now' }).click();
+  const newReview = await openedPage('review');
+  await newReview.locator('#prompt').getByText('water', { exact: true }).waitFor();
+  const newTab = await tabOf(newReview);
+  assert.notEqual(newTab.id, localReview.id);
+  assert.equal(newTab.windowId, (await tabOf(words)).windowId);
+  assert.equal(newTab.active, true);
+  assert.deepEqual(reviewPages(), [newReview]);
+  assert.equal(replacement.url(), 'chrome://version/');
+  assert.equal(await replacement.evaluate(() => globalThis.protectedFixture), true);
+  assert.equal(await options.evaluate(() => globalThis.optionsFixture), true);
+  assert.deepEqual(await grants(), initialGrants);
+
+  console.log(`PASS: My words and review in real MV3 Chromium: ${total} words, popup open and cold resume, repeated practice in one tab, stale-ticket and duplicate-open protection, explicit early rating, reset guards, search and popup sizing. No network or model call.`);
 } finally {
   if (browser) await browser.close();
   await rm(scratch, { recursive: true, force: true }); // this script owns its unique scratch directory

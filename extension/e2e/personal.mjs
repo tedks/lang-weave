@@ -1,33 +1,22 @@
-// Guarded throwaway Chromium MV3 flow. The native OS menu is not automated:
-// an isolated copy exposes the exact registered production listener for one synthetic click.
+// Guarded throwaway Chromium MV3 flow. Dispatch the menu event on Chromium's
+// extension binding so the registered production listener handles the selection.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-personal-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push(...manifest.optional_host_permissions); // only the isolated profile gets grants
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
-  const workerPath = join(extension, 'src', 'background.js');
-  const workerSource = await readFile(workerPath, 'utf8');
-  assert.match(workerSource, /chrome\.contextMenus\?\.onClicked\?\.addListener\(captureMenuListener\)/);
-  await writeFile(workerPath, `${workerSource}\n// Isolated harness only; never shipped.\nglobalThis.syntheticCaptureClick = captureMenuListener;\n`);
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true, acceptDownloads: true,
+    ...chromiumBinary, headless: true, acceptDownloads: true,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
       await new Promise((done) => setTimeout(done, 10));
@@ -48,6 +37,7 @@ try {
       { headers: { 'Content-Type': 'application/json' } });
     };
   });
+  await grantReadingSite(browser, worker);
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: `<!doctype html><html lang="en"><head><title>Reading</title></head><body><main>
       <p id="reading">We saw shimmer around the quiet garden today.</p>
@@ -74,9 +64,12 @@ try {
     const tab = await worker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0], reading.url());
     assert.ok(tab?.id);
     const opened = browser.waitForEvent('page');
-    await worker.evaluate(({ id, pageUrl, selectionText }) => globalThis.syntheticCaptureClick({
-      menuItemId: 'lang-weave-add-selection', selectionText, frameId: 0, editable: false, pageUrl,
-    }, { id, title: 'Reading' }), { id: tab.id, pageUrl: reading.url(), selectionText: text });
+    await worker.evaluate(({ id, pageUrl, selectionText }) => {
+      const event = chrome.contextMenus.onClicked;
+      if (!event.hasListeners()) throw new Error('The extension did not register its capture listener');
+      event.dispatch({ menuItemId: 'lang-weave-add-selection', selectionText, frameId: 0, editable: false, pageUrl },
+        { id, title: 'Reading' });
+    }, { id: tab.id, pageUrl: reading.url(), selectionText: text });
     const page = await opened;
     await page.waitForLoadState();
     await page.waitForTimeout(250);

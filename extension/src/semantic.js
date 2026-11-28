@@ -1,9 +1,13 @@
 // English-source checks shared by model validation and final DOM placement. The passage, not model ctx, decides.
+import { GUARANI_STARTER } from './language-name.js';
+
 const DOUBLE = { '"': '"', '“': '”', '„': '“”', '«': '»', '「': '」', '『': '』' };
 const SINGLE = { "'": "'", '‘': '’' };
 const BEFORE_SINGLE = /[\s([{“"«„—–\-/]/u;
 const LETTER = /\p{L}/u;
 const WORDISH = /[\p{L}\p{N}]/u;
+const UNICODE_HYPHEN_BEFORE = /[\p{L}\p{M}\p{N}_][\u2010\u2011]$/u;
+const UNICODE_HYPHEN_AFTER = /^[\u2010\u2011][\p{L}\p{M}\p{N}_]/u;
 const ELISION = /^(?:tis|twas|cause|em|round|bout)\b/iu;
 const PROPER_POSSESSIVE = /(?:^|[^\p{L}])\p{Lu}[\p{L}]*[sS]$/u;
 
@@ -60,8 +64,13 @@ export function quotedRanges(text) {
   return ranges;
 }
 
-export function sentenceStart(text, index) {
+export function sentenceStart(text, index, { allowDialogue = false } = {}) {
   const before = String(text).slice(0, index);
+  // An attributed quotation can start its own sentence in manual practice.
+  if (allowDialogue) {
+    const opener = /(?:[,:]|\b(?:said|asked|replied|answered|wrote|whispered|shouted))\s*(["'“‘„«]\s*)$/iu.exec(before);
+    if (opener && quotedRanges(text).some(([start, end]) => start === index - opener[1].length && index < end)) return true;
+  }
   if (/\b(?:Mr|Mrs|Ms|Dr|Prof|St|Rev|Gen|Sen|e\.g|i\.e)\.\s*$/iu.test(before)) return false;
   return /(?:^|[\n.!?…]["'”’)\]»]*)[\s"'“‘(\[«]*$/u.test(before);
 }
@@ -82,12 +91,34 @@ const NOUN_COMPOUNDS = [
   'book review', 'computer program', 'page number', 'kitchen table',
   'bathroom door', 'office chair', 'box office', 'gift card', 'lunch break',
   'night shift', 'keyboard shortcut', 'star rating', 'bike lane', 'shoe store',
+  'breakfast cereal', 'tree diagram', 'family tree', 'shop window', 'car window',
+  'soup kitchen', 'river bank', 'theme song',
+];
+// Compounds found in installed Spanish practice and the fixed reading sample.
+const SPANISH_COMPOUNDS = [
+  'garden center', 'garden centre', 'door hinge', 'window pane',
+  'river mouth', 'river valley', 'song title', 'life jacket', 'night sky',
+];
+const POSSIBLE_PREDICATES = new Map([
+  ['garden centers', ['on', 'around']], ['garden centres', ['on', 'around']], ['door hinges', ['on']],
+]);
+const SUBJECT_DETERMINERS = new Set(['the', 'a', 'this', 'that', 'my', 'your', 'his', 'her', 'its', 'our', 'their']);
+// Other compounds of the Beginner prose promotions retain their tier scope.
+const BEGINNER_SPANISH_COMPOUNDS = [
+  'back door', 'entrance door', 'front door', 'garden door', 'revolving door', 'screen door', 'side door', 'trap door',
+  'door frame', 'door knob', 'door lock', 'door to door', 'next door', 'flower garden', 'vegetable garden',
+  'garden book', 'garden fence', 'garden gate', 'garden hose', 'garden party', 'garden shed', 'garden wall',
+  'sky blue', 'pie in the sky', 'blue moon', 'moon base', 'moon landing', 'moon phase', 'moon rock', 'over the moon',
 ];
 const tokens = (s) => [...String(s).matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu)]
   .map((m) => ({ value: m[0].replace(/[’‘`]/g, "'").toLowerCase(), raw: m[0], start: m.index, end: m.index + m[0].length }));
 const fixedTokens = FIXED.map((phrase) => tokens(phrase).map((t) => t.value));
 const compoundTokens = NOUN_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value));
-const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
+const spanishCompoundTokens = SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value));
+const spanishCompounds = [...compoundTokens, ...spanishCompoundTokens];
+const beginnerSpanishCompounds = [...spanishCompounds,
+  ...BEGINNER_SPANISH_COMPOUNDS.map((phrase) => tokens(phrase).map((t) => t.value))];
+export const regularPlural = (word) => word.endsWith('y') && !/[aeiou]y$/u.test(word)
   ? `${word.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/u.test(word) ? `${word}es` : `${word}s`;
 const FUNCTION_WORDS = new Set(['and', 'or', 'but', 'with', 'for', 'in', 'on', 'at', 'to', 'of', 'from',
   'by', 'as', 'is', 'are', 'was', 'were', 'has', 'have', 'had', 'will', 'would', 'can', 'could',
@@ -98,28 +129,126 @@ const HAS_PARTICIPLES = new Set(['been', 'got', 'gotten', 'had', 'done', 'gone',
   'come', 'taken', 'seen', 'made', 'happened', 'given']);
 const HAS_MODIFIERS = new Set(['finally', 'already', 'just', 'never', 'ever', 'really',
   'actually', 'not', 'still', 'also', 'now']);
-const nameToken = (t, text) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
-  !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start);
+// These bundled targets name only the noun sense. Other targets can have different senses.
+const GUARANI_NOUN_ANCHORS = new Map([
+  ['aranduka', 'book'], ['apyka', 'chair'], ['y', 'water'], ['yvytu', 'wind'], ['tata', 'fire'],
+]);
+const MODALS = new Set(['can', 'could', 'may', 'might', 'must', 'shall', 'should', 'will', 'would',
+  'cannot', "can't", "couldn't", "won't", "wouldn't", "shouldn't", "mustn't", "mightn't", "shan't"]);
+const CONTRACTED_MODAL = /^(?:i|you|he|she|it|we|they)'(?:ll|d)$/u;
+const INFINITIVE_MARKERS = new Set(['how', 'when', 'where', 'what', 'whether']);
+const HAVE_FORMS = new Set(['have', 'has', 'had']);
+const INFINITIVE_VERBS = new Set(['need', 'needs', 'needed', 'hope', 'hopes', 'hoped', 'want', 'wants', 'wanted',
+  'plan', 'plans', 'planned', 'try', 'tries', 'tried', 'decide', 'decides', 'decided']);
+const QUESTION_AUXILIARIES = new Set(['do', 'does', 'did']);
+const QUESTION_ADJUNCTS = new Set(['how', 'when', 'where', 'why']);
+const NEGATED_DO = new Set(["don't", "doesn't", "didn't"]);
+// "That" can instead start a relative clause modifying the noun.
+const OBJECT_DETERMINERS = new Set(['a', 'an', 'the', 'my', 'your', 'his', 'her', 'its', 'our', 'their',
+  'some', 'this', 'these', 'those']);
+const TIME_NOUN = /^(?:second|minute|hour|morning|afternoon|evening|day|night|week|month|year|spring|summer|autumn|fall|winter|weekend)s?$/u;
+const TIME_MODIFIERS = new Set(['next', 'last', 'past', 'whole', 'previous', 'coming', 'current', 'entire', 'few']);
+const LINE_BREAK = /[\r\n\u2028\u2029]/u;
+const nameToken = (t, text, allowDialogue) => !!t && /^\p{Lu}/u.test(t.raw) && !/^I(?:['’]|$)/u.test(t.raw) &&
+  !/^O\.?K\.?$/u.test(t.raw) && !sentenceStart(text, t.start, { allowDialogue });
+
+function tokenBefore(text, ts, at) {
+  const previous = ts[at - 1];
+  return previous && !LINE_BREAK.test(text.slice(previous.end, ts[at].start)) ? previous : undefined;
+}
+
+const modal = (value) => !!value && (MODALS.has(value) || CONTRACTED_MODAL.test(value));
+
+function clearModalContext(cue, subject, takesObject) {
+  // Contracted 'd can mean had: "We'd water for two days."
+  if (CONTRACTED_MODAL.test(cue.value)) return cue.value.endsWith("'ll") || takesObject;
+  if (CLAUSE_STARTS.has(subject?.value)) return true;
+  // A noun can be the subject after inversion, as in "How soon will fire spread?"
+  return takesObject && !!subject && LETTER.test(subject.raw) &&
+    !QUESTION_ADJUNCTS.has(subject.value) && !SUBJECT_DETERMINERS.has(subject.value);
+}
+
+function adjacentObjectCue(text, ts, at) {
+  const noun = ts[at + 2];
+  if (!OBJECT_DETERMINERS.has(ts[at + 1]?.value) || !noun || !LETTER.test(noun.raw) ||
+      LINE_BREAK.test(text.slice(ts[at].end, noun.start))) return false;
+  // A temporal adjunct can start with a determiner, as in "access we have to water the whole year".
+  const following = ts[at + 3]?.value ?? '';
+  if (TIME_NOUN.test(noun.value) || TIME_MODIFIERS.has(noun.value) && TIME_NOUN.test(following)) return false;
+  if ((noun.value === 'rest' || noun.value === 'couple') && following === 'of') {
+    const quantity = ts[at + (ts[at + 4]?.value === 'the' ? 5 : 4)]?.value ?? '';
+    return !TIME_NOUN.test(quantity);
+  }
+  return true;
+}
+
+function clearVerbContext(text, ts, at, allowDialogue) {
+  const cue = tokenBefore(text, ts, at);
+  if (!cue) return false;
+  const head = tokenBefore(text, ts, at - 1);
+  const subject = head && tokenBefore(text, ts, at - 2);
+  const takesObject = adjacentObjectCue(text, ts, at);
+  if (modal(cue.value)) return clearModalContext(cue, head, takesObject);
+  if (cue.value === 'not' && modal(head?.value)) return clearModalContext(head, subject, takesObject);
+  if (cue.value === 'to') {
+    // Bare prepositional "to" leaves a noun sense possible, as in "access to water".
+    // An adjacent object also distinguishes "the librarian needs to book a room"
+    // from possession and a preposition in "the access they have to water".
+    if (HAVE_FORMS.has(head?.value)) return takesObject;
+    return INFINITIVE_MARKERS.has(head?.value) || INFINITIVE_VERBS.has(head?.value) &&
+      (takesObject || CLAUSE_STARTS.has(subject?.value) || modal(subject?.value) || NEGATED_DO.has(subject?.value));
+  }
+  const please = cue.value === ',' ? head : cue;
+  if (please?.value === 'please') return sentenceStart(text, please.start, { allowDialogue });
+  if (!(MODALS.has(head?.value) || QUESTION_AUXILIARIES.has(head?.value)) || !CLAUSE_STARTS.has(cue.value)) return false;
+  return sentenceStart(text, head.start, { allowDialogue }) ||
+    QUESTION_ADJUNCTS.has(subject?.value) && sentenceStart(text, subject.start, { allowDialogue });
+}
+
+// Preserve a possible subject and verb in sentence-initial uses like “The door hinges on one pin.”
+function possiblePredicate(text, ts, at, end, allowDialogue) {
+  const prepositions = POSSIBLE_PREDICATES.get(`${ts[at].value} ${ts[end].value}`);
+  if (!prepositions?.includes(ts[end + 1]?.value)) return false;
+  const start = SUBJECT_DETERMINERS.has(ts[at - 1]?.value) ? ts[at - 1].start : ts[at].start;
+  return sentenceStart(text, start, { allowDialogue });
+}
 
 // Returns a reason or ''. Character offsets must be the actual located anchor in the passage.
-export function sourceIssue(text, from, to, original) {
+export function sourceIssue(text, from, to, original, { allowQuoted = false, language, level = 2, target } = {}) {
+  const beginnerSpanish = language === 'es' && level <= 1;
   if (allCaps(original) || allCaps(String(text).slice(from, to))) return 'allCaps';
-  if (quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
+  if (!allowQuoted && quotedRanges(text).some(([start, end]) => from < end && start < to)) return 'quoted';
+  // Keep the same joined-word boundaries as the Beginner paragraph matcher.
+  if (beginnerSpanish && (UNICODE_HYPHEN_BEFORE.test(text.slice(0, from)) ||
+      UNICODE_HYPHEN_AFTER.test(text.slice(to)))) return 'joined';
   const ts = tokens(text);
   const first = ts.findIndex((t) => t.start === from);
   const last = ts.findIndex((t) => t.end === to);
   if (first < 0 || last < first) return ''; // DOM locator will reject an inexact anchor.
   const prev = ts[first - 1], next = ts[last + 1];
   const o = ts.slice(first, last + 1).map((t) => t.value).join(' ');
-  if (nameToken(ts[first], text) || (first === last && nameToken(prev, text) &&
+  if (nameToken(ts[first], text, allowQuoted) || (first === last && nameToken(prev, text, allowQuoted) &&
     /^\s*$/u.test(text.slice(prev.end, from)) && !FUNCTION_WORDS.has(o))) return 'name';
-  for (const phrase of [...fixedTokens, ...compoundTokens]) {
-    for (let at = 0; at + phrase.length <= ts.length; at++) {
-      if (!phrase.every((word, n) => ts[at + n].value === word ||
-        (compoundTokens.includes(phrase) && n === phrase.length - 1 &&
-          ts[at + n].value === regularPlural(word)))) continue;
+  if (language === GUARANI_STARTER && first === last && typeof target === 'string' &&
+    GUARANI_NOUN_ANCHORS.get(target.toLowerCase()) === o && clearVerbContext(text, ts, first, allowQuoted)) return 'verbContext';
+  const compounds = beginnerSpanish ? beginnerSpanishCompounds : language === 'es' ? spanishCompounds : compoundTokens;
+  for (const phrase of [...fixedTokens, ...compounds]) {
+    const isCompound = compounds.includes(phrase);
+    const isSpanishCompound = spanishCompoundTokens.includes(phrase);
+    // A span can only cut phrases that overlap it, including phrases starting before the span.
+    const earliest = Math.max(0, first - phrase.length + 1);
+    const latest = Math.min(last, ts.length - phrase.length);
+    for (let at = earliest; at <= latest; at++) {
       const end = at + phrase.length - 1;
-      if (first <= end && at <= last && !(first <= at && last >= end)) return 'phrase';
+      if (first <= at && last >= end) continue;
+      if (!phrase.every((word, n) => {
+        const actual = ts[at + n].value;
+        if (!isCompound || n !== phrase.length - 1) return actual === word;
+        const head = isSpanishCompound ? actual.replace(/'s$/u, '') : actual;
+        return head === word || head === regularPlural(word);
+      })) continue;
+      if (isSpanishCompound && possiblePredicate(text, ts, at, end, allowQuoted)) continue;
+      return 'phrase';
     }
   }
   if (next?.value === 'of') return 'danglingOf';

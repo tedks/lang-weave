@@ -1,8 +1,8 @@
 import { test, expect } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { validateSwaps, glossMatches, normalizeFr, L1_WORDS, L2_WORDS } from '../src/levels.js';
-import { queueEvents, shownToday, PENDING_KEY } from '../src/events.js';
+import { validateSwaps, glossMatches, normalizeFr } from '../src/levels.js';
+import { queueEvents, shownToday, PENDING_KEY, SENT_KEY, READING_DAYS_KEY } from '../src/events.js';
 import { memoryStorage } from '../src/cache.js';
 import { relativeImports } from '../scripts/package.mjs';
 
@@ -35,13 +35,29 @@ test('Spanish articles stay with whole noun phrases and never double English det
   expect(validateSwaps(2, [{ o: 'to start', f: 'entonces' }])).toEqual([]);
   expect(validateSwaps(2, [{ o: 'so', f: 'entonces' }])[0]?.f).toBe('entonces');
   expect(validateSwaps(2, [{ o: 'and', f: 'et' }])).toEqual([]);
-  expect(L1_WORDS).toHaveLength(30);
-  expect(L2_WORDS).toHaveLength(226);
+});
+
+test.each([
+  ['hola', 'his', 'A traveler dropped his gloves outside the station.', 'hi', 'A traveler said hi after boarding.'],
+  ['nuevo', 'news', 'We heard the news over breakfast.', 'new', 'Her bicycle still looks new after the trip.'],
+  ['incluso', 'evening', 'They stayed until evening to watch the birds.', 'Even', 'Even the quiet guests laughed at the joke.'],
+  ['como', 'likes', 'My cousin likes riding past the orchard.', 'as', 'We worked as guides during the summer.'],
+  ['por favor', 'pleased', 'She looked pleased with the arrangement.', 'Please', 'Please leave the parcels beside the bench.'],
+  ['gratis', 'freed', 'The gardener freed a moth from the curtain.', 'free', 'Admission is free until the end of August.'],
+  ['rápido', 'fasting', 'The visitors began fasting before the festival.', 'fast', 'The train felt fast on the open plain.'],
+  ['también', 'toos', 'The editor crossed out two repeated toos.', 'too', 'She came too after the concert.'],
+  ['otro', 'others', 'The others followed the lights through the fog.', 'another', 'We heard another owl after midnight.'],
+])('%s keeps the gloss or synonym and rejects a misleading suffix surface', (f, bad, negative, good, positive) => {
+  expect(validateSwaps(2, [{ o: bad, f }], undefined, 'es', { text: negative })).toEqual([]);
+  expect(validateSwaps(2, [{ o: good, f }], undefined, 'es', { text: positive })).toMatchObject([{ o: good }]);
 });
 
 test('fork identity and permissions cannot collide with or contact the French companion', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-  expect(manifest.name).toBe('Lang Weave');
+  // The name is a chrome.i18n message; the default locale must resolve it to the fork's own name.
+  expect(manifest.name).toBe('__MSG_ext_name__');
+  const messages = JSON.parse(readFileSync(new URL(`../_locales/${manifest.default_locale}/messages.json`, import.meta.url), 'utf8'));
+  expect(messages.ext_name.message).toBe('Lang Weave');
   // Lang Weave pins its own public key (0.12.0): one ID across paths and hosts, distinct from French Weave.
   // Chrome's ID is the first 128 bits of sha256(DER public key), each hex digit mapped 0-f to a-p.
   const der = Buffer.from(manifest.key, 'base64');
@@ -107,4 +123,38 @@ test('local feedback is deduplicated daily and capped without retaining page tex
   await queueEvents(store, [{ word: 'personal:es:00000000-0000-4000-8000-000000000001', kind: 'seen' },
     { word: 'personal:es:00000000-0000-4000-8000-000000000002', kind: 'peek' }], '2026-10-18');
   expect(await shownToday(store, '2026-10-18')).toEqual(['y', 'personal:es:00000000-0000-4000-8000-000000000001']);
+});
+
+test('reading dates share the event write, survive queue eviction and keep the most recent 30 observations', async () => {
+  const store = memoryStorage({ [READING_DAYS_KEY]: { malformed: true }, [SENT_KEY]: { day: '2026-10-01', words: 42 },
+    [PENDING_KEY]: [{ word: 'y', kind: 'seen', day: '2026-09-30' }, { word: 'outside', kind: 'seen', day: '2026-09-29' }] });
+  const writes = [];
+  const tracked = { ...store, async set(patch) { writes.push(patch); await store.set(patch); } };
+  const flip = { word: 'y', kind: 'flip' }, seen = { word: 'y', kind: 'seen' };
+  expect(await queueEvents(tracked, [seen], '2026-10-01', { wordIds: ['y'], canWrite: () => false })).toBeNull();
+  expect(writes).toHaveLength(0);
+  expect((await store.get([PENDING_KEY]))[PENDING_KEY]).toHaveLength(2);
+  await queueEvents(tracked, [seen, seen], '2026-10-01', { wordIds: ['y'] });
+  expect(writes).toHaveLength(1);
+  expect(writes[0][READING_DAYS_KEY]).toEqual(['2026-09-30', '2026-10-01']);
+  expect(writes[0][PENDING_KEY].slice(-1)).toEqual([{ word: 'y', kind: 'seen', day: '2026-10-01' }]);
+  await queueEvents(tracked, Array.from({ length: 510 }, () => flip), '2026-10-02');
+  expect((await store.getAll())[PENDING_KEY].every((event) => event.kind === 'flip')).toBe(true);
+  expect((await store.getAll())[READING_DAYS_KEY]).toEqual(['2026-09-30', '2026-10-01']);
+  for (let i = 2; i <= 31; i++) await queueEvents(tracked, [seen], `2026-10-${String(i).padStart(2, '0')}`);
+  expect((await store.getAll())[READING_DAYS_KEY]).toHaveLength(30);
+  expect((await store.getAll())[READING_DAYS_KEY][0]).toBe('2026-10-02');
+  await queueEvents(tracked, [seen], '2026-10-01'); // clock rolled back to an evicted day
+  expect((await store.getAll())[READING_DAYS_KEY]).toHaveLength(30);
+  expect((await store.getAll())[READING_DAYS_KEY].at(-1)).toBe('2026-10-01');
+  expect((await store.getAll())[READING_DAYS_KEY]).toContain('2026-10-31');
+});
+
+test('older accepted dates survive event eviction even when the scope already has reading dates', async () => {
+  const store = memoryStorage({ [READING_DAYS_KEY]: ['2026-10-15'],
+    [PENDING_KEY]: [{ word: 'y', kind: 'seen', day: '2026-10-18' }] });
+  await queueEvents(store, Array.from({ length: 500 }, () => ({ word: 'y', kind: 'flip' })), '2026-10-20', { wordIds: ['y'] });
+  const data = await store.getAll();
+  expect(data[PENDING_KEY].some((event) => event.kind === 'seen')).toBe(false);
+  expect(data[READING_DAYS_KEY]).toEqual(['2026-10-15', '2026-10-18']);
 });

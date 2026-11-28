@@ -101,6 +101,35 @@ test('churn: live text stops costing model calls, and a page that undoes swaps s
     calm.textContent = 'We read books and listen to music every quiet evening.';
     win.document.querySelector('main').append(calm); await wait();
     expect(calm.querySelector('.fw-word')?.textContent).toBe('y');
+    // The span's lang and its description outside the passage cause no repaint and no new model call.
+    const span = calm.querySelector('.fw-word');
+    expect(span.getAttribute('lang')).toBe('es');
+    expect(win.document.getElementById(span.getAttribute('aria-describedby'))?.textContent).toBe('and · "ee". Show English');
+    const calls = modelCalls;
+    await wait(1500);
+    expect(calm.querySelector('.fw-word')).toBe(span);
+    expect(modelCalls).toBe(calls);
+    // Descriptions follow the page: removed spans (the countdown's, the fought paragraph's) leave none behind.
+    // A page that detaches the passage and later reattaches it keeps the span's description.
+    calm.remove();
+    await wait(50);
+    win.document.querySelector('main').append(calm);
+    await wait(500);
+    expect(calm.querySelector('.fw-word')).toBe(span);
+    expect(win.document.getElementById(span.getAttribute('aria-describedby'))?.textContent).toBe('and · "ee". Show English');
+    const live = [...win.document.querySelectorAll('.fw-word[aria-describedby]')].map((s) => s.getAttribute('aria-describedby'));
+    expect([...win.document.querySelectorAll('.fw-descriptions > [id]')].map((d) => d.id).sort()).toEqual(live.sort());
+    // A page that strips foreign children of <html> is not fought: a few re-attaches, then it wins.
+    let removals = 0;
+    const stripper = new win.MutationObserver(() => {
+      const host = win.document.querySelector('html > .fw-descriptions');
+      if (host && removals < 1000) { removals++; host.remove(); }
+    });
+    stripper.observe(win.document.documentElement, { childList: true });
+    win.document.querySelector('html > .fw-descriptions')?.remove(); removals++;
+    await wait(1000);
+    stripper.disconnect();
+    expect(removals).toBeLessThanOrEqual(4);
   } finally {
     await win.happyDOM.close();
     Object.assign(globalThis, originalGlobals);

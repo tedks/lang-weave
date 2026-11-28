@@ -1,15 +1,15 @@
 // Real MV3 action state, rendered beside the shipped 16px icon in synthetic light/dark toolbar fixtures.
 // Chromium's headless page screenshots cannot include browser chrome; the fixture uses action API values.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-badge-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 const screenshots = process.argv.includes('--save-screenshots')
   ? join(root, '..', 'docs', 'artifacts') : join(scratch, 'screenshots');
 let browser;
@@ -22,18 +22,14 @@ const contrast = (hex) => {
   return 1.05 / (luminance + 0.05); // white foreground
 };
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true });
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push('https://reading.example/*'); // isolated test grant
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: true,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
+  await grantReadingSite(browser, worker);
   await browser.route(/^https:\/\/(reading|other)\.example\//, (route) => route.fulfill({
     contentType: 'text/html', body: '<!doctype html><title>Badge fixture</title><main></main>',
   }));
@@ -76,7 +72,7 @@ try {
   assert.equal(paused.title, 'Lang Weave is paused; click to turn it on');
   assert.equal(colorCss(paused.color), 'rgb(89, 99, 107)');
   assert.ok(contrast(colorHex(needsKey.color)) >= 4.5 && contrast(colorHex(paused.color)) >= 4.5);
-  const icon = (await readFile(join(root, 'icons', 'icon-16.png'))).toString('base64');
+  const icon = (await readFile(join(extension, 'icons', 'icon-16.png'))).toString('base64');
   await mkdir(screenshots, { recursive: true });
   for (const theme of ['light', 'dark']) {
     const toolbar = await browser.newPage();

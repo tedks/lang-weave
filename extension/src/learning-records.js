@@ -4,8 +4,8 @@
 import { chromeStorage } from './cache.js';
 import { scopedStorage } from './scope.js';
 import { personalScope } from './worker-context.js';
-import { recordRetrieval, recordExposures } from './learning-log.js';
-import { localDay } from './events.js';
+import { recordRetrieval, recordExposures, RETRIEVALS_KEY, cleanRetrievals, retrievalEntries } from './learning-log.js';
+import { noteMeasurementSkipped } from './measurement-skips.js';
 
 // The log catalogs match what a backup can verify (portability.js logCatalog): the scope's full
 // word list, or the personal entry IDs of the current language.
@@ -19,14 +19,27 @@ const storageFor = (ctx, personal) => personal ? personalScope(ctx.language) : s
 export async function logRetrieval(ctx, personal, record, source, now) {
   if (!record) return false;
   try {
-    return await recordRetrieval(storageFor(ctx, personal), { ...record, at: now, source,
-      // Both review surfaces prompt with the English gloss and ask for the target form.
-      direction: 'productive' }, catalog(ctx, personal));
-  } catch { return false; }
+    const written = await recordRetrieval(storageFor(ctx, personal), { ...record, at: now, source,
+      // Both review surfaces prompt with the English gloss and ask for the target form; a guess
+      // shows the target word and asks for its meaning.
+      direction: source === 'guess' ? 'receptive' : 'productive' }, catalog(ctx, personal));
+    if (written) return true;
+  } catch { /* the attempted measurement is counted below */ }
+  await noteMeasurementSkipped(chromeStorage);
+  return false;
 }
 
-export async function logExposure(ctx, personal, word, kind, now) {
+// The word's retrievals in its scope's log, for the guess-first cap. Throws on a storage error.
+export async function retrievalsFor(ctx, personal) {
+  const { [RETRIEVALS_KEY]: raw } = await storageFor(ctx, personal).get([RETRIEVALS_KEY]);
+  return retrievalEntries(cleanRetrievals(raw));
+}
+
+export async function logExposure(ctx, personal, word, kind, day) {
   try {
-    return await recordExposures(storageFor(ctx, personal), [word], catalog(ctx, personal), localDay(new Date(now)), kind);
-  } catch { return 0; }
+    const counted = await recordExposures(storageFor(ctx, personal), [word], catalog(ctx, personal), day, kind);
+    if (counted) return counted;
+  } catch { /* the attempted measurement is counted below */ }
+  await noteMeasurementSkipped(chromeStorage);
+  return 0;
 }

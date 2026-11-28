@@ -1,7 +1,9 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, jest } from 'bun:test';
 import { Window } from 'happy-dom';
-import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice,
-  introductionTicket, finishIntroduction, dropIntroduction } from '../src/text.js';
+import { flatten, locate, applySwaps, revert, toggle, tipFor, finishPractice, setPracticeCue, decorateSwap,
+  introductionTicket, finishIntroduction, dropIntroduction, pruneDescriptions, restoreDescriptions,
+  swapDescription, retireSwaps } from '../src/text.js';
+import { readable, selector, TWEET, PROSE } from '../src/page.js';
 
 const win = new Window();
 const document = win.document;
@@ -13,6 +15,10 @@ function tweet(inner) {
   return wrap.firstElementChild;
 }
 const S = (swap) => ({ g: swap.g || 'and', h: swap.h || 'ay', ctx: '', ...swap });
+// Description ids are opaque per-span references; compare markup without them.
+const ID = /fw-d[0-9a-f]{12}-\d+/g;
+const stable = (html) => html.replace(ID, 'ID');
+const descriptionOf = (span) => span.ownerDocument.getElementById(span.getAttribute('aria-describedby'))?.textContent;
 
 test('reserved introduction stays English and private until a saved visible acknowledgement', () => {
   const el = tweet('We discussed the idea with friends.');
@@ -108,7 +114,8 @@ describe('applySwaps', () => {
     const el = tweet('<span>cats and dogs and birds</span>');
     const n = applySwaps(el, [S({ o: 'and', f: 'et', ctx: 'dogs and birds' })]);
     expect(n).toBe(1);
-    expect(el.innerHTML).toBe('<span>cats and dogs <span class="fw-word" data-en="and" data-fr="et" data-tip="and · &quot;ay&quot;" data-fw-split="1" tabindex="0" role="button" aria-label="et: and · &quot;ay&quot;. Show English">et</span> birds</span>');
+    expect(stable(el.innerHTML)).toBe('<span>cats and dogs <span class="fw-word" data-en="and" data-fr="et" data-tip="and · &quot;ay&quot;" data-fw-split="1" tabindex="0" role="button" lang="es" aria-describedby="ID">et</span> birds</span>');
+    expect(swapDescription(el.querySelector('.fw-word'))).toBe('and · "ay". Show English');
     expect(el.textContent).toBe('cats and dogs et birds');
   });
   test('two swaps in one text node, applied in any order', () => {
@@ -181,6 +188,47 @@ describe('applySwaps', () => {
 });
 
 describe('revert and toggle', () => {
+  test('retirement restores unchanged owned faces and leaves live edits and lookalikes in place', () => {
+    const live = new Window();
+    try {
+      const doc = live.document;
+      doc.body.innerHTML = '<p>We read and enjoy books at home.</p><p>They write and walk home each day.</p>';
+      const [unchanged, edited] = doc.querySelectorAll('p');
+      applySwaps(unchanged, [S({ o: 'and', f: 'y' })]);
+      applySwaps(edited, [S({ o: 'and', f: 'y' })]);
+      const own = unchanged.querySelector('.fw-word');
+      const edit = edited.querySelector('.fw-word');
+      const forged = own.cloneNode(true);
+      forged.dataset.en = 'not the source';
+      const next = own.nextSibling;
+      next.data = ' enjoy new books every evening.';
+      expect(decorateSwap(own, () => own.classList.add('fw-tip'))).toBe(true);
+      expect(toggle(own)).toBe(true);
+      edit.dataset.siteState = 'kept by the page';
+      expect(toggle(edit)).toBeNull();
+      expect(edit.textContent).toBe('y');
+      expect(decorateSwap(edit, () => edit.classList.add('fw-tip'))).toBe(false);
+      edit.replaceChildren(doc.createTextNode('y')); // same text, different site-owned node
+      const siteNode = edit.firstChild;
+      doc.body.append(forged);
+      retireSwaps(doc);
+      expect(unchanged.textContent).toBe('We read and enjoy new books every evening.');
+      expect(unchanged.lastChild).toBe(next);
+      expect(own.isConnected).toBe(false);
+      expect(edit.firstChild).toBe(siteNode);
+      expect(edit.dataset.siteState).toBe('kept by the page');
+      expect(forged.textContent).toBe('y');
+      expect(forged.dataset.en).toBe('not the source');
+      expect(readable(edited, 'https://reading.example/')).toBe(false); // a failed reload must not repaint it
+      const newWorld = doc.createElement('p');
+      newWorld.append('These are unrelated site words around ', forged, ' with more reading here.');
+      doc.body.append(newWorld);
+      expect(readable(newWorld, 'https://reading.example/')).toBe(false);
+    } finally {
+      live.happyDOM.abort();
+    }
+  });
+
   test('a framework replacing its original text node does not regain stale split suffixes', () => {
     const el = tweet('<span>cats and dogs and birds</span>');
     const original = el.querySelector('span').firstChild;
@@ -221,7 +269,7 @@ describe('revert and toggle', () => {
     const first = el.innerHTML;
     revert(el);
     applySwaps(el, swaps);
-    expect(el.innerHTML).toBe(first);
+    expect(stable(el.innerHTML)).toBe(stable(first));
   });
   test('toggle flips between French and English, underline span stays', () => {
     const el = tweet('<span>cats and dogs</span>');
@@ -260,17 +308,37 @@ test('a saved practice rating changes only its span and restores trusted source 
     const span = el.querySelector('.fw-word');
     expect(span.getAttribute('data-fr')).toBeNull();
     expect(span.getAttribute('data-tip')).toBeNull();
+    expect(span.getAttribute('aria-label')).toBeNull(); // waiting for a viewport slot
+    expect(span.textContent).toBe('the idea');
+    expect(setPracticeCue(span, true)).toBe(true);
     expect(span.getAttribute('aria-label')).toBe('the idea. Open inline recall');
     expect(span.getAttribute('title')).toBe('Open inline recall');
+    expect(span.textContent).toBe('the idea?');
     expect(el.textContent).not.toContain('la idea');
-    span.setAttribute('data-en', 'forged');
-    expect(finishPractice(span, { fr: 'la idea', en: 'the idea', hint: '' })).toBe(true);
+    expect(finishPractice(span, { fr: 'la idea', en: 'untrusted replacement', hint: '' })).toBe(true);
     expect(span.textContent).toBe('la idea');
+    expect(span.classList.contains('fw-practice-cue')).toBe(false);
+    expect(span.getAttribute('role')).toBe('button');
+    expect(span.tabIndex).toBe(0);
     expect(span.getAttribute('title')).toBeNull();
     expect(toggle(span)).toBe(true);
     expect(span.textContent).toBe('the idea');
     expect(revert(el)).toBe(1);
     expect(el.textContent).toBe('We discussed the idea with friends.');
+  } finally { el.remove(); }
+});
+
+test('a waiting practice word gains normal keyboard access after its shared card is rated', () => {
+  const el = tweet('We discussed the idea with friends.');
+  document.body.append(el);
+  try {
+    applySwaps(el, [S({ o: 'the idea', f: 'la idea', word: 'la idea', practice: true })]);
+    const span = el.querySelector('.fw-practice');
+    expect(span.hasAttribute('tabindex')).toBe(false);
+    expect(finishPractice(span, { fr: 'la idea', en: 'the idea' })).toBe(true);
+    expect(span.classList.contains('fw-practice')).toBe(false);
+    expect(span.getAttribute('role')).toBe('button');
+    expect(span.tabIndex).toBe(0);
   } finally { el.remove(); }
 });
 
@@ -294,4 +362,182 @@ test('rated practice keeps the validated bare and capitalized display forms', ()
       expect(el.textContent).toBe(source);
     } finally { el.remove(); }
   }
+});
+
+describe('lang and description on swapped words', () => {
+  const page = 'https://example.com/article';
+  const passage = (text, attrs = '') => {
+    const p = document.createElement('p');
+    if (attrs) p.setAttribute('lang', attrs);
+    p.textContent = text;
+    document.body.append(p);
+    return p;
+  };
+  const hosts = () => [...document.querySelectorAll('.fw-descriptions')];
+
+  test('a target word carries the target code and its name is the word alone; the gloss is the description', () => {
+    const p = passage('cats and dogs walk home together tonight');
+    try {
+      expect(applySwaps(p, [S({ o: 'and', f: 'e', g: 'and', h: 'ee', ctx: 'cats and dogs' })], undefined, 'pt-br')).toBe(1);
+      const span = p.querySelector('.fw-word');
+      expect(span.getAttribute('lang')).toBe('pt-BR'); // canonical BCP-47
+      expect(span.hasAttribute('aria-label')).toBe(false); // name from content: the target word alone
+      expect(span.textContent).toBe('e');
+      expect(descriptionOf(span)).toBe('and · "ee". Show English');
+      const target = document.getElementById(span.getAttribute('aria-describedby'));
+      expect(p.contains(target)).toBe(false); // never inside a passage
+      const host = target.parentElement;
+      expect(host.className).toBe('fw-descriptions');
+      expect(host.hidden).toBe(true);
+      expect(host.getAttribute('lang')).toBe('en');
+      expect(host.getAttribute('aria-hidden')).toBeNull(); // a hidden describedby target is still read; aria-hidden is not needed
+      expect(hosts()).toHaveLength(1);
+      // Flipped to English: no lang of our own; the action is the description.
+      expect(toggle(span, 'Portuguese')).toBe(true);
+      expect(span.textContent).toBe('and');
+      expect(span.hasAttribute('lang')).toBe(false);
+      expect(span.hasAttribute('aria-label')).toBe(false);
+      expect(descriptionOf(span)).toBe('Show Portuguese');
+      expect(toggle(span, 'Portuguese')).toBe(false);
+      expect(span.getAttribute('lang')).toBe('pt-BR');
+      expect(descriptionOf(span)).toBe('and · "ee". Show English');
+      // Reverting removes the description with the span.
+      const id = span.getAttribute('aria-describedby');
+      expect(revert(p)).toBe(1);
+      expect(document.getElementById(id)).toBeNull();
+    } finally { p.remove(); }
+  });
+
+  test('the default target is Spanish and an unusable code leaves lang off but keeps the description', () => {
+    const p = passage('cats and dogs walk home together tonight');
+    try {
+      applySwaps(p, [S({ o: 'and', f: 'y', g: 'and', h: 'ee' })]);
+      expect(p.querySelector('.fw-word').getAttribute('lang')).toBe('es');
+      revert(p);
+      applySwaps(p, [S({ o: 'and', f: 'y', g: 'and', h: 'ee' })], undefined, 'not a tag!');
+      const span = p.querySelector('.fw-word');
+      expect(span.hasAttribute('lang')).toBe(false);
+      expect(descriptionOf(span)).toBe('and · "ee". Show English');
+      expect(toggle(span)).toBe(true);
+      expect(toggle(span)).toBe(false);
+      expect(span.hasAttribute('lang')).toBe(false);
+      revert(p);
+    } finally { p.remove(); }
+  });
+
+  test('English faces have no lang: waiting practice, a cue and a reserved introduction; each gains it when shown', () => {
+    const p = passage('We discussed the idea with friends at home.');
+    try {
+      applySwaps(p, [S({ o: 'the idea', f: 'la idea', g: 'the idea', h: 'lah ee-DEH-ah', word: 'la idea', practice: true })]);
+      const span = p.querySelector('.fw-word');
+      expect(span.hasAttribute('lang')).toBe(false);
+      expect(span.hasAttribute('aria-describedby')).toBe(false); // no answer before a trusted reveal
+      setPracticeCue(span, true);
+      expect(span.hasAttribute('lang')).toBe(false);
+      expect(span.hasAttribute('aria-describedby')).toBe(false);
+      expect(finishPractice(span, { fr: 'la idea', en: 'the idea' })).toBe(true);
+      expect(span.getAttribute('lang')).toBe('es');
+      expect(span.hasAttribute('aria-label')).toBe(false);
+      expect(descriptionOf(span)).toBe('the idea · "lah ee-DEH-ah". Show English');
+      revert(p);
+      const ticket = 'b'.repeat(36);
+      applySwaps(p, [S({ o: 'the idea', f: 'la idea', g: 'the idea', h: '', word: 'la idea', introTicket: ticket })]);
+      const intro = p.querySelector('.fw-word');
+      expect(intro.hasAttribute('lang')).toBe(false);
+      expect(intro.getAttribute('aria-label')).toBe('the idea');
+      expect(intro.hasAttribute('aria-describedby')).toBe(false);
+      expect(finishIntroduction(intro)).toBe(true);
+      expect(intro.getAttribute('lang')).toBe('es');
+      expect(intro.hasAttribute('aria-label')).toBe(false);
+      expect(descriptionOf(intro)).toBe('the idea. Show English');
+      revert(p);
+      applySwaps(p, [S({ o: 'the idea', f: 'la idea', word: 'la idea', introTicket: ticket })]);
+      expect(dropIntroduction(p.querySelector('.fw-word'))).toBe(true);
+      expect(p.textContent).toBe('We discussed the idea with friends at home.');
+    } finally { p.remove(); }
+  });
+
+  test('the scanner still reads a passage holding its own lang spans, and a rescan repaints identically', () => {
+    for (const lang of ['', 'en', 'en-GB']) {
+      const p = passage('Our team walks home and talks about the long week.', lang);
+      try {
+        const swaps = [S({ o: 'and', f: 'y', g: 'and', h: 'ee' }), S({ o: 'home', f: 'casa', g: 'home', h: 'KAH-sah' })];
+        expect(applySwaps(p, swaps)).toBe(2);
+        expect([...p.querySelectorAll('.fw-word')].map((s) => s.getAttribute('lang'))).toEqual(['es', 'es']);
+        // The passage stays readable with its swaps in place: page.js looks up from the passage, never into it.
+        expect(readable(p, page)).toBe(true);
+        expect(flatten(p).text).toBe('Our team walks home and talks about the long week.');
+        // A content-script rescan reverts, rechecks and repaints the same spans.
+        const first = stable(p.innerHTML);
+        expect(revert(p)).toBe(2);
+        expect(readable(p, page)).toBe(true);
+        expect(applySwaps(p, swaps)).toBe(2);
+        expect(stable(p.innerHTML)).toBe(first);
+        revert(p);
+      } finally { p.remove(); }
+    }
+    // The existing rule is unchanged: a passage inside a non-English subtree is still skipped.
+    const wrap = document.createElement('div');
+    wrap.setAttribute('lang', 'es');
+    wrap.innerHTML = '<p>Our team walks home and talks about the long week.</p>';
+    document.body.append(wrap);
+    try { expect(readable(wrap.firstElementChild, page)).toBe(false); } finally { wrap.remove(); }
+  });
+
+  test('the description host is never a passage, and pruning drops descriptions of removed spans', () => {
+    const p = passage('cats and dogs walk home together tonight');
+    const kept = passage('birds and bees sing in the garden today');
+    try {
+      applySwaps(p, [S({ o: 'and', f: 'y' })]);
+      applySwaps(kept, [S({ o: 'and', f: 'y' })]);
+      const [host] = hosts();
+      for (const url of [page, 'https://x.com/someone/status/1']) {
+        expect(host.matches(selector(url))).toBe(false);
+        expect(host.querySelector(selector(url))).toBeNull();
+      }
+      expect(host.querySelector(`${TWEET},${PROSE}`)).toBeNull();
+      const dropped = p.querySelector('.fw-word');
+      const id = dropped.getAttribute('aria-describedby');
+      p.textContent = 'cats and dogs walk home together tonight'; // a page re-render drops the span
+      pruneDescriptions();
+      expect(document.getElementById(id)).toBeNull();
+      expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('and · "ay". Show English');
+      // A page that detaches a passage and later puts the same span back gets its description back.
+      const parent = kept.parentNode;
+      kept.remove();
+      pruneDescriptions();
+      const keptSpan = kept.querySelector('.fw-word');
+      expect(document.getElementById(keptSpan.getAttribute('aria-describedby'))).toBeNull();
+      parent.append(kept);
+      restoreDescriptions(kept);
+      expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
+      restoreDescriptions(kept); // idempotent
+      expect(document.querySelectorAll(`[id="${keptSpan.getAttribute('aria-describedby')}"]`)).toHaveLength(1);
+      // A page that removes the host gets it back on the next prune, not a dangling reference,
+      // but a page that keeps removing it wins after a small budget instead of starting a loop.
+      jest.useFakeTimers();
+      try {
+        let reattached = 0;
+        for (let i = 0; i < 10; i++) {
+          host.remove();
+          pruneDescriptions();
+          if (host.isConnected) reattached++;
+        }
+        expect(reattached).toBe(3);
+        expect(descriptionOf(keptSpan)).toBeUndefined();
+        // When the window reopens, the one scheduled retry restores it on a page with no further mutations.
+        jest.advanceTimersByTime(59000);
+        expect(host.isConnected).toBe(false);
+        jest.advanceTimersByTime(2000);
+        expect(host.isConnected).toBe(true);
+        expect(descriptionOf(keptSpan)).toBe('and · "ay". Show English');
+      } finally { jest.useRealTimers(); }
+      host.remove();
+      toggle(kept.querySelector('.fw-word'));
+      expect(hosts()).toHaveLength(1);
+      expect(descriptionOf(kept.querySelector('.fw-word'))).toBe('Show Spanish');
+      expect(revert(kept)).toBe(1);
+      expect(kept.textContent).toBe('birds and bees sing in the garden today');
+    } finally { p.remove(); kept.remove(); }
+  });
 });

@@ -105,7 +105,7 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     expect(await send({ type: 'inlineBegin', word: due, revision }, { ...page, url: 'https://mail.google.com/' }))
       .toMatchObject({ error: expect.any(String) });
     expect(await send({ type: 'inlineBegin', word: due, revision }, page)).toMatchObject({ ticket: expect.any(String) });
-    const ticket = data.recallReview.inline.ticket;
+    const ticket = data.recallReview.inline[0].ticket;
     expect((await send({ type: 'inlineRate', ticket, rating: 'easy', revision }, page)).error).toMatch(/Reveal/);
     expect((await send({ type: 'inlineReveal', ticket, revision }, other)).error).toMatch(/stale/);
     expect((await send({ type: 'inlineReveal', ticket, revision }, page)).answer.fr).toBe(due);
@@ -129,6 +129,12 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     const current = (await send({ type: 'inlineBegin', word: due, revision: restored }, page)).ticket;
     expect(current).toEqual(expect.any(String));
     expect((await send({ type: 'inlineReveal', ticket: current, revision: restored }, page)).answer.fr).toBe(due);
+    const secondTab = (await send({ type: 'inlineBegin', word: due, revision: restored }, other)).ticket;
+    expect(secondTab).toEqual(expect.any(String));
+    expect(secondTab).not.toBe(current);
+    expect(data.recallReview.inline.map(({ tabId }) => tabId)).toEqual([7, 8]);
+    expect((await send({ type: 'inlineReveal', ticket: secondTab, revision: restored }, page)).error).toMatch(/stale/);
+    expect((await send({ type: 'inlineReveal', ticket: secondTab, revision: restored }, other)).answer.fr).toBe(due);
     const beforeRating = structuredClone(data.recallReview);
     writesFail = true;
     expect((await send({ type: 'inlineRate', ticket: current, rating: 'easy', revision: restored }, page)).error).toMatch(/Storage failed/);
@@ -140,6 +146,8 @@ test('worker serializes introductions and inline tickets, rejects stale/off/site
     ]);
     expect(raced.filter((r) => r.ok)).toHaveLength(1);
     expect(data.recallReview.cards[due].reviews).toBe(1);
+    expect((await send({ type: 'inlineRate', ticket: secondTab, rating: 'easy', revision: restored }, other)).error)
+      .toMatch(/Reveal/); // the first rating moved the shared card's due time
     // One inline retrieval is logged for the one accepted rating, none for the failed write.
     const inlineLog = data.learningRetrievals.retrievals.filter((t) => t[2] === 'inline');
     expect(inlineLog).toHaveLength(1);

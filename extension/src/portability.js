@@ -1,10 +1,12 @@
 // Explicit, bounded learning backup. This module never reads permissions or writes storage.
+import { bundledLanguage, GUARANI_STARTER } from './language-name.js';
+import { GUARANI_PACK } from './guarani.js';
 import { cleanPack, MAX_PACKS } from './languages.js';
+import { MEASUREMENTS_SKIPPED_KEY } from './measurement-skips.js';
 import { cleanPersonal, validForm, validLanguage, MAX_PERSONAL } from './personal.js';
-import { validDay } from './learning.js';
 import { wordsForLevel } from './levels.js';
 import { REVIEW_KEY } from './review.js';
-import { PENDING_KEY, SENT_KEY } from './events.js';
+import { PENDING_KEY, SENT_KEY, READING_DAYS_KEY, validDay, validReadingDays } from './events.js';
 import { ENCOUNTERS_KEY } from './encounters.js';
 import { entryId } from './catalog.js';
 import { cleanFsrsState, storedFsrs, MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
@@ -12,23 +14,24 @@ import { RETRIEVALS_KEY, EXPOSURES_KEY, MAX_RETRIEVALS, MAX_EXPOSURE_WORDS, clea
   cleanExposures } from './learning-log.js';
 
 export const BACKUP_FORMAT = 'lang-weave-learning-backup';
-// The schema this build writes, and the schemas it reads. Schema 2 adds per-card FSRS state,
-// the learning log (retrievals, exposures) and desiredRetention. A build must read a schema
-// before any build writes it (docs/LEARNING-CORE-MISSION.md, "Release order").
-export const BACKUP_SCHEMA = 2;
-export const READ_SCHEMAS = Object.freeze([1, 2]);
+// Schema 2 adds FSRS, learning logs and desiredRetention. Schema 3 adds only reading dates.
+// Default exports use schema 3 only when there are reading dates to preserve.
+export const READING_DAYS_SCHEMA = 3;
+export const READ_SCHEMAS = Object.freeze([1, 2, READING_DAYS_SCHEMA]);
 export const MAX_BACKUP_BYTES = 1024 * 1024;
-// One byte budget for the whole learning log in a schema 2 file, so the log can never crowd out
+// One byte budget for the whole learning log, so the log can never crowd out
 // cards, packs or personal entries under MAX_BACKUP_BYTES.
 export const LOG_BUDGET_BYTES = 512 * 1024;
 // Slack under MAX_BACKUP_BYTES for the separators fitLog's accounting may round away.
 const LOG_MARGIN_BYTES = 1024;
 export const IMPORT_JOURNAL_KEY = 'learningImportJournalV1';
 export const IMPORT_RECEIPT_KEY = 'learningImportReceiptV1';
-const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY];
+const LEARNING_SUFFIXES = [REVIEW_KEY, PENDING_KEY, SENT_KEY, ENCOUNTERS_KEY, RETRIEVALS_KEY, EXPOSURES_KEY,
+  READING_DAYS_KEY];
 // Storage suffix -> backup scope field. Every list of learning keys derives from this one.
 const SCOPE_FIELDS = Object.freeze({ [REVIEW_KEY]: 'review', [PENDING_KEY]: 'events', [SENT_KEY]: 'shown',
-  [ENCOUNTERS_KEY]: 'encounters', [RETRIEVALS_KEY]: 'retrievals', [EXPOSURES_KEY]: 'exposures' });
+  [ENCOUNTERS_KEY]: 'encounters', [RETRIEVALS_KEY]: 'retrievals', [EXPOSURES_KEY]: 'exposures',
+  [READING_DAYS_KEY]: 'readingDays' });
 export const LEARNING_STORAGE_KEYS = Object.freeze(['languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
 const LOG_FIELDS = ['retrievals', 'exposures'];
 // Validation context: `source` is local storage (export, target checks) rather than a file;
@@ -37,7 +40,7 @@ const LOG_FIELDS = ['retrievals', 'exposures'];
 const mode = (source, schema) => ({ source, schema, omitted: { retrievals: 0, exposures: 0 } });
 const DIRECT_KEYS = new Set(['settings', 'languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
 const NON_LEARNING_KEYS = new Set(['apiKey', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus', 'consentShown',
-  'quotaState', 'reloadedFor', IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
+  'quotaState', 'reloadedFor', 'spanishPlacement', MEASUREMENTS_SKIPPED_KEY, IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
 const VERSION = /^[0-9a-f]{16}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERSONAL_ID = /^personal:([^:]+):([0-9a-f-]{36})$/i;
@@ -45,7 +48,8 @@ const BAD_KEY = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_SCOPES = 80;
 const MAX_CARDS = 5000;
 const SETTINGS_FIELDS = ['enabled', 'model', 'levelOverride', 'language', 'gradual',
-  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'desiredRetention'];
+  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'desiredRetention',
+  'guessFirst'];
 
 function fail(reason) { throw new Error(`Learning backup: ${reason}`); }
 function object(value, name) {
@@ -112,13 +116,40 @@ function cardId(value, scope, known = false) {
 }
 function card(value, m) {
   keys(value, ['due', 'interval', 'reviews', 'familiar', 'easyStreak', 'introducedDay', 'introGateDay', 'introReceipt',
-    ...(m.source || m.schema >= 2 ? ['fsrs'] : [])], 'card', ['due', 'interval', 'reviews']);
+    ...(m.source || m.schema >= 2 ? ['fsrs', 'maintenance', 'retiredReturn', 'claimAt', 'claimDue', 'peekDue',
+      'seenDay', 'seenCount', 'peekDay', 'peekCount'] : [])], 'card', ['due', 'interval', 'reviews']);
   const result = { due: integer(value.due, 0, Number.MAX_SAFE_INTEGER, 'due time'),
     interval: integer(value.interval, 0, 365, 'interval'), reviews: integer(value.reviews, 0, 10000, 'review count') };
   if (Object.hasOwn(value, 'familiar')) { if (value.familiar !== true) fail('invalid familiarity'); result.familiar = true; }
   if (Object.hasOwn(value, 'easyStreak')) result.easyStreak = integer(value.easyStreak, 0, 3, 'easy streak');
   if (Object.hasOwn(value, 'introducedDay')) result.introducedDay = day(value.introducedDay);
   if (Object.hasOwn(value, 'introGateDay')) result.introGateDay = day(value.introGateDay);
+  if (m.schema >= 2) {
+    if (Object.hasOwn(value, 'maintenance')) {
+      if (value.maintenance !== true) fail('invalid maintenance');
+      result.maintenance = true;
+    }
+    if (Object.hasOwn(value, 'retiredReturn')) {
+      // A pending return survives a gradual-off write, which omits maintenance.
+      if (typeof value.retiredReturn !== 'boolean' || value.retiredReturn === true && result.familiar !== true)
+        fail('invalid retired return');
+      result.retiredReturn = value.retiredReturn;
+    }
+    for (const kind of ['seen', 'peek']) {
+      const dayKey = `${kind}Day`, countKey = `${kind}Count`;
+      if (Object.hasOwn(value, dayKey) || Object.hasOwn(value, countKey)) {
+        if (!Object.hasOwn(value, dayKey) || !Object.hasOwn(value, countKey)) fail('incomplete daily counter');
+        result[dayKey] = day(value[dayKey]);
+        result[countKey] = integer(value[countKey], 0, 3, 'daily count');
+      }
+    }
+    if (Object.hasOwn(value, 'claimAt') || Object.hasOwn(value, 'claimDue')) {
+      if (!Object.hasOwn(value, 'claimAt') || !Object.hasOwn(value, 'claimDue')) fail('incomplete known claim');
+      result.claimAt = integer(value.claimAt, 0, Number.MAX_SAFE_INTEGER, 'claim time');
+      result.claimDue = integer(value.claimDue, result.claimAt, Number.MAX_SAFE_INTEGER, 'claim due');
+    }
+    if (Object.hasOwn(value, 'peekDue')) result.peekDue = integer(value.peekDue, 0, result.due, 'peek due');
+  }
   // The one-use receipt belongs to an installation/document and is deliberately omitted.
   // Schema 1 output never carries FSRS state, so storage state is simply not exported.
   if (Object.hasOwn(value, 'fsrs') && m.schema >= 2) {
@@ -156,6 +187,7 @@ function packs(value) {
   for (const [code, raw] of Object.entries(map(value, 'packs', MAX_PACKS))) {
     language(code);
     if (code === 'es') fail('Spanish is bundled');
+    if (code === GUARANI_STARTER) fail('Paraguayan Guaraní starter is bundled');
     keys(raw, ['version', 'words'], 'pack', ['version', 'words']);
     if (!VERSION.test(raw.version)) fail('invalid pack version');
     if (!Array.isArray(raw.words)) fail('invalid pack words');
@@ -177,7 +209,7 @@ function preferences(value, installed, m) {
     ...(m.schema >= 2 ? ['desiredRetention'] : [])],
   'preferences', ['language', 'levelOverride', 'gradual', 'newWordsPerDay', 'density', 'inlineRecall']);
   language(value.language);
-  if (value.language !== 'es' && !Object.hasOwn(installed, value.language)) fail('selected language pack is missing');
+  if (!bundledLanguage(value.language) && !Object.hasOwn(installed, value.language)) fail('selected language pack is missing');
   integer(value.levelOverride, 0, 4, 'level');
   integer(value.newWordsPerDay, 1, 10, 'daily budget');
   if (typeof value.gradual !== 'boolean' || typeof value.inlineRecall !== 'boolean' ||
@@ -286,8 +318,13 @@ function exposureLog(value, catalog, m) {
   return { version: 1, words };
 }
 function feedback(value, scope, installed, personalState, m) {
-  keys(value, ['review', 'events', 'shown', 'encounters', ...(m.schema >= 2 ? LOG_FIELDS : [])], 'scope');
+  keys(value, ['review', 'events', 'shown', 'encounters', ...(m.schema >= 2 ? LOG_FIELDS : []),
+    ...(m.source || m.schema >= READING_DAYS_SCHEMA ? ['readingDays'] : [])], 'scope');
   const result = {};
+  if (Object.hasOwn(value, 'readingDays')) {
+    if (!validReadingDays(value.readingDays)) fail('invalid reading days');
+    result.readingDays = [...value.readingDays];
+  }
   if (Object.hasOwn(value, 'review')) {
     if (scope.startsWith('personal:')) fail('personal review belongs in personal history');
     result.review = review(value.review, scope, m, installed);
@@ -339,7 +376,7 @@ function feedback(value, scope, installed, personalState, m) {
   }
   return result;
 }
-// Schema 2 files may say how much log data the exporter left out (budget or ruling B), so the
+// Schema 2 and 3 files may say how much log data the exporter left out, so the
 // import preview can report omissions the file itself no longer shows.
 function logOmitted(value) {
   keys(value, ['retrievals', 'exposureWords'], 'log omissions', ['retrievals', 'exposureWords']);
@@ -350,11 +387,12 @@ function state(value, m) {
   keys(value, ['preferences', 'packs', 'personal', 'scopes', ...(m.schema >= 2 && !m.source ? ['logOmitted'] : [])],
     'state', ['preferences', 'packs', 'personal', 'scopes']);
   const installed = packs(value.packs);
+  const catalogs = { ...installed, [GUARANI_STARTER]: GUARANI_PACK };
   const own = personal(value.personal, m);
   const scopes = Object.create(null);
   for (const [id, raw] of Object.entries(map(value.scopes, 'scopes', MAX_SCOPES))) {
     scopeKey(id);
-    scopes[id] = feedback(raw, id, installed, own, m);
+    scopes[id] = feedback(raw, id, catalogs, own, m);
   }
   return { preferences: preferences(value.preferences, installed, m), packs: installed, personal: own, scopes,
     ...(Object.hasOwn(value, 'logOmitted') ? { logOmitted: logOmitted(value.logOmitted) } : {}) };
@@ -367,7 +405,7 @@ export function parseBackup(json) {
     ['format', 'schemaVersion', 'exportedByVersion', 'state']);
   if (raw.format !== BACKUP_FORMAT) fail('this is not a Lang Weave learning backup');
   if (!READ_SCHEMAS.includes(raw.schemaVersion)) fail(Number.isSafeInteger(raw.schemaVersion) && raw.schemaVersion > 0
-    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.join(' and ')}. Update Lang Weave to import it`
+    ? `this file uses schema ${raw.schemaVersion}, and this version of Lang Weave reads schemas ${READ_SCHEMAS.slice(0, -1).join(', ')} and ${READ_SCHEMAS.at(-1)}. Update Lang Weave to import it`
     : 'unsupported schema version');
   boundedString(raw.exportedByVersion, 40, 'export tool version');
   if (!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(raw.exportedByVersion)) fail('invalid export tool version');
@@ -387,9 +425,12 @@ function storageEntries(all) {
     if (!LEARNING_SUFFIXES.includes(suffix)) fail('unknown learning key');
     (scopes[scope] ||= {})[SCOPE_FIELDS[suffix]] = value;
   }
-  const es = scopes.es ||= {};
+  const es = {};
   for (const [key, field] of Object.entries(SCOPE_FIELDS))
     if (Object.hasOwn(all, key)) es[field] = all[key];
+  // Keep the usual Spanish entry when there is room. An accepted full file that has no
+  // Spanish data must still export within the scope limit after restore.
+  if (Object.keys(es).length || Object.keys(scopes).length < MAX_SCOPES) scopes.es = es;
   return scopes;
 }
 // Fit the log into LOG_BUDGET_BYTES of compact JSON: first every scope's exposure aggregates,
@@ -420,13 +461,11 @@ function fitLog(st, m, budget) {
       delete fields.exposures;
     }
   }
-  const all = [];
-  for (const [id, fields] of Object.entries(st.scopes))
-    for (const tuple of fields.retrievals?.retrievals || []) all.push([id, tuple]);
-  all.sort(([, a], [, b]) => b[1] - a[1]);
+  const all = Object.values(st.scopes).flatMap((fields) => fields.retrievals?.retrievals || []);
+  all.sort((a, b) => b[1] - a[1]);
   const kept = new Set();
   let full = false;
-  for (const [, tuple] of all) {
+  for (const tuple of all) {
     if (!full && fit(bytes(tuple) + 1)) kept.add(tuple);
     else { full = true; droppedRetrievals++; }
   }
@@ -441,14 +480,16 @@ function fitLog(st, m, budget) {
   if (retrievals || exposureWords) st.logOmitted = { retrievals, exposureWords };
 }
 
-export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
-  if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
+export function createBackup(all, exportedByVersion, schema) {
   const scopes = storageEntries(all);
-  // Schema 1 has no learning log; FSRS card state is stripped by card(). A scope that held only
-  // log data is dropped rather than exported empty.
-  if (schema < 2) for (const [id, fields] of Object.entries(scopes)) {
+  if (schema === undefined) schema = Object.values(scopes).some((fields) => Object.hasOwn(fields, 'readingDays'))
+    ? READING_DAYS_SCHEMA : 2;
+  if (!READ_SCHEMAS.includes(schema)) fail('unsupported export schema');
+  // Legacy formats omit fields they cannot carry and scopes made empty by those omissions.
+  if (schema < READING_DAYS_SCHEMA) for (const [id, fields] of Object.entries(scopes)) {
     const had = Object.keys(fields).length;
-    for (const field of LOG_FIELDS) delete fields[field];
+    delete fields.readingDays;
+    if (schema < 2) for (const field of LOG_FIELDS) delete fields[field];
     if (id !== 'es' && had && !Object.keys(fields).length) delete scopes[id];
   }
   const settings = object(all.settings || {}, 'settings');
@@ -477,7 +518,7 @@ export function createBackup(all, exportedByVersion, schema = BACKUP_SCHEMA) {
     // log without saying so.
     fitLog(clean.state, m, Math.max(0, Math.min(LOG_BUDGET_BYTES, MAX_BACKUP_BYTES - base - LOG_MARGIN_BYTES)));
   }
-  // Schema 2 is written compactly: indentation would roughly triple the learning log.
+  // Schemas 2 and 3 are written compactly: indentation would roughly triple the learning log.
   const json = schema >= 2 ? JSON.stringify(clean) : JSON.stringify(clean, null, 2);
   if (new TextEncoder().encode(json).length > MAX_BACKUP_BYTES) fail('supported learning state exceeds file limit');
   return json;
@@ -528,7 +569,7 @@ export function targetFresh(all) {
     for (const field of LOG_FIELDS) delete rest[field];
     const clean = feedback(rest, id, {}, own, mode(true, 1));
     if (Object.keys(clean.review?.cards || {}).length || clean.review?.learning.day || clean.review?.learning.count ||
-        clean.events?.length || clean.shown?.words.length || Object.keys(clean.encounters?.counts || {}).length ||
+        clean.readingDays?.length || clean.events?.length || clean.shown?.words.length || Object.keys(clean.encounters?.counts || {}).length ||
         clean.encounters?.touched.length) fail('target has learning progress');
   }
   return true;
@@ -541,13 +582,14 @@ export function validateStorageSettings(settings) {
 export function backupPreview(backup) {
   const { state: s } = backup;
   return { exportedByVersion: backup.exportedByVersion,
-    languages: new Set(['es', ...Object.keys(s.packs), ...s.personal.entries.map((e) => e.language),
+    languages: new Set(['es', s.preferences.language, ...Object.keys(s.packs), ...s.personal.entries.map((e) => e.language),
       ...Object.keys(s.personal.history), ...Object.keys(s.scopes).map((k) => k === 'es' ? 'es' :
         k.startsWith('personal:') ? k.slice(9) : k.split(':')[1])]).size,
     packs: Object.keys(s.packs).length,
     cards: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.review?.cards || {}).length, 0) +
       Object.values(s.personal.history).reduce((sum, scope) => sum + Object.keys(scope.cards).length, 0),
     personal: s.personal.entries.length, preferences: s.preferences, schemaVersion: backup.schemaVersion,
+    includesReadingDays: Object.values(s.scopes).some((scope) => Object.hasOwn(scope, 'readingDays')),
     retrievals: Object.values(s.scopes).reduce((sum, scope) => sum + (scope.retrievals?.retrievals.length || 0), 0),
     exposureWords: Object.values(s.scopes).reduce((sum, scope) => sum + Object.keys(scope.exposures?.words || {}).length, 0),
     omittedRetrievals: (backup.omitted?.retrievals || 0) + (s.logOmitted?.retrievals || 0),

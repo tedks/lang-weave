@@ -29,6 +29,18 @@ test('gradual policy prioritizes due, then learning, then useful new words, with
   expect(policyWords(words, state, { ...settings, gradual: false }, now, day)).toHaveLength(4);
 });
 
+test('a peek-accelerated card is due in policy and final commit, including inline practice', () => {
+  const state = cleanReview(null, words);
+  state.cards.libro = { due: now + 8 * 86400000, peekDue: now - 1,
+    interval: 8, reviews: 1, introducedDay: '2026-10-17' };
+  expect(policyWords([words[2]], state, settings, now, day)[0].status).toBe('due');
+  expect(commitLearning(state, { one: [swap('libro')] }, settings, sender, revision, now, day).one[0])
+    .toMatchObject({ status: 'due', practice: true });
+  state.cards.libro.claimDue = now + 20 * 86400000;
+  expect(policyWords([words[2]], state, settings, now, day)[0].status).toBe('active');
+  expect(commitLearning(state, { one: [swap('libro')] }, settings, sender, revision, now, day).one[0].practice).toBeUndefined();
+});
+
 test('reservations bound concurrent introductions and only visible acknowledgements spend allowance', () => {
   const state = cleanReview(null, words);
   expect(remaining(state.learning, day, 2)).toBe(2);

@@ -19,11 +19,11 @@ export function capturePageSender(sender) {
 const surface = (name, matches, messages) => Object.freeze({ name, matches, messages: Object.freeze(messages) });
 export const SURFACES = Object.freeze([
   surface('popup', (sender) => sender.url === chrome.runtime.getURL('src/popup.html'),
-    ['status', 'save', 'recoverBudget', 'progress']),
+    ['status', 'save', 'recoverBudget', 'progress', 'setReadingSite', 'openReview']),
   surface('options', (sender) => sender.url === chrome.runtime.getURL('src/options.html'),
-    ['status', 'save', 'addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey', 'progress']),
+    ['status', 'save', 'addLanguage', 'removeLanguage', 'clearCache', 'removeKey', 'testKey', 'progress', 'placement']),
   surface('welcome', (sender) => sender.url === chrome.runtime.getURL('src/welcome.html'),
-    ['save']),
+    ['save', 'placement']),
   // My words: read-only progress and the merged list, plus scope-guarded word actions.
   surface('words', (sender) => sender.url === chrome.runtime.getURL('src/words.html'),
     ['progress', 'wordsList', 'wordPractice', 'wordKnown', 'wordReset', 'personalArchive']),
@@ -35,7 +35,7 @@ export const SURFACES = Object.freeze([
   surface('backup', backupSender, ['learningExport', 'learningPreview', 'learningImport']),
   surface('page', (sender) => sender.tab && /^https?:\/\//.test(sender.url || ''),
     ['config', 'captureReady', 'swaps', 'event', 'inlineBegin', 'inlineReveal', 'inlineRate',
-      'introAck', 'introRelease', 'introRenew']),
+      'introAck', 'introRelease', 'introRenew', 'guessBegin', 'guessAnswer']),
 ]);
 
 // The names of every surface this sender matches. Pure: reads only the sender and the extension URL.
@@ -43,3 +43,10 @@ export const senderSurfaces = (sender) =>
   new Set(SURFACES.filter(({ matches }) => matches(sender)).map(({ name }) => name));
 export const surfaceAllows = (surfaces, type) =>
   SURFACES.some(({ name, messages }) => surfaces.has(name) && messages.includes(type));
+
+// Chrome commands have no page sender. Keep their exact names separate from
+// message surfaces so a shortcut never gains a sender-scoped message route.
+export const COMMANDS = Object.freeze({
+  pauseSite: 'pause-on-this-page',
+  openReview: 'open-review',
+});

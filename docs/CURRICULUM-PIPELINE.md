@@ -1,0 +1,91 @@
+# Spanish curriculum candidate pipeline
+
+This pipeline produces **candidate data only**. Its output is outside `extension/`, and `extension/scripts/package.mjs` does not include it. The original Beginner 30 and Expanded 226 retain their exact target forms, English glosses, hints, bands and order. The data licence and reviewer sourcing decision for the generated band remains open in `curriculum-data-licence-ruling`.
+
+## Bundled Beginner additions in 0.12.27
+
+Seven singular nouns for clothing and packing are authored directly in `extension/src/vocabulary.js`. The English glosses and approximate pronunciation hints are original. RAE/ASALE's dictionary was consulted to verify spelling, gender and sense. The selected words include variants such as `suéter` that readers may hear alongside regional alternatives. `La corbata` uses “necktie” to keep sporting ties and the verb “tie” outside its anchor. This narrower gloss gives it fewer opportunities to appear in reading. The additions contain no imported dictionary definitions, examples or frequency data, and carry no native-review claim. [RAE/ASALE entries for suéter](https://dle.rae.es/su%C3%A9ter), [blusa](https://dle.rae.es/blusa), [sandalia](https://dle.rae.es/sandalia), [pantufla](https://dle.rae.es/pantufla), [pulsera](https://dle.rae.es/pulsera), [corbata](https://dle.rae.es/corbata) and [maleta](https://dle.rae.es/maleta).
+
+Both levels append the same seven entries to their former sequences, giving 37 Beginner and 233 Expanded entries. They use band 0 by the Beginner level rule. Spanish review cards still use their exact target form as the key in the existing Spanish scope. If a previously saved personal term collides with a new noun, its entry and review history are retained. The existing ambiguity guard can withhold both matches from automatic weaving. Use 0.12.27 or later to restore backups containing progress on these seven forms.
+
+## Inputs and source pins
+
+`scripts/curriculum/build.mjs` uses Node standard library modules and project source modules only. It never uses the network. This choice keeps the normal build on the extension's existing Node toolchain and avoids a runtime dependency. Fixture inputs are two Wiktextract JSONL rows for `sombrero` and `nube`, a two-pair Tatoeba sample, the committed `overlay.json`, empty `reviews.json`, and `data/curriculum/es/wordfreq-bands.csv`. The JSONL rows were downloaded from the small English-edition Spanish meaning pages; their per-entry SHA-256 digests matched the same rows in the separately fetched, pinned **raw** English-edition archive when the full-source build ran. The fixture's complete file digest and both entry digests are pinned in `SOURCES.json` and asserted by tests. The fixture Tatoeba pairs are Spanish IDs 3767697/1604986 linked to English IDs 2111/18309, from the 2026-10-31 detailed and link exports. Sentence authors and CC BY 2.0 France status stay with the rows. The sample is evidence for the pipeline gates, not a language-quality acceptance.
+
+`data/curriculum/es/SOURCES.json` pins URLs and SHA-256 digests for the raw English Wiktextract archive (2026-10-01 English Wiktionary dump, 2026-10-30 extraction, revision 19f9a30), wordfreq 3.1.1 wheel, and the 2026-10-31 Tatoeba detailed, link and CC0 exports. The Wiktextract and Tatoeba URLs are updated in place by their publishers. SHA-256 makes a changed export fail closed, but long-term availability of these exact bytes requires an archive mirror. No multi-megabyte source dump is committed. The inherited `data/lexicons/spanish.csv` was inspected for context; `data/profiles/spanish.json` named in the dispatch does not exist in this checkout and is not a pipeline input.
+
+The wordfreq table was made once from the SHA-verified 3.1.1 wheel (`4b1c6ecffc6198be3396d5cf871c4423ca71c907c231348d352dd54d62b97473`) and the exact helper versions in `scripts/curriculum/wordfreq-toolchain.txt`. It stores two-decimal Spanish and English Zipf values, the Spanish form's English Zipf collision proxy, and a coarse band. The table is distributed as CC BY-SA 4.0 with attribution in the shipped root `NOTICE`. The coarse band integers are already part of the authorized 226-row runtime change; whether those rank-derived integers are an adaptation remains in Ted's legal-review ruling. To regenerate the table deliberately:
+
+```bash
+wordfreq_dir=$(mktemp -d /tmp/lang-weave-wordfreq.XXXXXX)
+python3 -m venv "$wordfreq_dir"
+"$wordfreq_dir/bin/pip" download --no-deps wordfreq==3.1.1 -d "$wordfreq_dir"
+sha256sum "$wordfreq_dir/wordfreq-3.1.1-py3-none-any.whl" # compare with SOURCES.json
+"$wordfreq_dir/bin/pip" install -r scripts/curriculum/wordfreq-toolchain.txt
+"$wordfreq_dir/bin/pip" install --no-deps "$wordfreq_dir/wordfreq-3.1.1-py3-none-any.whl"
+node --input-type=module -e "import {L2_WORDS} from './extension/src/vocabulary.js'; import {readFileSync} from 'node:fs'; const overlay=JSON.parse(readFileSync('scripts/curriculum/overlay.json')); process.stdout.write(JSON.stringify([...L2_WORDS.slice(0,226),...overlay].map(({fr,en})=>({fr,en}))))" | "$wordfreq_dir/bin/python" scripts/curriculum/generate-wordfreq-table.py > data/curriculum/es/wordfreq-bands.csv
+```
+
+The first 30 rows are forced to band 0. Later table rows use the lower of Spanish and English Zipf: at least 5.5 → band 1, 4.5 → 2, 3.5 → 3, otherwise 4. The table covers the original 226 and the candidate overlay. The input wheel remains outside the repo, and `build.mjs` reads only the committed table.
+
+## Fetch, build, verify
+
+From the worktree root, with Node and the system `bzip2` command available:
+
+```bash
+node scripts/curriculum/fetch.mjs .curriculum-inputs
+node scripts/curriculum/build.mjs --wiki .curriculum-inputs/raw-wiktextract-data.jsonl.gz --examples .curriculum-inputs/examples.tsv --out .curriculum-inputs/candidate-out
+node scripts/curriculum/build.mjs --out .curriculum-inputs/fixture-out
+cd extension && nix shell nixpkgs#bun --command bun test test/curriculum-pipeline.test.js test/curriculum-benchmark.test.js
+```
+
+`fetch.mjs` verifies each entire archive against `SOURCES.json` before it becomes a local input. It joins only the Tatoeba sentence IDs named in `overlay.json` and verifies that each English/Spanish pair appears in the pinned link export. It marks a pair CC0 only when both sentences are in the pinned CC0 exports; otherwise it retains both author IDs under CC BY 2.0 France. The full raw Wiktextract scan is intentionally a large, explicit operator step. It completed for this pilot, giving the same two row content hashes and Wiktextract entry hashes as the fixture. Tests use the small committed fixture and make no network calls.
+
+`build.mjs` writes `band-01.json` (the `{fr,en,hint}` shipped shape plus candidate metadata), `MANIFEST.json` (input digests and row hashes), `LICENCES.json`, and `NOTICE-DATA.md` into the requested directory. Every row carries a content SHA-256 and provenance (overlay ID, Wiktextract entry hash, Tatoeba pair IDs and wordfreq version). Running the fixture build twice produces byte-identical files in a Bun test. The manifest says `shipped: false`. There is no import path from this output into the extension package.
+
+## Admission and review
+
+The twelve admission classes are `duplicate`, `accent-fold`, `number`, `english-collision`, `anchor`, `article`, `hint`, `band`, `sense`, `example`, `function-word`, and `reserved`. Each has a negative fixture. A rejected candidate reports the gate, its overlay ID, and SHA-256 of `JSON.stringify` on the submitted overlay row, so the author can identify the exact refused input. Malformed source tables and review records also fail closed, though their file-level errors are outside those twelve row classes.
+
+The build refuses duplicate target forms or frequency rows; accent-fold homographs including `si`/`sí`; bad singular/plural article or anchor rules; common English-colliding Spanish forms without an explicit override; English anchors already in the 226 or shared by candidates; missing article, hint, frequency band or sense note; a sentence where the target or an English anchor does not appear exactly once; forbidden function-word anchors; and reserved characters. Every explicit anchor must agree with the English gloss and one selected Wiktextract sense. It checks the selected Wiktextract POS and noun gender, and verifies the exact Tatoeba Spanish/English ID pair, author and licence data. These deterministic checks are stricter than linguistic review.
+
+English surface validation uses the small rules in `scripts/curriculum/english-inflections.mjs`, an explicit `english-irregulars.json` list, and a conservative `english-regulars.json` allowlist. An unlisted base gets no derived surface; adding one requires a reviewed data change. Plural nouns and third-person verbs use `-s`, `-es` after sibilants (and consonant + `o` for verbs), or consonant-`y` → `-ies`. Gerunds and regular participles use `-ing` and `-ed`, drop a final silent `e`, change consonant-`y` to `-ied`, and double a final consonant in a one-vowel CVC word except `w`, `x`, or `y`. The rules handle `-ie` → `-ying`, preserve `e` after `-oe` and `-ye`, add `k` after `-ic`, and double a final single `z`. An irregular-list entry supplies only its permitted third-person, gerund, and participle surfaces instead of regular derivation. Ambiguous `-o`, `-f`, and `-fe` noun plurals require an entry in `english-irregulars.json`, even when their plural is spelled regularly; adding them only to the regular allowlist does not enable a form. That file also holds spelling exceptions such as `stomach`. The number gate recognizes only plurals derived from the two lists, so an unlisted compound plural waits for an explicit entry and a singular ending in `s` does not masquerade as plural. These lists are deliberately incomplete; the builder refuses unlisted derivations instead of guessing. Past tense forms that are not also participles are outside the planned Spanish verb rows. The selected Wiktextract gloss must support the same surface derivation; morphology alone cannot approve a sense.
+
+The admission gate also asks the same `glossMatches` derivation used at runtime whether any bundled row would claim a candidate anchor, including legacy inflections, synonyms, and stripped English lead words. A synthetic `hi` candidate proves the exact synonym overlap with `hola` is refused. The legacy matcher keeps exact synonyms and applies its limited inflection fallback to explicitly marked single-word English glosses. A catalog test checks the resulting surfaces of every shipped Spanish row. The two legacy shared English anchors, `only` and `free`, retain their existing behavior. The same `legacyInflects` predicate controls the runtime and admission decision for article-bearing rows. All Beginner rows are also in Expanded. Explicit candidate `anchors` still match exactly at runtime. Broader word containment between two new candidate anchors, such as `ice cream` and `cream`, needs a separate policy and is not inferred by this gate.
+
+`reviews.json` is an empty committed review ledger. A future reviewer records a pseudonymous reviewer ID, `row_hash`, date and verdict after examining the exact generated row. This generated-content hash differs from the submitted-overlay hash printed in a gate refusal. The builder will label a row `native-reviewed` only when two distinct reviewers approve that exact hash and no reviewer rejects it. A rejection vetoes that row hash; revise the row and review its new hash to resolve the dispute. A changed sense, hint, anchor, example or band changes the hash and invalidates old approvals. No current row has such approvals. Reviewer sourcing, rubric and the first band's release remain open product decisions.
+
+## Runtime ordering and measured ceiling
+
+Due, difficult, active and owned reservations keep their existing priority. Among new candidates, lower `band` now precedes the existing cognate, encounter, BASIC, match-length and ID ties. Any unbanded new word uses the lowest band available in that selection, then retains the existing tie ranking; this gives mixed pools a consistent order and preserves the one-slot personal worker flow. The Beginner rows are all band 0. A test checks that giving every Beginner row the same band preserves its eligible gradual order. In the existing representative passage test, the four fresh candidates were previously `la historia, el pueblo, hoy, y`; bands make them `hoy, y, la historia, el pueblo`. Band ranking affects gradual selection. The seven 0.12.27 clothing entries follow the original rows of each level.
+
+The Bun benchmark uses synthetic packs of 500, 1,000 and 3,000 unique rows, a 60-word passage, median of seven timed runs after three warmups. Initial observed milliseconds on this host (Bun 1.4.2):
+
+| Rows | `matchingEntries` | adaptive selection | prompt construction | pack admission + level matching |
+|---:|---:|---:|---:|---:|
+| 500 | 0.43 | 0.79 | 0.05 | 0.40 |
+| 1,000 | 1.01 | 1.14 | 0.07 | 0.60 |
+| 3,000 | 28.78 | 10.50 | 0.23 | 2.00 |
+
+The test permits 100 ms matching at 500/1,000, 300 ms at 3,000 and 500 ms for the other operations. It reports actual local timings on each run. `MAX_PACK_ROWS` is 3,000 for candidate admission. The bundled Expanded catalog contains 233 rows.
+
+## Ordinary Spanish request size
+
+Ordinary Spanish reading lists only rows that might have a valid English anchor in the passages sent on that request. A validator-accepted anchor has to occur verbatim in a passage. Its normalized gloss comes from the same full or bare target entry and the same legacy gloss, synonym and inflection rules used for validation. English normalization can remove text or separate letter runs, so every ASCII letter run in that gloss must occur in the lowercased passage. The prompt keeps a row when any of its forms passes that necessary check. Explicit anchors and any bare row that validation could return from a retained definite entry stay in the prompt. The check allows false positives, so a compound, quotation or repeated anchor can still be rejected at validation.
+
+The request keeps the prior order among retained entries and uses the entire eligible catalog to validate and cap swaps. An identical model reply produces identical local results. A shorter prompt can influence the provider's choice of reply. Gradual requests and the ordinary Guaraní and generated-language requests use their existing prompt paths. A dense batch containing all the glosses can still list the entire eligible catalog.
+
+At 233 Expanded rows, the median whole request fell from 8,441 to 3,851 UTF-8 bytes for individual passages and from 11,924 to 8,099 for batches of eight. The offline sample used 12 evenly spaced passages from each of four English books and two project documents, selected after applying the normal size and sensitive-text checks. The largest of the nine sampled eight-passage requests fell from 13,859 to 10,691 bytes. These are serialized request measurements with synthetic model replies. The focused extension tests capture and compare requests sent through the ordinary path. Gradual selection still enforces its candidate and request-size limits. [Pride and Prejudice](https://github.com/GITenberg/Pride-and-Prejudice_1342), [Walden](https://github.com/GITenberg/Walden-and-On-The-Duty-Of-Civil-Disobedience_205), [Hamlet](https://github.com/GITenberg/Hamlet-Prince-of-Denmark_1524) and [Alice’s Adventures in Wonderland](https://github.com/GITenberg/Alice-s-Adventures-in-Wonderland_11).
+
+## Everyday Beginner reading in 0.14.3
+
+Beginner now includes seven previously shipped Expanded nouns. Home gains `la ventana`, meals gain `el desayuno` and `la sopa`, outdoor reading gains `el árbol` and `el río`, and leisure gains `la canción` and `la película`. The promotions reuse the existing glosses, hints and review IDs. They use band 0 in the 44-row Beginner catalog. The full 233-row Expanded catalog retains its row order and metadata. Explicit Expanded placement gives the remaining Expanded-only words first priority for fresh gradual candidates, so the promoted nouns are now treated like the other Beginner words under that choice.
+
+The original [purpose-written reading fixtures](../extension/test/spanish-everyday-corpus.json) were fixed before selection. Eighteen discovery paragraphs covered six topics. The discovery pass compared the existing 37- and 233-word pools using the ordinary prompt projection and local swap validation. Selection favored concrete everyday nouns with low ambiguity and covered several topics. Window, breakfast and soup each matched two discovery paragraphs. Tree, river, song and movie each matched one. The seven nouns were then checked on twelve separate paragraphs. For each paragraph, the test intersects locally validated source spans with the ordinary prompt projection or the gradual selector for a fresh reader at five new words per day. An opportunity is one eligible form in one paragraph.
+
+| Mode | Eligible form opportunities | Distinct forms | Paragraphs with a match |
+|---|---:|---:|---:|
+| Ordinary | 14 → 21 | 8 → 15 | 10/12 → 12/12 |
+| Gradual | 13 → 20 | 7 → 14 | 9/12 → 12/12 |
+
+The seven promotions each appeared in both modes, across seven paragraphs. The contrast set confirms existing rejections for partial compounds such as “movie theater”, figurative “river of messages”, a quoted song anchor and plural “trees” when the proposed Spanish form is singular. Additional review contrasts protect established compounds such as “breakfast cereal”, “tree diagram”, “family tree” and “shop window”. This finite English compound list applies to every pack. The corresponding standalone senses remain available. “Book a room”, “pencil in” and “software library” can pass local anchor validation for the corresponding Expanded nouns, so those nouns stay in Expanded only. A worker test captures the ordinary prompt in default Beginner with no prior window card, exercises a positive “the window” and a rejected “window frame”, and separately checks a saved window card. It also checks the complete gradual request with a retained review word. The measurements describe local reachability on these authored paragraphs with synthetic model replies.

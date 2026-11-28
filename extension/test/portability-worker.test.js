@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { localDay } from '../src/events.js';
+import { READING_DAYS_KEY, localDay } from '../src/events.js';
+import { createBackup } from '../src/portability.js';
 
 const id = 'fw-backup';
 const sender = { id, url: `chrome-extension://${id}/src/backup.html`, documentId: 'backup-document', tab: { id: 10 } };
@@ -86,12 +87,15 @@ test('worker export, validated preview and import preserve consent, reject confl
       current: { word: 'y', ticket: 'secret-reveal', revealed: true }, inline: null,
       learning: { day: localDay(), count: 1, pending: [{ ownerKey: 'secret-owner' }] } },
     }, 'old');
+    old.setOrigins(['https://source-grant.example/*']);
     await old.load();
     old.openPage();
     const exported = await old.dispatch({ type: 'learningExport' });
     expect(exported.json).toContain('lang-weave-learning-backup');
+    expect(exported.json).toBe(createBackup(old.data, '0.11.0', 2));
     expect(exported.json).not.toContain('secret-source-key');
     expect(exported.json).not.toContain('source.example');
+    expect(exported.json).not.toContain('source-grant.example');
     expect(exported.json).not.toContain('secret-ticket');
     expect(old.data.recallReview.current.ticket).toBe('secret-reveal');
 
@@ -110,6 +114,7 @@ test('worker export, validated preview and import preserve consent, reject confl
     expect(target.data.settings.enabled).toBe(false);
     expect(target.data.settings.newSitesEnabled).toBe(false);
     expect(target.data.settings.siteOverrides).toEqual({ 'target.example': false });
+    expect((await chrome.permissions.getAll()).origins).toEqual([]);
     expect(target.data.keyEpoch).toBe('target-secret-epoch');
     expect(target.data.apiKey).toBeUndefined();
     expect(target.data.recallReview.cards.y.reviews).toBe(1);
@@ -173,6 +178,7 @@ test('partial storage failure reports error and journal recovers on worker resta
   const oldChrome = globalThis.chrome, oldFetch = globalThis.fetch;
   try {
     const source = setup({ settings: { language: 'es', levelOverride: 2 },
+      [READING_DAYS_KEY]: ['2026-10-28'],
       recallReview: { version: 1, cards: { y: { due: 0, interval: 0, reviews: 0 } },
         learning: { day: '2026-10-28', count: 1, pending: [] } } }, 'failure-source');
     await source.load(); source.openPage();
@@ -181,6 +187,7 @@ test('partial storage failure reports error and journal recovers on worker resta
     const target = setup(data, 'failure-target');
     await target.load(); target.openPage();
     const preview = await target.dispatch({ type: 'learningPreview', json, pageId });
+    expect(preview.preview).toMatchObject({ schemaVersion: 3, includesReadingDays: true });
     target.failNextPatch(true);
     expect((await target.dispatch({ type: 'learningImport', token: preview.token, pageId })).error).toMatch(/did not finish/);
     expect(data.learningImportJournalV1).toBeDefined();
@@ -191,6 +198,8 @@ test('partial storage failure reports error and journal recovers on worker resta
     await restart.load(); restart.openPage();
     const recovered = await restart.dispatch({ type: 'learningExport' });
     expect(recovered.json).toContain('"y"');
+    expect(JSON.parse(recovered.json).state.scopes.es.readingDays).toEqual(['2026-10-28']);
+    expect(data[READING_DAYS_KEY]).toEqual(['2026-10-28']);
     expect(data.learningImportJournalV1).toBeUndefined();
     expect(data.learningImportReceiptV1.hash).toBeDefined();
     expect(data.recallReview.cards.y.reviews).toBe(0);

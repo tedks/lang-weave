@@ -6,9 +6,10 @@ import { SURFACES, senderSurfaces, surfaceAllows } from '../src/router.js';
 // change to who may send what: it needs its own review, never a drive-by edit.
 const PINNED = {
   // progress (0.12.10): read-only local progress summary for the popup Today line and options.
-  popup: ['progress', 'recoverBudget', 'save', 'status'],
-  options: ['addLanguage', 'clearCache', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
-  welcome: ['save'],
+  // Only the toolbar popup can forward a click to the site-permission handler.
+  popup: ['openReview', 'progress', 'recoverBudget', 'save', 'setReadingSite', 'status'],
+  options: ['addLanguage', 'clearCache', 'placement', 'progress', 'removeKey', 'removeLanguage', 'save', 'status', 'testKey'],
+  welcome: ['placement', 'save'],
   // My words (0.12.10): its own page entry. personalArchive is the capture page's existing handler.
   words: ['personalArchive', 'progress', 'wordKnown', 'wordPractice', 'wordReset', 'wordsList'],
   // learningStats (0.12.6): read-only local measurements, review page only.
@@ -16,8 +17,9 @@ const PINNED = {
   capture: ['captureCancel', 'captureDraft', 'captureKeepAlive', 'captureSave', 'personalArchive',
     'personalExport', 'personalIntroduce', 'personalList'],
   backup: ['learningExport', 'learningImport', 'learningPreview'],
-  page: ['captureReady', 'config', 'event', 'inlineBegin', 'inlineRate', 'inlineReveal', 'introAck',
-    'introRelease', 'introRenew', 'swaps'],
+  // guessBegin/guessAnswer (0.12.21): opt-in guess first, the same content-script sender.
+  page: ['captureReady', 'config', 'event', 'guessAnswer', 'guessBegin', 'inlineBegin', 'inlineRate', 'inlineReveal',
+    'introAck', 'introRelease', 'introRenew', 'swaps'],
 };
 const HANDLERS = [...new Set(Object.values(PINNED).flat())].sort();
 const TYPES = [...HANDLERS, 'constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', '',
@@ -142,12 +144,14 @@ test('unmodified sender decisions equal the pre-split boolean', () => withChrome
     ...NEAR_MISSES.filter(([sender, expected]) => !sender.url?.includes('/src/welcome.html') &&
       !sender.url?.includes('/src/words.html') && !changed.includes(expected[0])).map(([sender]) => sender)];
   let checked = 0;
-  for (const sender of senders) for (const type of TYPES.filter((type) => !['removeKey', 'testKey'].includes(type))) {
+  // Messages added after the split have no pre-split decision; PINNED covers them.
+  const added = ['removeKey', 'testKey', 'guessBegin', 'guessAnswer', 'placement', 'setReadingSite', 'openReview'];
+  for (const sender of senders) for (const type of TYPES.filter((type) => !added.includes(type))) {
     expect([sender.url, type, surfaceAllows(senderSurfaces(sender), type)])
       .toEqual([sender.url, type, legacyAllows({ type }, sender)]);
     checked++;
   }
-  expect(checked).toBe(senders.length * (TYPES.length - 2));
+  expect(checked).toBe(senders.length * (TYPES.length - added.length));
 }));
 
 // The production listener: the sender-id gate runs first, then the table; every pinned
@@ -158,6 +162,7 @@ test('worker listener dispatches exactly the pinned messages per surface and not
   globalThis.setTimeout = (fn, ms, ...rest) => (ms >= 10000 ? 0 : realTimeout(fn, ms, ...rest));
   const data = { settings: { enabled: true, newSitesEnabled: true } };
   const listeners = [];
+  const requests = [];
   const on = (arr = []) => ({ addListener: (fn) => arr.push(fn) });
   globalThis.chrome = {
     storage: { local: {
@@ -173,9 +178,11 @@ test('worker listener dispatches exactly the pinned messages per surface and not
       onMessage: on(listeners), onInstalled: on(), onStartup: on(), onConnect: on() },
     action: { setBadgeText: async () => {} },
     tabs: { get: async () => ({ id: 1, title: 'Reading', url: SENDERS.page.url }), query: async () => [],
-      sendMessage: async () => {}, create: async () => ({ id: 9 }) },
+      sendMessage: async () => {}, create: async () => ({ id: 9, windowId: 1 }) },
+    windows: { getLastFocused: async () => ({ id: 1 }), update: async () => {} },
     alarms: { create: async () => {}, onAlarm: on() },
-    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on() },
+    permissions: { getAll: async () => ({ origins: [] }), onAdded: on(), onRemoved: on(),
+      request: async (permission) => { requests.push(permission); return false; } },
     scripting: { getRegisteredContentScripts: async () => [], updateContentScripts: async () => {},
       unregisterContentScripts: async () => {}, registerContentScripts: async () => {} },
   };
@@ -192,6 +199,13 @@ test('worker listener dispatches exactly the pinned messages per surface and not
   try {
     await import('../src/background.js?router');
     expect(listeners).toHaveLength(1);
+    const siteChoice = { type: 'setReadingSite', tabId: 1, url: SENDERS.page.url, enabled: true, requestAccess: true };
+    expect(await dispatch(siteChoice, SENDERS.page)).toBe(false);
+    expect(requests).toEqual([]);
+    const popupChoice = dispatch(siteChoice, SENDERS.popup);
+    expect(requests).toEqual([{ origins: ['https://example.com/*'] }]);
+    expect(await popupChoice).toBe(true);
+    expect(data.settings.siteOverrides).toEqual({});
     for (const [name, sender] of Object.entries(SENDERS)) {
       const accepted = [];
       for (const type of TYPES) if (await dispatch({ type }, sender)) accepted.push(type);

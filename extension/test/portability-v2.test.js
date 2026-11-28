@@ -1,7 +1,6 @@
-// Backup schemas: this build reads 1 and 2 and writes 2; schema 1 output stays available for
-// installations that predate the tolerant reader (0.12.3).
+// Schema 2 learning state stays readable in schemas 2 and 3; schema 1 output stays available.
 import { test, expect } from 'bun:test';
-import { createBackup, parseBackup, learningPatch, targetFresh, backupPreview, BACKUP_SCHEMA, MAX_BACKUP_BYTES,
+import { createBackup, parseBackup, learningPatch, targetFresh, backupPreview, READING_DAYS_SCHEMA, MAX_BACKUP_BYTES,
   LOG_BUDGET_BYTES,
   READ_SCHEMAS } from '../src/portability.js';
 import { alreadyImported } from '../src/backup-handlers.js';
@@ -11,6 +10,7 @@ import { storedFsrs } from '../src/fsrs.js';
 import { personalId, baseline } from './backup-fixture.js';
 import { wordsForLevel } from '../src/levels.js';
 import { hashKey } from '../src/hash.js';
+import { READING_DAYS_KEY } from '../src/events.js';
 
 // Storage as a schema 2 writer will leave it: FSRS state on cards, logs in three scopes,
 // a desired retention, and one orphan log word that no catalog can verify.
@@ -32,9 +32,11 @@ function writerStorage() {
 }
 const freshTarget = () => ({ settings: { ...DEFAULT_SETTINGS, siteOverrides: {} } });
 
-test('this build reads schemas 1 and 2 and writes schema 2', () => {
-  expect(BACKUP_SCHEMA).toBe(2);
-  expect([...READ_SCHEMAS]).toEqual([1, 2]);
+test('this build reads schemas 1 through 3 and defaults to schema 2 without reading dates', () => {
+  expect(READING_DAYS_SCHEMA).toBe(3);
+  expect([...READ_SCHEMAS]).toEqual([1, 2, 3]);
+  const { all } = writerStorage();
+  expect(createBackup(all, '0.13.3')).toBe(createBackup(all, '0.13.3', 2));
 });
 
 test('a schema 1 export from writer storage is plain schema 1', () => {
@@ -45,6 +47,48 @@ test('a schema 1 export from writer storage is plain schema 1', () => {
   for (const absent of ['fsrs', 'retrievals', 'exposures', 'desiredRetention', 'learningRetrievals', 'palabraperdida'])
     expect(json).not.toContain(absent);
   expect(parseBackup(json).schemaVersion).toBe(1);
+});
+
+test.each([2, 3])('schema %i preserves scoped guesses and generated-form measurements', (schema) => {
+  const { source } = baseline();
+  const all = structuredClone(source);
+  const forms = ['il/elle', 'z.B.', 'EU:n'];
+  const words = structuredClone(all.languagePacks.fr.words);
+  forms.forEach((fr, i) => { words[i].fr = fr; });
+  const version = hashKey(JSON.stringify(words));
+  all.languagePacks.de = { version, words };
+  const packScope = `lang:de:${version}`;
+  const retrievals = [
+    ['il/elle', 10, 'guess', 'receptive', 'incorrect', 0, 1500, null, null, null],
+    ['z.B.', 11, 'inline', 'receptive', 'hard', 1, 2000, 1, 2, 0.9],
+    ['EU:n', 12, 'standalone', 'productive', 'medium', 2, 3000, 2, 3, 0.91],
+  ];
+  const exposure = [1, 0, 1, '2026-10-01', '2026-10-01'];
+  const exposures = { version: 1, words: Object.fromEntries(forms.map((form) => [form, exposure])) };
+  all[`${packScope}:learningRetrievals`] = { version: 1, retrievals };
+  all[`${packScope}:learningExposures`] = exposures;
+  // The exact same ID is still unverified in Spanish and in a stale version of the generated pack.
+  all.learningRetrievals = { version: 1, retrievals: retrievals.slice(0, 1) };
+  all['lang:de:bbbbbbbbbbbbbbbb:learningExposures'] = exposures;
+  const dates = ['2026-10-01', '2026-10-02'];
+  if (schema === 3) all[`${packScope}:${READING_DAYS_KEY}`] = dates;
+
+  const json = createBackup(all, '0.16.0');
+  const exported = JSON.parse(json);
+  expect(exported.schemaVersion).toBe(schema);
+  expect(exported.state.scopes[packScope]).toEqual({
+    retrievals: { version: 1, retrievals }, exposures, ...(schema === 3 ? { readingDays: dates } : {}),
+  });
+  expect(exported.state.scopes.es.retrievals).toBeUndefined();
+  expect(exported.state.scopes['lang:de:bbbbbbbbbbbbbbbb']).toBeUndefined();
+  expect(exported.state.logOmitted).toEqual({ retrievals: 1, exposureWords: 3 });
+  const parsed = parseBackup(json);
+  expect(backupPreview(parsed)).toMatchObject({ retrievals: 3, exposureWords: 3,
+    omittedRetrievals: 1, omittedExposureWords: 3, includesReadingDays: schema === 3 });
+  const restored = learningPatch(parsed, freshTarget().settings);
+  expect(restored[`${packScope}:learningRetrievals`]).toEqual({ version: 1, retrievals });
+  expect(restored[`${packScope}:learningExposures`]).toEqual(exposures);
+  expect(restored[`${packScope}:${READING_DAYS_KEY}`]).toEqual(schema === 3 ? dates : undefined);
 });
 
 test('a schema 2 file round-trips: FSRS state, logs and retention survive import and re-export', () => {
@@ -90,6 +134,41 @@ test('a schema 2 file round-trips: FSRS state, logs and retention survive import
   expect(again.state).toEqual(withoutOmissions); // nothing left to omit after a clean import
 });
 
+test('schema 2 preserves additive maintenance and local-day counters; schema 1 strips them', () => {
+  const { all, spanish } = writerStorage();
+  const card = all.recallReview.cards[spanish];
+  Object.assign(card, { familiar: true, maintenance: true, retiredReturn: true,
+    claimAt: 1000, claimDue: 1000 + 21 * DAY_MS,
+    seenDay: '2026-10-30', seenCount: 3, peekDay: '2026-10-30', peekCount: 2,
+    peekDue: card.due - 1000 });
+  const file = parseBackup(createBackup(all, '0.12.13', 2));
+  expect(file.state.scopes.es.review.cards[spanish]).toMatchObject({ maintenance: true, retiredReturn: true,
+    claimAt: 1000, claimDue: 1000 + 21 * DAY_MS, seenCount: 3, peekCount: 2,
+    peekDue: card.due - 1000 });
+  const imported = { ...freshTarget(), ...learningPatch(file, freshTarget().settings) };
+  expect(parseBackup(createBackup(imported, '0.12.13', 2)).state.scopes.es.review.cards[spanish])
+    .toEqual(file.state.scopes.es.review.cards[spanish]);
+  const old = createBackup(all, '0.12.13', 1);
+  for (const field of ['maintenance', 'retiredReturn', 'claimAt', 'claimDue', 'seenDay', 'seenCount', 'peekDay', 'peekCount', 'peekDue'])
+    expect(old).not.toContain(field);
+  const migrated = cleanReview({ version: 1, cards: { [spanish]: { due: card.due, interval: card.interval,
+    reviews: card.reviews, familiar: true } } }, [], Date.now(), true);
+  all.recallReview.cards[spanish] = migrated.cards[spanish];
+  expect(parseBackup(createBackup(all, '0.12.13', 2)).state.scopes.es.review.cards[spanish].retiredReturn).toBe(true);
+  const offPending = cleanReview({ version: 1, cards: migrated.cards }, [], Date.now(), false).cards[spanish];
+  expect(offPending).toMatchObject({ familiar: true, retiredReturn: true });
+  expect(offPending.maintenance).toBeUndefined();
+  all.recallReview.cards[spanish] = offPending;
+  expect(parseBackup(createBackup(all, '0.12.13', 2)).state.scopes.es.review.cards[spanish])
+    .toMatchObject({ familiar: true, retiredReturn: true });
+  all.recallReview.cards[spanish].retiredReturn = false;
+  const completed = parseBackup(createBackup(all, '0.12.13', 2));
+  expect(completed.state.scopes.es.review.cards[spanish].retiredReturn).toBe(false);
+  const completedImport = { ...freshTarget(), ...learningPatch(completed, freshTarget().settings) };
+  expect(parseBackup(createBackup(completedImport, '0.12.13', 2)).state.scopes.es.review.cards[spanish].retiredReturn)
+    .toBe(false);
+});
+
 test('ruling B: well-formed log entries for unknown words are omitted and counted, not fatal', () => {
   const { all, spanish } = writerStorage();
   const file = JSON.parse(createBackup(all, '0.13.0', 2));
@@ -121,11 +200,11 @@ test('malformed or out-of-schema schema 2 content fails closed', () => {
     [v2, (b) => { b.state.scopes.es.retrievals.version = 2; }, /unsupported retrieval log version/],
     [v2, (b) => { b.state.scopes.es.retrievals.extra = 1; }, /unsupported retrieval log field/],
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][2] = 'webpage'; }, /invalid retrieval log entry/],
-    [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][0] = 'https://private.example/page'; }, /invalid retrieval log entry/],
+    [v2, (b) => { b.state.scopes.es.retrievals.retrievals[0][0] = '<private>'; }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.retrievals.retrievals.push([spanish, 1, 'inline', 'productive', 'easy', 1, null, null, null, null, 'extra passage']); }, /invalid retrieval log entry/],
     [v2, (b) => { b.state.scopes.es.exposures.words[spanish] = [1, 0, 9, '2026-10-01', '2026-10-01']; }, /invalid exposure log entry/],
     [v2, (b) => { Object.defineProperty(b.state.scopes.es.exposures.words, '__proto__', { value: [1, 0, 1, '2026-10-01', '2026-10-01'], enumerable: true }); }, /unsafe exposure log key/],
-    [v2, (b) => { b.schemaVersion = 3; }, /schema 3, and this version of Lang Weave reads schemas 1 and 2\. Update Lang Weave/],
+    [v2, (b) => { b.schemaVersion = 4; }, /schema 4, and this version of Lang Weave reads schemas 1, 2 and 3\. Update Lang Weave/],
   ];
   for (const [base, mutate, message] of cases) expect(() => parseBackup(altered(base, mutate))).toThrow(message);
 });

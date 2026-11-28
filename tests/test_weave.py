@@ -593,7 +593,10 @@ class Setup(Home):
 
     def test_spanish_extension_is_independent_of_legacy_native_host(self):
         manifest = json.loads((ROOT / 'extension' / 'manifest.json').read_text())
-        self.assertEqual(manifest['name'], 'Lang Weave')
+        # The name is a chrome.i18n message resolved from the default locale.
+        self.assertEqual(manifest['name'], '__MSG_ext_name__')
+        messages = json.loads((ROOT / 'extension' / '_locales' / manifest['default_locale'] / 'messages.json').read_text())
+        self.assertEqual(messages['ext_name']['message'], 'Lang Weave')
         self.assertNotIn('nativeMessaging', manifest['permissions'])
         # Lang Weave pins its own public key (0.12.0), so every unpacked or packaged install shares one ID.
         # Chrome's ID is the first 128 bits of sha256(DER public key), each hex digit mapped 0-f to a-p.

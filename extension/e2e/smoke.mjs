@@ -1,18 +1,20 @@
 // Real MV3 Chromium, synthetic pages and Gemini only. No API key, account or paid calls.
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, dirname, isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join, isAbsolute } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const source = process.env.SPANISH_WEAVE_TEST_EXTENSION || root;
-if (!isAbsolute(source)) throw new Error('SPANISH_WEAVE_TEST_EXTENSION must be an absolute extension directory');
+const beginnerSpanishWords = 48;
+const firstReviewBatch = 5;
+const spanishAfterIntroduction = `3 due · ${beginnerSpanishWords - firstReviewBatch} available to add`;
+
+// Bazel's extracted ZIP takes precedence over the standalone checkout override.
+const extension = process.env.LANG_WEAVE_WELCOME_EXTENSION || process.env.SPANISH_WEAVE_TEST_EXTENSION || extensionRoot;
+if (!isAbsolute(extension)) throw new Error('The smoke extension directory must be absolute');
 const scratch = await mkdtemp(join(tmpdir(), 'spanish-weave-smoke-'));
-const extension = join(scratch, 'extension');
 let context;
 const originHits = [];
 const proxyHits = [];
@@ -39,25 +41,17 @@ async function listen(server) {
 try {
   const originPort = await listen(origin);
   const proxyPort = await listen(proxy);
-  await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  // Chrome refuses to load without the icons a manifest names; a pre-0.12.7 source names none. Copy exactly
-  // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
-  const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
-  if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
-  const manifest = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
-  // Test-only grants stand in for accepting Chrome's optional-permissions prompt.
-  manifest.host_permissions.push(...manifest.optional_host_permissions);
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
+  const manifest = JSON.parse(await readFile(join(extension, 'manifest.json'), 'utf8'));
   const launchArgs = [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
     '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND, MAP probe.weave.test 127.0.0.1',
     `--proxy-server=127.0.0.1:${proxyPort}`];
   context = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: true,
     // An MV3 worker restart loses the synthetic fetch. Block real Gemini
     // dispatch at the browser level even if that happens during this flow.
     args: launchArgs,
   });
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(context);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
@@ -89,7 +83,10 @@ try {
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-smoke-key', consentShown: true });
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    if (!settings) throw new Error('worker never wrote its startup settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-smoke-key', consentShown: true });
   });
   const html = `<!doctype html><html lang="en"><head><title>Spanish smoke fixture</title></head><body><main>
     <p id="reading">We read books and enjoy quiet evenings every week.</p>
@@ -100,6 +97,8 @@ try {
     <pre>private code and secrets stay here</pre>
     <p lang="es">Leemos libros y disfrutamos de las tardes tranquilas.</p>
   </main></body></html>`;
+  await grantReadingSite(context, worker);
+  await grantReadingSite(context, worker, 'https://mail.google.com/*');
   await context.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   await context.route('https://mail.google.com/**', (route) => route.fulfill({ contentType: 'text/html', body: html }));
   const page = await context.newPage();
@@ -112,7 +111,8 @@ try {
   assert.match(await word.getAttribute('data-tip'), /and/);
   await word.click();
   assert.equal(await word.textContent(), 'and');
-  assert.match(await word.getAttribute('aria-label'), /Show Spanish/);
+  assert.equal(await word.getAttribute('lang'), null); // English face: no target lang
+  assert.equal(await word.evaluate((el) => document.getElementById(el.getAttribute('aria-describedby'))?.textContent), 'Show Spanish');
   await word.press('Enter');
   assert.equal(await word.textContent(), 'y');
   assert.equal(await page.locator('#health .fw-word, form .fw-word, [contenteditable] .fw-word, pre .fw-word, [lang=es] .fw-word').count(), 0);
@@ -146,21 +146,47 @@ try {
   assert.ok(popupSize.height <= 600, `popup exceeds Chrome's 600px cap: ${popupSize.height}px`);
   const [options] = await Promise.all([context.waitForEvent('page'), popup.locator('#openSettings').click()]);
   await options.waitForLoadState();
-  await options.waitForFunction((version) => document.querySelector('#version')?.textContent === version, manifest.version);
+  await options.waitForFunction((text) => document.querySelector('#wordInfo')?.textContent === text,
+    `${beginnerSpanishWords} Spanish words`);
+  assert.equal(await options.locator('#version').textContent(), manifest.version);
   assert.equal(await options.locator('#apiKey').getAttribute('placeholder'), 'saved (paste to replace)');
-  assert.equal(await options.locator('#wordInfo').textContent(), '30 Spanish words');
+  // About can identify the loaded build even when the worker cannot answer Settings.
+  const offlineOptions = await context.newPage();
+  await offlineOptions.addInitScript(() => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    globalThis.simulateStatusOutage = true;
+    chrome.runtime.sendMessage = (...args) => globalThis.simulateStatusOutage && args[0]?.type === 'status'
+      ? Promise.reject(new Error('Status unavailable in this test')) : send(...args);
+  });
+  await offlineOptions.goto(options.url());
+  await offlineOptions.locator('#notice').getByText('Status unavailable in this test', { exact: true }).waitFor();
+  assert.equal(await offlineOptions.locator('#version').textContent(), manifest.version);
+  assert.equal(await offlineOptions.locator('#update').isHidden(), true);
+  const priorSettings = await offlineOptions.evaluate(async () => {
+    globalThis.simulateStatusOutage = false;
+    // Changing the density produces a real storage event even if the fixture already uses light.
+    const { settings } = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...settings, density: settings.density === 'light' ? 'heavy' : 'light' } });
+    return settings;
+  });
+  await offlineOptions.waitForFunction((text) => document.querySelector('#wordInfo').textContent === text,
+    `${beginnerSpanishWords} Spanish words`);
+  assert.equal(await offlineOptions.locator('#notice').textContent(), '');
+  assert.equal(await offlineOptions.locator('#version').textContent(), manifest.version);
+  await offlineOptions.evaluate((settings) => chrome.storage.local.set({ settings }), priorSettings);
+  await offlineOptions.close();
   const [words] = await Promise.all([context.waitForEvent('page'), popup.locator('#openWords').click()]);
   await words.waitForLoadState();
   assert.equal(new URL(words.url()).pathname, '/src/words.html');
   assert.equal(new URL(words.url()).search, '');
-  await words.locator('#count').getByText('226 words').waitFor(); // the full pack, nothing started
+  await words.locator('#count').getByText('233 words').waitFor(); // the full pack, nothing started
   assert.equal(await words.locator('#headline').textContent(), 'No words verified yet');
   assert.equal(await popup.locator('h1').textContent(), 'Lang Weave');
   assert.match(await popup.locator('#operation').textContent(), /^(On|Off on this site)$/);
   assert.equal(await popup.locator('#primary').textContent(), 'Add words');
   const [review] = await Promise.all([context.waitForEvent('page'), popup.locator('#primary').click()]);
   await review.waitForLoadState();
-  await review.locator('#counts').getByText('0 due · 30 available to add').waitFor();
+  await review.locator('#counts').getByText(`0 due · ${beginnerSpanishWords} available to add`).waitFor();
   assert.equal(await review.locator('#question').isHidden(), true);
   await review.locator('#introduce').click();
   await review.locator('#prompt').getByText('and').waitFor();
@@ -174,14 +200,14 @@ try {
   await review.locator('[data-rating="hard"]').click();
   await review.locator('#prompt').getByText('but').waitFor();
   await review.waitForFunction(() => document.activeElement?.id === 'reveal');
-  assert.equal(await review.locator('#progress').textContent(), 'Card 2 of 5');
+  assert.equal(await review.locator('#progress').textContent(), `Card 2 of ${firstReviewBatch}`);
   await review.keyboard.press('Enter');
   await review.locator('#answer').getByText('pero').waitFor();
   await review.waitForFunction(() => document.activeElement?.dataset.rating === 'medium');
   await review.keyboard.press('2');
   await review.locator('#prompt').getByText('or').waitFor();
   await review.waitForFunction(() => document.activeElement?.id === 'reveal');
-  assert.equal(await review.locator('#counts').textContent(), '3 due · 25 available to add');
+  assert.equal(await review.locator('#counts').textContent(), spanishAfterIntroduction);
   await options.waitForFunction(() => document.querySelector('#reviewInfo')?.textContent === '3');
   const savedReview = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((s) => s.recallReview));
   assert.equal(savedReview.cards.y.interval, 1);
@@ -210,7 +236,7 @@ try {
   assert.equal(await options.locator('#language option[value=ja]').count(), 0);
   await page.locator('#reading .fw-word').getByText('y').waitFor();
   await review.locator('#language').getByText('Reviewing Spanish').waitFor();
-  await review.locator('#counts').getByText('3 due · 25 available to add').waitFor();
+  await review.locator('#counts').getByText(spanishAfterIntroduction).waitFor();
   const afterLanguages = await worker.evaluate(() => globalThis.smokeCalls.length);
   await mail.waitForTimeout(800);
   assert.equal(await mail.locator('.fw-word').count(), 0);
@@ -236,10 +262,11 @@ try {
   // Probe its browser-level network denial, which also survives worker restarts.
   await context.close();
   context = await chromium.launchPersistentContext(join(scratch, 'fresh-profile'), {
-    channel: 'chromium', headless: true, args: launchArgs,
+    ...chromiumBinary, headless: true, args: launchArgs,
   });
-  const freshWorker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  const freshWorker = await waitForExtensionWorker(context);
   assert.equal(await freshWorker.evaluate(() => 'smokeCalls' in globalThis), false);
+  await grantReadingSite(context, freshWorker, 'http://127.0.0.1/*');
   // The owned origin is a positive control; a non-loopback hostname must
   // fail through the local rejecting proxy, with no request reaching origin.
   const probe = await freshWorker.evaluate(async (port) => {

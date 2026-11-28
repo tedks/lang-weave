@@ -7,18 +7,28 @@ export function catalogEntries(words, scope) {
   return words.map((word) => ({ id: word.entryId || entryId(scope, word), word }));
 }
 
-export function englishAnchors(word) {
+export function packWords(pack, level) {
+  return pack.words.filter((word) => level > 1 || word.level === 1);
+}
+
+export function englishAnchors(word, { bare = true } = {}) {
+  if (Array.isArray(word.anchors)) return [...new Set(word.anchors.map((anchor) => anchor.normalize('NFC')
+    .toLocaleLowerCase('en').replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()).filter(Boolean))];
   const anchors = new Set();
   for (const alternative of word.en.split(/\s*[/;,]\s*/)) {
     const plain = alternative.normalize('NFC').toLocaleLowerCase('en')
       .replace(/\([^)]*\)/g, ' ').replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
     if (!plain) continue;
     anchors.add(plain);
-    const bare = plain.replace(/^(?:the|a|an|to)\s+/, '');
-    if (bare && bare !== plain) anchors.add(bare);
+    const stripped = plain.replace(/^(?:the|a|an|to)\s+/, '');
+    if (bare && stripped && stripped !== plain) anchors.add(stripped);
   }
   return [...anchors];
 }
+
+// An article-prefixed noun surface contains the bare surface on the same page.
+// Admission must treat both as one collision domain across different rows.
+export const anchorCollisionKey = (anchor) => anchor.replace(/^the /, '');
 
 export function matchingEntries(batch, entries) {
   const texts = batch.map(({ text }) => text.normalize('NFC').toLocaleLowerCase('en').replace(/[’‘`]/g, "'"));

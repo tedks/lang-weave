@@ -79,7 +79,7 @@ async function heldLookup({ name, lookup, change, prime = false }) {
     // silently testing an earlier authorization point.
     if (prime) {
       expect(fetches).toBe(1);
-      expect(reviewReads).toBe(4); // second delivery has reloaded the card before its final check
+      expect(reviewReads).toBe(5); // second delivery has reloaded the card for the final coverage check
       expect(data.recallReview.cards['la idea'].reviews).toBe(2);
       expect(Object.keys(data).some((key) => key.startsWith('c:'))).toBe(true);
     } else if (lookup === 6) {

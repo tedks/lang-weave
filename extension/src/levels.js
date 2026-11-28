@@ -2,6 +2,7 @@
 
 // L3/L4 prompts are not built yet; anything above this uses L2 rules.
 export const MAX_BUILT_LEVEL = 2;
+export const MAX_PACK_ROWS = 3000;
 
 // stage: optional legacy stage; chosen: after the popup override;
 // effective: what the prompt uses.
@@ -15,7 +16,24 @@ export function resolveLevel(settings = {}, stage = 0) {
 export { L1_WORDS, L2_EXTRA, L2_WORDS, wordsForLevel } from './vocabulary.js';
 import { wordsForLevel } from './vocabulary.js';
 import { locate } from './text.js';
-import { allCaps, sourceIssue } from './semantic.js';
+import { allCaps, regularPlural, sourceIssue } from './semantic.js';
+import { anchorCollisionKey, englishAnchors } from './catalog.js';
+
+// Candidate packs must resolve every English surface form to exactly one row.
+// The original bundled 226 predate this gate and have two known collisions (only, free);
+// they remain unchanged until the curriculum review makes a product decision.
+export function assertPackAnchors(words) {
+  if (!Array.isArray(words)) throw new Error('pack must be an array');
+  if (words.length > MAX_PACK_ROWS) throw new Error(`pack exceeds ${MAX_PACK_ROWS} rows`);
+  const owner = new Map();
+  for (const word of words) for (const anchor of englishAnchors(word)) {
+    const key = anchorCollisionKey(anchor);
+    if (owner.has(key) && owner.get(key) !== word.fr) {
+      throw new Error(`English anchor ${JSON.stringify(key)} is shared by ${owner.get(key)} and ${word.fr}`);
+    }
+    owner.set(key, word.fr);
+  }
+}
 
 // Legacy function names and fr fields mean target-language text. Keep ñ distinct from n.
 export function normalizeFr(s) {
@@ -30,7 +48,9 @@ export function normalizeFr(s) {
 
 const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i;
 const DEFINITE_RE = /^(?:el|la|los|las)\s+/i;
+export const legacyInflects = (word) => !ARTICLE_RE.test(word.word ?? word.fr);
 export const exactFr = (s) => String(s).normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+const bareSpanishTarget = (canon) => exactFr(canon).replace(DEFINITE_RE, '');
 export const exactTarget = (s, language) => language === 'es' ? exactFr(s) : String(s).normalize('NFC').toLocaleLowerCase(language).replace(/\s+/g, ' ').trim();
 // An omitted accent here spells a different Spanish word, not a harmless typo.
 const AMBIGUOUS_FOLDS = new Set(['si', 'el', 'tu', 'mi', 'te', 'se', 'de', 'mas', 'aun', 'como', 'cuando', 'donde', 'que', 'quien']);
@@ -42,12 +62,12 @@ function indexFor(level, sharedWords, language = 'es') {
   const idx = new Map();
   for (const w of sharedWords || wordsForLevel(lvl)) {
     const full = exactTarget(w.fr, language);
-    idx.set(full, { canon: w.fr, en: w.en, hint: w.hint, word: w.fr, status: w.status });
+    idx.set(full, { canon: w.fr, en: w.en, anchors: w.anchors, hint: w.hint, word: w.fr, status: w.status });
     const stripped = language === 'es' ? full.replace(ARTICLE_RE, '') : full;
     if (stripped !== full && !idx.has(stripped)) {
       // Accept a bare noun ("problema" for "problem") and keep the accents from the list.
       const canon = w.fr.replace(ARTICLE_RE, '');
-      idx.set(stripped, { canon, en: w.en.replace(/^the /, ''), hint: w.hint.replace(/^(el|lah|lohs|lahs|oon|OO-nah) /i, ''), word: w.fr, status: w.status });
+      idx.set(stripped, { canon, en: w.en.replace(/^the /, ''), anchors: w.anchors, hint: w.hint.replace(/^(el|lah|lohs|lahs|oon|OO-nah) /i, ''), word: w.fr, status: w.status });
     }
   }
   const folded = new Map();
@@ -71,6 +91,8 @@ export function matchCase(fr, original, language = 'es') {
 // The English a swap replaces must be one of the word's glosses, or a plain inflection of one, so a model
 // slip like "to start" -> entonces is dropped instead of shown.
 const EN_LEAD_RE = /^(?:the|a|an|to)\s+/;
+const EN_NOUN_GLOSS = /^(?:the|a|an) ([a-z]+)$/u;
+const EN_VERB_GLOSS = /^to ([a-z]+)$/u;
 const cleanEn = (s) => String(s).toLowerCase().replace(/[’‘`]/g, "'").replace(/\(.*?\)/g, ' ')
   .replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
 
@@ -98,7 +120,7 @@ const SYNONYMS = {
   hello: ['hi'],
 };
 
-export function glossMatches(original, en, { inflections = true } = {}) {
+export function legacyGlossForms(en, { inflections = true } = {}) {
   const forms = new Set();
   for (const alt of String(en).split(/\s*[/;,]\s*/)) {
     const g = cleanEn(alt);
@@ -107,17 +129,59 @@ export function glossMatches(original, en, { inflections = true } = {}) {
       forms.add(f);
       for (const syn of SYNONYMS[f] || []) forms.add(syn);
     }
+    if (!inflections) continue;
+    // An authored article or infinitive marks a single-word gloss. Synonyms,
+    // unmarked words and fixed phrases do not supply stems.
+    const noun = EN_NOUN_GLOSS.exec(g)?.[1];
+    if (noun) forms.add(regularPlural(noun));
+    const verb = EN_VERB_GLOSS.exec(g)?.[1];
+    if (!verb) continue;
+    // Preserve the legacy spelling fallback for explicitly marked verbs.
+    for (const suffix of ['es', 's', 'ed', 'ing']) forms.add(`${verb}${suffix}`);
+    if (verb.endsWith('y')) forms.add(`${verb.slice(0, -1)}ies`);
+    if (verb.endsWith('e')) {
+      forms.add(`${verb.slice(0, -1)}ed`);
+      forms.add(`${verb.slice(0, -1)}ing`);
+    }
   }
+  return forms;
+}
+
+export function glossMatches(original, en, { inflections = true } = {}) {
+  const forms = legacyGlossForms(en, { inflections });
   const t = cleanEn(original);
   if (!t) return false;
   for (const c of new Set([t, t.replace(EN_LEAD_RE, '')])) {
     if (forms.has(c)) return true;
-    if (!inflections) continue;
-    for (const [suffix, stem] of [['ies', 'y'], ['es', ''], ['s', ''], ['ed', ''], ['ed', 'e'], ['ing', ''], ['ing', 'e']]) {
-      if (c.endsWith(suffix) && forms.has(c.slice(0, -suffix.length) + stem)) return true;
-    }
   }
   return false;
+}
+
+// An accepted source anchor is an exact substring of a passage. cleanEn
+// lowercases it and removes or separates text, without joining ASCII letter runs.
+// Keep a row if any allowed gloss could have supplied its ASCII runs in one
+// passage. This overestimates eligibility deliberately: the full validator
+// still decides placement, including punctuation, boundaries and context.
+export function possibleSpanishPromptWords(level, words, batch) {
+  // The validator can be called without text, where it skips placement checks.
+  if (!batch.length || batch.some(({ text }) => !text)) return words;
+  const texts = batch.map(({ text }) => text.toLowerCase());
+  const { exact } = indexFor(level, words);
+  const possible = new Set();
+  for (const hit of exact.values()) {
+    // Use the same full and bare target aliases and the same gloss rules as validation.
+    // Explicit anchors stay in the prompt.
+    const matches = hit.anchors || [...legacyGlossForms(hit.en, { inflections: legacyInflects(hit) })].some((form) => {
+      const runs = form.match(/[a-z]+/g) || [];
+      return texts.some((text) => runs.every((run) => text.includes(run)));
+    });
+    if (!matches) continue;
+    possible.add(hit.word);
+    // Validation can return a distinct bare row after checking the definite row's gloss.
+    const bare = exact.get(bareSpanishTarget(hit.canon));
+    if (bare) possible.add(bare.word);
+  }
+  return words.filter(({ fr }) => possible.has(fr));
 }
 
 // Fail closed: keep only swaps whose Spanish is on the supplied or bundled vocabulary list
@@ -136,18 +200,19 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
     let hit = idx.exact.get(exact) || (language === 'es' && !AMBIGUOUS_FOLDS.has(exact) && idx.folded.get(normalizeFr(s.f)));
     // Listed nouns carry articles. Never turn a plural English anchor into a singular Spanish noun
     // by stemming its gloss; explicit plural entries remain valid. Keep generic verb inflections.
-    if (!hit || !glossMatches(o, hit.en, { inflections: language === 'es' && !ARTICLE_RE.test(hit.word) })) continue;
+    if (!hit || !(hit.anchors ? hit.anchors.some((anchor) => cleanEn(anchor) === cleanEn(o)) :
+      glossMatches(o, hit.en, { inflections: language === 'es' && legacyInflects(hit) }))) continue;
     // A definite Spanish noun cannot replace the whole indefinite English phrase.
     // The bare-noun fallback below would otherwise drop "a/an" from the sentence.
     if (language === 'es' && DEFINITE_RE.test(hit.word) && /^(?:a|an)\s/i.test(o)) continue;
     // "my problem" -> "my el problema", "the answer" -> "the la respuesta": when the English article (or a
     // possessive) stays outside the swap, use the bare noun.
-    const bare = language === 'es' ? exactFr(hit.canon).replace(DEFINITE_RE, '') : exactFr(hit.canon);
+    const bare = language === 'es' ? bareSpanishTarget(hit.canon) : exactFr(hit.canon);
     if (bare !== exactFr(hit.canon) && !/^the\s/i.test(o) && idx.exact.has(bare)) hit = idx.exact.get(bare);
     const ctx = typeof s.ctx === 'string' ? s.ctx.trim() : '';
     if (text) {
       const at = locate({ text }, o, ctx);
-      if (!at || sourceIssue(text, at.start, at.end, o)) continue;
+      if (!at || sourceIssue(text, at.start, at.end, o, { language, level, target: hit.word })) continue;
     }
     out.push({
       o,

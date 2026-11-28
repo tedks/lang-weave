@@ -6,34 +6,41 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
-import { hashKey } from '../src/hash.js';
+import { join } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, waitForExtensionWorker } from './browser.mjs';
+import { pathToFileURL } from 'node:url';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const { hashKey } = await import(pathToFileURL(join(extensionRoot, 'src', 'hash.js')).href);
+
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-portability-'));
 let browser;
-const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
+const manifest = JSON.parse(await readFile(join(extensionRoot, 'manifest.json'), 'utf8'));
 const stableId = [...createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32)]
   .map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
-async function load(name, { keyless = false, source = root } = {}) {
-  const extension = join(scratch, name, 'extension');
-  await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
-  // Chrome refuses to load without the icons a manifest names; a pre-0.12.7 source names none. Copy exactly
-  // when declared, so a tree that declares icons but lacks them fails here with ENOENT, not as a worker timeout.
-  const declared = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
-  if (declared.icons || declared.action?.default_icon) await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
-  const shipped = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
-  if (keyless) delete shipped.key;
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(shipped, null, 2));
+async function load(name, { keyless = false, source = extensionRoot } = {}) {
+  const extension = keyless ? join(scratch, name, 'extension') : source;
+  if (keyless) {
+    const manifestPath = join(extension, 'manifest.json');
+    const shipped = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8'));
+    await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
+    if (shipped.icons || shipped.action?.default_icon)
+      await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+    if (shipped.default_locale)
+      await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
+    if (shipped.key) {
+      delete shipped.key;
+      await writeFile(manifestPath, JSON.stringify(shipped, null, 2));
+    } else {
+      await cp(join(source, 'manifest.json'), manifestPath);
+    }
+  }
   browser = await chromium.launchPersistentContext(join(scratch, name, 'profile'), {
-    channel: 'chromium', headless: true, acceptDownloads: true,
+    ...chromiumBinary, headless: true, acceptDownloads: true,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   // The fixture writes storage directly; wait for the install's default settings write first.
   await worker.evaluate(async () => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
@@ -46,7 +53,7 @@ async function load(name, { keyless = false, source = root } = {}) {
 }
 
 try {
-  const old = await load('old', { keyless: true, source: process.env.PORTABILITY_OLD_EXTENSION || root });
+  const old = await load('old', { keyless: true, source: process.env.PORTABILITY_OLD_EXTENSION || extensionRoot });
   assert.notEqual(old.id, stableId, 'the keyless source must have a path-derived ID');
   const words = Array.from({ length: 20 }, (_, i) => ({ fr: `mot${i}`, en: `word${i}`,
     hint: `moh${i}`, level: i < 10 ? 1 : 2 }));
@@ -126,6 +133,11 @@ try {
   await review.locator('#reveal').click();
   await review.locator('#answer').getByText('y').waitFor();
   await review.locator('[data-rating="hard"]').click();
+  // The imported familiar card now has a due maintenance review in gradual mode.
+  await review.locator('#prompt').getByText('but').waitFor();
+  await review.locator('#reveal').click();
+  await review.locator('#answer').getByText('pero').waitFor();
+  await review.locator('[data-rating="hard"]').click();
   // review-flow (#20) shows #finish after a rating in a session, #empty otherwise. Wait for
   // whichever appears, then require the finish card, which is what this scenario must reach.
   await review.locator('#finish:visible, #empty:visible').first().waitFor();
@@ -136,9 +148,14 @@ try {
   assert.ok(rated.recallReview.cards.y.interval >= 1);
   assert.equal(rated.recallReview.cards.y.reviews, 3);
   assert.equal(typeof rated.recallReview.cards.y.fsrs?.stability, 'number');
+  assert.equal(rated.recallReview.cards.pero.reviews, 6);
+  assert.equal(rated.recallReview.cards.pero.maintenance, true);
   const logged = await fresh.worker.evaluate(() => chrome.storage.local.get('learningRetrievals'));
-  const last = logged.learningRetrievals.retrievals.at(-1);
-  assert.deepEqual([last[0], last[2], last[3], last[4], last[5]], ['y', 'standalone', 'productive', 'hard', 2]);
+  const [firstReview, last] = logged.learningRetrievals.retrievals.slice(-2);
+  assert.deepEqual([firstReview[0], firstReview[2], firstReview[3], firstReview[4], firstReview[5]],
+    ['y', 'standalone', 'productive', 'hard', 2]);
+  assert.deepEqual([last[0], last[2], last[3], last[4], last[5]],
+    ['pero', 'standalone', 'productive', 'hard', 5]);
   assert.ok(!JSON.stringify(logged).includes('http'));
   assert.equal(await fresh.worker.evaluate(() => chrome.storage.local.get('apiKey').then((v) => !!v.apiKey)), false);
   console.log(`portability MV3 PASS: keyless ${old.id} -> stable ${fresh.id}; file preview/import and keyless review`);

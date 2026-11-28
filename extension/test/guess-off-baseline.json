@@ -1,0 +1,37 @@
+{
+ "recordedFrom": "9cd3dce",
+ "off": {
+  "snapshots": [
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" lang=\"es\" aria-describedby=\"fw-d-ID-1\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word fw-tip\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" lang=\"es\" aria-describedby=\"fw-d-ID-1\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div><div class=\"fw-gloss fw-gloss-on\" aria-hidden=\"true\" style=\"left: 8px !important; top: 8px !important;\">y · and · \"ee\"</div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" lang=\"es\" aria-describedby=\"fw-d-ID-1\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word fw-en\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\">and</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">Show Spanish</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\" lang=\"es\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\" lang=\"es\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\" lang=\"es\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>"
+  ],
+  "sent": [
+   "config",
+   "swaps",
+   "event:peek:y",
+   "event:flip:y"
+  ]
+ },
+ "ungradual": {
+  "snapshots": [
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" lang=\"es\" aria-describedby=\"fw-d-ID-1\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word fw-tip\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" lang=\"es\" aria-describedby=\"fw-d-ID-1\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div><div class=\"fw-gloss fw-gloss-on\" aria-hidden=\"true\" style=\"left: 8px !important; top: 8px !important;\">y · and · \"ee\"</div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" lang=\"es\" aria-describedby=\"fw-d-ID-1\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word fw-en\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\">and</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">Show Spanish</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\" lang=\"es\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\" lang=\"es\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>",
+   "<html><head></head><body><main><p id=\"one\">We read <span class=\"fw-word\" data-en=\"and\" data-fr=\"y\" data-tip=\"and · &quot;ee&quot;\" data-fw-split=\"1\" data-fw-status=\"active\" tabindex=\"0\" role=\"button\" aria-describedby=\"fw-d-ID-1\" lang=\"es\">y</span> write every evening.</p></main></body><div class=\"fw-descriptions\" hidden=\"\" lang=\"en\" style=\"display: none !important;\"><span id=\"fw-d-ID-1\">and · \"ee\". Show English</span></div></html>"
+  ],
+  "sent": [
+   "config",
+   "swaps",
+   "event:peek:y",
+   "event:flip:y"
+  ]
+ }
+}

@@ -1,29 +1,23 @@
 // Isolated MV3 flow: failed inline recall becomes a short due manual review.
 // The model is synthetic and Chromium has explicit DNS/proxy denial.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { join } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
+import { closedShadow } from './closed-shadow.js';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-again-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push(...manifest.optional_host_permissions); // isolated test grant
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true,
+    ...chromiumBinary, headless: true,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+  const worker = await waitForExtensionWorker(browser);
   const id = new URL(worker.url()).host;
   await worker.evaluate(async () => {
     globalThis.virtualNow = Date.now();
@@ -56,6 +50,7 @@ try {
         current: null, inline: null, learning: { day: '2000-01-01', count: 1, pending: [] } },
     });
   });
+  await grantReadingSite(browser, worker);
   await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
     body: '<main><p id="reading">We discussed the idea with friends every week.</p></main>' }));
   const page = await browser.newPage();
@@ -63,18 +58,24 @@ try {
   const cue = page.locator('#reading .fw-word');
   await cue.waitFor();
   await page.waitForFunction(() => document.querySelector('#reading .fw-word')?.getAttribute('title') === 'Open inline recall');
+  assert.equal(await cue.textContent(), 'the idea?');
+  assert.equal(await cue.locator('sup').getAttribute('aria-hidden'), 'true');
   const before = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(before.cards['la idea'].reviews, 7);
   assert.equal(before.learning.count, 1);
   await cue.click();
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
-  assert.equal(await page.locator('.fw-recall button', { hasText: 'Again' }).count(), 0);
-  await page.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
-  assert.equal(await page.locator('.fw-recall button', { hasText: 'Hard' }).evaluate((el) => document.activeElement === el), true);
+  const recall = await closedShadow(page, 'fw-recall-host');
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).waitFor();
+  assert.equal(await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).evaluate((el) => el.getRootNode().activeElement === el), true);
+  assert.equal(await recall.locator('.fw-recall button', { hasText: 'Again' }).count(), 0);
+  await recall.locator('.fw-recall button', { hasText: 'Reveal answer' }).click();
+  await recall.locator('.fw-recall-ratings button', { hasText: 'Hard' }).waitFor();
+  assert.deepEqual(await recall.locator('.fw-recall-ratings button').allTextContents(), ['Again', 'Hard', 'Medium', 'Easy']);
+  assert.equal(await recall.locator('.fw-recall button', { hasText: 'Hard' }).evaluate((el) => el.getRootNode().activeElement === el), true);
   const callsBeforeRating = await worker.evaluate(() => globalThis.modelCalls);
   assert.ok(callsBeforeRating >= 1);
-  await page.locator('.fw-recall button', { hasText: 'Again' }).click();
-  await page.locator('.fw-recall').waitFor({ state: 'detached' });
+  await recall.locator('.fw-recall button', { hasText: 'Again' }).click();
+  await recall.locator('.fw-recall').waitFor({ state: 'detached' });
   const rated = await worker.evaluate(() => chrome.storage.local.get('recallReview').then((x) => x.recallReview));
   assert.equal(rated.cards['la idea'].due, before.cards['la idea'].due + 1000 + 10 * 60 * 1000);
   assert.equal(rated.cards['la idea'].interval, 0);

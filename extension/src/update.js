@@ -11,7 +11,6 @@ export const RELOADED_KEY = 'reloadedFor';
 // The first-run page is an install event, never an update or an unpacked reload.
 export function openWelcome(details) {
   if (details?.reason === 'install') {
-    // Pending gradual-default-on-install-ruling: this is the sole install-time hook for gradual:true.
     void Promise.resolve(chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome.html') })).catch(() => {});
   }
 }
@@ -21,6 +20,20 @@ export function openWelcome(details) {
 // the source manifest never carries one (test/update-gate.test.js pins that). Read synchronously, with no
 // chrome.management call: a missing key means unpacked, so the fleet's unpacked installs keep the self-update.
 export const selfUpdating = () => !Object.hasOwn(chrome.runtime.getManifest(), 'update_url');
+
+async function prepareReadingTabs() {
+  let timeout;
+  try {
+    await Promise.race([
+      (async () => {
+        const tabs = await chrome.tabs.query({});
+        await Promise.allSettled(tabs.filter(({ id }) => Number.isSafeInteger(id) && id >= 0)
+          .map(({ id }) => chrome.tabs.sendMessage(id, { type: 'prepareReadingReload' }, { frameId: 0 })));
+      })().catch(() => {}),
+      new Promise((resolve) => { timeout = setTimeout(resolve, 1000); }),
+    ]);
+  } finally { clearTimeout(timeout); }
+}
 
 export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {} }) {
   let waitingVersion = '';
@@ -34,7 +47,10 @@ export function createUpdate({ store, locked, modelCall, onBadgeChange = () => {
       if (allowReload && waiting && (await store.get(RELOADED_KEY))[RELOADED_KEY] !== waiting) {
         await store.set({ [RELOADED_KEY]: waiting });
         try {
-          await modelCall(() => locked(() => chrome.runtime.reload()));
+          await modelCall(() => locked(async () => {
+            await prepareReadingTabs();
+            chrome.runtime.reload();
+          }));
           return waiting; // normally not reached: the worker is gone
         } catch { /* fall back to the badge */ }
       }

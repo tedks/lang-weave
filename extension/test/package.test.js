@@ -1,6 +1,6 @@
 import { test, expect, afterAll } from 'bun:test';
 import { inflateRawSync } from 'node:zlib';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
@@ -90,7 +90,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
     if (existsSync(join(EXT, root))) expected.push(...walkRel(EXT, root));
   }
   const names = entries.map((e) => e.name);
-  expect(names).toEqual([...expected.filter((n) => !n.split('/').some((s) => s.startsWith('.')))].sort());
+  expect(names).toEqual([...expected.filter((n) => !n.split('/').some((s) => s.startsWith('.')) && !['BUILD', 'BUILD.bazel'].includes(n.split('/').at(-1)))].sort());
   expect(names).toEqual([...names].sort());
 
   for (const e of entries) {
@@ -107,6 +107,7 @@ test('package: exact entry set, bytes, CRCs, fixed metadata', () => {
   for (const n of names) {
     expect(n).not.toMatch(/^(test|e2e|node_modules|scripts|dist)\//);
     expect(n).not.toMatch(/^(package\.json|bun\.lock)$/);
+    expect(['BUILD', 'BUILD.bazel']).not.toContain(n.split('/').at(-1));
     expect(n.split('/').some((s) => s.startsWith('.'))).toBe(false);
   }
 });
@@ -121,15 +122,16 @@ test('package: two builds are byte-identical; --store applies only the delta tab
   expect(s.path).not.toBe(a.path);
   const plain = readZip(a.bytes).find((e) => e.name === 'manifest.json');
   const stored = readZip(s.bytes).find((e) => e.name === 'manifest.json');
+  expect(JSON.parse(plain.data.toString()).minimum_chrome_version).toBe('140');
+  expect(JSON.parse(stored.data.toString()).minimum_chrome_version).toBe('140');
   expect(JSON.parse(stored.data.toString())).toEqual(storeManifest(JSON.parse(plain.data.toString())));
   expect(readZip(s.bytes).map((e) => e.name)).toEqual([...readZip(a.bytes).map((e) => e.name), 'src/content-bundle.js'].sort());
   for (const e of readZip(s.bytes)) {
-    if (!['manifest.json', 'src/content-bundle.js', 'src/sites.js', 'src/popup.js'].includes(e.name))
+    if (!['manifest.json', 'src/content-bundle.js', 'src/sites.js'].includes(e.name))
       expect(Buffer.compare(e.data, readZip(a.bytes).find((x) => x.name === e.name).data)).toBe(0);
   }
   const storeFiles = Object.fromEntries(readZip(s.bytes).map((e) => [e.name, e.data.toString()]));
-  expect(storeFiles['src/sites.js']).toContain("js: ['src/content-bundle.js']");
-  expect(storeFiles['src/popup.js']).toContain("files: ['src/content-bundle.js']");
+  expect(storeFiles['src/sites.js']).toContain("const LOADER_FILE = 'src/content-bundle.js'");
   expect(storeFiles['src/content-bundle.js']).toContain('src/content.js');
   expect(Buffer.compare(s.bytes, build({ store: true }).bytes)).toBe(0);
 
@@ -157,6 +159,14 @@ test('store manifest: differs from the dev manifest in exactly the delta-table k
   expect(JSON.stringify(store)).not.toContain('x.com');
   expect(JSON.stringify(store)).not.toContain('twitter.com');
   expect(dev).toEqual(JSON.parse(readFileSync(join(EXT, 'manifest.json'), 'utf8'))); // input untouched
+});
+
+test('Store packaging refuses another runtime reference to the modular loader', () => {
+  const extensionDir = fresh('store-loader-drift');
+  cpSync(join(EXT, 'manifest.json'), join(extensionDir, 'manifest.json'));
+  cpSync(join(EXT, 'src'), join(extensionDir, 'src'), { recursive: true });
+  writeFileSync(join(extensionDir, 'src', 'legacy-injection.js'), "export const files = ['src/content-loader.js'];");
+  expect(() => build({ store: true, extensionDir })).toThrow('store bundle: modular loader still referenced in src/legacy-injection.js');
 });
 
 test('store manifest: the X row keeps other content scripts and refuses a changed precondition', () => {
@@ -188,8 +198,8 @@ test('package: stored fallback and non-ascii names round-trip', () => {
   for (const e of entries) expect(e.crc).toBe(Bun.hash.crc32(e.data));
 });
 
-test('package: dotfiles and unlisted directories never ship', () => {
-  const { root, ext } = fixture({ 'src/.secret.js': 'x', 'src/.git/config': 'x', 'src/a/.env': 'x', 'test/t.js': 'x', 'scripts/p.mjs': 'x', 'package.json': '{}', 'icons/.DS_Store': 'x', 'icons/i.png': 'png' });
+test('package: dotfiles, Bazel metadata and unlisted directories never ship', () => {
+  const { root, ext } = fixture({ 'src/.secret.js': 'x', 'src/.git/config': 'x', 'src/a/.env': 'x', 'src/BUILD.bazel': 'x', 'src/a/BUILD': 'x', 'test/t.js': 'x', 'scripts/p.mjs': 'x', 'package.json': '{}', 'icons/.DS_Store': 'x', 'icons/i.png': 'png' });
   const r = packageExtension({ extensionDir: ext, licenseDir: root, outDir: fresh('out') });
   expect(readZip(readFileSync(r.path)).map((e) => e.name)).toEqual(['LICENSE', 'LICENSE-MIT', 'NOTICE', 'icons/i.png', 'manifest.json', 'src/background.js', 'src/popup.html', 'src/popup.js']);
 });
@@ -250,6 +260,28 @@ test('verify: manifest references a missing file', () => {
   expectRefusal({}, { options_ui: { page: 'src/options.html' } }, /options_ui\.page: src\/options\.html/);
   expectRefusal({}, { side_panel: { default_path: 'src/panel.html' } }, /side_panel\.default_path/);
   expectRefusal({}, { default_locale: 'en' }, /_locales\/en\/messages\.json/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ other: { message: 'x' } }) },
+    { default_locale: 'en', name: '__MSG_ext_name__' }, /manifest name: __MSG_ext_name__ is not in _locales\/en\/messages\.json/);
+  expectRefusal({ '_locales/en/messages.json': '{"ext_name": {"message": "x"}' },
+    { default_locale: 'en' }, /_locales\/en\/messages\.json: not a JSON object/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }), '_locales/fr/messages.json': '[]' },
+    { default_locale: 'en' }, /_locales\/fr\/messages\.json: not a JSON object/);
+  expectRefusal({ '_locales/en/messages.json': JSON.stringify({ ext_name: { message: 'x' } }),
+    '_locales/fr/messages.json': JSON.stringify({ ext_name: { message: 'Bonjour $WHO$' },
+      ok: { message: 'Salut $Who$', placeholders: { who: { content: '$1' } } } }) },
+    { default_locale: 'en' }, /_locales\/fr\/messages\.json: ext_name uses undefined placeholder \$WHO\$/);
+  const en = JSON.stringify({ locale_lang: { message: 'en' }, n_one: { message: '$1 word' }, n_other: { message: '$1 words' } });
+  expectRefusal({ '_locales/en/messages.json': en,
+    '_locales/fr/messages.json': JSON.stringify({ n_other: { message: '$1 mots' } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: locale_lang is missing[\s\S]*fr\/messages\.json: plural forms missing: n_one/);
+  expectRefusal({ '_locales/en/messages.json': en,
+    '_locales/fr/messages.json': JSON.stringify({ a: { message: 'x', placeholders: [] }, A: { message: 'y' },
+      b: { message: 'z', placeholders: null }, LOCALE_LANG: { message: 'not a tag!' }, c: { message: 'x\uE001' },
+      d: { message: '$P$', placeholders: { p: { content: '\uE002' } } } }) },
+    { default_locale: 'en' }, /fr\/messages\.json: message names differ only in case[\s\S]*a has malformed placeholders[\s\S]*b has malformed placeholders[\s\S]*locale_lang "not a tag!" is not a BCP-47 tag[\s\S]*c contains a reserved character[\s\S]*d contains a reserved character/);
+  const { root, ext } = fixture({ '_locales/en/messages.json': en, '_locales/fr/messages.json': JSON.stringify({
+    locale_lang: { message: 'fr' }, n_one: { message: '$1 mot' }, n_other: { message: '$1 mots' } }) }, { default_locale: 'en' });
+  expect(packageExtension({ extensionDir: ext, licenseDir: root, outDir: join(root, 'out') }).entries).toBe(9);
   expectRefusal({}, { options_page: 'test/x.html' }, /options_page: test\/x\.html/);
   expectRefusal({}, { devtools_page: '../outside.html' }, /devtools_page: invalid path/);
 });
@@ -314,6 +346,22 @@ test('verify: pure helpers', () => {
   const files = [{ name: 'src/a.js', data: Buffer.from('') }];
   expect(verifyPackage({ version: '1', background: { service_worker: 'src/a.js' } }, files)).toEqual([]);
   expect(verifyPackage({ background: { service_worker: 'src/a.js' } }, files).length).toBe(1);
+});
+
+test('package: both builds ship the English locale and every manifest message resolves', () => {
+  const source = JSON.parse(readFileSync(join(EXT, '_locales', 'en', 'messages.json'), 'utf8'));
+  for (const store of [false, true]) {
+    const zip = readZip(build({ store }).bytes);
+    const messages = zip.find((e) => e.name === '_locales/en/messages.json');
+    expect(messages).toBeDefined();
+    expect(JSON.parse(messages.data.toString())).toEqual(source);
+    const manifest = JSON.parse(zip.find((e) => e.name === 'manifest.json').data.toString());
+    expect(manifest.default_locale).toBe('en');
+    const used = [...JSON.stringify(manifest).matchAll(/__MSG_(\w+)__/g)].map(([, name]) => name);
+    expect(used.sort()).toEqual(['action_title', 'command_pause', 'command_review', 'ext_description', 'ext_name']);
+    for (const name of used) expect(typeof source[name].message).toBe('string');
+    expect(source.ext_name.message).toBe('Lang Weave');
+  }
 });
 
 test('package: the real extension verifies cleanly', () => {

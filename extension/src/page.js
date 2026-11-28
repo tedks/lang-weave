@@ -1,5 +1,5 @@
 import { isZeroFrench, wordCount } from './levels.js';
-import { flatten } from './text.js';
+import { flatten, hasUnownedSwaps } from './text.js';
 
 // Logged-in X marks post text with data-testid="tweetText"; logged-out X (2026 markup) has no test ids, and the post
 // text is the innermost dir="auto" block inside the article.
@@ -15,6 +15,7 @@ export function readable(el, url) {
   const lang = el.closest('[lang]')?.getAttribute('lang') || '';
   if (lang && !/^(en(?:-|$)|und$|qme$|zxx$|art$)/i.test(lang)) return false;
   if (!isX(url) && el.querySelector(PROSE)) return false;
+  if (hasUnownedSwaps(el)) return false;
   const text = flatten(el).text;
   return text.length <= 2000 && wordCount(text) >= 6 && !isZeroFrench(text);
 }

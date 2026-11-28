@@ -1,5 +1,6 @@
 // Toolbar state is tab-local and advisory. No page data or hostname enters a badge or title.
 import { chromeStorage } from './cache.js';
+import { t } from './i18n.js';
 import { DAILY_MODEL_CALLS, callsToday } from './quota.js';
 import { cleanQuotaState, safeModelStatus, visibleModelStatus,
   STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
@@ -11,21 +12,21 @@ export const BADGE_ATTENTION = '#9b221b';
 export const BADGE_MUTED = '#59636b';
 
 export function badgeAppearance(state, modelStatus, quotaState, keyEpoch, now = Date.now()) {
-  if (state === 'new') return { text: 'NEW', color: BADGE_ATTENTION, title: 'New Lang Weave version available; reload the extension' };
-  if (state === 'working') return { text: '', color: BADGE_MUTED, title: 'Lang Weave is on here' };
-  if (state === 'needs_setup') return { text: '!', color: BADGE_ATTENTION, title: 'Finish setup in the welcome page' };
-  if (state === 'needs_key') return { text: '!', color: BADGE_ATTENTION, title: 'Add your Gemini key' };
-  if (state === 'key_rejected') return { text: '!', color: BADGE_ATTENTION, title: 'Gemini rejected this key. Paste a new one.' };
-  if (state === 'needs_site') return { text: '•', color: BADGE_ATTENTION, title: 'Click to turn on here' };
-  if (state === 'paused') return { text: '–', color: BADGE_MUTED, title: 'Lang Weave is paused; click to turn it on' };
-  if (state === 'sensitive') return { text: '–', color: BADGE_MUTED, title: 'Off on sensitive sites; click to turn on here' };
-  if (state === 'site_off') return { text: '–', color: BADGE_MUTED, title: 'Off on this site; click to turn it on' };
-  if (state === 'unavailable') return { text: '–', color: BADGE_MUTED, title: 'Open Lang Weave to check this page' };
-  if (state === 'unsupported') return { text: '–', color: BADGE_MUTED, title: 'Open a website to use Lang Weave' };
-  if (state === 'local_budget') return { text: '–', color: BADGE_MUTED, title: 'Daily model-call budget reached; review still works' };
-  if (state === 'model_error') return { text: '–', color: BADGE_MUTED, title: 'Model request failed; review still works' };
+  if (state === 'new') return { text: t('badge_new_text'), color: BADGE_ATTENTION, title: t('badge_new') };
+  if (state === 'working') return { text: '', color: BADGE_MUTED, title: t('badge_working') };
+  if (state === 'needs_setup') return { text: '!', color: BADGE_ATTENTION, title: t('badge_needs_setup') };
+  if (state === 'needs_key') return { text: '!', color: BADGE_ATTENTION, title: t('badge_needs_key') };
+  if (state === 'key_rejected') return { text: '!', color: BADGE_ATTENTION, title: t('badge_key_rejected') };
+  if (state === 'needs_site') return { text: '•', color: BADGE_ATTENTION, title: t('badge_needs_site') };
+  if (state === 'paused') return { text: '–', color: BADGE_MUTED, title: t('badge_paused') };
+  if (state === 'sensitive') return { text: '–', color: BADGE_MUTED, title: t('badge_sensitive') };
+  if (state === 'site_off') return { text: '–', color: BADGE_MUTED, title: t('badge_site_off') };
+  if (state === 'unavailable') return { text: '–', color: BADGE_MUTED, title: t('badge_unavailable') };
+  if (state === 'unsupported') return { text: '–', color: BADGE_MUTED, title: t('badge_unsupported') };
+  if (state === 'local_budget') return { text: '–', color: BADGE_MUTED, title: t('badge_local_budget') };
+  if (state === 'model_error') return { text: '–', color: BADGE_MUTED, title: t('badge_model_error') };
   if (state !== 'cooldown') return { text: '–', color: BADGE_MUTED,
-    title: 'Open Lang Weave to check this page' };
+    title: t('badge_unavailable') };
   const safe = safeModelStatus(modelStatus);
   const kind = safe?.category === 'daily_quota' ? 'daily'
     : safe?.category === 'overloaded' ? 'overloaded' : 'short';
@@ -37,7 +38,7 @@ export function badgeAppearance(state, modelStatus, quotaState, keyEpoch, now = 
     hour: 'numeric', minute: '2-digit',
   }) : null;
   return { text: '–', color: BADGE_MUTED,
-    title: clock ? `Paused until ${clock}; review still works` : 'Reading is paused; review still works' };
+    title: clock ? t('badge_paused_until', clock) : t('badge_reading_paused') };
 }
 
 export function createBadge({ context, store, updatePending }) {

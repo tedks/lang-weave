@@ -17,6 +17,20 @@ Written 2026-10-30 by the Lang Weave CTO from four research lanes run that day. 
 
 Do not claim "private" without qualification: a free-tier key lets Google use the text. The honest claim is that no Lang Weave server ever sees the reading.
 
+## Direction from Ted (2026-11-02)
+
+Recorded from the CTO's brief; these are approved direction, not designs:
+
+- A paid sync service for cross-machine progress, itself AGPL.
+- Bring-your-own-key stays.
+- Port to Firefox.
+- Paid AI-synthesized pronunciation, not only OS voices.
+- Eventually resell provider tokens (a hosted no-key tier).
+- No donations.
+- Public launch is deferred.
+
+The CTO's brief adds that pronunciation is an explicit user action. The engineering proposal for sync, pronunciation and the hosted tier is [research/sync-service.md](research/sync-service.md); its designs, caps and prices are proposals awaiting review.
+
 ## Milestones
 
 Each milestone is a set of bounded missions. Substantive code goes through the council to fixpoint; the invariants in [DESIGN.md](DESIGN.md) and the "must be preserved" list in the UX audit hold throughout: consent rechecks after every await, sender-scoped router, no telemetry, per-language scoped history, no model output ever inserted as HTML.
@@ -49,7 +63,7 @@ Rulings needed: whether productive recall (English to Spanish, typed) is a goal 
 | calmer-cues | Practice words as English with a dashed underline and a small "?", at most one or two cues per viewport, cue placed by available space, one row of four ratings with Already know quieter, first focus on Reveal. | S–M |
 | keyboard-commands | `commands` for pause-on-page and open-review. | S |
 
-Rulings needed: gradual learning on for new installs (written at install time, never by changing the default); the default new-site policy for Store installs; a zero-key starter mode (deterministic unambiguous swaps) or Chrome's on-device model.
+Ruled and shipped in 0.12.24: gradual learning on for new installs, at 5 words a day (written into empty storage at first startup, never by changing the default). Rulings needed: the default new-site policy for Store installs; a zero-key starter mode (deterministic unambiguous swaps) or Chrome's on-device model.
 
 ### M3. Store readiness and reach
 
@@ -75,11 +89,12 @@ Rulings needed: Gemini consumer-use interpretation and territory (filed), Store 
 | context-variety | Prefer a site or topic unlike a word's recent ones (a salted host-hash bucket count needs a privacy ruling); rotating example sentences in review. | M |
 | receptive-productive | Track reading knowledge and production knowledge separately; start receptive, add productive once stable. | M |
 | curriculum-growth | Grow the 226-word pack toward the 2–3k high-frequency families that give useful coverage, frequency-weighted by what the user reads, with native-speaker review (ditz `spanish-curriculum-review`, `licensed-spanish-catalog-import`). | L |
-| inference-step | Opt-in guess-first step on first encounters: three or four candidate meanings before the answer. | M |
+| inference-step | Shipped. **Guess first** offers a choice of English meanings on early encounters while reading. See the [learning guide](../README.md#learning) for controls. | M |
 
 ### M5. Business
 
-- Keep bring-your-own-key free forever with nothing gated. Add GitHub Sponsors or Open Collective now.
+- Keep bring-your-own-key free forever with nothing gated. No donations (Ted, 2026-11-02).
+- Paid services per Ted's direction above: AGPL progress sync, AI-synthesized pronunciation, and later a hosted no-key tier. See [research/sync-service.md](research/sync-service.md).
 - Add a waitlist button for a hosted "no key" tier inside the key step, counting demand only.
 - Only after retention is proven: a hosted tier at about $4–5 a month with a hosted cap near 50 calls a day on the cheapest model that passes the swap-quality tests. At the current 1,000-call cap a heavy user costs $45–100 a month; the cap is the margin.
 - Never sell vocabulary packs or paywall review.

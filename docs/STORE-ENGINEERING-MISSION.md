@@ -1,5 +1,9 @@
 # Store readiness: engineering half
 
+## Startup recovery follow-up (2026-11-01)
+
+PR #44 extends the Store packaging rewrite to retrospective injection in `sites.js`, alongside dynamic registration and popup injection. The Store Chromium gate removes registration, opens an unwoven granted page, restarts the worker, and verifies the bundled script weaves that already-open page once from its primed cache. No Store upload or live model call was made.
+
 State: implemented on `store-engineering`, [PR #23](https://github.com/tedks/lang-weave/pull/23); council review and merge evidence are on the PR. Lead: Claude Opus 5.5 native subagent `lead-store-engineering`. Issues: `icons-and-listing`, `privacy-and-fingerprinting` and `gate-self-update` (engineering halves only), plus `store-x-content-script-ruling` option A. The fingerprint itself is not removed. Item 2 below explains why. Per the CTO ruling, the fix is the `store-content-bundle` mission, required before the first Store upload.
 
 ## Intent and boundary

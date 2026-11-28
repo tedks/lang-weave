@@ -4,6 +4,9 @@ import { hashKey } from '../src/hash.js';
 import { wordsForLevel } from '../src/levels.js';
 import { remaining, futureBudgetDay } from '../src/learning.js';
 import { AGAIN_MS, DAY_MS } from '../src/review.js';
+import { READING_DAYS_KEY } from '../src/events.js';
+import { GUARANI_PACK } from '../src/guarani.js';
+import { GUARANI_STARTER } from '../src/language-name.js';
 
 import { uuid, personalId, baseline } from './backup-fixture.js';
 
@@ -73,7 +76,7 @@ test('hostile and unsupported files fail closed', () => {
   const raw = JSON.parse(createBackup(source, '0.11.0'));
   const altered = (mutate) => { const copy = structuredClone(raw); mutate(copy); return JSON.stringify(copy); };
   for (const json of ['{', ' '.repeat(MAX_BACKUP_BYTES + 1),
-    altered((b) => { b.schemaVersion = 3; }),
+    altered((b) => { b.schemaVersion = 4; }),
     altered((b) => { b.schemaVersion = '2'; }),
     altered((b) => { b.state.scopes.es.review.version = 2; }),
     altered((b) => { b.state.personal.version = 2; }),
@@ -87,6 +90,57 @@ test('hostile and unsupported files fail closed', () => {
   expect(() => createBackup({ ...source, 'unrecognizedLearningV2': {} }, '0.11.0')).toThrow(/unknown storage/);
   expect(() => createBackup({ ...source, recallReview: { ...source.recallReview, version: 2 } }, '0.11.0')).toThrow();
   expect(() => createBackup({ ...source, settings: { ...source.settings, futureLearningPreference: true } }, '0.11.0')).toThrow();
+});
+
+test('schema 3 restores and re-exports date-only history for every supported scope', () => {
+  const { source, version } = baseline();
+  const daysByScope = {
+    es: Array.from({ length: 30 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`),
+    [`lang:${GUARANI_STARTER}:${GUARANI_PACK.version}`]: ['2026-10-29'],
+    [`lang:fr:${version}`]: ['2026-10-29', '2026-10-27'], // observation order can differ after rollback
+    'lang:de:bbbbbbbbbbbbbbbb': ['2026-10-25'], // removed pack, no verifiable forms
+    'personal:fr': ['2026-10-28'],
+  };
+  const legacy = createBackup(source, '0.13.2');
+  expect(JSON.parse(legacy).schemaVersion).toBe(2);
+  const file = JSON.parse(legacy);
+  file.schemaVersion = 3;
+  for (const [scope, days] of Object.entries(daysByScope)) (file.state.scopes[scope] ||= {}).readingDays = days;
+  const parsed = parseBackup(JSON.stringify(file));
+  const restored = learningPatch(parsed, {});
+  expect(restored[READING_DAYS_KEY]).toEqual(daysByScope.es);
+  expect(restored[`lang:personal:fr:${READING_DAYS_KEY}`]).toEqual(daysByScope['personal:fr']);
+  expect(restored[`lang:de:bbbbbbbbbbbbbbbb:${READING_DAYS_KEY}`]).toEqual(['2026-10-25']);
+  const reexported = parseBackup(createBackup(restored, '0.13.3'));
+  expect(reexported.schemaVersion).toBe(3);
+  expect(reexported.state).toEqual(parsed.state);
+  expect(reexported.state.scopes['lang:de:bbbbbbbbbbbbbbbb']).toEqual({ readingDays: ['2026-10-25'] });
+  expect(createBackup(restored, '0.13.2', 2)).toBe(legacy);
+  expect(() => targetFresh({ [READING_DAYS_KEY]: ['2026-10-29'] })).toThrow(/target has learning progress/);
+});
+
+test('reading-day backups reject non-dates, duplicates, over-limit lists and fields in older files', () => {
+  const file = JSON.parse(createBackup({}, '0.13.3'));
+  file.state.scopes.es.readingDays = ['2024-02-29'];
+  expect(() => parseBackup(JSON.stringify(file))).toThrow(/unsupported scope field/);
+  file.schemaVersion = 3;
+  expect(parseBackup(JSON.stringify(file)).state.scopes.es.readingDays).toEqual(['2024-02-29']);
+  for (const invalid of [[], {}, ['2026-02-29'], ['2026-10-29T00:00:00Z'], ['https://example.test'],
+    ['2026-10-29', '2026-10-29'], Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`)]) {
+    file.state.scopes.es.readingDays = invalid;
+    expect(() => parseBackup(JSON.stringify(file))).toThrow(/invalid reading days/);
+    expect(() => createBackup({ [READING_DAYS_KEY]: invalid }, '0.13.3')).toThrow(/invalid reading days/);
+  }
+});
+
+test('a full schema 3 file with no Spanish data re-exports without an extra scope', () => {
+  const file = JSON.parse(createBackup({}, '0.13.3'));
+  file.schemaVersion = 3;
+  file.state.scopes = Object.fromEntries(Array.from({ length: 80 }, (_, i) => [
+    `lang:de:${i.toString(16).padStart(16, '0')}`, { readingDays: ['2026-10-25'] },
+  ]));
+  const restored = learningPatch(parseBackup(JSON.stringify(file)), {});
+  expect(parseBackup(createBackup(restored, '0.13.3')).state.scopes).toEqual(file.state.scopes);
 });
 
 test('initialized empty target is fresh; meaningful or unknown target state conflicts', () => {

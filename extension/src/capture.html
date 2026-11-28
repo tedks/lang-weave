@@ -3,41 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lang Weave · Capture a word</title>
+<title data-i18n="capture_title">Lang Weave · Capture a word</title>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="capture.css">
 </head>
 <body>
 <main>
-  <h1>Capture a word</h1>
+  <h1 data-i18n="capture_heading">Capture a word</h1>
   <p id="selected" class="selected"></p>
   <p id="notice" role="status" aria-live="polite"></p>
-  <button id="retry" type="button" hidden>Retry capture</button>
+  <button id="retry" type="button" hidden data-i18n="capture_retry">Retry capture</button>
   <section id="editor" hidden>
     <p id="language" class="muted"></p>
-    <div id="matches" aria-label="Local suggestions"></div>
+    <div id="matches" aria-label="Local suggestions" data-i18n-aria-label="capture_suggestions_title"></div>
     <form id="capture-form">
       <fieldset>
-        <legend>What did you select?</legend>
-        <label><input type="radio" name="direction" value="en-to-target" required> English, to learn in the selected language</label>
-        <label><input type="radio" name="direction" value="target-to-en" required> Selected-language phrase, with its English meaning</label>
+        <legend data-i18n="capture_direction_legend">What did you select?</legend>
+        <label data-i18n="capture_direction_english"><input type="radio" name="direction" value="en-to-target" required> English, to learn in the selected language</label>
+        <label data-i18n="capture_direction_target"><input type="radio" name="direction" value="target-to-en" required> Selected-language phrase, with its English meaning</label>
       </fieldset>
-      <label for="source">English</label>
+      <label for="source" data-i18n="capture_label_english">English</label>
       <input id="source" name="source" maxlength="80" required autocomplete="off">
-      <label for="target">Selected language</label>
+      <label for="target" data-i18n="capture_label_target">Selected language</label>
       <input id="target" name="target" maxlength="80" required autocomplete="off">
-      <label for="sense">Sense (optional)</label>
+      <label for="sense" data-i18n="capture_label_sense">Sense (optional)</label>
       <input id="sense" name="sense" maxlength="80" autocomplete="off">
-      <label class="check"><input id="distinct" type="checkbox"> This is a different sense from an existing entry</label>
-      <div class="actions"><button id="save" type="submit">Save personal entry</button><button id="cancel" type="button">Cancel</button></div>
+      <label class="check" data-i18n="capture_distinct"><input id="distinct" type="checkbox"> This is a different sense from an existing entry</label>
+      <div class="actions"><button id="save" type="submit" data-i18n="capture_save">Save personal entry</button><button id="cancel" type="button" data-i18n="capture_cancel">Cancel</button></div>
     </form>
   </section>
   <section>
-    <h2>Personal entries</h2>
-    <label for="entry-search">Find an entry</label>
-    <input id="entry-search" type="search" autocomplete="off" placeholder="English, target or sense">
-    <button id="refresh" type="button">Refresh entries</button>
-    <button id="export" type="button">Export JSON</button>
+    <h2 data-i18n="capture_entries_heading">Personal entries</h2>
+    <label for="entry-search" data-i18n="capture_entry_search_label">Find an entry</label>
+    <input id="entry-search" type="search" autocomplete="off" placeholder="English, target or sense" data-i18n-placeholder="capture_entry_search_placeholder">
+    <button id="refresh" type="button" data-i18n="capture_refresh">Refresh entries</button>
+    <button id="export" type="button" data-i18n="capture_export">Export JSON</button>
     <ul id="entries"></ul>
   </section>
 </main>

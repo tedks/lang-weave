@@ -11,10 +11,11 @@ const waitFor = async (predicate) => {
 };
 
 const progress = {
-  language: 'Spanish', due: 1, new: 3, verifiedKnown: 2, practisedThisWeek: 3,
+  language: 'Spanish', due: 1, new: 3, returned: 2, verifiedKnown: 2, practisedThisWeek: 3,
   today: { day: '2026-10-30', introduced: 1, seen: 4, peeked: 0, flipped: 0, reviewed: 2 },
   stages: { new: 140, learning: 6, maintenance: 2, known: 1, verified: 2 },
-  activity: Array.from({ length: 30 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`, retrievals: i % 3 ? 0 : 2 })),
+  activity: Array.from({ length: 30 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`,
+    retrievals: i % 3 ? 0 : 2, reading: i === 0 || i === 29 })),
   measurements: {
     graded: 3, nextDayRecall: { n: 1, passed: 1, rate: 1, enough: false },
     longRetention: { n: 0, rate: null, target: 0.9, enough: false },
@@ -36,6 +37,9 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     practise: true, reason: '' }));
   rows[3] = { ...rows[3], target: 'pájaro', gloss: 'bird', stage: 'learning', due: now + 2 * 86400000, reviews: 2,
     exposures: 5, days: 3, version: { due: now + 2 * 86400000, reviews: 2, familiar: false } };
+  rows[4] = { ...rows[4], stage: 'maintenance', due: now + 2 * 86400000,
+    familiar: true, maintenance: true, practise: true,
+    version: { due: now + 2 * 86400000, reviews: 3, familiar: true, claimAt: null, claimDue: null } };
   rows.push({ id: 'personal:es:x', kind: 'personal', target: 'brillar', gloss: 'shimmer', sense: 'glimmer', hint: '',
     stage: 'known', due: null, reviews: 0, familiar: true, lapses: 0, exposures: 0, days: 0,
     version: { due: now, reviews: 0, familiar: true }, archived: false, practise: false,
@@ -60,12 +64,18 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
     const items = () => [...$('words').children].filter((li) => li.dataset.id);
     await waitFor(() => items().length === 60);
     expect($('count').textContent).toBe('151 words');
-    expect($('headline').textContent).toBe('2 words verified known');
+    expect($('headline').textContent).toBe('2 words verified known · 2 words returned from retirement to be verified');
+    expect(items().find((li) => li.dataset.id === 'w4').textContent).toContain('Maintenance · Due in 2 days');
+    expect([...items().find((li) => li.dataset.id === 'w4').querySelectorAll('button')]
+      .map((b) => [b.textContent, b.disabled])).toEqual([['Practice now', false], ['Reset', false]]);
     expect($('today').textContent).toBe('Today: 1 introduced · 4 seen · 2 reviewed');
-    expect($('week').textContent).toBe('Practised on 3 days of the last 7');
+    expect($('week').textContent).toBe('Practised on 3 of the last 7 days (reading or review activity)');
     expect($('strip').children).toHaveLength(30);
-    expect($('strip').getAttribute('aria-label')).toBe('Days with reviews in the last 30 days: 10');
-    expect($('measures').children).toHaveLength(7);
+    expect($('strip').getAttribute('aria-label')).toBe('11 of the last 30 days with reading or review activity');
+    expect($('strip').lastElementChild.textContent).toBe('2026-10-30 · 0 review events · read a woven word');
+    expect($('strip').firstElementChild.textContent).toBe('2026-10-01 · 2 review events · read a woven word');
+    expect($('strip').querySelectorAll('.on')).toHaveLength(11);
+    expect($('measures').children).toHaveLength(8);
     expect($('more').hidden).toBe(false);
     expect($('more').textContent).toBe('Show more (91 left)');
     $('more').click();
@@ -133,13 +143,53 @@ test('My words renders in batches, filters, moves focus by keyboard, and resets 
       version: rows[3].version });
     await waitFor(() => $('count').textContent.startsWith('pájaro was reset.'));
 
-    // Practice now names the listed scope and opens the review page.
+    // Practice now asks the worker to open review for the listed word and scope.
     click('Practice now');
-    await waitFor(() => opened.includes('chrome-extension://fw-words/src/review.html'));
+    await waitFor(() => sent.some((m) => m.type === 'wordPractice'));
     expect(sent.find((m) => m.type === 'wordPractice')).toEqual({ type: 'wordPractice', id: 'w3', scope: 'es' });
+    expect(opened).not.toContain('chrome-extension://fw-words/src/review.html');
   } finally {
     globalThis.document = oldDocument;
     globalThis.chrome = oldChrome;
     window.happyDOM.abort();
+  }
+});
+
+test('My words row text keeps its English tags, due phrases and plural forms', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-words/src/words.html' });
+  window.document.write(readFileSync(new URL('../src/words.html', import.meta.url), 'utf8'));
+  globalThis.document = window.document;
+  const now = new Date(2026, 9, 30, 10).getTime(); // local morning: +5 hours is still today in any zone
+  const row = (id, extra) => ({ id, kind: 'pack', target: id, gloss: `gloss ${id}`, hint: '', stage: 'learning', due: null,
+    reviews: 0, familiar: false, lapses: 0, exposures: 1, days: 1, version: null, practise: true, reason: '', ...extra });
+  const rows = [
+    row('hour', { due: now + 30 * 60000 }),
+    row('hours', { due: now + 5 * 3600000, exposures: 5, days: 3 }),
+    row('tomorrow', { due: now + 86400000, sense: 'sense', saved: { id: 's', archived: false } }),
+    row('mine', { kind: 'personal', archived: true, familiar: true, due: null }),
+  ];
+  globalThis.chrome = { runtime: { getURL: (path) => path, openOptionsPage: async () => {},
+    sendMessage: async (msg) => (msg.type === 'progress' ? { ...progress, returned: 1, verifiedKnown: 0 }
+      : { language: 'Spanish', scope: 'es', now, rows }) }, tabs: { create: async () => ({}) } };
+  try {
+    await import('../src/words.js?plurals');
+    const items = () => [...window.document.getElementById('words').children].filter((li) => li.dataset.id);
+    await waitFor(() => items().length === 4);
+    const text = (id) => items().find((li) => li.dataset.id === id).querySelector('.meta').textContent;
+    expect(text('hour')).toBe('Learning · Due today in 1 hour · seen 1 time on 1 day');
+    expect(text('hours')).toBe('Learning · Due today in 5 hours · seen 5 times on 3 days');
+    expect(text('tomorrow')).toBe('Learning · Due tomorrow · seen 1 time on 1 day');
+    expect(text('mine')).toBe('Learning · Not scheduled · seen 1 time on 1 day');
+    const head = (id) => items().find((li) => li.dataset.id === id).firstChild.textContent;
+    expect(head('tomorrow')).toBe('tomorrow · gloss tomorrow (sense) · saved by you');
+    expect(head('mine')).toBe('mine · gloss mine · your word · archived');
+    expect(window.document.getElementById('headline').textContent)
+      .toBe('No words verified yet · 1 word returned from retirement to be verified');
+    expect(window.document.getElementById('language').textContent).toBe('Spanish words on this device');
+    expect(items().find((li) => li.dataset.id === 'tomorrow').getAttribute('aria-label')).toBe('tomorrow, gloss tomorrow, Learning');
+  } finally {
+    Object.assign(globalThis, { document: oldDocument, chrome: oldChrome });
+    await window.happyDOM.abort();
   }
 });

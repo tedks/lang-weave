@@ -1,5 +1,9 @@
 # First-run welcome page
 
+## 0.12.22 consent navigation follow-up
+
+PR #45 makes pending consent visible in the popup with a route back to welcome after that tab is closed. Settings leaves the first site-policy choice on welcome by disabling its site-default select and all-sites grant while consent is pending; a late `consent_required` key-test result points back to welcome. The disclosure now names generated vocabulary as a Gemini request. Worker consent rechecks are unchanged. The Chromium welcome gate closes the first tab and follows the popup route before choosing a policy.
+
 State: council fixpoint CLEAN and all local gates passed for PR #29. The PR records the exact final gate SHA and merge state. Issue: `welcome-page`. The earlier export failure was closed as `welcome-portability-export-timeout`. Initial source commit: `31eb1b6`.
 
 ## Decisions

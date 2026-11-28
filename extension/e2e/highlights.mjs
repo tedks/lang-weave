@@ -1,14 +1,14 @@
 // Real Chromium rendering of the shipped extension CSS on owned synthetic pages.
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, waitForExtensionWorker } from './browser.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-highlights-'));
-const extension = join(scratch, 'extension');
+const extension = extensionRoot;
 const screenshots = process.argv.includes('--save-screenshots')
   ? join(root, '..', 'docs', 'artifacts') : join(scratch, 'screenshots');
 function contrast(foreground, background) {
@@ -25,17 +25,14 @@ function contrast(foreground, background) {
 }
 let browser;
 try {
-  await cp(join(root, 'src'), join(extension, 'src'), { recursive: true });
-  await cp(join(root, 'icons'), join(extension, 'icons'), { recursive: true }); // the manifest names them; Chrome refuses to load without
-  const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
-  manifest.content_scripts[0].matches = ['https://reading.example/*']; // synthetic site only
-  await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
-    channel: 'chromium', headless: true, viewport: { width: 820, height: 460 },
+    ...chromiumBinary, headless: true, viewport: { width: 820, height: 460 },
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
       '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND',
       '--proxy-server=127.0.0.1:9'],
   });
+  const worker = await waitForExtensionWorker(browser);
+  await grantReadingSite(browser, worker);
   await browser.route('https://reading.example/highlight-fixture/**', (route) => {
     const dark = route.request().url().endsWith('/dark');
     const background = dark ? '#15202b' : '#ffffff';
@@ -47,12 +44,18 @@ try {
         .sample { margin: 4px 0; } .label { display: inline-block; width: 150px; font: 14px system-ui; }
       </style></head><body>
       <h1 style="font-size:22px;margin:0 0 12px">${dark ? 'Dark' : 'Light'} page</h1>
-      <div class="sample"><span class="label">Ordinary</span><span id="plain">ordinary</span> and <span class="fw-word" id="ordinary" tabindex="0" role="button">palabra</span></div>
-      <div class="sample"><span class="label">Learning</span><span class="fw-word" id="active" data-fw-status="active" tabindex="0" role="button">aprendiendo</span></div>
-      <div class="sample"><span class="label">Practice</span><span class="fw-word fw-practice" id="practice" tabindex="0" role="button">word → [?]</span></div>
+      <div class="sample"><span class="label">Ordinary</span><span id="plain">ordinary</span> and <span class="fw-word" id="ordinary" tabindex="0" role="button" lang="es" aria-describedby="fw-dfixture-1">palabra</span></div>
+      <div class="sample"><span class="label">Learning</span><span class="fw-word" id="active" data-fw-status="active" tabindex="0" role="button" lang="es">aprendiendo</span></div>
+      <div class="sample"><span class="label">Practice</span><span class="fw-word fw-practice fw-practice-cue" id="practice" tabindex="0" role="button">word<sup aria-hidden="true">?</sup></span></div>
       <div class="sample"><span class="label">Link context</span><a href="#destination" id="link">linked <span class="fw-word" id="linked" tabindex="0" role="button">palabra</span></a></div>
       <div class="sample"><span class="label">Hover hint</span><span class="fw-word fw-tip" id="hover" data-tip="word · pronunciation" tabindex="0" role="button">palabra</span></div>
       <div class="fw-gloss fw-gloss-on" aria-hidden="true">palabra = word · "pronunciation"</div>
+      <div class="fw-recall" role="group" aria-label="Inline recall" style="left:470px;top:40px">
+        <div>Recall the translation before revealing.</div><div class="fw-recall-status">la palabra</div>
+        <div class="fw-recall-ratings"><button>Again</button><button>Hard</button><button>Medium</button><button>Easy</button></div>
+        <div class="fw-recall-secondary"><button>Already know</button></div>
+      </div>
+      <div class="fw-descriptions" hidden lang="en" style="display: none !important"><span id="fw-dfixture-1">word · pronunciation. Show English</span></div>
       </body></html>` });
   });
   await mkdir(screenshots, { recursive: true });
@@ -71,6 +74,12 @@ try {
         ordinary: pick('ordinary'), plain: pick('plain'),
         active: pick('active'), practice: pick('practice'), linked: pick('linked'),
         link: pick('link'), hover: pick('hover'),
+        cue: (() => { const el = document.querySelector('.fw-recall'); const style = getComputedStyle(el);
+          const ratings = el.querySelector('.fw-recall-ratings');
+          return { color: style.color, background: style.backgroundColor, border: style.borderTopColor,
+            columns: getComputedStyle(ratings).gridTemplateColumns.split(' ').length,
+            ratingTop: [...ratings.children].map((button) => Math.round(button.getBoundingClientRect().top)),
+            secondaryTop: Math.round(el.querySelector('.fw-recall-secondary button').getBoundingClientRect().top) }; })(),
         gloss: (() => { const style = getComputedStyle(document.querySelector('.fw-gloss'));
           return { display: style.display, visibility: style.visibility, position: style.position,
             color: style.color, background: style.backgroundColor, pointerEvents: style.pointerEvents }; })() };
@@ -82,7 +91,21 @@ try {
     assert.equal(css.ordinary.thickness, '2px');
     assert.equal(css.ordinary.decorationColor, css.ordinary.color);
     assert.equal(css.ordinary.color, css.plain.color);
-    assert.equal(css.ordinary.height, css.plain.height); // no line-box shift
+    assert.equal(css.ordinary.height, css.plain.height); // no line-box shift, with lang="es" as real swaps carry
+    const lang = await page.evaluate(() => {
+      const word = document.getElementById('ordinary'), plain = document.getElementById('plain');
+      const host = document.querySelector('.fw-descriptions');
+      const a = getComputedStyle(word), b = getComputedStyle(plain);
+      return { lang: word.lang, font: [a.fontFamily, a.fontSize, a.lineHeight].join('|'),
+        plainFont: [b.fontFamily, b.fontSize, b.lineHeight].join('|'),
+        described: document.getElementById(word.getAttribute('aria-describedby'))?.textContent,
+        hostDisplay: getComputedStyle(host).display, hostBox: host.getBoundingClientRect().height };
+    });
+    assert.equal(lang.lang, 'es');
+    assert.equal(lang.font, lang.plainFont); // the target language does not change the reader's font
+    assert.equal(lang.described, 'word · pronunciation. Show English');
+    assert.equal(lang.hostDisplay, 'none'); // descriptions never render
+    assert.equal(lang.hostBox, 0);
     assert.ok(contrast(css.ordinary.decorationColor, css.background) >= 3);
     assert.equal(css.active.thickness, '2px');
     assert.notEqual(css.active.decorationColor, css.ordinary.decorationColor);
@@ -111,6 +134,12 @@ try {
     assert.equal(otherStates[3].decorationColor, otherStates[3].color);
     assert.equal(css.practice.decorationStyle, 'dashed');
     assert.equal(css.practice.decorationColor, css.practice.color);
+    assert.equal(await page.locator('#practice').textContent(), 'word?');
+    assert.equal(await page.locator('#practice sup').getAttribute('aria-hidden'), 'true');
+    assert.equal(css.cue.columns, 4);
+    assert.equal(new Set(css.cue.ratingTop).size, 1, 'four ratings stay on one row');
+    assert.ok(css.cue.secondaryTop > css.cue.ratingTop[0]);
+    assert.ok(contrast(css.cue.color, css.cue.background) >= 7);
     assert.equal(css.linked.color, css.link.color);
     assert.match(css.link.line, /underline/); // host link decoration stays
     assert.equal(css.gloss.display, 'block');
@@ -139,6 +168,14 @@ try {
     });
     assert.notEqual(forcedGloss.color, forcedGloss.background);
     assert.equal(forcedGloss.border, forcedGloss.color);
+    const forcedCue = await page.locator('.fw-recall').evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor, border: style.borderTopColor,
+        button: getComputedStyle(el.querySelector('.fw-recall-ratings button')).color };
+    });
+    assert.notEqual(forcedCue.color, forcedCue.background);
+    assert.equal(forcedCue.border, forcedCue.color);
+    assert.notEqual(forcedCue.button, forcedCue.background);
     await page.close();
   }
   console.log('PASS: Chromium extension CSS is visible on synthetic light/dark pages; ordinary, active, practice, link, hover, keyboard focus and forced colors checked.');

@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import {
-  resolveLevel, L1_WORDS, L2_WORDS, validateSwaps, glossMatches, wordCount, isZeroFrench, normalizeFr, matchCase,
+  resolveLevel, L1_WORDS, L2_WORDS, MAX_PACK_ROWS, assertPackAnchors, validateSwaps, glossMatches, legacyGlossForms, legacyInflects, wordCount, isZeroFrench, normalizeFr, matchCase,
 } from '../src/levels.js';
 
 describe('level', () => {
@@ -17,11 +17,11 @@ describe('level', () => {
 describe('word lists', () => {
   test('L1 is the bundled starter list', () => {
     const spec = ['y', 'pero', 'o', 'entonces', 'porque', 'con', 'sin', 'para', 'muy', 'también', 'bien', 'mucho', 'un poco', 'ahora', 'siempre', 'quizás', 'aquí', 'sí', 'no', 'gracias', 'el problema', 'la pregunta', 'la idea', 'la respuesta', 'importante', 'posible', 'difícil', 'hoy', 'mañana', 'nunca'];
-    expect(L1_WORDS.map((w) => w.fr)).toEqual(spec);
+    expect(L1_WORDS.slice(0, spec.length).map((w) => w.fr)).toEqual(spec);
   });
   test('L2 stays bounded, includes L1 and the fixed phrases, every entry glossed with a hint', () => {
     expect(L2_WORDS.length).toBeGreaterThanOrEqual(220);
-    expect(L2_WORDS.length).toBeLessThanOrEqual(240);
+    expect(L2_WORDS.length).toBeLessThanOrEqual(MAX_PACK_ROWS);
     const frs = L2_WORDS.map((w) => w.fr);
     for (const w of L1_WORDS) expect(frs).toContain(w.fr);
     for (const p of ['no sé', 'hay', 'creo que', 'hace falta']) expect(frs).toContain(p);
@@ -31,6 +31,46 @@ describe('word lists', () => {
       expect(w.hint.length).toBeGreaterThan(0);
     }
   });
+});
+
+describe('candidate pack admission', () => {
+  test('rejects shared normalized English anchors and accepts distinct explicit surfaces', () => {
+    const a = { fr: 'la nube', en: 'the cloud', anchors: ['cloud'], hint: 'lah NOO-beh' };
+    const b = { fr: 'el sombrero', en: 'the hat', anchors: [' HAT '], hint: 'el som-BREH-roh' };
+    expect(() => assertPackAnchors([a, b])).not.toThrow();
+    expect(() => assertPackAnchors([a, { ...b, anchors: [' CLOUD '] }])).toThrow(/shared/);
+    expect(() => assertPackAnchors([a, { ...b, anchors: ['the cloud'] }])).toThrow(/shared/);
+    expect(() => assertPackAnchors(Array.from({ length: MAX_PACK_ROWS + 1 }, (_, i) => ({ ...a, fr: `word${i}` }))))
+      .toThrow(/exceeds/);
+  });
+  test('explicit verb anchors are exact: the legacy suffix stemmer cannot invent a form', () => {
+    const word = { fr: 'hablar', en: 'speak', anchors: ['speak', 'speaks', 'speaking'], hint: 'ah-BLAR' };
+    expect(validateSwaps(2, [{ o: 'speaks', f: 'hablar' }], [word])).toHaveLength(1);
+    expect(validateSwaps(2, [{ o: 'spoke', f: 'hablar' }], [word])).toHaveLength(0);
+    expect(validateSwaps(2, [{ o: 'to speak', f: 'hablar' }], [word])).toHaveLength(0);
+  });
+  test('explicit noun anchors admit bare and definite forms but refuse the indefinite phrase', () => {
+    const word = { fr: 'el sombrero', en: 'the hat', anchors: ['hat', 'the hat'], hint: 'el som-BREH-roh' };
+    expect(validateSwaps(2, [{ o: 'the hat', f: 'el sombrero' }], [word])[0]?.f).toBe('el sombrero');
+    expect(validateSwaps(2, [{ o: 'hat', f: 'sombrero' }], [word])[0]?.f).toBe('sombrero');
+    expect(validateSwaps(2, [{ o: 'a hat', f: 'el sombrero' }], [word])).toHaveLength(0);
+  });
+});
+
+test('shipped Spanish glosses use authored surfaces and exact synonyms', () => {
+  expect(legacyInflects({ fr: 'hablar', word: 'el hablar' })).toBe(false);
+  expect(legacyInflects({ fr: 'el hablar', word: 'hablar' })).toBe(true);
+  for (const word of L2_WORDS) {
+    const surfaces = legacyGlossForms(word.en, { inflections: legacyInflects(word) });
+    expect(surfaces, word.fr).toEqual(legacyGlossForms(word.en, { inflections: false }));
+  }
+  expect(legacyGlossForms('hello')).toEqual(new Set(['hello', 'hi']));
+  expect(legacyGlossForms('we need')).toEqual(new Set(['we need']));
+  expect(glossMatches('like', 'like / as')).toBe(true);
+  expect(glossMatches('liked', 'like / as')).toBe(false);
+  expect(glossMatches('liked', 'to like')).toBe(true);
+  expect(glossMatches('planted', 'the plant')).toBe(false);
+  expect(glossMatches('plants', 'the plant')).toBe(true);
 });
 
 describe('validateSwaps', () => {

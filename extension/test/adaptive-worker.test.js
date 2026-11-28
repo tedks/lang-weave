@@ -127,6 +127,19 @@ test('worker records only eligible catalog encounters and blocks held-await revo
     expect((await send({ type: 'introAck', word: swap.word, ticket: swap.introTicket, revision })).ok).toBe(true);
     expect(data.recallReview.learning.count).toBe(1);
     expect(data.recallReview.cards['la idea'].reviews).toBe(0);
+    for (let i = 0; i < 3; i++)
+      expect((await send({ type: 'event', event: 'seen', word: 'la idea', revision })).ok).toBe(true);
+    expect(data.recallReview.cards['la idea'].seenCount).toBe(3);
+    expect(Object.values((await ask(idea, revision)).results).flat()).toEqual([]);
+    data.recallReview.cards['la idea'].reviews = 1;
+    data.recallReview.cards['la idea'].interval = 7;
+    data.recallReview.cards['la idea'].due = Date.now() + 7 * 86400000;
+    const scheduled = data.recallReview.cards['la idea'].due;
+    for (let i = 0; i < 2; i++)
+      expect((await send({ type: 'event', event: 'peek', word: 'la idea', revision })).ok).toBe(true);
+    expect(data.recallReview.cards['la idea'].peekCount).toBe(2);
+    expect(data.recallReview.cards['la idea'].peekDue).toBeLessThan(scheduled);
+    expect(data.recallReview.cards['la idea'].due).toBe(scheduled);
     await ask(idea, revision);
     expect(data.vocabularyEncounters.counts[entryId('es', { fr: 'la idea' })]).toBe(1);
     await send({ type: 'save', settings: { levelOverride: 2 } }, popup);

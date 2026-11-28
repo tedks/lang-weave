@@ -5,14 +5,16 @@
 // Message authorization is the surface table in router.js. Feature modules are factories so
 // that each evaluation of this file (one per worker start) gets its own state.
 import { createCache, chromeStorage } from './cache.js';
-import { cleanSettings } from './settings.js';
+import { cleanSettings, FRESH_INSTALL_SETTINGS } from './settings.js';
 import { validateStorageSettings } from './portability.js';
 import { senderSurfaces, surfaceAllows } from './router.js';
+import { createCommands } from './commands.js';
 import { createContext, publicContext } from './worker-context.js';
 import { createReviewState } from './review-state.js';
 import { createGradualBudgets } from './gradual-budgets.js';
 import { createReading } from './reading.js';
 import { createReviewHandlers } from './review-handlers.js';
+import { createReviewTabs } from './review-tabs.js';
 import { createInlineRecall } from './inline-recall.js';
 import { createUpdate, openWelcome, ALARM } from './update.js';
 import { createSettingsHandlers } from './settings-handlers.js';
@@ -35,6 +37,8 @@ const worker = {
   settingsGeneration: 0, // a popup change also invalidates a held dispatch before its write gets the lock
   importBlocked: false, // a failed journal commit needs startup recovery before any other mutation
   startupUnsupportedSettings: false,
+  keyIsolationUnavailable: true, // cleared only after Chrome accepts trusted-context storage
+  keyRejectedEpoch: '', // an unsaved diagnostic must still stop this worker's rejected key
 };
 const captureDrafts = new Map(); // worker memory only; a restart invalidates every nonce
 const completedCaptures = new Map(); // short-lived idempotent receipts; no draft/page metadata
@@ -54,15 +58,27 @@ const { connectBackupPage, recoverLearningImport, learningExport, learningPrevie
 
 const ready = (async () => {
   // Content scripts run on every enabled site, so stored keys are kept out of their reach.
-  if (store.setAccessLevel) await store.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  if (typeof store.setAccessLevel === 'function') {
+    try {
+      await store.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+      worker.keyIsolationUnavailable = false;
+    } catch { /* A rejected isolation request is as unsafe as a missing API. */ }
+  }
   const { settings } = await store.get('settings');
+  // Install defaults need storage that nothing has written yet: an absent settings object beside a key or
+  // progress is not a new install. Read everything only in that rare case, never on an ordinary wake.
+  // Any early write (a permission event's epoch) can only make this false: a missed default, never an opt-in.
+  const fresh = settings === undefined && !Object.keys(await store.get(null)).length;
   try { validateStorageSettings(settings || {}); }
   catch { worker.startupUnsupportedSettings = true; }
-  if (settings?.apiKey) await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
+  if (!worker.keyIsolationUnavailable && settings?.apiKey)
+    await store.set({ apiKey: settings.apiKey }); // 0.1 kept a pasted key in settings
   // A stored settings object identifies an existing profile. Only a truly empty new profile
   // needs onboarding; older profiles keep their existing access until they choose otherwise.
-  if (!worker.startupUnsupportedSettings) await store.set({
-    settings: cleanSettings(settings), ...(settings === undefined ? { consentShown: false } : {}),
+  // The same first write gives empty storage its install defaults (gradual learning on), so
+  // no later write can race a choice; any other profile is only cleaned, never opted in.
+  if (!worker.startupUnsupportedSettings && !(worker.keyIsolationUnavailable && settings?.apiKey)) await store.set({
+    settings: cleanSettings(fresh ? FRESH_INSTALL_SETTINGS : settings), ...(settings === undefined ? { consentShown: false } : {}),
   });
   const { keyEpoch } = await store.get('keyEpoch');
   if (typeof keyEpoch !== 'string' || !keyEpoch) await store.set({ keyEpoch: crypto.randomUUID() });
@@ -71,11 +87,11 @@ const ready = (async () => {
 
 chrome.runtime.onConnect?.addListener(connectBackupPage);
 
-const { context, broadcast } = createContext({ store, ready });
+const { context, broadcast } = createContext({ store, ready, worker });
 const { reviewState } = createReviewState({ context });
 const { introduction, recoverBudget, adaptiveReviewState, commitAdaptive } =
   createGradualBudgets({ store, locked, context, broadcast, reviewState });
-const { swaps, record } = createReading({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
+const { swaps, record, guess } = createReading({ store, cache, locked, modelCall, worker, cooldown, cooldownKinds,
   context, adaptiveReviewState, commitAdaptive });
 const { reviewStatus, reviewIntroduce, reviewNext, reviewReveal, reviewRate, reviewKnown, learningStats } =
   createReviewHandlers({ store, locked, context, reviewState });
@@ -87,13 +103,25 @@ const { checkUpdate, arm, updatePending } = createUpdate({ store, locked, modelC
   onBadgeChange: () => refreshBadges() });
 const badge = createBadge({ store, context, updatePending });
 refreshBadges = badge.refreshAll;
-const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status } = createSettingsHandlers({ store, cache, locked,
+const { clearCache, addLanguage, removeLanguage, save, removeKey, testKey, status, placement } = createSettingsHandlers({ store, cache, locked,
   modelCall, worker, cooldown, cooldownKinds, context, broadcast, reviewState, reviewStatus, checkUpdate });
+const openReview = createReviewTabs({ tabs: chrome.tabs, windows: chrome.windows, runtime: chrome.runtime });
+const commands = createCommands({ tabs: chrome.tabs, context, save, openReview });
 const { rememberDocument, captureDraft, captureKeepAlive, captureSave, personalList, personalArchive,
   personalIntroduce, personalExportResult, registerCaptureMenu, captureMenuListener } =
   createCaptureHandlers({ store, locked, worker, captureDrafts, completedCaptures, contentDocuments,
     context, broadcast, reviewState });
-const { registerSites, permissionsChanged } = createSites({ store, locked, worker, broadcast });
+const { registerSites, recoverOpenTabs, permissionsChanged, setReadingSite } =
+  createSites({ store, locked, worker, broadcast, context });
+// The first routed reply must not run ahead of restoring a granted site's
+// content script after an MV3 worker wake. Restore already-open pages separately
+// so a page loaded before any routed reply does not wait for a user reload.
+const sitesReady = ready.then(async () => {
+  try { await registerSites(); void recoverOpenTabs().catch((e) => console.warn('Site recovery failed:', e)); }
+  catch (e) { console.warn('Site registration failed:', e); }
+});
+// Registration failures do not block settings and permission recovery. Startup
+// storage recovery failures still reject sitesReady and block routed handlers.
 
 // Each sender surface may send only the messages router.js lists for it.
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -110,6 +138,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     status, clearCache, removeKey, testKey,
     recoverBudget: () => recoverBudget(msg),
     save: () => save(msg),
+    setReadingSite: () => setReadingSite(msg, (choice) => sitesReady.then(() => save(choice))),
+    placement: () => placement(msg),
     addLanguage: () => addLanguage(msg),
     removeLanguage: () => removeLanguage(msg),
     reviewStatus: () => reviewStatus(), reviewIntroduce, reviewNext,
@@ -118,10 +148,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     reviewKnown: () => reviewKnown(msg),
     learningStats: () => learningStats(),
     progress: () => progress(), wordsList: () => wordsList(),
-    wordPractice: () => wordPractice(msg), wordKnown: () => wordKnown(msg), wordReset: () => wordReset(msg),
+    openReview: () => openReview(sender.tab?.windowId ?? msg.windowId),
+    wordPractice: () => openReview(sender.tab?.windowId, () => wordPractice(msg)),
+    wordKnown: () => wordKnown(msg), wordReset: () => wordReset(msg),
     inlineBegin: () => inlineAction(msg, sender),
     inlineReveal: () => inlineAction(msg, sender),
     inlineRate: () => inlineAction(msg, sender),
+    guessBegin: () => guess(msg, sender),
+    guessAnswer: () => guess(msg, sender),
     introAck: () => introduction(msg, sender),
     introRelease: () => introduction(msg, sender),
     introRenew: () => introduction(msg, sender),
@@ -134,7 +168,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     learningImport: () => learningImport(msg, sender),
   };
   if (!handlers[msg.type] || !surfaceAllows(surfaces, msg.type)) return false;
-  ready.then(handlers[msg.type]).then(reply, (e) => reply({ error: String(e?.message || e) }));
+  const handler = handlers[msg.type];
+  // The popup's gesture reaches the service worker's synchronous message listener.
+  const result = msg.type === 'setReadingSite' ? handler() : sitesReady.then(handler);
+  result.then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true;
 });
 
@@ -154,6 +191,9 @@ chrome.storage.onChanged?.addListener((changes, area) => {
 });
 
 chrome.runtime.onInstalled.addListener(arm);
+chrome.commands?.onCommand?.addListener((command, tab) => {
+  void ready.then(() => commands.handle(command, tab)).catch(() => {});
+});
 chrome.runtime.onInstalled.addListener(openWelcome);
 chrome.runtime.onStartup.addListener(arm);
 chrome.alarms?.onAlarm?.addListener((a) => {
@@ -168,7 +208,7 @@ chrome.tabs.onRemoved?.addListener((tabId) => {
 });
 chrome.runtime.onInstalled.addListener(registerCaptureMenu);
 chrome.runtime.onStartup.addListener(registerCaptureMenu);
-void ready.then(registerSites).catch(() => {});
+void sitesReady.catch(() => {});
 // On an MV3 wake, Chrome can retain the previous action badge. Resolve the
 // unpacked update first so a pending NEW is never replaced by reading state.
 void ready.then(async () => { await checkUpdate({ allowReload: false }); await badge.refreshAll(); }).catch(() => {});

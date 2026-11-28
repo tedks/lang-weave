@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, parseRetryAfter, readBoundedBody, retainedRetryAt, safeModelStatus, statusLabel } from '../src/quota-status.js';
+import { classifyProviderFailure, cleanQuotaState, newCooldownEntry, parseRetryAfter, readBoundedBody, retainedRetryAt, safeModelStatus, statusLabel, rejectedForEpoch, visibleModelStatus } from '../src/quota-status.js';
 
 describe('quota status', () => {
   test('classifies nested daily quota dimension, and rejects bare or conflicting short-window 429s', () => {
@@ -34,6 +34,17 @@ describe('quota status', () => {
     }
     expect(classifyProviderFailure({ status: 400, body: '{bad' }).category).toBe('request_failed');
     expect(classifyProviderFailure({ status: 500, body }).category).toBe('request_failed');
+  });
+
+  test('a rejection is authoritative only for its own key epoch', () => {
+    const status = safeModelStatus({ category: 'key_rejected', keyEpoch: 'key-1',
+      message: 'private provider text' });
+    expect(status).toEqual({ category: 'key_rejected', keyEpoch: 'key-1' });
+    expect(rejectedForEpoch(status, 'key-1')).toBe(true);
+    expect(rejectedForEpoch(status, 'key-2')).toBe(false);
+    expect(rejectedForEpoch({ category: 'key_rejected' }, 'key-1')).toBe(false);
+    expect(visibleModelStatus(status, null, 'key-2', false)).toBeNull();
+    expect(visibleModelStatus(status, null, 'key-1', false)).toEqual(status);
   });
 
   test('bounds retry values, accepts Retry-After seconds/date, and ignores oversized bodies', async () => {

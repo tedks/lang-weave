@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { catalogEntries, englishAnchors, matchingEntries, entryId } from '../src/catalog.js';
 import { BACKLOG_THROTTLE, MAX_CANDIDATES, MAX_REQUEST_CHARS, MAX_VOCABULARY_CHARS,
-  requestChars, reviewBacklog, selectWorkingSet, vocabularyChars } from '../src/adaptive.js';
+  requestChars, reviewBacklog, selectWorkingSet, vocabularyChars, capUnknownSwaps,
+  underExposed, cognate } from '../src/adaptive.js';
 import { L1_WORDS, L2_WORDS } from '../src/vocabulary.js';
 import { cleanReview, rateReview } from '../src/review.js';
 import { commitLearning, introductionOwner } from '../src/learning.js';
@@ -10,7 +11,7 @@ import { scopedStorage } from '../src/scope.js';
 import { cleanEncounters, countEncounters, ENCOUNTERS_KEY, MAX_ENCOUNTER_COUNT, MAX_ENCOUNTER_IDS } from '../src/encounters.js';
 import { hashKey } from '../src/hash.js';
 import { buildRequest } from '../src/gemini.js';
-import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from '../src/prompt.js';
+import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA, unknownBudget } from '../src/prompt.js';
 
 const now = Date.parse('2026-10-27T14:00:00Z');
 const day = '2026-10-27';
@@ -33,6 +34,87 @@ test('catalog IDs retain exact legacy forms and local matching skips ambiguous a
   expect(select({ batch: batch('Zebras orbit quartz; distant galaxies shimmer.') })).toEqual([]);
 });
 
+test('under-exposed learning follows due and weak; a third sighting excludes that word', () => {
+  const words = [{ fr: 'hospital', en: 'hospital' }, { fr: 'ventana', en: 'window' },
+    { fr: 'libro', en: 'book' }, { fr: 'gato', en: 'cat' }];
+  const state = cleanReview({ version: 1, cards: {
+    hospital: { due: now + 10 * 86400000, interval: 10, reviews: 2, introducedDay: day },
+    ventana: { due: now - 1, interval: 5, reviews: 2 },
+    libro: { due: now + 86400000, interval: 1, reviews: 1 },
+  } }, words, now, true);
+  const passage = batch('The hospital window has a book and a cat nearby.');
+  const exposures = { hospital: [4, 0, 2, day, day] };
+  expect(select({ batch: passage, words, state, exposures }).map((w) => w.fr))
+    .toEqual(['ventana', 'libro', 'hospital', 'gato']);
+  expect(underExposed(state.cards.hospital, exposures.hospital, day)).toBe(true);
+  expect(underExposed(state.cards.hospital, undefined, day)).toBe(true); // zero exposures
+  expect(underExposed(state.cards.hospital, [8, 0, 8, day, day], day)).toBe(false);
+  expect(underExposed(state.cards.hospital, exposures.hospital, '2026-11-17')).toBe(false);
+  state.cards.hospital.seenDay = day;
+  state.cards.hospital.seenCount = 3;
+  expect(select({ batch: passage, words, state, exposures }).map((w) => w.fr))
+    .toEqual(['ventana', 'libro', 'gato']);
+  expect(select({ batch: passage, words, state, exposures, day: '2026-10-28' })
+    .some((w) => w.fr === 'hospital')).toBe(true);
+});
+
+test('new Spanish cognates rank first and the final 2% cap counts placements across passages', () => {
+  expect(cognate({ fr: 'hospital', en: 'hospital' })).toBe(true);
+  expect(cognate({ fr: 'hospital', en: 'hospital' }, 'fr')).toBe(false);
+  expect(cognate({ fr: 'ventana', en: 'window' })).toBe(false);
+  const words = [{ fr: 'ventana', en: 'window' }, { fr: 'hospital', en: 'hospital' }];
+  expect(select({ batch: batch('The window stood beside the hospital today.'), words })
+    .map((w) => w.fr)).toEqual(['hospital', 'ventana']);
+  const long = [{ id: 'a', text: Array(50).fill('reading').join(' ') },
+    { id: 'b', text: Array(50).fill('reading').join(' ') }];
+  const candidates = [{ fr: 'due', status: 'due' }, { fr: 'new', status: 'new' },
+    { fr: 'active', status: 'active' }, { fr: 'known', status: 'known' }];
+  const swaps = { a: [{ word: 'active' }, { word: 'known' }],
+    b: [{ word: 'new' }, { word: 'due' }, { word: 'due' }] };
+  expect(capUnknownSwaps(swaps, long, candidates)).toEqual({ a: [{ word: 'known' }],
+    b: [{ word: 'due' }, { word: 'due' }] });
+  expect(capUnknownSwaps(swaps, batch('six short words can still show one'), candidates))
+    .toEqual({ a: [{ word: 'known' }], b: [{ word: 'due' }] });
+});
+
+test('frequency band precedes cognate and encounter ties for new words', () => {
+  const words = [{ fr: 'hospital', en: 'hospital', band: 3 },
+    { fr: 'ventana', en: 'window', band: 1 },
+    { fr: 'libro', en: 'book', band: 1 }];
+  const encounters = { [entryId('es', words[0])]: 7, [entryId('es', words[2])]: 3 };
+  expect(select({ batch: batch('The hospital window has a book.'), words, encounters })
+    .map((w) => w.fr)).toEqual(['libro', 'ventana', 'hospital']);
+});
+
+test('Beginner band zero preserves the prior new-word order', () => {
+  const text = batch(L1_WORDS.flatMap(englishAnchors).join(' '));
+  const before = L1_WORDS.map(({ band, ...word }) => word);
+  expect(L1_WORDS.every((word) => word.band === 0)).toBe(true);
+  expect(select({ batch: text, words: L1_WORDS }).map((word) => word.fr))
+    .toEqual(select({ batch: text, words: before }).map((word) => word.fr));
+});
+
+test('an unbanded personal word keeps its prior one-slot selection', () => {
+  const words = [{ fr: 'hoy', en: 'today', band: 0 },
+    { fr: 'brillar', en: 'shimmer', personalId: 'personal:es:one' }];
+  expect(select({ batch: batch('We saw shimmer today.'), words,
+    settings: { gradual: true, newWordsPerDay: 1 } }).filter((word) => word.status === 'new')
+    .map((word) => word.fr)).toEqual(['brillar']);
+});
+
+test('mixed banded and personal new words have the same order for every input permutation', () => {
+  const words = [{ fr: 'aaa', en: 'raven', band: 3 },
+    { fr: 'bbb', en: 'satin', personalId: 'personal:es:one' },
+    { fr: 'ccc', en: 'tiger', band: 1 }];
+  const text = batch('The raven saw satin and a tiger.');
+  const settings = { gradual: true, newWordsPerDay: 1 };
+  const permutations = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const selections = permutations.map((order) => select({ batch: text,
+    words: order.map((i) => words[i]), settings }).filter((word) => word.status === 'new').map((word) => word.fr));
+  expect(new Set(selections.map((selection) => JSON.stringify(selection))).size).toBe(1);
+  expect(selections[0]).toEqual(['bbb']);
+});
+
 test('due and recent difficulty lead active and new with stable ties and passage relevance', () => {
   const state = cleanReview({ version: 1, cards: {
     'la ventana': { due: now - 1000, interval: 2, reviews: 2 },
@@ -43,7 +125,7 @@ test('due and recent difficulty lead active and new with stable ties and passage
   const first = select({ batch: text, state });
   expect(first.map(({ fr, reasonCode }) => [fr, reasonCode])).toEqual([
     ['la ventana', 'due'], ['el libro', 'recent_difficulty'], ['el día', 'active'],
-    ['la historia', 'new'], ['el pueblo', 'new'], ['hoy', 'new'], ['y', 'new'],
+    ['hoy', 'new'], ['y', 'new'], ['la historia', 'new'], ['el pueblo', 'new'],
   ]);
   expect(select({ batch: text, state })).toEqual(first);
   expect(first.every((w) => !['el gato', 'el perro'].includes(w.fr))).toBe(true);
@@ -56,6 +138,11 @@ test('eligible-level backlog throttles fresh at the exact boundary and resumes a
   const state = cleanReview({ version: 1, cards }, L2_WORDS, now);
   const passage = batch('The window and the book are here today with the cat.');
   expect(reviewBacklog(state, L2_WORDS, now)).toBe(5);
+  state.cards[L2_WORDS[0].fr].maintenance = true;
+  state.cards[L2_WORDS[0].fr].familiar = true;
+  expect(reviewBacklog(state, L2_WORDS, now)).toBe(4);
+  delete state.cards[L2_WORDS[0].fr].maintenance;
+  delete state.cards[L2_WORDS[0].fr].familiar;
   expect(select({ batch: passage, state }).some((w) => w.status === 'new')).toBe(false);
   state.current = { word: L2_WORDS[0].fr, ticket: 'review-ticket', revealed: true };
   expect(rateReview(state, 'review-ticket', 'medium', now, true)?.interval).toBeGreaterThan(1);
@@ -95,7 +182,7 @@ test('full request measurement includes every worker key as the dispatched passa
     return { key: `rev:${hashKey(text)}`, text };
   });
   const actualChars = (batch) => JSON.stringify(buildRequest({
-    system: buildSystemPrompt(1, [{ ...word, status: 'new' }], [], 'es', 'normal'),
+    system: buildSystemPrompt(1, [{ ...word, status: 'new' }], [], 'es', 'normal', unknownBudget(batch)),
     user: buildUserContent(batch.map(({ key, text }) => ({ id: key, text }))), schema: RESPONSE_SCHEMA,
   })).length;
   const withoutIds = (batch) => JSON.stringify(buildRequest({
@@ -138,9 +225,8 @@ test('an unacknowledged reservation can be reoffered only to its document withou
 });
 
 test('full history survives many candidate windows, level/scope toggles and restart', async () => {
-  expect(L1_WORDS).toHaveLength(30);
-  expect(L2_WORDS).toHaveLength(226);
-  const cards = Object.fromEntries(L2_WORDS.map((w, i) => [w.fr,
+  const formerExpanded = L2_WORDS.slice(0, 226);
+  const cards = Object.fromEntries(formerExpanded.map((w, i) => [w.fr,
     { due: now + i * 60000, interval: i % 4, reviews: i % 6, introducedDay: '2026-10-20' }]));
   cards.orphan = { due: now - 1, interval: 1, reviews: 9 };
   const initial = { version: 1, cards, current: null, learning: { day, count: 2, pending: [] }, inline: null };
@@ -159,6 +245,7 @@ test('full history survives many candidate windows, level/scope toggles and rest
   expect(Object.keys(restarted.cards)).toHaveLength(227);
   expect(restarted.cards.orphan).toEqual(cards.orphan);
   expect(restarted.cards['el zapato']).toEqual(cards['el zapato']);
+  expect(restarted.cards['el suéter']).toBeUndefined();
   expect(restarted.learning).toEqual(initial.learning);
   const all = await storage.getAll();
   expect(all.readingEvents).toEqual([{ word: 'y', kind: 'seen', day }]);

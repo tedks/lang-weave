@@ -3,7 +3,7 @@ import { buildSystemPrompt, buildUserContent, RESPONSE_SCHEMA } from '../src/pro
 import { L1_WORDS, L2_WORDS } from '../src/levels.js';
 
 describe('prompt', () => {
-  test('L1 lists all 30 Spanish words and the sense rules', () => {
+  test('L1 lists the Beginner Spanish words and the sense rules', () => {
     const p = buildSystemPrompt(1);
     expect(p).toContain('Level 1');
     for (const w of L1_WORDS) expect(p).toContain(w.fr);

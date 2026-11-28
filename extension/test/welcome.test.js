@@ -1,10 +1,25 @@
 import { test, expect } from 'bun:test';
 import { Window } from 'happy-dom';
+import { readFileSync } from 'node:fs';
 import { openWelcome } from '../src/update.js';
+import { GUARANI_PACK } from '../src/guarani.js';
+import { GUARANI_STARTER } from '../src/language-name.js';
 import { L1_WORDS } from '../src/vocabulary.js';
 import { applySwaps, toggle } from '../src/text.js';
-import { demoSwaps, chooseSitePolicy } from '../src/welcome.js';
+import { demoSwaps, mountWelcomeDemo } from '../src/welcome-demo.js';
+import { chooseSitePolicy } from '../src/welcome.js';
 import { hashKey } from '../src/hash.js';
+
+test('welcome and options state the 18+ Gemini API requirement', () => {
+  for (const name of ['welcome', 'options']) {
+    const html = readFileSync(new URL(`../src/${name}.html`, import.meta.url), 'utf8');
+    const win = new Window();
+    win.document.write(html);
+    const section = win.document.querySelector(name === 'welcome' ? '[aria-labelledby="privacyHeading"]' : '[aria-labelledby="sitesHeading"]');
+    expect(section.textContent).toContain('The Gemini API requires users to be 18 or older.');
+    win.close();
+  }
+});
 
 test('only an install opens the first-run page', () => {
   const old = globalThis.chrome;
@@ -34,7 +49,49 @@ test('demo selects fixed real Beginner words and uses page swap markup and flip'
   expect(span.textContent).toBe('Today');
   expect(toggle(span)).toBe(false);
   expect(span.textContent).toBe('hoy');
+  const guarani = demoSwaps(GUARANI_STARTER);
+  expect(guarani.map((s) => [s.o, s.f])).toEqual([
+    ['rain', 'ama'], ['tree', 'yvyra'], ['butterfly', 'panambi'], ['flower', 'yvoty'], ['sun', 'kuarahy'],
+  ]);
+  expect(guarani.every((s) => GUARANI_PACK.words.some((w) =>
+    w.level === 1 && w.fr === s.f && w.en === s.g && w.hint === s.h))).toBe(true);
   win.close();
+});
+
+test('every reading sample uses the expected Beginner English senses and hints', () => {
+  const senses = [
+    ['es', 0, ['today', 'with', 'and', 'important', 'always', 'because', 'difficult', 'but', 'possible']],
+    ['es', 1, ['the sweater', 'the bracelet', 'the suitcase', 'tomorrow']],
+    ['es', 2, ['the soup', 'the window', 'the song', 'the river']],
+    [GUARANI_STARTER, 0, ['rain', 'tree', 'butterfly', 'flower', 'sun']],
+    [GUARANI_STARTER, 1, ['teacher (at school)', 'book (printed volume)', 'paper (writing material)', 'room (indoors)', 'chair (seat)']],
+    [GUARANI_STARTER, 2, ['night (after dark)', 'moon', 'road (route for travel)', 'wind', 'door (movable barrier)']],
+  ];
+  for (const [language, index, glosses] of senses) {
+    const words = language === 'es' ? L1_WORDS : GUARANI_PACK.words.filter((word) => word.level === 1);
+    const swaps = demoSwaps(language, index);
+    expect(swaps.map((s) => s.g)).toEqual(glosses);
+    for (const swap of swaps) {
+      expect(words.some((word) => word.fr === swap.f && word.en === swap.g && word.hint === swap.h)).toBe(true);
+    }
+  }
+});
+
+test('the original Welcome markup can still switch between its two default passages', async () => {
+  const win = new Window();
+  try {
+    win.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
+    win.document.getElementById('demoPassage').remove();
+    const demo = win.document.getElementById('demo');
+    const language = win.document.getElementById('demoLanguage');
+    await mountWelcomeDemo(demo, language);
+    expect(demo.querySelector('.fw-word').textContent).toBe('hoy');
+    language.value = GUARANI_STARTER;
+    language.dispatchEvent(new win.Event('change'));
+    expect(demo.querySelector('.fw-word').textContent).toBe('ama');
+  } finally {
+    win.close();
+  }
 });
 
 test('site choice requests all-site permission before save; denial saves nothing; only-sites saves false', async () => {
@@ -51,6 +108,52 @@ test('site choice requests all-site permission before save; denial saves nothing
   calls.length = 0;
   expect(await chooseSitePolicy(true, { request: async () => { calls.push('request'); return true; }, save })).toBe(true);
   expect(calls).toEqual(['request', 'save:true']);
+});
+
+test('the local sample remains usable when the saved language cannot be read', async () => {
+  const oldChrome = globalThis.chrome;
+  const win = new Window({ url: 'chrome-extension://fixture/src/welcome.html' });
+  win.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
+  const demo = win.document.getElementById('demo');
+  const picker = win.document.getElementById('demoLanguage');
+  const reads = [];
+  const writes = [];
+  globalThis.chrome = { storage: { local: {
+    async get(key) { reads.push(key); throw new Error('storage unavailable'); },
+    async set(value) { writes.push(value); },
+  } } };
+  try {
+    await mountWelcomeDemo(demo, picker);
+    expect(picker.disabled).toBe(false);
+    expect(picker.value).toBe('es');
+    expect(demo.querySelector('.fw-word').textContent).toBe('hoy');
+    const link = win.document.getElementById('practiceParagraph');
+    expect(link.getAttribute('href')).toBe('paragraph.html');
+    const passages = win.document.getElementById('demoPassage');
+    expect(passages.disabled).toBe(false);
+    expect([...passages.options].map((o) => o.textContent)).toEqual(['Reading with a friend', 'Packing for the train', 'Music by the river']);
+    passages.selectedIndex = 1;
+    passages.dispatchEvent(new win.Event('change'));
+    expect([...demo.querySelectorAll('.fw-word')].map((el) => el.textContent)).toEqual(['el suéter', 'la pulsera', 'la maleta', 'mañana']);
+    expect(link.getAttribute('href')).toBe('paragraph.html');
+    picker.value = GUARANI_STARTER;
+    picker.dispatchEvent(new win.Event('change'));
+    expect(demo.querySelector('.fw-word').textContent).toBe('ama');
+    expect(link.hash).toBe(`#${GUARANI_STARTER}`);
+    expect(passages.selectedIndex).toBe(0);
+    expect(passages.options.length).toBe(3);
+    passages.selectedIndex = 1;
+    passages.dispatchEvent(new win.Event('change'));
+    expect([...demo.querySelectorAll('.fw-word')].map((el) => el.textContent)).toEqual(['mbo’ehára', 'aranduka', 'kuatia', 'koty', 'apyka']);
+    picker.value = 'es';
+    picker.dispatchEvent(new win.Event('change'));
+    expect(link.hash).toBe('#es');
+    expect(reads).toEqual(['settings']);
+    expect(writes).toEqual([]);
+  } finally {
+    globalThis.chrome = oldChrome;
+    win.close();
+  }
 });
 
 test('fresh profile blocks reading Gemini dispatch until welcome save, while an existing profile remains allowed', async () => {
@@ -110,3 +213,197 @@ test('fresh profile blocks reading Gemini dispatch until welcome save, while an 
     expect(fetches).toBe(2);
   } finally { globalThis.chrome = old.chrome; globalThis.fetch = old.fetch; }
 }, 30000);
+
+test('welcome page renders its notes and choice results as the exact English', async () => {
+  const oldDocument = globalThis.document, oldChrome = globalThis.chrome;
+  const window = new Window({ url: 'chrome-extension://fw-welcome/src/welcome.html' });
+  window.document.write(readFileSync(new URL('../src/welcome.html', import.meta.url), 'utf8'));
+  globalThis.document = window.document;
+  let grant = true;
+  let saveOk = true;
+  let placementReady = false;
+  let placementRead;
+  let placementSave = { error: 'Local placement write failed' };
+  let placementStorageChanged;
+  const placementMessages = [];
+  globalThis.chrome = {
+    runtime: { getManifest: () => ({ content_scripts: [] }), openOptionsPage: async () => {},
+      sendMessage: async (msg) => {
+        if (msg.type === 'placement') {
+          placementMessages.push(msg);
+          if (Object.hasOwn(msg, 'choice')) return placementSave;
+          if (placementRead) return placementRead;
+          return placementReady ? { available: true, choice: 0, epoch: 'local' } : {};
+        }
+        return { ok: saveOk };
+      } },
+    permissions: { request: async () => grant },
+    storage: { onChanged: { addListener: (fn) => { placementStorageChanged = fn; } } },
+  };
+  const wait = async (predicate) => { for (let i = 0; i < 100 && !predicate(); i++) await new Promise((done) => setTimeout(done, 0)); };
+  try {
+    await import('../src/welcome.js?welcome-english');
+    const $ = (id) => window.document.getElementById(id);
+    const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
+    const learn = $('learnHeading').parentElement;
+    expect(text(learn.querySelector('[data-i18n="welcome_level_note"]'))).toBe('Reading level controls which bundled words can appear; Beginner is a good start.');
+    expect(text(learn.querySelector('[data-i18n="welcome_gradual_note"]'))).toBe('Gradual learning is on for new installs, at 5 new words a day. It introduces words from your reading and schedules short reviews. Settings shows whether it is on for you, changes the pace or turns it off.');
+    const placement = $('placement');
+    expect(placement.open).toBe(false);
+    placement.open = true;
+    placement.dispatchEvent(new window.Event('toggle'));
+    const retry = placement.querySelector('[data-placement-retry]');
+    await wait(() => !retry.hidden);
+    expect(text(placement.querySelector('[data-placement-status]'))).toBe('Could not load or save Spanish placement. Try again.');
+    expect(text(retry)).toBe('Reload placement');
+    placementReady = true;
+    retry.focus();
+    retry.click();
+    await wait(() => window.document.activeElement === $('placementChoice'));
+    expect(window.document.activeElement).toBe($('placementChoice'));
+    expect(retry.hidden).toBe(true);
+    const score = $('duolingoScore');
+    const preview = placement.querySelector('[data-placement-score] button');
+    const samples = placement.querySelector('.placement-samples');
+    const messagesBeforePreview = placementMessages.slice();
+    score.value = '30';
+    preview.click();
+    expect(samples.firstElementChild.hasAttribute('data-placement-expanded')).toBe(true);
+    expect(score.value).toBe('');
+    expect($('placementChoice').value).toBe('0');
+    expect(placementMessages).toEqual(messagesBeforePreview);
+    score.value = '1e2';
+    preview.click();
+    expect(score.getAttribute('aria-invalid')).toBe('true');
+    expect(samples.firstElementChild.hasAttribute('data-placement-beginner')).toBe(true);
+    expect(placementMessages).toEqual(messagesBeforePreview);
+    const scoreForm = score.closest('form');
+    const targetChanged = (oldValue, newValue) => placementStorageChanged({ settings: { oldValue, newValue } }, 'local');
+    targetChanged({}, { language: 'es' });
+    expect(scoreForm.hidden).toBe(false);
+    score.focus();
+    targetChanged({ language: 'es' }, { language: 'gn-PY-x-weave' });
+    expect(scoreForm.hidden).toBe(true);
+    expect(score.value).toBe('');
+    expect(window.document.activeElement).toBe(placement.firstElementChild);
+    targetChanged({ language: 'gn-PY-x-weave' }, { language: 'es' });
+    await wait(() => !scoreForm.hidden);
+    expect(scoreForm.hidden).toBe(false);
+    const placementStatus = placement.querySelector('[data-placement-status]');
+    const submit = placement.querySelector('[data-placement-choice] button[type="submit"]');
+    $('placementChoice').value = '2';
+    submit.click();
+    await wait(() => text(placementStatus).startsWith('Could not load or save'));
+    expect(text(placementStatus)).toBe('Could not load or save Spanish placement. Try again.');
+    expect($('placementChoice').value).toBe('2');
+    placementSave = { ok: false };
+    placementRead = {};
+    submit.focus();
+    submit.click();
+    await wait(() => !retry.hidden);
+    expect(text(placementStatus)).toBe('Could not load or save Spanish placement. Try again.');
+    expect(window.document.activeElement).toBe(retry);
+    expect($('placementChoice').value).toBe('2');
+    expect(placementMessages.at(-2)).toEqual({ type: 'placement', choice: 2, epoch: 'local' });
+    placementRead = { available: true, choice: 0, epoch: 'reconciled' };
+    retry.click();
+    await wait(() => text(placementStatus).includes('save again'));
+    expect(text(placementStatus)).toBe('Saved starting point: Use my reading level setting. Review your selection and save again to keep it.');
+    expect($('placementChoice').value).toBe('2');
+    let finishSave;
+    placementSave = new Promise((resolve) => { finishSave = resolve; });
+    submit.click();
+    expect(placementMessages.at(-1)).toEqual({ type: 'placement', choice: 2, epoch: 'reconciled' });
+    placement.open = false;
+    placement.dispatchEvent(new window.Event('toggle'));
+    expect(scoreForm.hidden).toBe(true);
+    placement.open = true;
+    placement.dispatchEvent(new window.Event('toggle'));
+    expect(scoreForm.hidden).toBe(true);
+    const savedPlacement = { available: true, choice: 2, epoch: 'new-epoch' };
+    placementRead = savedPlacement;
+    finishSave({ ok: true, ...savedPlacement });
+    await wait(() => !scoreForm.hidden);
+    expect(scoreForm.hidden).toBe(false);
+    expect($('placementChoice').value).toBe('2');
+    expect(text(placementStatus)).toBe('');
+    expect(placementMessages.at(-1)).toEqual({ type: 'placement' });
+    placementRead = undefined;
+    placementReady = false;
+    placement.dispatchEvent(new window.Event('toggle'));
+    await wait(() => !retry.hidden);
+    let finishRead;
+    placementRead = new Promise((resolve) => { finishRead = resolve; });
+    retry.focus();
+    retry.click();
+    $('openSettings').focus();
+    finishRead({ available: true, choice: 0, epoch: 'local' });
+    await wait(() => retry.hidden);
+    expect(retry.hidden).toBe(true);
+    expect(window.document.activeElement).toBe($('openSettings'));
+
+    // A response from before collapsing the details cannot reveal either form
+    // or overwrite a newer opening. Mock only the worker's delivery timing.
+    const togglePlacement = (open) => {
+      placement.open = open;
+      placement.dispatchEvent(new window.Event('toggle'));
+    };
+    const fieldset = placement.querySelector('fieldset');
+    const flush = () => new Promise((done) => setTimeout(done, 0));
+    const holdRead = () => {
+      let deliver;
+      placementRead = new Promise((resolve) => { deliver = resolve; });
+      togglePlacement(true);
+      return deliver;
+    };
+    togglePlacement(false);
+    const deliverWhileClosed = holdRead();
+    togglePlacement(false);
+    deliverWhileClosed(savedPlacement);
+    await flush();
+    expect(scoreForm.hidden).toBe(true);
+    expect(fieldset.disabled).toBe(true);
+    expect($('placementChoice').value).toBe('0');
+    const deliverAfterReopen = holdRead();
+    togglePlacement(false);
+    placementRead = { available: true, choice: 1, epoch: 'latest' };
+    togglePlacement(true);
+    await wait(() => !fieldset.disabled);
+    expect(scoreForm.hidden).toBe(false);
+    expect($('placementChoice').value).toBe('1');
+    deliverAfterReopen(savedPlacement);
+    await flush();
+    expect($('placementChoice').value).toBe('1');
+    expect(window.document.activeElement).toBe($('openSettings'));
+    expect($('suggestX').hidden).toBe(false);
+    $('onlySites').click();
+    await wait(() => $('choiceStatus').textContent !== '');
+    expect($('choiceStatus').textContent).toBe('Only sites you turn on selected. Open the popup on a site to allow it.');
+    $('allSites').click();
+    await wait(() => $('choiceStatus').textContent.startsWith('All'));
+    expect($('choiceStatus').textContent).toBe('All permitted sites selected. Sensitive sites still start off.');
+    grant = false;
+    $('allSites').click();
+    await wait(() => $('choiceStatus').textContent.startsWith('Chrome'));
+    expect($('choiceStatus').textContent).toBe('Chrome did not grant all-site access. Choose only sites you turn on, or try again.');
+    saveOk = false;
+    $('onlySites').click();
+    await wait(() => $('choiceStatus').textContent === 'Could not save your choice');
+    expect($('choiceStatus').textContent).toBe('Could not save your choice');
+    $('allowX').click();
+    await wait(() => $('xStatus').textContent !== '');
+    expect($('xStatus').textContent).toBe('Chrome did not grant x.com access.');
+    grant = true;
+    $('allowX').click();
+    await wait(() => $('xStatus').textContent === 'Could not enable x.com');
+    expect($('xStatus').textContent).toBe('Could not enable x.com');
+    saveOk = true;
+    $('allowX').click();
+    await wait(() => $('xStatus').textContent.startsWith('x.com allowed'));
+    expect($('xStatus').textContent).toBe('x.com allowed. After setup, reload any open X page to start there.');
+  } finally {
+    globalThis.document = oldDocument;
+    globalThis.chrome = oldChrome;
+    window.happyDOM.abort();
+  }
+});

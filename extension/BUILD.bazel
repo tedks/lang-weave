@@ -1,0 +1,48 @@
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "payload",
+    srcs = glob([
+        "_locales/**",
+        "icons/**",
+    ]) + [
+        "manifest.json",
+        "//extension/src:payload",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+exports_files(
+    [
+        "design/icon.svg",
+        "e2e/browser.mjs",
+        "e2e/guarani-context.mjs",
+        "e2e/legacy-gloss-upgrade.mjs",
+        "e2e/native-unpacked.mjs",
+        "e2e/reading-reload.mjs",
+        "e2e/spanish-prose.mjs",
+        "e2e/welcome.mjs",
+        "e2e/words.mjs",
+        "manifest.json",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+filegroup(
+    name = "supplementary_browser_cases",
+    srcs = glob([
+        "e2e/*.mjs",
+        "e2e/*.js",
+    ]),
+    visibility = ["//:__pkg__"],
+)
+
+filegroup(
+    name = "version_scan_inputs",
+    srcs = glob(["design/**"]) + [
+        "package.json",
+        ":payload",
+        "//extension/scripts:version_scan_inputs",
+    ],
+    visibility = ["//:__pkg__"],
+)

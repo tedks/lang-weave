@@ -20,12 +20,13 @@ const tweet = `<!doctype html><html lang="en"><head><title>Post on X</title></he
 const prose = `<!doctype html><html lang="en"><head><title>Reading</title></head><body><main>
   <p id="reading">We read books and enjoy quiet evenings every week.</p></main></body></html>`;
 
-async function launch(label, manifest, source = root) {
+async function launch(label, manifest, source = root, consent = true) {
   const extension = join(scratch, label, 'extension');
   if (label === 'store') await cp(source, extension, { recursive: true });
   else {
     await cp(join(source, 'src'), join(extension, 'src'), { recursive: true });
     await cp(join(source, 'icons'), join(extension, 'icons'), { recursive: true });
+    if (manifest.default_locale) await cp(join(source, '_locales'), join(extension, '_locales'), { recursive: true });
   }
   await writeFile(join(extension, 'manifest.json'), JSON.stringify(manifest));
   const context = await chromium.launchPersistentContext(join(scratch, label, 'profile'), {
@@ -35,7 +36,7 @@ async function launch(label, manifest, source = root) {
   await context.route('https://x.com/**', (route) => route.fulfill({ contentType: 'text/html', body: tweet }));
   await context.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html', body: prose }));
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
-  await worker.evaluate(async () => {
+  await worker.evaluate(async (consent) => {
     for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
       await new Promise((done) => setTimeout(done, 10));
     const originalFetch = globalThis.fetch;
@@ -46,8 +47,11 @@ async function launch(label, manifest, source = root) {
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages }) }] } }] }),
         { headers: { 'Content-Type': 'application/json' } });
     };
-    await chrome.storage.local.set({ apiKey: 'synthetic-store-key', consentShown: true });
-  });
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    if (!settings) throw new Error('worker never wrote its startup settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-store-key', ...(consent ? { consentShown: true } : {}) });
+  }, consent);
   return { context, worker, id: new URL(worker.url()).host };
 }
 
@@ -102,9 +106,36 @@ try {
   assert.equal(store.content_scripts, undefined);
   assert.equal(store.web_accessible_resources, undefined);
   assert.equal(store.permissions.includes('alarms'), false);
-  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /js: \['src\/content-bundle\.js'\]/);
-  assert.match(await readFile(join(unpacked, 'src/popup.js'), 'utf8'), /files: \['src\/content-bundle\.js'\]/);
+  assert.match(await readFile(join(unpacked, 'src/sites.js'), 'utf8'), /const LOADER_FILE = 'src\/content-bundle\.js'/);
   store.update_url = 'https://update.invalid/service/update2/crx';
+  // In a fresh Store install, the suggested X button must obtain a per-site grant from its click.
+  open = await launch('store-onboarding', store, unpacked, false);
+  {
+    const { context: onboarding, worker: onboardingWorker, id: onboardingId } = open;
+    const welcomeUrl = `chrome-extension://${onboardingId}/src/welcome.html`;
+    const welcome = onboarding.pages().find((p) => p.url() === welcomeUrl) ||
+      await onboarding.waitForEvent('page', { predicate: (p) => p.url() === welcomeUrl });
+    await welcome.locator('#allowX').waitFor();
+    assert.equal(await welcome.locator('#suggestX').isVisible(), true);
+    assert.equal((await onboardingWorker.evaluate(() => chrome.storage.local.get('consentShown'))).consentShown, false);
+    assert.equal(await onboardingWorker.evaluate(() => chrome.permissions.contains({ origins: ['https://x.com/*'] })), false);
+    // Headless Chromium leaves the optional-host prompt pending. Stub only that prompt's result;
+    // the separate granted Store run below exercises actual registration and injection.
+    await welcome.evaluate(() => { chrome.permissions.request = (details) => {
+      globalThis.__xRequest = details;
+      return Promise.resolve(true);
+    }; });
+    await welcome.locator('#allowX').click();
+    await welcome.waitForFunction(() => document.getElementById('xStatus').textContent.trim());
+    assert.match(await welcome.locator('#xStatus').textContent(), /x.com allowed/);
+    assert.deepEqual(await welcome.evaluate(() => globalThis.__xRequest), { origins: ['https://x.com/*'] });
+    assert.equal(await onboardingWorker.evaluate(() => chrome.permissions.contains({ origins: ['https://x.com/*'] })), false);
+    const saved = await onboardingWorker.evaluate(() => chrome.storage.local.get(['settings', 'consentShown']));
+    assert.equal(saved.settings.siteOverrides['x.com'], true);
+    assert.equal(saved.consentShown, false, 'an X grant is not a first-run site policy choice');
+    await onboarding.close();
+    open = undefined;
+  }
   store.host_permissions.push(...store.optional_host_permissions); // test-only stand-in for the user's grant
   open = await launch('store', store, unpacked);
   let { context, worker, id } = open;
@@ -125,6 +156,10 @@ try {
   assert.match(await page.locator('.fw-gloss-on').textContent(), /y · and/);
   await word.click();
   assert.equal(await word.textContent(), 'and');
+  const prime = await context.newPage();
+  await prime.goto('https://reading.example/prime');
+  await prime.locator('#reading .fw-word').waitFor(); // cache this passage before worker restarts
+  await prime.close();
   // Popup fallback injection can run again on the same document. A classic script needs the
   // module loader's old one-evaluation semantics or duplicate listeners and observers result.
   const tabId = await worker.evaluate(async () => (await chrome.tabs.query({ url: 'https://x.com/*' }))[0]?.id);
@@ -165,6 +200,15 @@ try {
   worker = await restartWorker(context, page, id, worker);
   const [cleared] = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['weave-sites'] }));
   assert.deepEqual(cleared.excludeMatches ?? [], [], 'a restarted worker clears a stale exclusion');
+  await worker.evaluate(() => chrome.scripting.unregisterContentScripts({ ids: ['weave-sites'] }));
+  const waiting = await context.newPage();
+  await waiting.goto('https://reading.example/waiting');
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 0);
+  worker = await restartWorker(context, waiting, id, worker);
+  await waiting.locator('#reading .fw-word').waitFor();
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 1,
+    'Store startup recovery injects its bundled script into an already-open granted page');
+  await waiting.close();
   await context.close();
 
   // Dev (unpacked) build: X through the manifest content script; the self-update stays armed. The X grant is
@@ -175,6 +219,11 @@ try {
   open = await launch('dev', devGranted);
   ({ context, worker, id } = open);
   await settle(worker);
+  const devWelcomeUrl = `chrome-extension://${id}/src/welcome.html`;
+  const devWelcome = context.pages().find((p) => p.url() === devWelcomeUrl) ||
+    await context.waitForEvent('page', { predicate: (p) => p.url() === devWelcomeUrl });
+  await devWelcome.locator('#demo .fw-word').first().waitFor();
+  assert.equal(await devWelcome.locator('#suggestX').isHidden(), true);
   assert.deepEqual(await alarms(worker), ['updates'], 'an unpacked install keeps the self-update alarm');
   // Chrome reports the manifest's X hosts as granted origins, so a registration exists, but it excludes
   // every host it matches: X gets the loader once, from the manifest.

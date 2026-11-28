@@ -1,0 +1,71 @@
+// A granted page is already open when a fresh MV3 worker restores registration.
+// The fixture removes the dynamic registration before navigation to reproduce Chromium's raw-wake gap.
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { chromium, chromiumBinary, extensionRoot, grantReadingSite, restartExtensionWorker, waitForExtensionWorker } from './browser.mjs';
+
+const scratch = await mkdtemp(join(tmpdir(), 'lang-weave-startup-recovery-'));
+const extension = extensionRoot;
+let browser;
+try {
+  browser = await chromium.launchPersistentContext(join(scratch, 'profile'), {
+    ...chromiumBinary, headless: true,
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
+      '--host-resolver-rules=MAP generativelanguage.googleapis.com ~NOTFOUND', '--proxy-server=127.0.0.1:9'],
+  });
+  await browser.route('https://reading.example/**', (route) => route.fulfill({ contentType: 'text/html',
+    body: '<!doctype html><title>Ordinary reading</title><main><p id="reading">We read books and enjoy quiet evenings every week.</p></main>' }));
+  let worker = await waitForExtensionWorker(browser);
+  const id = new URL(worker.url()).host;
+  await worker.evaluate(async () => {
+    for (let i = 0; i < 100 && !(await chrome.storage.local.get('settings')).settings; i++)
+      await new Promise((done) => setTimeout(done, 10));
+    // Plain reading path: a new profile starts with gradual on (FRESH_INSTALL_SETTINGS); gradual.mjs covers that.
+    const { settings } = await chrome.storage.local.get('settings');
+    if (!settings) throw new Error('worker never wrote its startup settings');
+    await chrome.storage.local.set({ settings: { ...settings, gradual: false }, apiKey: 'synthetic-startup-key', consentShown: true });
+    globalThis.modelCalls = 0;
+    const original = fetch;
+    globalThis.fetch = async (url, init) => {
+      if (!String(url).startsWith('https://generativelanguage.googleapis.com/')) return original(url, init);
+      globalThis.modelCalls++;
+      const passages = JSON.parse(JSON.parse(init.body).contents[0].parts[0].text.replace(/^Passages:\n/, ''));
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ passages:
+        passages.map(({ id }) => ({ id, swaps: [{ o: 'and', f: 'y', g: 'and', h: '', ctx: '' }] })) }) }] } }] }),
+      { headers: { 'Content-Type': 'application/json' } });
+    };
+  });
+  await grantReadingSite(browser, worker);
+  const first = await browser.newPage();
+  await first.goto('https://reading.example/prime');
+  await first.locator('#reading .fw-word').waitFor(); // positive control: this grant and cache work
+  assert.equal(await worker.evaluate(() => globalThis.modelCalls), 1);
+  await worker.evaluate(() => chrome.scripting.unregisterContentScripts({ ids: ['weave-sites'] }));
+  const waiting = await browser.newPage();
+  await waiting.goto('https://reading.example/waiting');
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 0);
+  worker = await restartExtensionWorker(browser, waiting, worker);
+  await waiting.locator('#reading .fw-word').waitFor({ timeout: 10000 });
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 1);
+  assert.equal(await waiting.locator('#reading .fw-word').textContent(), 'y');
+  const tabId = await worker.evaluate(async () => (await chrome.tabs.query({ url: 'https://reading.example/waiting' }))[0]?.id);
+  assert.ok(tabId);
+  const marker = await worker.evaluate(async (tabId) => {
+    const target = { tabId };
+    const [before] = await chrome.scripting.executeScript({ target, func: () =>
+      globalThis[Symbol.for('lang-weave.content-loader')] === true });
+    await chrome.scripting.executeScript({ target, files: ['src/content-loader.js'] });
+    await chrome.scripting.executeScript({ target, files: ['src/content-loader.js'] });
+    const [after] = await chrome.scripting.executeScript({ target, func: () =>
+      globalThis[Symbol.for('lang-weave.content-loader')] === true });
+    return before.result && after.result;
+  }, tabId);
+  assert.equal(marker, true);
+  assert.equal(await waiting.locator('#reading .fw-word').count(), 1);
+  console.log('startup-recovery: already-open granted page woven once without navigation or user gesture');
+} finally {
+  await browser?.close();
+  await rm(scratch, { recursive: true, force: true });
+}

@@ -1,6 +1,6 @@
 // Preferences, stored under chrome.storage.local["settings"]. The Gemini key is stored apart from these, so
 // the config pages get never carries it.
-import { languageCode } from './language-name.js';
+import { bundledLanguage, languageCode } from './language-name.js';
 import { MIN_RETENTION, MAX_RETENTION } from './fsrs.js';
 export const DEFAULT_SETTINGS = {
   enabled: true,
@@ -15,6 +15,14 @@ export const DEFAULT_SETTINGS = {
   siteOverrides: {}, // hostname -> true/false, set from the popup
 };
 
+// A truly new profile (completely empty storage at worker startup) starts with gradual learning on at five
+// new words a day (gradual-default-on-install-ruling). DEFAULT_SETTINGS keeps gradual off, because
+// cleanSettings back-fills it into every stored profile, including ones that predate the field. Every
+// build since 0.2 writes settings at its first startup, so only a new install's storage is still empty.
+export const FRESH_INSTALL_SETTINGS = Object.freeze({ gradual: true, newWordsPerDay: 5 });
+
+export const validSiteHost = (host) => /^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(host);
+
 export function cleanSettings(s = {}) {
   const d = { ...DEFAULT_SETTINGS, siteOverrides: {} };
   if (typeof s.enabled === 'boolean') d.enabled = s.enabled;
@@ -25,13 +33,16 @@ export function cleanSettings(s = {}) {
   if (typeof s.newSitesEnabled === 'boolean') d.newSitesEnabled = s.newSitesEnabled;
   if (['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(s.model)) d.model = s.model;
   if (Number.isInteger(s.levelOverride) && s.levelOverride >= 0 && s.levelOverride <= 4) d.levelOverride = s.levelOverride;
-  if (typeof s.language === 'string' && (s.language === 'es' || languageCode(s.language) === s.language)) d.language = s.language;
+  if (typeof s.language === 'string' && (bundledLanguage(s.language) || languageCode(s.language) === s.language)) d.language = s.language;
   // FSRS desired retention. Kept only when explicitly set, never defaulted into storage, so a
   // build that predates the setting can still read these settings; absent means 0.9.
   if (typeof s.desiredRetention === 'number' && s.desiredRetention >= MIN_RETENTION &&
       s.desiredRetention <= MAX_RETENTION) d.desiredRetention = s.desiredRetention;
+  // Guess first (guess.js): stored only while on, so a profile that never opts in is unchanged
+  // and a build that predates the setting still reads its settings. Absent means off.
+  if (s.guessFirst === true) d.guessFirst = true;
   for (const [host, enabled] of Object.entries(s.siteOverrides || {})) {
-    if (/^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?$/.test(host) && typeof enabled === 'boolean') d.siteOverrides[host] = enabled;
+    if (validSiteHost(host) && typeof enabled === 'boolean') d.siteOverrides[host] = enabled;
   }
   return d;
 }

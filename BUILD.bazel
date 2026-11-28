@@ -1,0 +1,275 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:private"])
+
+sh_test(
+    name = "fsrs_test",
+    srcs = ["//build_defs:run_fsrs_test.sh"],
+    args = ["$(rlocationpath @bun_linux_x64//:bun)"],
+    data = [
+        "//extension/src:fsrs",
+        "//extension/test:fsrs_cases",
+        "@bun_linux_x64//:bun",
+    ],
+    tags = ["block-network"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "package_boundary_test",
+    srcs = ["//build_defs:run_package_boundary_test.sh"],
+    args = ["$(rlocationpath @bun_linux_x64//:bun)"],
+    data = [
+        "//build_defs:package_boundary_test.mjs",
+        "//extension/scripts:packager",
+        "@bun_linux_x64//:bun",
+    ],
+    tags = ["block-network"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "version_classifier_test",
+    srcs = ["//build_defs:run_version_classifier_test.sh"],
+    data = [
+        "tests/check_version_bump.py",
+        "tests/test_version_bump.py",
+    ],
+    tags = ["block-network"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "beta_zip",
+    srcs = ["//build_defs:run_beta_zip.sh"],
+    args = ["$(rlocationpath @bun_linux_x64//:bun)"],
+    data = ["@bun_linux_x64//:bun"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "extension_release_test",
+    srcs = ["//build_defs:run_extension_release_test.sh"],
+    args = ["$(rlocationpath @bun_linux_x64//:bun)"],
+    data = [
+        "//extension:payload",
+        "//extension/scripts:packager",
+        "//extension/test:release_cases",
+        "@bun_linux_x64//:bun",
+    ],
+    tags = ["block-network"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+sh_test(
+    name = "extension_test",
+    size = "medium",
+    srcs = ["//build_defs:run_extension_test.sh"],
+    args = [
+        "$(rlocationpath @bun_linux_x64//:bun)",
+        "$(rlocationpath @extension_test_deps//:package.json)",
+    ],
+    data = [
+        "LICENSE",
+        "LICENSE-MIT",
+        "NOTICE",
+        "data/curriculum/es/SOURCES.json",
+        "data/curriculum/es/wordfreq-bands.csv",
+        "data/lexicon.csv",
+        "data/lexicons/indonesian.csv",
+        "data/lexicons/japanese.csv",
+        "data/lexicons/spanish.csv",
+        "scripts/curriculum/build.mjs",
+        "scripts/curriculum/english-inflections.mjs",
+        "scripts/curriculum/english-irregulars.json",
+        "scripts/curriculum/english-regulars.json",
+        "scripts/curriculum/fixtures/examples.tsv",
+        "scripts/curriculum/fixtures/wiktextract.jsonl",
+        "scripts/curriculum/overlay.json",
+        "scripts/curriculum/reviews.json",
+        "//extension:design/icon.svg",
+        "//extension:payload",
+        "//extension/scripts:suite_scripts",
+        "//extension/test:suite_cases",
+        "@bun_linux_x64//:bun",
+        "@extension_test_deps//:node_modules",
+        "@extension_test_deps//:package.json",
+    ],
+    tags = ["block-network"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+sh_test(
+    name = "beta_install_test",
+    srcs = ["//build_defs:run_beta_install_test.sh"],
+    args = [
+        "$(rlocationpath @bun_linux_x64//:bun)",
+        "$(rlocationpath @playwright_core//:index.mjs)",
+    ],
+    data = [
+        "LICENSE",
+        "LICENSE-MIT",
+        "NOTICE",
+        "//extension:e2e/browser.mjs",
+        "//extension:e2e/guarani-context.mjs",
+        "//extension:e2e/spanish-prose.mjs",
+        "//extension:e2e/welcome.mjs",
+        "//extension:e2e/words.mjs",
+        "//extension:manifest.json",
+        "@bun_linux_x64//:bun",
+        "@playwright_core//:index.mjs",
+        "@playwright_core//:runtime",
+    ],
+    # Requires an explicitly supplied local Chromium executable.
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+sh_test(
+    name = "supplementary_browser_test",
+    timeout = "long",
+    srcs = ["//build_defs:run_beta_install_test.sh"],
+    args = [
+        "$(rlocationpath @bun_linux_x64//:bun)",
+        "$(rlocationpath @playwright_core//:index.mjs)",
+        "--supplementary",
+    ],
+    data = [
+        "LICENSE",
+        "LICENSE-MIT",
+        "NOTICE",
+        "//extension:manifest.json",
+        "//extension:supplementary_browser_cases",
+        "@bun_linux_x64//:bun",
+        "@playwright_core//:index.mjs",
+        "@playwright_core//:runtime",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+sh_test(
+    name = "legacy_gloss_upgrade_test",
+    srcs = ["//build_defs:run_beta_install_test.sh"],
+    args = [
+        "$(rlocationpath @bun_linux_x64//:bun)",
+        "$(rlocationpath @playwright_core//:index.mjs)",
+        "extension/e2e/legacy-gloss-upgrade.mjs",
+    ],
+    data = [
+        "LICENSE",
+        "LICENSE-MIT",
+        "NOTICE",
+        "//extension:e2e/browser.mjs",
+        "//extension:e2e/legacy-gloss-upgrade.mjs",
+        "//extension:e2e/native-unpacked.mjs",
+        "//extension:manifest.json",
+        "@bun_linux_x64//:bun",
+        "@playwright_core//:index.mjs",
+        "@playwright_core//:runtime",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+sh_test(
+    name = "reading_reload_test",
+    timeout = "long",
+    srcs = ["//build_defs:run_beta_install_test.sh"],
+    args = [
+        "$(rlocationpath @bun_linux_x64//:bun)",
+        "$(rlocationpath @playwright_core//:index.mjs)",
+        "extension/e2e/reading-reload.mjs",
+    ],
+    data = [
+        "LICENSE",
+        "LICENSE-MIT",
+        "NOTICE",
+        "//extension:e2e/native-unpacked.mjs",
+        "//extension:e2e/reading-reload.mjs",
+        "//extension:manifest.json",
+        "@bun_linux_x64//:bun",
+        "@playwright_core//:index.mjs",
+        "@playwright_core//:runtime",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+sh_test(
+    name = "inherited_python_test",
+    srcs = ["//build_defs:run_inherited_python_test.sh"],
+    data = glob(
+        [
+            ".claude-plugin/*.json",
+            "blocks/level-*.md",
+            "commands/*.md",
+            "data/**/*.csv",
+            "scripts/*.py",
+            "tests/**/*.py",
+        ],
+        exclude = ["tests/model_eval.py"],
+    ) + glob(
+        ["tests/fixtures/**"],
+        allow_empty = True,
+    ) + [
+        "MODULE.bazel",
+        "//extension:version_scan_inputs",
+    ],
+    tags = ["block-network"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+sh_binary(
+    name = "release_version_check",
+    srcs = ["//build_defs:run_release_version_check.sh"],
+    args = ["$(rlocationpath :tests/check_version_bump.py)"],
+    data = ["tests/check_version_bump.py"],
+)
