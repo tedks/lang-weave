@@ -79,7 +79,8 @@ const schema = `
     reversedMicros INTEGER NOT NULL DEFAULT 0 CHECK (reversedMicros BETWEEN 0 AND reversalTarget),
     dispute TEXT NOT NULL DEFAULT 'none' CHECK (dispute IN ('none', 'open', 'won', 'lost')),
     paidMicros INTEGER,
-    refundedMicros INTEGER NOT NULL DEFAULT 0
+    refundedMicros INTEGER NOT NULL DEFAULT 0,
+    disputeLostMicros INTEGER NOT NULL DEFAULT 0
   ) STRICT;
   CREATE INDEX IF NOT EXISTS payment_account ON payments(accountId);
   CREATE TABLE IF NOT EXISTS payment_events (eventId TEXT PRIMARY KEY) STRICT;
@@ -95,6 +96,7 @@ const schema = `
     customerId TEXT,
     eventId TEXT REFERENCES payment_events,
     paidMicros INTEGER,
+    packMicros INTEGER NOT NULL,
     reason TEXT
   ) STRICT;
   CREATE TABLE IF NOT EXISTS corrections (
@@ -161,12 +163,14 @@ function freeze(tx, id, reason) {
 
 function recordPayment(tx, {
   paymentIntentId, packMicros, checkoutSessionId = null, customerId = null, accountId = null, dispute = 'none',
-  paidMicros = null,
+  paidMicros = null, disputeLostMicros = 0,
 }) {
   checkMicros(packMicros, 1);
+  if (paidMicros !== null) checkMicros(paidMicros, 1);
+  checkMicros(disputeLostMicros);
   tx.run(`
-    INSERT INTO payments (paymentIntentId, packMicros, checkoutSessionId, customerId, accountId, dispute, paidMicros)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO payments (paymentIntentId, packMicros, checkoutSessionId, customerId, accountId, dispute, paidMicros, disputeLostMicros)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (paymentIntentId) DO UPDATE SET
       checkoutSessionId = COALESCE(payments.checkoutSessionId, excluded.checkoutSessionId),
       customerId = COALESCE(payments.customerId, excluded.customerId),
@@ -175,8 +179,10 @@ function recordPayment(tx, {
         WHEN excluded.dispute = 'none' OR payments.dispute IN ('won', 'lost') THEN payments.dispute
         ELSE excluded.dispute
       END,
-      paidMicros = COALESCE(payments.paidMicros, excluded.paidMicros)
-  `, paymentIntentId, packMicros, checkoutSessionId, customerId, accountId, dispute, paidMicros);
+      paidMicros = COALESCE(payments.paidMicros, excluded.paidMicros),
+      disputeLostMicros = CASE WHEN payments.dispute = 'won' THEN payments.disputeLostMicros
+        ELSE MAX(payments.disputeLostMicros, excluded.disputeLostMicros) END
+  `, paymentIntentId, packMicros, checkoutSessionId, customerId, accountId, dispute, paidMicros, disputeLostMicros);
   const entry = payment(tx, paymentIntentId);
   if (entry.packMicros !== packMicros) throw new Error('Payment pack changed');
   if (dispute === 'open' && entry.grantState === 'granted') freeze(tx, entry.accountId, 'dispute');
@@ -188,19 +194,22 @@ function checkoutDisposition(tx, checkoutSessionId) {
 }
 
 function setDisposition(tx, checkoutSessionId, disposition, {
-  paymentIntentId = null, customerId = null, eventId = null, reason = null, paidMicros = null,
+  paymentIntentId = null, customerId = null, eventId = null, reason = null, paidMicros = null, packMicros,
 } = {}) {
   if (!checkoutSessionId) return;
   tx.run(`
-    INSERT INTO checkout_dispositions (checkoutSessionId, disposition, paymentIntentId, customerId, eventId, reason, paidMicros)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO checkout_dispositions (checkoutSessionId, disposition, paymentIntentId, customerId, eventId, reason, paidMicros, packMicros)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (checkoutSessionId) DO NOTHING
-  `, checkoutSessionId, disposition, paymentIntentId, customerId, eventId, reason, paidMicros);
+  `, checkoutSessionId, disposition, paymentIntentId, customerId, eventId, reason, paidMicros, packMicros);
 }
 
-function attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId, customerId, packMicros }) {
+function attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId, customerId }) {
   const previous = checkoutDisposition(tx, checkoutSessionId);
   if (!previous) return false;
+  const paymentEntry = paymentIntentId && payment(tx, paymentIntentId);
+  if (paymentEntry?.checkoutSessionId && paymentEntry.checkoutSessionId !== checkoutSessionId) return true;
+
   tx.run(`
     UPDATE checkout_dispositions SET paymentIntentId = COALESCE(paymentIntentId, ?),
       customerId = COALESCE(customerId, ?) WHERE checkoutSessionId = ?
@@ -208,7 +217,7 @@ function attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId, customerId,
 
   const intent = previous.paymentIntentId ?? paymentIntentId;
   if (intent && intent === paymentIntentId) {
-    recordPayment(tx, { paymentIntentId, checkoutSessionId, customerId, packMicros, paidMicros: previous.paidMicros });
+    recordPayment(tx, { paymentIntentId, checkoutSessionId, customerId, packMicros: previous.packMicros, paidMicros: previous.paidMicros });
     if (previous.disposition === 'orphan') {
       tx.run("UPDATE payments SET grantState = 'refused' WHERE paymentIntentId = ? AND grantState = 'pending'",
         paymentIntentId);
@@ -226,7 +235,8 @@ function grant(tx, id, eventId = null) {
   if (allowed) changeBalance(tx, current, entry.packMicros - entry.reversalTarget);
   tx.run('UPDATE payments SET grantState = ? WHERE paymentIntentId = ?', allowed ? 'granted' : 'refused', id);
   setDisposition(tx, entry.checkoutSessionId, allowed ? 'granted' : 'orphan', {
-    paymentIntentId: id, customerId: entry.customerId, eventId, reason: allowed ? null : 'grant_refused',
+    paymentIntentId: id, customerId: entry.customerId, packMicros: entry.packMicros,
+    eventId, reason: allowed ? null : 'grant_refused',
   });
   return payment(tx, id);
 }
@@ -327,13 +337,20 @@ export function createLedger(storage, { now = Date.now } = {}) {
         const entry = payment(tx, disposition.paymentIntentId);
         const refundedMicros = entry?.refundedMicros ?? 0;
         const paidMicros = entry?.paidMicros ?? disposition.paidMicros;
-        const status = entry?.dispute === 'open' ? 'disputed'
-          : entry?.dispute === 'lost' ? 'settled'
-            : paidMicros !== null && refundedMicros >= paidMicros ? 'refunded' : 'open';
-        return {
-          ...disposition, paidMicros, refundedMicros, status,
-          owedMicros: status === 'open' && paidMicros !== null ? paidMicros - refundedMicros : null,
-        };
+        const owedMicros = paidMicros === null ? null
+          : Math.max(0, paidMicros - refundedMicros - (entry?.disputeLostMicros ?? 0));
+        const status = entry?.dispute === 'open' ? 'disputed' : owedMicros === 0 ? 'settled' : 'open';
+        return { ...disposition, paidMicros, refundedMicros, status, owedMicros: status === 'open' ? owedMicros : null };
+      });
+    },
+    linkOrphan(checkoutSessionId, paymentIntentId) {
+      return transaction((tx) => {
+        const previous = checkoutDisposition(tx, checkoutSessionId);
+        if (previous?.disposition !== 'orphan') return 'NOT_ORPHAN';
+        if (previous.paymentIntentId && previous.paymentIntentId !== paymentIntentId) return 'CONFLICT';
+        attachCheckoutIds(tx, { checkoutSessionId, paymentIntentId, customerId: null });
+        const linked = checkoutDisposition(tx, checkoutSessionId);
+        return linked.paymentIntentId === paymentIntentId ? linked : 'CONFLICT';
       });
     },
     getIdempotency(accountId, keyHash) {
@@ -426,8 +443,8 @@ export function createLedger(storage, { now = Date.now } = {}) {
             return tx.run('INSERT INTO payment_diagnostics (eventId, type, reason) VALUES (?, ?, ?)', id, type, reason);
           },
           attachCheckoutIds: (checkout) => attachCheckoutIds(tx, checkout),
-          recordOrphanCheckout(checkoutSessionId, reason, customerId, paidMicros) {
-            setDisposition(tx, checkoutSessionId, 'orphan', { eventId: id, reason, customerId, paidMicros });
+          recordOrphanCheckout(checkoutSessionId, reason, customerId, paidMicros, packMicros) {
+            setDisposition(tx, checkoutSessionId, 'orphan', { eventId: id, reason, customerId, paidMicros, packMicros });
           },
         });
       });

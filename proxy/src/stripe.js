@@ -49,11 +49,11 @@ export function createStripeWebhook({
     const customerId = isCheckout ? stripeId(object.customer, 'cus_') : null;
     return ledger.applyPaymentEvent(eventId, (tx) => {
       if (!paymentIntentId) tx.recordDiagnostic(type, 'no_payment_intent');
-      if (checkoutSessionId && tx.attachCheckoutIds({ checkoutSessionId, paymentIntentId, customerId, packMicros })) {
+      if (checkoutSessionId && tx.attachCheckoutIds({ checkoutSessionId, paymentIntentId, customerId })) {
         return;
       }
       if (!paymentIntentId) {
-        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId, paidMicros);
+        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId, paidMicros, packMicros);
         return;
       }
       if (isCheckout && !checkoutSessionId) {
@@ -98,9 +98,14 @@ export function createStripeWebhook({
         tx.recordPayment({ ...payment, dispute: 'open' });
         tx.reverse(paymentIntentId, packMicros);
       } else {
-        const dispute = object.status;
-        if (dispute === 'won' || dispute === 'lost') tx.recordPayment({ ...payment, dispute });
-        else tx.recordDiagnostic(type, 'unrecognized_dispute_close');
+        const dispute = object.status === 'lost' ? 'lost' : 'won';
+        const validAmount = object.currency === 'usd' && Number.isSafeInteger(object.amount) &&
+          object.amount >= 0 && Number.isSafeInteger(object.amount * 10_000);
+        if (dispute === 'lost' && !validAmount) tx.recordDiagnostic(type, 'invalid_dispute_amount');
+        if (!['lost', 'won', 'warning_closed'].includes(object.status)) {
+          tx.recordDiagnostic(type, 'unrecognized_dispute_close');
+        }
+        tx.recordPayment({ ...payment, dispute, disputeLostMicros: dispute === 'lost' && validAmount ? object.amount * 10_000 : 0 });
       }
     });
   }
