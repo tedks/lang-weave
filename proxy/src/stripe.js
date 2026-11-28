@@ -47,13 +47,18 @@ export function createStripeWebhook({
     const paidMicros = paid && object.currency === 'usd' && Number.isSafeInteger(object.amount_total) &&
       object.amount_total > 0 && Number.isSafeInteger(object.amount_total * 10_000) ? object.amount_total * 10_000 : null;
     const customerId = isCheckout ? stripeId(object.customer, 'cus_') : null;
+    const reference = object.client_reference_id;
+    const accountId = typeof reference === 'string' && ACCOUNT_ID.test(reference) ? reference : null;
     return ledger.applyPaymentEvent(eventId, (tx) => {
       if (!paymentIntentId) tx.recordDiagnostic(type, 'no_payment_intent');
       if (checkoutSessionId && tx.attachCheckoutIds({ checkoutSessionId, paymentIntentId, customerId })) {
         return;
       }
       if (!paymentIntentId) {
-        if (paid && checkoutSessionId) tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId, paidMicros, packMicros);
+        if (paid && checkoutSessionId) {
+          tx.recordOrphanCheckout(checkoutSessionId, 'paid_without_payment_intent', customerId,
+            paidMicros, packMicros, accountId);
+        }
         return;
       }
       if (isCheckout && !checkoutSessionId) {
@@ -65,12 +70,10 @@ export function createStripeWebhook({
       if (isCheckout) {
         const matchingPack = stripeId(object.payment_link, 'plink_') === paymentLinkId &&
           object.currency === 'usd' && object.amount_total === amountCents;
-        const reference = object.client_reference_id;
         tx.recordPayment({
           ...payment, checkoutSessionId, customerId,
           paidMicros: matchingPack ? paidMicros : null,
-          accountId: paid && matchingPack && typeof reference === 'string' && ACCOUNT_ID.test(reference)
-            ? reference : null,
+          accountId: paid && matchingPack ? accountId : null,
         });
         if (!paid) return;
         if (!matchingPack) {
@@ -80,7 +83,6 @@ export function createStripeWebhook({
         const result = tx.grant(paymentIntentId);
         if (result.grantState === 'refused') tx.recordDiagnostic(type, 'grant_refused');
       } else if (type === REFUND) {
-        tx.recordPayment(payment);
         // A Charge reports both the intended and the captured amounts.
         // Reversal is relative to the money actually paid.
         const captured = object.amount_captured ?? object.amount;
@@ -88,12 +90,12 @@ export function createStripeWebhook({
         if (object.currency !== 'usd' || !Number.isSafeInteger(captured * 10_000) || captured <= 0 ||
             !Number.isSafeInteger(refunded * 10_000) || refunded < 0 ||
             !Number.isInteger(captured) || !Number.isInteger(refunded)) {
+          tx.recordPayment(payment);
           tx.recordDiagnostic(type, 'invalid_refund_amount');
           return;
         }
-        tx.reverse(paymentIntentId, refundTarget(packMicros, captured, refunded), {
-          paidMicros: captured * 10_000, refundedMicros: refunded * 10_000,
-        });
+        tx.recordPayment({ ...payment, paidMicros: captured * 10_000, refundedMicros: refunded * 10_000 });
+        tx.reverse(paymentIntentId, refundTarget(packMicros, captured, refunded));
       } else if (type === DISPUTE_OPEN) {
         tx.recordPayment({ ...payment, dispute: 'open' });
         tx.reverse(paymentIntentId, packMicros);
