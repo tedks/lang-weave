@@ -973,10 +973,15 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
 - **LW-STORE-MK-06 (2026-11-28, lead, for mk-proxy).** Clarification of C2/C4 refunds. Stripe's
   `amount_refunded` is cumulative, so a larger value is the later truth. A `charge.refunded` whose
   `amount_captured` is unusable keeps its `amount_refunded` as evidence; once the Checkout facts
-  exist, its target is computed against that payment's own `paidMicros` (v0 sells only through a
-  card-only Payment Link with full capture, so captured equals `amount_total`). Every event's
+  exist, its target is `ceil(packMicros × amount_refunded / amount_total)`, both in cents (v0
+  sells only through a card-only Payment Link with full capture, so captured equals
+  `amount_total`; never divide cents by `paidMicros`). The Checkout intake computes any such
+  deferred targets from the stored evidence in the same transaction, before `grant` subtracts
+  `reversalTarget`. **MK-06 applies to `usd` records only**; a non-USD record's refund evidence stays in minor units
+  for manual reconciliation under MK-05, with no computed target. Every event's
   target is computed from its own pair and the record keeps the maximum target (C2's monotonic
-  rule), so a later grant is `packMicros` minus that target and never credits above the
-  observed refund. A full refund before Checkout is still an ordinary zero-credit `granted`
+  rule), so a later grant for an otherwise eligible Checkout is `packMicros` minus that target
+  and excludes the refunded portion. A full refund before an otherwise eligible Checkout is
+  still an ordinary zero-credit `granted`
   (C2 `grant`), not a refusal. Before any Checkout exists the record is `pending` as usual.
   Fixtures cover 600-with-unusable-capture → 325/1000 → Checkout, and Checkout first.
