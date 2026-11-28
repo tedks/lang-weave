@@ -13,6 +13,7 @@ const MAX_RESPONSE = 48000;
 const FIELD = /^[^\p{Cc}<>\[\]{}\r\n]{1,80}$/u;
 export const validField = (s, joiners = false) => typeof s === 'string' && FIELD.test(s) &&
   s.trim() === s && !/\p{Cf}/u.test(joiners ? s.replace(/[\u200c\u200d]/g, '') : s);
+export const validPackGloss = (s) => validField(s) && s.length <= 60 && /\p{L}/u.test(s);
 
 export function cleanPack(raw, code) {
   if (languageCode(code) !== code || !raw || !Array.isArray(raw.words) || raw.words.length < 20 || raw.words.length > 80) return null;
@@ -20,10 +21,10 @@ export function cleanPack(raw, code) {
   const seen = new Set();
   let beginner = 0;
   for (const w of raw.words) {
-    if (!w || ![1, 2].includes(w.level) || !validPackForm(w.fr) || !validField(w.en) || !validField(w.hint) ||
-        !/\p{L}/u.test(w.en)) return null;
+    if (!w || ![1, 2].includes(w.level) || !validPackForm(w.fr) || !validPackGloss(w.en) || !validField(w.hint))
+      return null;
     const key = w.fr.normalize('NFC').toLocaleLowerCase(code);
-    if (seen.has(key) || w.en.length > 60 || w.hint.length > 60) return null;
+    if (seen.has(key) || w.hint.length > 60) return null;
     seen.add(key);
     if (w.level === 1) beginner++;
     words.push({ fr: w.fr.normalize('NFC'), en: w.en, hint: w.hint, level: w.level });

@@ -6,7 +6,7 @@ import { requestSwaps } from '../src/engine.js';
 import { localDay, SENT_KEY } from '../src/events.js';
 import { API_BASE } from '../src/gemini.js';
 import { hashKey } from '../src/hash.js';
-import { cleanPack, validField } from '../src/languages.js';
+import { cleanPack, validPackGloss } from '../src/languages.js';
 import { MANAGED_BASE } from '../src/managed.js';
 import { MAX_PERSONAL, PERSONAL_KEY, validForm } from '../src/personal.js';
 import { createBackup, parseBackup, targetFresh } from '../src/portability.js';
@@ -294,7 +294,7 @@ function validatedProxy(url, init) {
   for (const { source, fr, en, status } of wire.words) {
     expect(['active', 'new', 'due', 'known']).toContain(status);
     if (source === 'pack') {
-      expect(validPackForm(fr) && validField(en) && en.length <= 60 && /\p{L}/u.test(en)).toBe(true);
+      expect(validPackForm(fr) && validPackGloss(en)).toBe(true);
     } else {
       expect(source).toBe('personal');
       expect([validForm(fr), validForm(en)]).toEqual([fr, en]);
