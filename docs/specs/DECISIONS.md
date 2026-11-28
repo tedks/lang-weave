@@ -266,7 +266,8 @@ After yes, in two parts around D8:
    ledger row, then removes that event type.
    D10 activates the link only after (a), (b) and (c) pass. If the tester's purchase still is not
    credited within one hour, the lead checks Stripe's delivery log, fixes and replays the event,
-   or refunds the tester in full the same day.
+   or refunds the tester in full the same day; the same-day refund also applies if a replay is
+   attempted and still produces no credit.
 
 ## D10. Price and first sale
 

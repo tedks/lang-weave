@@ -236,7 +236,7 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   answer, even when pricing or the stop latch would now refuse a new call. The held response
   itself comes from E2's own in-memory cache, as C1 says, never from the ledger.
 - `reserve(accountId, readerWorst, providerMax, priceRowId, ceiling, keyHash, bodyHash) →
-  reservationId | BALANCE | DAILY_CAP | CEILING | STOPPED | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
+  reservationId | BALANCE | DAILY_CAP | CEILING | STOPPED | STALE_PRICE | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
   claims the idempotency key (C1) in the same transaction, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
   largest amount the call could possibly cost the operator. It checks the
   idempotency claim first (`DUPLICATE` / `KEY_REUSE` / `BUSY` for an open one, as C1), so a
@@ -244,7 +244,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   own clock in the transaction (the UTC date at admission), and succeeds only if: the ledger's
   global **stop latch** is clear, the price row `priceRowId` that E2 priced the call with is
   the **active** row for the call's model and that `dayKey` in the authoritative table (so a
-  proxy instance holding a superseded row cannot admit with it) and in date (at most 30 days
+  proxy instance holding a superseded row cannot admit with it; a quoted row that is no longer
+  active returns `STALE_PRICE`, on which E2 prices once more and calls `reserve` again, and
+  answers `503 managed_unavailable` only if the second attempt also fails) and in date (at most 30 days
   after its `checkedOn`) (superseded rows stay readable for `actual` at settlement; the table is read in the same transaction, so a row that expires
   between pricing and reservation, including across UTC midnight, is caught here), and, while
   `ENROLLMENT=allowlist`, the account is on `ENROLLED_ACCOUNTS` (a ledger table the operator
@@ -467,7 +469,8 @@ order and any number of times.
   operator decides on unfreezing; for an orphan it only records the outcome (and
   `disputeLostMicros`), and the orphan's status is recomputed by C2's derivation, which alone
   decides whether money is still owed.
-- Every other event type returns 200 and changes nothing.
+- Every other event type returns 200 with the diagnostic `verified_unhandled` and changes nothing
+  (its event id is not recorded either), which is what DECISIONS D9 check (c) looks for.
 
 Disputes can arrive weeks after purchase, so freezing does not stop disputes on packs already
 spent. The commercial bound is therefore **per disputed pack**: at most its price plus the $15
@@ -940,3 +943,11 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   through the same `reverse` path, keyed by that `payment_intent`, never through `adjust`, so a
   later event that does carry the id raises nothing further (the reversal target is monotonic)
   and the usual dispute freeze applies.
+- **LW-STORE-MK-05 (2026-11-28, lead, for mk-proxy).** Clarification of C2/C4: an owned
+  (credit-link) paid Checkout session whose `currency` is not `usd` becomes a terminal `refused`
+  orphan that keeps Stripe's own currency and minor-unit amounts (`paidCurrency`, `paidMinor`,
+  and `refundedMinor` / `disputeLostMinor` for its later events), with `paidMicros` null. Those
+  amounts are never converted into USD micros and never credit. Its derived orphan status is
+  `manual`: it stays in the refund queue until the operator, having checked Stripe, marks it
+  settled (advisory only, like every orphan status). USD records are unchanged. A fixture covers
+  a EUR paid session becoming a `manual` orphan, then a partial refund kept in minor units.
