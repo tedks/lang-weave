@@ -784,3 +784,10 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
   (`prompt.js:55,64-68`), and `validateSwaps` rejects unlisted words, so nothing is lost, and the
   list cannot exceed the 400-word cap. The proxy rejects a `shownToday` form not in `words`
   (`400 request_failed`). The BYOK path is unchanged.
+- **LW-STORE-MK-03 (2026-11-28, lead, for mk-ext).** Clarification of C1's combined-maximum test:
+  the fixture's full catalog passes through the worker's own word selection for the mode (the
+  gradual working-set selector in `adaptive.js`; the ordinary path otherwise) before E1 measures,
+  splits and sends. Two cases: gradual, which must send at least one passage; and ordinary, where a
+  vocabulary that alone exceeds the cap is asserted as the specified drop (zero calls, zero
+  charge) and labelled an expected degradation. If ordinary-mode managed reading cannot send for
+  realistic personal lists, that is reported as a finding against this spec.
