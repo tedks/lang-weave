@@ -36,8 +36,8 @@ describe('shared swap request', () => {
 
   for (const [label, inputs] of Object.entries({
     'ordinary Spanish': { language: 'es', words: spanish, shownToday: ['la ventana'] },
-    'gradual Spanish': { language: 'es', words: spanish, unknownLimit: true, density: 'more' },
-    'Guaraní': { language: 'gn', words: guarani, density: 'less' },
+    'gradual Spanish': { language: 'es', words: spanish, unknownLimit: true, density: 'heavy' },
+    'Guaraní': { language: GUARANI_STARTER, words: guarani, density: 'light' },
     'generated pack': { language: 'ja', words: pack, unknownLimit: true, shownToday: ['ame'] },
   })) {
     test(`preserves the pre-extraction request bytes for ${label}`, async () => {

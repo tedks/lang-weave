@@ -1,6 +1,6 @@
 // One batch, one model call (fallback model once on failure), validated swaps out.
 import { callGemini, FALLBACK_MODEL } from './gemini.js';
-import { validateSwaps, capSwaps } from './levels.js';
+import { validateBatchSwaps } from './levels.js';
 import { buildSwapRequest } from './swap-request.js';
 
 // cooldown: Map<model, until ms>. Rate-limited or overloaded models are skipped until then, so the
@@ -29,11 +29,7 @@ export async function requestSwaps({ apiKey, model, level, batch, words, languag
   for (const m of models) {
     try {
       const byId = await callGemini({ fetchImpl, apiKey, model: m, body, timeoutMs: timeoutFor(m, models, timeoutMs) });
-      const results = {};
-      for (const { id, text } of batch) {
-        if (!byId.has(id)) throw new Error('Incomplete model response');
-        results[id] = capSwaps(level, validateSwaps(level, byId.get(id), words, language, { text }), text, words, density);
-      }
+      const results = validateBatchSwaps(level, batch, byId, words, language, density);
       return { results, model: m, errors };
     } catch (e) {
       if (e?.stale) throw e;

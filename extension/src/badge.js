@@ -3,7 +3,7 @@ import { chromeStorage } from './cache.js';
 import { t } from './i18n.js';
 import { DAILY_MODEL_CALLS, callsToday } from './quota.js';
 import { cleanQuotaState, safeModelStatus, visibleModelStatus,
-  STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+  MANAGED_STATUS_KEY, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 import { readingState } from './state.js';
 
 // Matches the light --ui-danger and --ui-muted tokens in ui.css. White text is explicit
@@ -48,12 +48,14 @@ export function createBadge({ context, store, updatePending }) {
 
   async function snapshot() {
     const [config, data] = await Promise.all([
-      context(), store.get(['keyEpoch', STATUS_KEY, QUOTA_STATE_KEY, 'consentShown']),
+      context(), store.get(['keyEpoch', STATUS_KEY, MANAGED_STATUS_KEY, QUOTA_STATE_KEY, 'consentShown']),
     ]);
-    const stored = safeModelStatus(data[STATUS_KEY]);
+    const value = data[config.settings.managedProvider ? MANAGED_STATUS_KEY : STATUS_KEY];
+    const stored = safeModelStatus(value);
     const budgetReached = stored?.category === 'local_budget' &&
       await callsToday(chromeStorage) >= DAILY_MODEL_CALLS;
-    const status = visibleModelStatus(data[STATUS_KEY], data[QUOTA_STATE_KEY], data.keyEpoch, budgetReached);
+    const status = visibleModelStatus(value, data[QUOTA_STATE_KEY], data.keyEpoch,
+      budgetReached, Date.now(), config.settings.managedProvider);
     return { config, data, status };
   }
 

@@ -723,7 +723,8 @@ async function flush() {
     pending.delete(i.key);
     const swaps = result?.results?.[i.key];
     if (!Array.isArray(swaps)) {
-      // A failed model call (usually the free tier's rate limit) is retried instead of leaving the passage English.
+      // Retry free-tier failures. Managed calls can already have been charged.
+      if (config.settings.managedProvider) continue;
       const tries = (failures.get(i.key) || 0) + 1;
       failures.set(i.key, tries);
       if (p && tries <= MAX_RETRIES) {

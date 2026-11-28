@@ -39,7 +39,8 @@ const LOG_FIELDS = ['retrievals', 'exposures'];
 // counts unverified log entries dropped under the CTO's ruling B.
 const mode = (source, schema) => ({ source, schema, omitted: { retrievals: 0, exposures: 0 } });
 const DIRECT_KEYS = new Set(['settings', 'languagePacks', 'personalVocabularyV1', ...LEARNING_SUFFIXES]);
-const NON_LEARNING_KEYS = new Set(['apiKey', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus', 'consentShown',
+const NON_LEARNING_KEYS = new Set(['apiKey', 'managedToken', 'epoch', 'keyEpoch', 'modelCalls', 'modelStatus',
+  'managedModelStatus', 'consentShown',
   'quotaState', 'reloadedFor', 'spanishPlacement', MEASUREMENTS_SKIPPED_KEY, IMPORT_JOURNAL_KEY, IMPORT_RECEIPT_KEY]);
 const VERSION = /^[0-9a-f]{16}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -48,8 +49,8 @@ const BAD_KEY = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_SCOPES = 80;
 const MAX_CARDS = 5000;
 const SETTINGS_FIELDS = ['enabled', 'model', 'levelOverride', 'language', 'gradual',
-  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'desiredRetention',
-  'guessFirst'];
+  'newWordsPerDay', 'density', 'inlineRecall', 'newSitesEnabled', 'siteOverrides', 'apiKey', 'managedToken',
+  'desiredRetention', 'guessFirst', 'managedProvider'];
 
 function fail(reason) { throw new Error(`Learning backup: ${reason}`); }
 function object(value, name) {
@@ -554,6 +555,8 @@ export function targetFresh(all) {
   const scopes = storageEntries(all); // rejects unknown target keys, including unknown scoped formats
   validateStorageSettings(all.settings || {});
   if (all.apiKey || all.settings?.apiKey) fail('target has a key; import into a keyless fresh installation');
+  if (all.managedToken || all.settings?.managedToken)
+    fail('target has a managed token; import into a keyless fresh installation');
   if (Object.keys(packs(all.languagePacks || {})).length) fail('target has installed language packs');
   const own = personal(all.personalVocabularyV1 || { version: 1, revision: 0, entries: [], history: {} }, mode(true, 1));
   if (own.entries.length || Object.values(own.history).some((s) => Object.keys(s.cards).length || s.learning.day || s.learning.count))

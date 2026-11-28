@@ -226,6 +226,15 @@ export function validateSwaps(level, swaps, sharedWords, language = 'es', { text
   return out;
 }
 
+export function validateBatchSwaps(level, batch, byId, words, language, density) {
+  const results = {};
+  for (const { id, text } of batch) {
+    if (!byId.has(id)) throw new Error('Incomplete model response');
+    results[id] = capSwaps(level, validateSwaps(level, byId.get(id), words, language, { text }), text, words, density);
+  }
+  return results;
+}
+
 export function sentenceCount(text) {
   return Math.max(1, String(text).split(/[.!?…]+(?:\s|$)|\n+/).filter((s) => wordCount(s) >= 3).length);
 }

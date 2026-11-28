@@ -171,6 +171,26 @@
     "message": "Model request failed. Try again later.",
     "description": "Model status for any other failed request. Fixed copy: never include provider or error text."
   },
+  "status_managed_balance": {
+    "message": "Managed reading has insufficient available credit.",
+    "description": "Managed reading status when an account cannot reserve credit for a request."
+  },
+  "status_managed_unauthorized": {
+    "message": "Managed reading could not verify this token.",
+    "description": "Managed reading status when the credential is rejected."
+  },
+  "status_managed_unavailable": {
+    "message": "Managed reading is temporarily unavailable.",
+    "description": "Managed reading status when the proxy pauses requests."
+  },
+  "status_managed_ahead": {
+    "message": "Managed reading is updating; try again later",
+    "description": "Managed reading status when the extension is newer than the proxy."
+  },
+  "status_managed_behind": {
+    "message": "Update Lang Weave to keep using managed reading",
+    "description": "Managed reading status when the extension is too old for the proxy."
+  },
   "badge_new_text": {
     "message": "NEW",
     "description": "Toolbar badge text when an update is waiting. At most 4 characters."

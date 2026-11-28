@@ -26,6 +26,8 @@ export const validSiteHost = (host) => /^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-
 export function cleanSettings(s = {}) {
   const d = { ...DEFAULT_SETTINGS, siteOverrides: {} };
   if (typeof s.enabled === 'boolean') d.enabled = s.enabled;
+  // Hidden tracer setting. An absent flag is off and keeps the BYOK reading revision stable.
+  if (s.managedProvider === true) d.managedProvider = true;
   if (typeof s.gradual === 'boolean') d.gradual = s.gradual;
   if (Number.isInteger(s.newWordsPerDay) && s.newWordsPerDay >= 1 && s.newWordsPerDay <= 10) d.newWordsPerDay = s.newWordsPerDay;
   if (['light', 'normal', 'heavy'].includes(s.density)) d.density = s.density;

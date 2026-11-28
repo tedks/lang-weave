@@ -23,7 +23,7 @@ import { createBackupHandlers } from './backup-handlers.js';
 import { createProgressHandlers } from './progress-handlers.js';
 import { createSites } from './sites.js';
 import { createBadge } from './badge.js';
-import { STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
+import { MANAGED_STATUS_KEY, STATUS_KEY, QUOTA_STATE_KEY } from './quota-status.js';
 export { RELOADED_KEY } from './update.js';
 
 const store = chrome.storage.local;
@@ -186,7 +186,8 @@ chrome.tabs.onUpdated?.addListener((tabId, change) => {
     void badge.refresh(tabId).catch(() => {});
 });
 chrome.storage.onChanged?.addListener((changes, area) => {
-  if (area === 'local' && ['settings', 'apiKey', 'keyEpoch', 'consentShown', STATUS_KEY, QUOTA_STATE_KEY]
+  if (area === 'local' && ['settings', 'apiKey', 'managedToken', 'keyEpoch', 'consentShown',
+    MANAGED_STATUS_KEY, STATUS_KEY, QUOTA_STATE_KEY]
     .some((key) => Object.hasOwn(changes, key))) void badge.refreshAll().catch(() => {});
 });
 
