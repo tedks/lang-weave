@@ -589,7 +589,7 @@ $5/month fixed hosting bill at the $4.41 margin per $10 pack (section 10.5) need
 
 Evidence that would change this, in the order it could arrive:
 
-1. A free BYOK listing exists and the Store dashboard shows **at least 200 weekly users for four
+1. A BYOK listing exists and the Store dashboard shows **at least 200 weekly users for four
    consecutive weeks**. Until then the managed path has nobody to sell to.
 2. **At least 20 distinct readers** take an explicit "I'd rather pay than get a key" action: a
    link on the key step to a static page with a GitHub discussion or a mailto. It is counted by

@@ -112,11 +112,13 @@ certifications are on hold.
    quota error names a `..._freetier` quota dimension (`extension/src/quota-status.js`), so the
    extension can stop reading and re-prompt when it sees one. An attestation does not establish
    which terms Google applies to a request, so **the Limited Use certifications stay on hold even
-   under option 1** until the packet names the policy exception that covers the paid tier's abuse
-   review and says how it treats a reader whose attestation is false. This option also means basic
-   use requires paying Google, which the Store policy says the description must state; the listing,
-   the "free BYOK" wording in the summary, and the basis of D3's US-only ruling (which rests on not
-   being able to tell keys apart) all change. That is a code change and a release.
+   under option 1** until the packet (a) names the policy exception that covers the paid tier's
+   abuse review and (b) establishes a basis that covers free-key requests that succeed without ever
+   tripping the quota signal, since a false or mistaken attestation still sends page text under the
+   free terms. If either cannot be established, the hold stays and option 3 applies. This option
+   also means basic use requires paying Google, which the Store policy says the description must
+   state; the listing changes, and D3's US-only rationale (which rests on not being able to tell
+   keys apart, still true under an attestation) is revisited. That is a code change and a release.
 2. **Accept the risk with disclosure**, as the packet does today. Possible rejection, and a policy
    statement that may not be true for free-key readers.
 3. **Do not list for now; keep GitHub distribution.** This is not a route to the managed key on
@@ -132,10 +134,12 @@ Not option 2.
 After a yes to 1: a lead drafts the key-step change (an explicit "my key has billing on"
 attestation, the free-tier quota re-prompt, disclosure text, refusal wording) and councils it. The
 packet then quotes the Limited Use exception relied on, adds the paid-functionality line to the
-description, and is re-councilled before any certification is signed. Ditz
+description, shows the basis covering undetected free-key requests, and is re-councilled before
+any certification is signed. Ditz
 `store-provider-region-ruling` records the ruling and revisits the region basis.
 
-After a yes to 3: say which demand signal replaces D6's Store-usage gate; a lead amends D6 to match.
+After a yes to 3: say which demand signal replaces D6's Store-usage gate; a lead amends D6 and
+evidence item 1 in `managed-key.md` section 9 to match.
 
 ## D4. Privacy policy and its URL
 
@@ -157,7 +161,7 @@ After yes:
 1. A lead builds the Store ZIP from the exact release tag, checks its digest against the release
    record, and runs the release gates.
 2. Agent: upload the ZIP, complete the privacy tab (permission justifications, data-use answers and
-   certifications from the packet), and set deferred publishing.
+   certifications from the packet, only after D3a's hold is cleared), and set deferred publishing.
 3. You: press **Submit for review**. You are certifying the data-use answers.
 4. After approval, you press **Publish**, or you leave it (approval holds for 30 days).
 
