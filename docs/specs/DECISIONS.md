@@ -9,8 +9,8 @@ Each decision gives a recommendation, the exact steps after a yes, and who can d
 you watch. "You" means a step only you can take: identity checks, 2-Step Verification, payment,
 accepting legal terms, and anything published under your name.
 
-The one-line version: **list the free BYOK extension first (D1–D5), and do not build the managed
-key until the evidence in D6 exists.** There are no known outside users today.
+The one-line version: **list the BYOK extension first (D1–D5, with D3a deciding whether the Store
+build requires a billed key), and do not build the managed key until the evidence in D6 exists.** There are no known outside users today.
 
 ---
 
@@ -105,19 +105,37 @@ Nothing in the packet settles this, so the Limited Use statement and the three d
 certifications are on hold.
 
 **Options:**
-1. **The Store build accepts only billed keys** (Google's paid tier, which does not use the text to
-   improve its products; it keeps limited abuse logs). This is the cleanest fit. Readers must turn
-   on billing in Google Cloud, and the extension cannot verify a key's billing status itself, so it
-   would rely on the reader's confirmation plus clear disclosure. That is a code change and a release.
+1. **The Store build requires a billing attestation.** Google's paid tier does not use the text to
+   improve its products, though it keeps limited logs for abuse and legal purposes. The extension
+   cannot verify a key's billing status, so the build can only *require the reader to confirm*
+   that billing is on, and show the disclosure. One partial signal exists: a free-tier key's daily
+   quota error names a `..._freetier` quota dimension (`extension/src/quota-status.js`), so the
+   extension can stop reading and re-prompt when it sees one. An attestation does not establish
+   which terms Google applies to a request, so **the Limited Use certifications stay on hold even
+   under option 1** until the packet names the policy exception that covers the paid tier's abuse
+   review and says how it treats a reader whose attestation is false. This option also means basic
+   use requires paying Google, which the Store policy says the description must state; the listing,
+   the "free BYOK" wording in the summary, and the basis of D3's US-only ruling (which rests on not
+   being able to tell keys apart) all change. That is a code change and a release.
 2. **Accept the risk with disclosure**, as the packet does today. Possible rejection, and a policy
    statement that may not be true for free-key readers.
-3. **Delay submission** until the managed key (D6–D10) exists, which is always a paid project.
+3. **Do not list for now; keep GitHub distribution.** This is not a route to the managed key on
+   its own: D6 waits for Store usage, so choosing 3 means also overriding D6 with a different
+   demand signal (GitHub beta readers plus the "I'd rather pay" link, which needs a public page).
+   Even a later Store build that offers managed reading still has to settle free-key BYOK by
+   option 1, by removing BYOK from the Store build, or by accepting option 2.
 
-**Recommendation: option 1** if you want to submit soon. Otherwise option 3. Not option 2.
+**Recommendation: option 1** if you want to submit soon, knowing the certifications still need the
+exception named before signing. If you would rather wait, option 3 with an explicit D6 override.
+Not option 2.
 
-After a yes to 1: a lead drafts the key-step change (explicit "my key has billing on"
-confirmation, disclosure text, refusal wording), councils it, and the packet's certifications are
-then rewritten for a paid-key-only build. Ditz `store-provider-region-ruling` records the ruling.
+After a yes to 1: a lead drafts the key-step change (an explicit "my key has billing on"
+attestation, the free-tier quota re-prompt, disclosure text, refusal wording) and councils it. The
+packet then quotes the Limited Use exception relied on, adds the paid-functionality line to the
+description, and is re-councilled before any certification is signed. Ditz
+`store-provider-region-ruling` records the ruling and revisits the region basis.
+
+After a yes to 3: say which demand signal replaces D6's Store-usage gate; a lead amends D6 to match.
 
 ## D4. Privacy policy and its URL
 
