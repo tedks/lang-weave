@@ -348,11 +348,12 @@ function recordPayment(tx, {
   disputeLostMicros, disputeLostMinor, Number(paid), Number(paid));
 
   let entry = payment(tx, paymentIntentId);
-  // Missing captures are paired only with this payment's known Checkout
-  // amount. Valid Charge snapshots are priced independently in E5.
-  if (entry.paidMicros > 0 && entry.uncapturedRefundMicros > 0) {
-    entry = reverse(tx, paymentIntentId,
-      proportionalRefundTarget(entry.packMicros, entry.paidMicros, entry.uncapturedRefundMicros));
+  // MK-06 uses the paid Checkout's total for missing captures. Both
+  // values originate in Stripe cents, even though the ledger stores USD micros.
+  if (entry.paidCurrency === 'usd' && entry.paidMicros > 0 && entry.uncapturedRefundMicros > 0) {
+    const amountTotal = entry.paidMicros / 10_000;
+    const amountRefunded = entry.uncapturedRefundMicros / 10_000;
+    entry = reverse(tx, paymentIntentId, proportionalRefundTarget(entry.packMicros, amountTotal, amountRefunded));
   }
   if (entry.grantDeferred && entry.grantState === 'pending' && entry.dispute !== 'none') {
     return finishGrant(tx, entry, false, eventId, 'grant_refused');
@@ -536,12 +537,39 @@ function reconcile(tx, entry, providerActual, { providerRequestId, providerReque
 function applyFinalization(tx, prior, outcome, now) {
   const result = tryFinish(tx, prior, { ...outcome, now });
   if (!result || result.won) return result;
+  recordProviderIds(tx, prior.reservationId, outcome);
   // Expiry could have won before this receipt was staged. Keep its reader
   // debit and apply the receipt as late evidence, never as a new charge.
   if (prior.state === 'provisional' && prior.providerActual === null) {
     return { ...reconcile(tx, prior, outcome.providerActual, outcome), won: false };
   }
-  return result;
+  return reservation(tx, prior.reservationId);
+}
+
+function applyReceipts(tx, receipts, at, applied, alarms) {
+  const pending = [];
+  for (const receipt of receipts) {
+    const { reservationId, kind } = receipt;
+    const prior = reservation(tx, reservationId);
+    if (!prior) {
+      applied.push(receipt);
+      continue;
+    }
+    const outcome = finalizationOutcome(receipt);
+    if (kind === 'late' && prior.state === 'open') {
+      // IDs are attributable before settlement. Export matching must see
+      // them even when the provider cost is waiting for the reader's result.
+      recordProviderIds(tx, reservationId, outcome);
+      pending.push(receipt);
+      continue;
+    }
+    const entry = kind === 'late'
+      ? reconcile(tx, prior, outcome.providerActual, outcome)
+      : applyFinalization(tx, prior, outcome, at);
+    if (entry.overage && !prior.overage) alarms.add(reservationId);
+    applied.push(receipt);
+  }
+  return pending;
 }
 
 const dayCost = `
@@ -570,8 +598,22 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     // Losing to an unconfirmed provisional result does not change it.
     // Keep the evidence until explicit reconciliation or journal recovery.
     const needsReconciliation = result && !result.won && result.state === 'provisional' && result.providerActual === null;
-    if (!needsReconciliation) storage.finalizations.acknowledge(receipt);
+    const hasAliases = outcome.providerRequestId || outcome.providerRequestIds?.length;
+    if (!needsReconciliation && (!result || result.won || !hasAliases)) storage.finalizations.acknowledge([receipt]);
     return result && { ...result, won: result.won && sameOutcome };
+  }
+
+  function withAppliedReceipts(operation, at = now) {
+    const applied = [];
+    const alarms = new Set();
+    const result = storage.finalizations.withSnapshot((receipts) => transaction((tx) => {
+      const currentTime = at();
+      const pending = applyReceipts(tx, receipts, currentTime, applied, alarms);
+      return operation(tx, pending, currentTime, applied, alarms);
+    }));
+    storage.finalizations.acknowledge(applied);
+    for (const reservationId of alarms) onOverage({ reason: 'overage', reservationId });
+    return result;
   }
 
   return {
@@ -694,8 +736,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         checkMicros(readerWorst);
         checkMicros(providerMax);
       }
-      return storage.finalizations.withSnapshot((receipts) => transaction((tx) => {
-        const at = now();
+      return withAppliedReceipts((tx, pending, at) => {
         if (tokenHash && !tx.get('SELECT 1 FROM accounts WHERE accountId = ? AND tokenHash = ?', accountId, tokenHash)) {
           return 'UNAUTHORIZED';
         }
@@ -707,8 +748,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         if (tokenHash && !priceRequest) return 'NO_PRICE';
 
         const dayKey = utcDay(at);
-        if (tx.get('SELECT 1 FROM managed_stop WHERE singleton = 1') ||
-            receipts.some(({ reservationId }) => reservation(tx, reservationId)?.state === 'open')) return 'STOPPED';
+        if (tx.get('SELECT 1 FROM managed_stop WHERE singleton = 1') || pending.length) return 'STOPPED';
         const quotedModel = model ?? tx.get('SELECT model FROM price_rows WHERE id = ?', priceRowId)?.model ?? null;
         const priceRow = currentPrice(tx, quotedModel, dayKey);
         if (priceRowId && priceRow?.id !== priceRowId) return 'STALE_PRICE';
@@ -745,7 +785,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
           accountId, keyHash, bodyHash, id);
         tx.run('UPDATE accounts SET reservedMicros = reservedMicros + ? WHERE accountId = ?', readerWorst, accountId);
         return priceRequest ? { kind: 'RESERVED', reservationId: id, priceRow, readerWorst } : id;
-      }));
+      });
     },
     settle(id, readerActual, providerActual, reason, { providerRequestId, providerRequestIds, usage = null } = {}) {
       checkMicros(readerActual);
@@ -761,39 +801,30 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       });
     },
     expireStale(at = now()) {
-      const recovered = [];
-      const expired = storage.finalizations.withSnapshot((receipts) => transaction((tx) => {
-        for (const receipt of receipts) {
-          const { reservationId } = receipt;
-          const prior = reservation(tx, reservationId);
-          const entry = applyFinalization(tx, prior, finalizationOutcome(receipt), at);
-          recovered.push({ receipt, alarm: !!entry?.overage && !prior?.overage });
-        }
-        return expireStale(tx, at);
-      }));
-      for (const { receipt, alarm } of recovered) {
-        storage.finalizations.acknowledge(receipt);
-        if (alarm) onOverage({ reason: 'overage', reservationId: receipt.reservationId });
-      }
-      return expired;
+      return withAppliedReceipts((tx, pending, currentTime, applied, alarms) => {
+        const expired = expireStale(tx, currentTime);
+        if (expired.length && pending.length) applyReceipts(tx, pending, currentTime, applied, alarms);
+        return expired;
+      }, () => at);
     },
-    // Direct reconciliation is for an attributable response to this request.
-    reconcile(id, providerActual, details) {
-      return checkOverage(id, (tx, prior) => reconcile(tx, prior, providerActual, details));
+    // Direct reconciliation is for evidence already attributed to this request.
+    reconcile(id, providerActual, details = {}) {
+      providerAmount(providerActual);
+      storage.finalizations.stageLate(id, { ...details, providerActual });
+      return withAppliedReceipts((tx) => reservation(tx, id));
     },
     reconcileProviderRequest(providerRequestId, providerActual) {
       checkMicros(providerActual);
-      const { entry, alarm } = transaction((tx) => {
+      return withAppliedReceipts((tx, _pending, _at, _applied, alarms) => {
         const matches = tx.all(`
           SELECT r.* FROM provider_request_ids i JOIN reservations r USING (reservationId)
           WHERE i.requestId = ? LIMIT 2
         `, providerRequestId);
-        if (matches.length !== 1) return { entry: null, alarm: false };
+        if (matches.length !== 1 || matches[0].state === 'open') return null;
         const result = reconcile(tx, matches[0], providerActual);
-        return { entry: result, alarm: !!result.overage && !matches[0].overage };
+        if (result.overage && !matches[0].overage) alarms.add(result.reservationId);
+        return result;
       });
-      if (alarm) onOverage({ reason: 'overage', reservationId: entry.reservationId });
-      return entry;
     },
     recordPayment(input) {
       return transaction((tx) => recordPayment(tx, input));
