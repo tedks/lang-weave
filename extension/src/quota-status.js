@@ -159,7 +159,8 @@ export function visibleModelStatus(value, quotaState, keyEpoch, localBudgetReach
   if (managed && (!managedGeneration || value?.tokenGeneration !== managedGeneration)) return null;
   let status = safeModelStatus(value);
   if (status?.category === 'key_rejected' && !rejectedForEpoch(status, keyEpoch)) status = null;
-  if (managed && ['daily_quota', 'rate_limit', 'overloaded', 'managed_unavailable'].includes(status?.category)) {
+  if (managed && (['daily_quota', 'rate_limit', 'overloaded', 'managed_unavailable'].includes(status?.category) ||
+      status?.category === 'managed_update_required' && status.ahead !== false)) {
     const until = status.retryAt ?? status.at + STATUS_TTL_MS;
     if (!finite(status.at) || status.at > now || until <= now) return null;
   }

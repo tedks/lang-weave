@@ -168,8 +168,7 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
         patch.apiKey = msg.apiKey.trim();
       }
       if (writesManagedToken) {
-        if (msg.managedToken) patch.managedToken = msg.managedToken;
-        else await store.remove('managedToken');
+        patch.managedToken = msg.managedToken;
         patch[MANAGED_STATUS_KEY] = null;
       }
       // Target recall affects only review scheduling, and guess first only how a hover answers, so
@@ -191,6 +190,10 @@ export function createSettingsHandlers({ store, cache, locked, modelCall, worker
           worker.keyRejectedEpoch = '';
         }
         await store.set(patch);
+      }
+      if (patch.managedToken === '') {
+        // The clear already committed with the other settings. Only the empty entry remains.
+        try { await store.remove('managedToken'); } catch { /* best-effort cleanup */ }
       }
     });
     await broadcast();
