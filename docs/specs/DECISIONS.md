@@ -26,12 +26,18 @@ After yes:
    pay the fee, and confirm 2-Step Verification.
 2. Agent: fill the account tab (publisher display name from D2, contact email from D2), then
    start the email verification. You click the link.
-3. Agent: create the item by uploading the Store ZIP **as a draft, without submitting**,
-   so the dashboard shows the item's public key. A lead then checks the store's item ID against
-   the manifest `key` (ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`). If they differ, stop: a different ID
-   strands existing readers' progress (AGENTS.md). Bring it back as a ruling. No fetched Chrome
-   document says how the Store treats a manifest `key` on first upload; that is ditz
-   `store-first-upload-key`, and this step is where it gets answered.
+3. Agent: create the item by uploading the Store ZIP **as a draft, without submitting**. Which ZIP
+   is itself a choice, because the two possible uploads answer different questions:
+   - **Key stripped** (the package the store-manifest-key-delta work produces): the upload
+     establishes the Store item's ID. It cannot tell you whether the Store would have honoured
+     Lang Weave's own key. Expect the ID to differ from the unpacked one
+     (`lkbkmlgogcpcacjmdmoecgacdbfddbnh`).
+   - **Key kept**: the upload tells you whether the Store accepts or rejects a supplied key, which
+     is ditz `store-first-upload-key`. It may simply be refused.
+   **Recommendation: key stripped**, and treat the Store item as a new ID. Existing beta readers
+   then move with the backup export and import that 0.16.x already has, never a silent migration
+   (AGENTS.md: a new ID strands progress otherwise). The Store ID also goes into the managed
+   proxy's CORS list if D6 ever says yes.
 
 ## D2. Publisher identity, contact and trader status
 
@@ -139,8 +145,10 @@ After yes:
    `lang-weave-managed`.
 2. Agent: enable the API, create a service account with a **custom role holding only the
    prediction permission** (the predefined Vertex user role is much broader), set a
-   budget alert at $20 a month, and turn on the project spend cap if offered. Budget alerts
-   warn; they do not stop spend. The proxy's own daily ceiling does.
+   budget alert at $20 a month, and look for a hard project quota or spend limit. Budget alerts
+   warn; they do not stop spend. The proxy's own daily ceiling stops spend through the proxy, but
+   not spend with a leaked credential; if no hard provider-side limit exists on Vertex, say so to
+   Ted before going further (spec section 7).
 3. You: if the host supports workload identity federation or short-lived credentials, use that
    and skip the long-lived key. Otherwise create the service-account key and paste it into the
    host's secret store yourself (D9). No agent or chat transcript should ever see it.
@@ -170,7 +178,8 @@ After yes:
 already own (for example `api.` on your existing domain), so no new domain is needed. Current host
 prices were **not checked tonight**; a lead checks before you choose.
 
-After yes: you create the host account and add the two secrets; an agent creates the database and the
+After yes: you create the host account and add the secrets (the Stripe webhook signing secret,
+and the provider credential unless D7 used workload identity); an agent creates the database and the
 DNS record; a lead deploys from a reviewed commit and runs the stub-provider tests against the
 deployment with the ceiling at $2 a day.
 
@@ -186,9 +195,11 @@ After yes, in this order:
    both published, that name the new data recipient (the proxy), what it keeps (ledger rows, not
    passage text or model output), Stripe's role, the seller (you, not Google) and the refund
    terms. The tester reads the in-extension disclosure before the first managed call.
-2. A lead turns on the flag in that one build, the tester buys one pack, and the lead checks that
-   the ledger's provider-cost column, the Stripe dashboard and the provider bill agree within a
-   cent. Provider billing lags by up to about a day, so the check is made the day after.
+2. A lead turns on the flag in that one build, and the tester buys one pack. The day after
+   (provider billing lags by up to about a day), the lead reconciles two separate pairs:
+   Stripe payments and refunds against the ledger's grants and reversals (the $10 and its fee);
+   and the ledger's **confirmed** provider costs (not provisional holds) against the provider's
+   bill for the same calls over the same billing window, within a cent.
 3. Only then are the store listing and data disclosures revised (new data recipient, seller
    identity, refund terms, physical address, trader status) and resubmitted. That resubmission is
    its own decision.
