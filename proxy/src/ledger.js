@@ -566,8 +566,11 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
   }
   function finalize(id, outcome) {
     const { receipt, sameOutcome } = storage.finalizations.stage(id, outcome);
-    const result = checkOverage(id, (tx, prior) => applyFinalization(tx, prior, finalizationOutcome(receipt), now()));
-    storage.finalizations.acknowledge(receipt);
+    const result = checkOverage(id, (tx, prior) => tryFinish(tx, prior, { ...finalizationOutcome(receipt), now: now() }));
+    // Losing to an unconfirmed provisional result does not change it.
+    // Keep the evidence until explicit reconciliation or journal recovery.
+    const needsReconciliation = result && !result.won && result.state === 'provisional' && result.providerActual === null;
+    if (!needsReconciliation) storage.finalizations.acknowledge(receipt);
     return result && { ...result, won: result.won && sameOutcome };
   }
 

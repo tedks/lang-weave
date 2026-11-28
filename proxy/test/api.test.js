@@ -930,13 +930,15 @@ test('E2 retries a real busy release and overage settlement by reservation ID', 
       writer.exec('BEGIN IMMEDIATE');
       try {
         classified.resolve(overage
-          ? { ...OUTCOMES.stop, usage: { promptTokenCount: 1_000_000 } }
+          ? { ...OUTCOMES.stop, usage: { promptTokenCount: 1_000_000, extra: 'fixture reading text' } }
           : OUTCOMES.rateLimit);
         await blocked.promise;
         expect(writer.query('SELECT state FROM reservations WHERE reservationId = ?').get(claim.reservationId).state)
           .toBe('open');
-        expect(store.finalizations.withSnapshot((receipts) => receipts.map(({ reservationId }) => reservationId)))
-          .toEqual([claim.reservationId]);
+        const receipts = store.finalizations.withSnapshot((pendingReceipts) => pendingReceipts);
+        expect(receipts.map(({ reservationId }) => reservationId)).toEqual([claim.reservationId]);
+        expect(receipts[0].outcome).not.toContain('fixture reading text');
+        expect(receipts[0].outcome).not.toContain(VALID_TEXT);
       } finally {
         writer.exec('ROLLBACK');
       }

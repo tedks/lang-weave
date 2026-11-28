@@ -29,9 +29,15 @@ export function openFinalizationJournal(filename) {
 
   return {
     stage(id, outcome) {
-      const { providerActual, ...fields } = outcome;
+      const { state, readerActual, providerActual, reason, providerRequestId, providerRequestIds, usage } = outcome;
       const encoded = JSON.stringify({
-        ...fields, providerActual: typeof providerActual === 'bigint' ? providerActual.toString() : providerActual,
+        state, readerActual, reason, providerRequestId, providerRequestIds,
+        providerActual: typeof providerActual === 'bigint' ? providerActual.toString() : providerActual,
+        usage: usage ? {
+          promptTokenCount: usage.promptTokenCount,
+          candidatesTokenCount: usage.candidatesTokenCount,
+          thoughtsTokenCount: usage.thoughtsTokenCount,
+        } : null,
       });
       return journal.transaction(() => {
         add.run(id, randomBytes(16).toString('hex'), encoded);
