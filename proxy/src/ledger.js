@@ -83,6 +83,8 @@ const schema = `
     balanceMicros INTEGER,
     providerActual INTEGER,
     providerOverflowMicros TEXT,
+    providerOverflowPending INTEGER NOT NULL DEFAULT 0 CHECK (providerOverflowPending IN (0, 1)),
+    appliedLateReceipt INTEGER NOT NULL DEFAULT 0,
     providerRequestId TEXT,
     model TEXT,
     promptTokens INTEGER,
@@ -190,6 +192,16 @@ export function createSqliteStorage(filename = ':memory:', {
   try {
     transaction(() => {
       db.exec(schema);
+      const columns = new Set(tx.all('PRAGMA table_info(reservations)').map(({ name }) => name));
+      if (!columns.has('providerOverflowPending')) {
+        tx.run(`ALTER TABLE reservations ADD COLUMN providerOverflowPending
+          INTEGER NOT NULL DEFAULT 0 CHECK (providerOverflowPending IN (0, 1))`);
+        tx.run(`UPDATE reservations SET providerOverflowPending = 1
+          WHERE providerActual IS NULL AND providerOverflowMicros IS NOT NULL`);
+      }
+      if (!columns.has('appliedLateReceipt')) {
+        tx.run('ALTER TABLE reservations ADD COLUMN appliedLateReceipt INTEGER NOT NULL DEFAULT 0');
+      }
       for (const row of priceRows) {
         const values = [row.model, row.checkedOn, row.from ?? null, row.until ?? null, row.input, row.output,
           row.modelMaxOutputTokens, row.readerMarkup];
@@ -490,10 +502,10 @@ function finish(tx, entry, {
   const { balanceMicros } = account(tx, entry.accountId);
   tx.run(`
     UPDATE reservations SET state = ?, costMicros = ?, balanceMicros = ?, providerActual = ?,
-      providerOverflowMicros = ?, reason = ?, settledAt = ?, overage = ?,
+      providerOverflowMicros = ?, providerOverflowPending = ?, reason = ?, settledAt = ?, overage = ?,
       promptTokens = ?, outputTokens = ?, thoughtTokens = ?
     WHERE reservationId = ?
-  `, overflow ? 'provisional' : state, debit, balanceMicros, actual, overflow, reason, now, Number(overage),
+  `, overflow ? 'provisional' : state, debit, balanceMicros, actual, overflow, Number(!!overflow), reason, now, Number(overage),
   usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
   usage?.thoughtsTokenCount ?? null, entry.reservationId);
   tx.run('UPDATE idempotency SET expiresAt = ? WHERE reservationId = ?', now + IDEMPOTENCY_MS, entry.reservationId);
@@ -517,19 +529,24 @@ function reconcile(tx, entry, providerActual, { providerRequestId, providerReque
   recordProviderIds(tx, entry.reservationId, { providerRequestId, providerRequestIds });
   const pending = entry.state === 'provisional' && entry.providerActual === null;
   const aboveBound = entry.providerActual > entry.providerMax;
-  if (!pending && (!aboveBound || providerActual === null)) return reservation(tx, entry.reservationId);
+  if (providerActual === null || (!pending && !aboveBound && !entry.providerOverflowPending)) {
+    return reservation(tx, entry.reservationId);
+  }
   const { actual, overflow } = providerAmount(providerActual);
-  if (aboveBound && actual === entry.providerActual) return reservation(tx, entry.reservationId);
-  const newOverflow = overflow && !entry.providerOverflowMicros;
+  if (!entry.providerOverflowPending && aboveBound && actual === entry.providerActual) {
+    return reservation(tx, entry.reservationId);
+  }
+  const newOverflow = overflow && !entry.providerOverflowPending;
   const overage = !!newOverflow || actual > entry.providerMax;
   if (overage) openStop(tx, entry.reservationId);
   tx.run(`
-    UPDATE reservations SET providerActual = ?, overage = MAX(overage, ?),
+    UPDATE reservations SET providerActual = COALESCE(?, providerActual), overage = MAX(overage, ?),
+      providerOverflowPending = ?,
       providerOverflowMicros = COALESCE(providerOverflowMicros, ?),
       promptTokens = COALESCE(?, promptTokens), outputTokens = COALESCE(?, outputTokens),
       thoughtTokens = COALESCE(?, thoughtTokens)
     WHERE reservationId = ?
-  `, actual, Number(overage), overflow, usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
+  `, actual, Number(overage), Number(!!overflow), overflow, usage?.promptTokenCount ?? null, usage?.candidatesTokenCount ?? null,
   usage?.thoughtsTokenCount ?? null, entry.reservationId);
   return reservation(tx, entry.reservationId);
 }
@@ -551,7 +568,7 @@ function applyReceipts(tx, receipts, at, applied, alarms) {
   for (const receipt of receipts) {
     const { reservationId, kind } = receipt;
     const prior = reservation(tx, reservationId);
-    if (!prior) {
+    if (!prior || (kind === 'late' && receipt.receiptId <= prior.appliedLateReceipt)) {
       applied.push(receipt);
       continue;
     }
@@ -566,6 +583,10 @@ function applyReceipts(tx, receipts, at, applied, alarms) {
     const entry = kind === 'late'
       ? reconcile(tx, prior, outcome.providerActual, outcome)
       : applyFinalization(tx, prior, outcome, at);
+    if (kind === 'late') {
+      // A retry after ledger commit must never replace a newer correction.
+      tx.run('UPDATE reservations SET appliedLateReceipt = ? WHERE reservationId = ?', receipt.receiptId, reservationId);
+    }
     if (entry.overage && !prior.overage) alarms.add(reservationId);
     applied.push(receipt);
   }
@@ -581,7 +602,9 @@ const dayCost = `
 
 // A null providerActual keeps providerMax held. The caller supplies the
 // independent, already-classified reader amount from section 6.3.
-export function createLedger(storage, { now = Date.now, onOverage = console.warn } = {}) {
+export function createLedger(storage, {
+  now = Date.now, onOverage = console.warn, onJournalError = console.warn,
+} = {}) {
   const transaction = (operation, options) => storage.transaction(operation, options);
   function checkOverage(id, operation) {
     const result = transaction((tx) => {
@@ -592,6 +615,15 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     if (result.alarm) onOverage({ reason: 'overage', reservationId: result.entry.reservationId });
     return result.entry;
   }
+  function acknowledge(receipts) {
+    if (!receipts.length) return;
+    try {
+      storage.finalizations.acknowledge(receipts);
+    } catch {
+      // The committed ledger wins. Unacknowledged receipts remain for replay.
+      try { onJournalError({ reason: 'finalization_ack_failed' }); } catch {}
+    }
+  }
   function finalize(id, outcome) {
     const { receipt, sameOutcome } = storage.finalizations.stage(id, outcome);
     const result = checkOverage(id, (tx, prior) => tryFinish(tx, prior, { ...finalizationOutcome(receipt), now: now() }));
@@ -599,7 +631,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     // Keep the evidence until explicit reconciliation or journal recovery.
     const needsReconciliation = result && !result.won && result.state === 'provisional' && result.providerActual === null;
     const hasAliases = outcome.providerRequestId || outcome.providerRequestIds?.length;
-    if (!needsReconciliation && (!result || result.won || !hasAliases)) storage.finalizations.acknowledge([receipt]);
+    if (!needsReconciliation && (!result || result.won || !hasAliases)) acknowledge([receipt]);
     return result && { ...result, won: result.won && sameOutcome };
   }
 
@@ -611,7 +643,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       const pending = applyReceipts(tx, receipts, currentTime, applied, alarms);
       return operation(tx, pending, currentTime, applied, alarms);
     }));
-    storage.finalizations.acknowledge(applied);
+    acknowledge(applied);
     for (const reservationId of alarms) onOverage({ reason: 'overage', reservationId });
     return result;
   }
@@ -656,7 +688,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         tx.get('SELECT accountId FROM accounts WHERE tokenHash = ?', tokenHash)?.accountId ?? null);
     },
     getAccount(id) {
-      return transaction((tx) => account(tx, id));
+      return withAppliedReceipts((tx) => account(tx, id));
     },
     getReservation(id) {
       return transaction((tx) => reservation(tx, id));
@@ -698,7 +730,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       });
     },
     linkOrphan(checkoutSessionId, paymentIntentId) {
-      return transaction((tx) => {
+      return withAppliedReceipts((tx) => {
         const previous = checkoutDisposition(tx, checkoutSessionId);
         if (previous?.disposition !== 'orphan') return 'NOT_ORPHAN';
         if (previous.paymentIntentId && previous.paymentIntentId !== paymentIntentId) return 'CONFLICT';
@@ -755,8 +787,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
         if (!priceRow) return 'NO_PRICE';
         if (tx.get(`
           SELECT 1 FROM reservations
-          WHERE dayKey = ? AND (providerActual > providerMax OR
-            (providerActual IS NULL AND providerOverflowMicros IS NOT NULL))
+          WHERE dayKey = ? AND (providerActual > providerMax OR providerOverflowPending = 1)
           LIMIT 1
         `, dayKey)) return 'STOPPED';
         if (priceRequest) {
@@ -827,13 +858,13 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       });
     },
     recordPayment(input) {
-      return transaction((tx) => recordPayment(tx, input));
+      return withAppliedReceipts((tx) => recordPayment(tx, input));
     },
     grant(id) {
-      return transaction((tx) => grant(tx, id));
+      return withAppliedReceipts((tx) => grant(tx, id));
     },
     reverse(id, target) {
-      return transaction((tx) => reverse(tx, id, target));
+      return withAppliedReceipts((tx) => reverse(tx, id, target));
     },
     freeze(id, reason) {
       return transaction((tx) => freeze(tx, id, reason));
@@ -849,7 +880,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       });
     },
     applyPaymentEvent(id, operation) {
-      return transaction((tx) => {
+      return withAppliedReceipts((tx) => {
         if (!tx.run('INSERT OR IGNORE INTO payment_events (eventId) VALUES (?)', id).changes) return null;
         return operation({
           recordPayment: (input) => recordPayment(tx, input, id),
@@ -873,7 +904,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
     },
     adjust(id, deltaMicros, reason, ref) {
       checkMicros(deltaMicros, -Number.MAX_SAFE_INTEGER);
-      return transaction((tx) => {
+      return withAppliedReceipts((tx) => {
         if (tx.get('SELECT 1 FROM corrections WHERE ref = ?', ref)) return 'DUPLICATE';
         const current = account(tx, id);
         if (!current) return 'UNKNOWN_ACCOUNT';
@@ -885,7 +916,7 @@ export function createLedger(storage, { now = Date.now, onOverage = console.warn
       });
     },
     transfer(from, to, ref) {
-      return transaction((tx) => {
+      return withAppliedReceipts((tx) => {
         if (tx.get('SELECT 1 FROM corrections WHERE ref = ?', ref)) return 'DUPLICATE';
         const source = account(tx, from);
         const destination = account(tx, to);

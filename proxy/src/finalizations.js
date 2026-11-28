@@ -66,18 +66,12 @@ export function openFinalizationJournal(filename) {
       return journal.transaction(() => operation([...primary.all(), ...late.all()])).deferred();
     },
     acknowledge(receipts) {
-      if (!receipts.length) return;
-      try {
-        journal.transaction(() => {
-          for (const { kind, reservationId, receiptId } of receipts) {
-            const remove = kind === 'late' ? removeLate : removePrimary;
-            remove.run(reservationId, receiptId);
-          }
-        }).immediate();
-      } catch (error) {
-        if (!isSqliteBusy(error)) throw error;
-        // The ledger has committed. Replay can retry acknowledgement.
-      }
+      journal.transaction(() => {
+        for (const { kind, reservationId, receiptId } of receipts) {
+          const remove = kind === 'late' ? removeLate : removePrimary;
+          remove.run(reservationId, receiptId);
+        }
+      }).immediate();
     },
     close() {
       journal.close();
