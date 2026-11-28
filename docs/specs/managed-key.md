@@ -209,7 +209,7 @@ for byte.
   `providerMax` (about $0.17 for a typical request with the placeholder overage), an account is
   admitted until about $0.83 of settled provider cost, roughly 260 typical calls a day; a call
   refused by this cap gets `402 managed_balance` with `"dailyCap": true`; stale-reservation expiry 5 minutes;
-  day key is the UTC date of the proxy's clock **at reservation time**.
+  day key is the UTC date of the ledger's clock **at reservation time**, set inside `reserve` (C2).
 - **E1 behaviour in managed mode:** one model only (the allowlisted one, whatever
   `settings.model` says); no `FALLBACK_MODEL` and no client cooldown retry, because every retry
   could be a second charge; the existing local daily call cap still applies. E1 sends the 0.16.x
@@ -231,9 +231,10 @@ ledger change it causes.
 Invariant, checked after every operation: **`balance >= reserved >= 0`** for every account.
 
 - `createAccount(tokenHash) → accountId`
-- `lookupClaim(accountId, keyHash, bodyHash) → none | OPEN | DUPLICATE(charged, response?) | KEY_REUSE`
+- `lookupClaim(accountId, keyHash, bodyHash) → none | OPEN | DUPLICATE(charged) | KEY_REUSE`
   — read-only. E2 calls it **before** pricing, so an existing claim always gets C1's repeat
-  answer, even when pricing or the stop latch would now refuse a new call.
+  answer, even when pricing or the stop latch would now refuse a new call. The held response
+  itself comes from E2's own in-memory cache, as C1 says, never from the ledger.
 - `reserve(accountId, readerWorst, providerMax, priceRowId, ceiling, keyHash, bodyHash) →
   reservationId | BALANCE | DAILY_CAP | CEILING | STOPPED | BUSY | FROZEN | DUPLICATE | KEY_REUSE`, which also
   claims the idempotency key (C1) in the same transaction, where `providerMax = providerWorst + maxPerCallOverage` (C5) is the
@@ -242,8 +243,9 @@ Invariant, checked after every operation: **`balance >= reserved >= 0`** for eve
   repeat never sees a refusal meant for a new call. It sets `dayKey` itself, from the ledger's
   own clock in the transaction (the UTC date at admission), and succeeds only if: the ledger's
   global **stop latch** is clear, the price row `priceRowId` that E2 priced the call with is
-  in date for that `dayKey` (its effective window contains it and it is at most 30 days after
-  the row's `checkedOn`; the table is read in the same transaction, so a row that expires
+  the **active** row for the call's model and that `dayKey` in the authoritative table (so a
+  proxy instance holding a superseded row cannot admit with it) and in date (at most 30 days
+  after its `checkedOn`) (superseded rows stay readable for `actual` at settlement; the table is read in the same transaction, so a row that expires
   between pricing and reservation, including across UTC midnight, is caught here), and, while
   `ENROLLMENT=allowlist`, the account is on `ENROLLED_ACCOUNTS` (a ledger table the operator
   edits, so every instance reads the same list) (else `STOPPED`); the account is
@@ -398,9 +400,13 @@ ceiling, while the reader is still charged only as the 6.3 table says.
 
 `POST /v0/stripe/webhook`. The raw body is verified against `Stripe-Signature` with the endpoint
 secret and a 300-second tolerance before it is parsed; a bad or stale signature is `400` and
-changes nothing.
+changes nothing. Immediately after verification and parsing, before event-id deduplication or
+any ledger change, an event whose `livemode` differs from the deployment's returns 200 with an
+operator diagnostic and changes nothing (its id is not recorded), so test-mode events never
+enter a live ledger; a fixture signed with a locally computed secret tests a wrong-mode
+Checkout event.
 
-Every handled event (except a Checkout session that fails the ownership check below, and
+Every other handled event (except a Checkout session that fails the ownership check below, and
 LW-STORE-MK-04's events with no usable `payment_intent`) first calls `recordPayment` (C2) for its `payment_intent`, in the same
 transaction as the event-id deduplication and any ledger change, so events may arrive in any
 order and any number of times.
@@ -453,8 +459,7 @@ order and any number of times.
   the amount check above catches a link changed later. A reusable link still allows several
   purchases by one account; `grant`'s one-pack rule limits how much credit one account holds.
 - **Dispute closed.** `charge.dispute.closed` records `dispute: won` or `lost` from the event's
-  status. C4 also refuses (200, diagnostic, no change) any event whose `livemode` differs from
-  the deployment's, so test-mode events never enter a live ledger. A `lost` close applies the same `reverse(packMicros)` and, for a `granted` payment, the
+  status. A `lost` close applies the same `reverse(packMicros)` and, for a `granted` payment, the
   same freeze as `charge.dispute.created` (both idempotent through the monotonic target), so a
   loss whose `created` event is late or never delivered still removes the credit. Tests cover
   created→closed, closed→created, and closed with no created, for won and lost. Otherwise it
@@ -508,8 +513,9 @@ micro-dollar. Reader micros include the markup; provider micros do not.
   reserved on the last in-date day still settles after the cut-off.
   A test also fails when `checkedOn` is older than 30 days, and the table carries announced future prices with their
   effective dates (3.8 Flash doubles on 2027-01-01), selecting by the call's date. The test is
-  meant to fail on the calendar alone: the fix is to re-read the price page and update the
-  price and `checkedOn` together, never to bump the date.
+  meant to fail on the calendar alone: the fix is to re-read the price page and add a new row
+  (new id, its own `checkedOn`, even when the price is unchanged) that supersedes the old one,
+  never to edit a row in place or bump a date.
 
 ## 6. Design choices and why
 

@@ -257,12 +257,16 @@ After yes, in two parts around D8:
    live secret cannot be checked with a test event. The checks are:
    (a) a separate test-mode endpoint on a separate test deployment and ledger, with its own test
    secret, receives Stripe test events and records them correctly;
-   (b) the live endpoint refuses a bad-signature request, and refuses a test-mode event by its
-   `livemode` (spec C4);
-   (c) the tester's purchase in D10 is the first live event and is the check of the live secret.
-   If it fails verification nothing is credited; Stripe retries for up to three days, the lead
-   corrects the secret, and the retried event grants once. D10 activates the link only after
-   (a) and (b) pass.
+   (b) the live endpoint refuses a bad-signature request (the `livemode` rule cannot be exercised
+   live, because a real test-mode event fails the live signature first; it is covered by a
+   locally signed fixture, spec C4);
+   (c) a harmless signed **live** delivery before activation: the lead temporarily adds an
+   unhandled event type (for example `product.updated`) to the live endpoint, edits the
+   product's description, confirms the proxy logged "verified, unhandled" and changed no
+   ledger row, then removes that event type.
+   D10 activates the link only after (a), (b) and (c) pass. If the tester's purchase still is not
+   credited within one hour, the lead checks Stripe's delivery log, fixes and replays the event,
+   or refunds the tester in full the same day.
 
 ## D10. Price and first sale
 
