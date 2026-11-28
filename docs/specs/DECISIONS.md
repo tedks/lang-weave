@@ -26,18 +26,25 @@ After yes:
    pay the fee, and confirm 2-Step Verification.
 2. Agent: fill the account tab (publisher display name from D2, contact email from D2), then
    start the email verification. You click the link.
-3. Agent: create the item by uploading the 0.16.x Store ZIP **as a draft, without submitting**,
+3. Agent: create the item by uploading the Store ZIP **as a draft, without submitting**,
    so the dashboard shows the item's public key. A lead then checks the store's item ID against
    the manifest `key` (ID `lkbkmlgogcpcacjmdmoecgacdbfddbnh`). If they differ, stop: a different ID
-   strands existing readers' progress (AGENTS.md). Bring it back as a ruling.
+   strands existing readers' progress (AGENTS.md). Bring it back as a ruling. No fetched Chrome
+   document says how the Store treats a manifest `key` on first upload; that is ditz
+   `store-first-upload-key`, and this step is where it gets answered.
 
 ## D2. Publisher identity, contact and trader status
 
-**Recommendation:** publisher display name **"Lang Weave"**; a dedicated contact address (an alias
-that forwards to you, not your personal address); **non-trader** for a free listing. The store asks
-for a physical address only for items that sell something, and EU trader status publishes your
-legal name and contact details to EU users. Both become required the day a paid option ships
-(D7), so choose now whether you would publish a home address, a PO box or a virtual mailbox then.
+**Recommendation:** publisher display name **"Lang Weave"** and a dedicated contact address (an
+alias that forwards to you, not your personal address).
+
+**Trader status is your ruling, not a dashboard formality.** EU trader status turns on whether you
+act for purposes of your trade or business, not only on whether the item is free. If the free
+listing is a hobby release with no commercial intent, "non-trader" is defensible; if it is the
+first step of a paid product (which D6–D10 describe), "trader" is the safer declaration. Trader
+status publishes your legal name and contact details to EU users. The store also requires a
+physical address once an item sells anything. Decide now whether you would publish a home
+address, a PO box or a virtual mailbox. If you want certainty, this is a question for a lawyer.
 
 After yes:
 1. You: create the alias and decide the address question.
@@ -54,11 +61,20 @@ Open rulings `store-provider-region-ruling` and `store-site-consent-ruling` are 
 - **Regions: United States only** at first. Free Gemini keys are "Unpaid Services", and the Gemini
   terms say: "You may use only Paid Services when making API Clients available to users in the
   European Economic Area, Switzerland, or the United Kingdom." A BYOK extension cannot tell a free
-  key from a paid one, so the conservative reading excludes those regions.
+  key from a paid one, so the conservative reading excludes those regions. This is a
+  **best-effort** control: store distribution decides where the listing appears, not where a
+  reader travels or uses the API. A defensible basis also needs the listing and first-run page to
+  say who the extension is for. If you want the terms' meaning settled, ask Google or a lawyer.
 - **Age:** the listing and first-run page say "for adults 18 and over", because the Gemini terms
   bar API clients "likely to be accessed by individuals under the age of 18".
-- **Site consent:** keep 0.16.x as shipped: the welcome page asks which sites before anything is
-  sent.
+- **Site consent:** keep 0.16.x's design (the welcome page asks which sites before anything is
+  sent), but **approve one wording change before submission**: the Store user-data FAQ asks for "a
+  specific action clearly agreeing to the disclosure", and the 0.16.1 welcome buttons choose a site
+  policy without saying "agree". This is the packet's top rejection risk (R1). It needs a small code
+  change and a 0.16.2 release, which a lead can prepare as a draft PR.
+- **Store package deltas:** before any upload the Store ZIP must drop the development manifest
+  `key` and the dead content loader, and the Duolingo Score field needs a "not affiliated with
+  Duolingo" line (ditz `store-manifest-key-delta`, `store-first-upload-key`; packet R2, R11).
 
 After yes: an agent fills the distribution tab (unlisted, US) and the listing from
 `docs/STORE-SUBMISSION-PACKET.md` (draft PR #33). You read it before anything is submitted.
@@ -112,16 +128,22 @@ Flash-Lite only. The Google Cloud terms expressly allow a "Customer Application 
 value independent of the Services". The AI Studio terms say "not for consumer use" and pause the
 whole billing account at the tier cap ($250 a month at first). Global-endpoint prices match AI
 Studio's. No separate agreement with Google is required by any published clause we found. Raising
-quota later goes through Google's increase forms.
+quota later goes through Google's increase forms. That is our reading of the quoted clauses, not
+Google's confirmation. One question stays open on both routes: the APIs Terms bar selling or
+distributing "content returned from the APIs" (5(e)), and nobody has checked how that applies to
+showing paying readers swaps built from model output. Ask Google or a lawyer before the first sale
+if you want it settled (spec section 13, question 6).
 
 After yes:
 1. You: create or choose a Google Cloud billing account (card, identity) and a project
    `lang-weave-managed`.
-2. Agent: enable the API, create a service account with only the model-invocation role, set a
+2. Agent: enable the API, create a service account with a **custom role holding only the
+   prediction permission** (the predefined Vertex user role is much broader), set a
    budget alert at $20 a month, and turn on the project spend cap if offered. Budget alerts
    warn; they do not stop spend. The proxy's own daily ceiling does.
-3. You: create the service-account key and paste it into the host's secret store yourself
-   (D9). No agent or chat transcript should ever see it.
+3. You: if the host supports workload identity federation or short-lived credentials, use that
+   and skip the long-lived key. Otherwise create the service-account key and paste it into the
+   host's secret store yourself (D9). No agent or chat transcript should ever see it.
 
 ## D8. Stripe
 
@@ -133,9 +155,12 @@ and are refundable on request.
 After yes:
 1. You: open the account and complete identity verification (legal name, address, tax ID, bank
    account). Choose a statement descriptor such as `LANGWEAVE`.
-2. Agent: create the product "Lang Weave reading credit, $10", a Payment Link limited to US
-   billing addresses, a link to the terms-of-sale and refund page, and a webhook endpoint for
-   `checkout.session.completed` on the proxy URL.
+2. Agent: create the product "Lang Weave reading credit, $10" and a Payment Link with quantity
+   fixed at one, no promotion codes and cards only; add a Radar rule that blocks non-US cards (a
+   Payment Link setting that limits billing country was **not verified** tonight; Radar rules are
+   the documented lever); link the terms-of-sale and refund page; and create a webhook endpoint
+   for `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+   `charge.refunded` and `charge.dispute.created` on the proxy URL.
 3. You: copy the webhook signing secret into the host's secret store.
 4. A lead writes the terms-of-sale and refund page (draft PR) for you to approve.
 
@@ -152,14 +177,21 @@ deployment with the ceiling at $2 a day.
 ## D10. Price and first sale
 
 **Recommendation: $10 for $10 of reading at a 2× markup over provider cost** (about 1,600 typical
-calls, two to three months for a typical reader; margin about $4.41 after Stripe's fee, before
+calls: 32 to 80 days at 50 to 20 calls a day, both estimates; margin about $4.41 after Stripe's fee, before
 hosting, disputes and tax). US only. The first sale is to one consenting adult tester on the GitHub
 beta build with the flag on, before any store listing change.
 
-After yes: a lead turns on the flag in that one build, the tester buys one pack, and the lead checks
-the ledger, the Stripe dashboard and the provider bill agree within a cent. Then the store listing and
-privacy policy are revised (new data recipient, seller identity, refund terms, physical address,
-trader status) and resubmitted. That resubmission is its own decision.
+After yes, in this order:
+1. **Before any sale:** you approve a revised privacy policy and a terms-of-sale and refund page,
+   both published, that name the new data recipient (the proxy), what it keeps (ledger rows, not
+   passage text or model output), Stripe's role, the seller (you, not Google) and the refund
+   terms. The tester reads the in-extension disclosure before the first managed call.
+2. A lead turns on the flag in that one build, the tester buys one pack, and the lead checks that
+   the ledger's provider-cost column, the Stripe dashboard and the provider bill agree within a
+   cent. Provider billing lags by up to about a day, so the check is made the day after.
+3. Only then are the store listing and data disclosures revised (new data recipient, seller
+   identity, refund terms, physical address, trader status) and resubmitted. That resubmission is
+   its own decision.
 
 ## D11. One measurement (small, worth doing first)
 

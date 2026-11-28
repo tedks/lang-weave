@@ -28,14 +28,26 @@ Goals, in priority order. A worker adjudicates a deviation against these.
 1. **The reader can never be charged more than they prepaid.** Every model call is preceded by
    an atomic reservation of its worst-case cost against the reader's balance. No reservation,
    no call. There is no postpaid, subscription or auto-top-up path in v0.
-2. **The operator can never lose more than a fixed daily amount.** A global daily provider
-   spend ceiling, checked in the same reservation, stops all managed calls when reached.
+2. **The operator's provider spend through the proxy is bounded per UTC day.** A global daily
+   ceiling on provider cost, checked in the same reservation, stops all managed calls when
+   reached. The bound is exactly: ceiling + (in-flight cap × the largest possible per-call
+   overage), where per-call overage is limited by the model's own maximum output length (C5).
+   Two losses sit **outside** this bound and have their own controls: a leaked provider
+   credential used directly against Google (bounded only by the provider-side project spend cap
+   and billing-tier cap, section 7), and refunds or disputes (bounded per account by one pack plus
+   the dispute fee, with the account frozen, C4).
 3. **BYOK is untouched.** With the flag off (the default), the shipped extension behaves
    byte-for-byte as 0.16.1 on every network path. Managed mode is a separate provider value,
    never a silent fallback in either direction.
-4. **No new reader data at rest.** The proxy stores no page text, no URLs, no titles, and no
-   model output. It stores an opaque account id, a hash of the bearer token, a balance, a
-   ledger of (time, model, token counts, cost), and the Stripe ids needed for refunds.
+4. **No reading content at rest, and pseudonymous accounts.** The proxy never writes page
+   text, URLs, titles or model output to disk or to logs; the host platform's request-body
+   logging is turned off. It stores an opaque account id, a hash of the bearer token, a balance,
+   a ledger of (time, model, token counts, reader cost, provider cost, reason), and the Stripe
+   Checkout session and customer ids needed for refunds. Those Stripe ids link an account to the
+   purchaser's email inside Stripe, so the account is **pseudonymous, not anonymous**, and the
+   privacy text says so. Client IP addresses are used only for the account-creation rate limit,
+   held as a keyed hash that rotates daily, and dropped after 24 hours. A response held for an
+   idempotent retry (C1) lives in memory for at most 60 seconds.
 5. **Not an open model relay.** The proxy accepts only Lang Weave's structured swap inputs
    with bounded sizes, builds the prompt itself from the extension's own modules, and fixes
    the model allowlist, the response schema and the output cap. No client-supplied
@@ -51,8 +63,8 @@ any model other than the ones the extension already allowlists; analytics of any
 
 | Entity | Owns | Must not know |
 |---|---|---|
-| **E1 Extension managed-provider adapter** (`extension/src/managed.js`, flag-gated) | Token storage, sending the structured inputs `requestSwaps` already has, mapping proxy errors onto the existing `category` set | The provider key; Stripe |
-| **E2 Proxy API** (`proxy/src/api.js`) | Auth, request validation, reservation, calling E4, settlement, error mapping | Page text after the response returns; card data |
+| **E1 Extension managed-provider adapter** (`extension/src/managed.js`, flag-gated) | Token storage, sending the structured inputs `requestSwaps` already has, mapping proxy errors onto the existing `category` set, opening the Payment Link URL | The provider credential; any Stripe secret or API |
+| **E2 Proxy API** (`proxy/src/api.js`) | Auth, request validation, building the request with the shared `buildSwapRequest`, reservation, calling E4, settlement, error mapping | Page text after the response returns; card data |
 | **E3 Ledger** (`proxy/src/ledger.js`, storage interface) | Balances, reservations, settlements, credit grants, idempotency of grants | Request content |
 | **E4 Provider client** (`proxy/src/provider.js`) | The one outbound model call, timeout, reading `usageMetadata` | Accounts, balances |
 | **E5 Stripe webhook** (`proxy/src/stripe.js`) | Signature verification, turning a paid Checkout session into exactly one credit grant | Request content |
@@ -68,7 +80,7 @@ graph LR
   EXT[E1 extension adapter] -- "C1 proxy API v0 (HTTPS JSON, bearer)" --> API[E2 proxy API]
   API -- "C2 ledger interface" --> LED[(E3 ledger)]
   API -- "C3 provider client" --> PROV[E4 provider client]
-  PROV -- "Gemini generateContent (server key)" --> G[(Google)]
+  PROV -- "Gemini generateContent (server credential)" --> G[(Google)]
   API -- "C5 pricing" --> PR[E6 pricing]
   STR[(Stripe)] -- "C4 webhook checkout.session.completed" --> WH[E5 webhook]
   WH -- "C2 grant()" --> LED
@@ -81,8 +93,16 @@ graph LR
 
 All requests are HTTPS, JSON, `Content-Type: application/json`, at most 64 KiB. Responses never
 echo request text. Every error body is `{"error": {"category": <string>, "retryAfterMs"?: <int>}}`
-with `category` drawn from the extension's existing set in `quota-status.js` plus three new
-values: `managed_balance`, `managed_unauthorized`, `managed_unavailable`.
+with `category` drawn from the extension's existing set in `quota-status.js` plus four new
+values, which E1 adds to `STATUS_CATEGORIES` (`quota-status.js:9`) and to the message mapping in
+`reading.js`: `managed_balance`, `managed_unauthorized`, `managed_unavailable`,
+`managed_update_required`.
+
+CORS, not a manifest change: the proxy answers with `Access-Control-Allow-Origin:
+chrome-extension://lkbkmlgogcpcacjmdmoecgacdbfddbnh` and allows the `Authorization`,
+`Content-Type` and `Idempotency-Key` headers, so the service worker can call it without a new host
+permission. The shipped manifest is unchanged with the flag on or off (goal 3; a boundary test
+compares it byte for byte with 0.16.1's).
 
 - `POST /v0/accounts` → `201 {"accountId": "acct_<26 base32>", "token": "lwk_<43 base64url>"}`.
   No body. The token is 256 random bits, returned exactly once; the proxy stores only
@@ -93,32 +113,56 @@ values: `managed_balance`, `managed_unauthorized`, `managed_unavailable`.
   itself (6.2):
   ```json
   {"promptVersion": "0.16", "model": "gemini-3.5-flash-lite", "level": 1, "language": "es",
-   "density": "normal", "unknownLimit": 3 | null,
+   "density": "normal", "gradual": true,
    "words": [{"fr": "ventana", "en": "window", "status": "active"}],
    "shownToday": ["ventana"],
    "passages": [{"id": "p1", "text": "..."}]}
   ```
   → `200 {"text": <candidate text>, "usage": {"promptTokens", "outputTokens", "thoughtTokens"},
   "costMicros": <int>, "balanceMicros": <int>}`.
+  The request carries an `Idempotency-Key` header (a random 128-bit value per logical batch).
   Validation, all before any reservation: `promptVersion` is one the deployed proxy carries
   (otherwise `409 managed_update_required`); model in the allowlist; `level` 1 or 2;
   `language` is a code the proxy's language table knows; `density` one of the three values;
-  at most 8 passages, each `id` at most 64 characters and `text` at most 2,000 characters (the
-  extension's own batch caps, `background.js`); at most 400 words, each `fr`/`en` at most 48
-  characters matching `^[\p{L}\p{M}' .-]+$`u and `status` from the extension's status set;
-  `shownToday` at most 400 such forms; the built system plus user text at most 30,000
-  characters. The proxy then calls the **same** `buildSystemPrompt`,
-  `buildUserContent`, `buildRequest` and `RESPONSE_SCHEMA` the extension uses, imported from
-  `extension/src/` at the commit the proxy was deployed from, and sets
-  `generationConfig.maxOutputTokens` to its own cap. Any violation → `400 request_failed`
-  with no provider call.
+  `gradual` a boolean; at most 8 passages, each `id` at most 64 characters and `text` at most
+  2,000 characters (the extension's own batch caps, `reading.js:97-98`); at most 400 words and
+  400 `shownToday` forms. **Each word is checked with the extension's own shape rules, not a new
+  regex:** bundled Spanish and Guaraní rows must match a row of the catalog the proxy carries;
+  pack and personal words must pass `validPackForm` (`word-form.js:3-5`, at most 80 characters, no
+  control characters or `<>[]{}`), with `status` from the extension's status set. A boundary test
+  feeds every bundled row in both languages through this validation and requires all to pass.
+  The proxy then calls `buildSwapRequest(inputs)`, a pure function extracted in M1 from
+  `requestSwaps` (`engine.js:14-20`) so that **both** paths use it: it applies
+  `possibleSpanishPromptWords` to ordinary Spanish, computes `unknownBudget(passages)` when
+  `gradual` is true, and calls `buildSystemPrompt`, `buildUserContent` and `buildRequest` with
+  `RESPONSE_SCHEMA`. A golden test requires the proxy-built body to equal the BYOK body for the same
+  inputs, and the module closure must load with no `chrome` global. The proxy then sets
+  `generationConfig.maxOutputTokens`. A serialized body over 32,000 UTF-8 bytes, including the
+  schema, is rejected. Any violation → `400 request_failed` with no provider call.
+  Idempotency: a repeat of a key within 60 seconds of its settlement returns the held response
+  (or the held error) without a second reservation or provider call; a repeat while the original
+  is still open returns `429 rate_limit` with `retryAfterMs`. After 60 seconds a repeat is a new
+  call.
   Errors: `402 managed_balance` when the reservation fails; `503 managed_unavailable` when the
   global ceiling is reached or the proxy is in maintenance; provider 429/503/timeout map to the
   existing `rate_limit` / `overloaded` / `request_failed` with `retryAfterMs` passed through
   when bounded.
 - **Invariants:** a 200 or a provider error is always preceded by exactly one successful
   reservation and followed by exactly one settlement or release. A 4xx from validation, auth or
-  balance never calls the provider. `costMicros` on a 200 is at most the reservation.
+  balance never calls the provider. `costMicros` on a 200 is at most the reservation. At most
+  one reservation per account and at most `IN_FLIGHT_MAX` (v0: 4) reservations overall are open
+  at once; a call over either limit gets `429 rate_limit` with no provider call. A frozen account
+  (C4) gets `402 managed_balance`.
+- **Fixed constants (part of the contract, so tests can pin them):** `maxOutputTokens` 2,048;
+  provider timeout 20 s; E1's request timeout 30 s (longer than the provider timeout, so the
+  extension does not abandon a call it will be charged for); `IN_FLIGHT_MAX` 4; per-account daily
+  cap `ACCOUNT_DAILY_PROVIDER_MAX` (v0: $0.50 of provider cost, about 160 typical calls) so one
+  account or stolen token cannot exhaust the global ceiling; stale-reservation expiry 5 minutes;
+  day key is the UTC date of the proxy's clock **at reservation time**.
+- **E1 behaviour in managed mode:** one model only (the allowlisted one, whatever
+  `settings.model` says); no `FALLBACK_MODEL` and no client cooldown retry, because every retry
+  could be a second charge; the existing local daily call cap still applies. E1 sends the 0.16.x
+  structured inputs it already has; it never sends a system instruction.
 - **Intentionally unspecified:** latency, the exact token cap, the markup, which provider
   route the proxy uses. Consumers must not parse `text` beyond `parseSwapsResponse`.
 - **Versioning:** the path prefix carries the version. Adding an optional response field is
@@ -129,55 +173,119 @@ values: `managed_balance`, `managed_unauthorized`, `managed_unavailable`.
 Amounts are integer **micro-dollars** (1 USD = 1,000,000). No floats anywhere in money.
 
 - `createAccount(tokenHash) → accountId`
-- `reserve(accountId, worstMicros, dayKey, globalCeilingMicros) → reservationId | BALANCE | CEILING`
-  — atomic: succeeds only if `balance - reserved >= worstMicros` **and** the day's global
-  `spent + reserved + worstMicros <= ceiling`. Implemented as one conditional `UPDATE` per row in
-  a single transaction.
-- `settle(reservationId, actualMicros, reason)` — `actualMicros` is clamped to `[0, worstMicros]`;
-  moves that amount from reserved to spent, releases the rest, and records any unclamped excess
-  as operator `overage` (the reader is never charged it). Idempotent per reservation id.
-- `release(reservationId)` — releases the whole reservation. Idempotent.
-- `grant(stripeEventId, accountId, micros)` — adds credit once per Stripe event id; a replay
-  returns the original result and changes nothing.
-- `expireStale(olderThanMs)` — a reservation older than 5 minutes with no settlement is
-  **settled at its worst case** (see 6.3 for why), recorded with reason `timeout`.
+Two amounts travel together: **reader micros** (retail, with markup, debited from the balance)
+and **provider micros** (Google's list cost, counted against the daily ceiling).
+
+- `createAccount(tokenHash) → accountId`
+- `reserve(accountId, readerWorst, providerWorst, dayKey, ceiling) → reservationId | BALANCE |
+  CEILING | BUSY | FROZEN` — one transaction: succeeds only if the account is not frozen, has no
+  open reservation, `balance - reserved >= readerWorst`, fewer than `IN_FLIGHT_MAX` reservations
+  are open, the account's `providerSpent` for the day plus `providerWorst` is at most
+  `ACCOUNT_DAILY_PROVIDER_MAX`, and the day's `providerSpent + providerReserved + providerWorst <= ceiling`. The
+  reservation records its `dayKey`; settlement always adjusts **that** day, so a call reserved
+  at 23:59:59 UTC and settled after midnight counts against the earlier day.
+- `settle(reservationId, readerActual, providerActual, reason)` — compare-and-set on the
+  reservation's state `open`: the first of `settle`, `release` or `expireStale` wins, and the
+  others are no-ops that return the winner's result. The reader is charged
+  `min(readerActual, readerWorst)`. The day's provider spend increases by the **full**
+  `providerActual`, so any excess over `providerWorst` (recorded as `overage`) still counts
+  toward the ceiling and stops later calls.
+- `release(reservationId)` — releases the whole reservation. Same compare-and-set.
+- `grant(checkoutSessionId, stripeEventId, accountId, micros)` — adds credit once per
+  **Checkout session id** (unique key); a second event for the same session, or a replay of
+  the same event, returns the original result and changes nothing.
+- `freeze(accountId, reason)` and `reverse(checkoutSessionId, micros)` — used by C4 for refunds
+  and disputes. `reverse` debits up to the remaining balance; any shortfall is recorded as
+  operator loss. Freezing does not cancel an open reservation; that reservation settles
+  normally and the account then cannot reserve again.
+- `adjust(accountId, deltaMicros, reason, ref)` — an operator credit or debit (a refund on
+  request, a balance moved after token recovery). Never takes a balance below zero; `reason` and
+  `ref` are mandatory and logged.
+- `revokeToken(tokenHash)` and `rotateToken(accountId) → newToken` — revocation takes effect for
+  the next reservation; an open reservation settles normally.
+- `expireStale(now)` — a reservation open longer than 5 minutes (well past the 20 s provider
+  timeout) is settled at its worst case with reason `timeout`. A provider response that arrives
+  after expiry finds the reservation closed: its usage is logged as operator overage against
+  the original day and the reader is not charged again.
 
 ### C3 — Provider client (owner E4; consumer E2)
 
-`call({model, request, timeoutMs}) → {text, usage} | ProviderError{status, category, retryAfterMs}`.
+`call({model, request, timeoutMs}) → ProviderOutcome`, one of:
+
+- `{kind: "ok", text, finishReason, blockReason, usage}`: HTTP 200. `finishReason` from the first
+  candidate (or `null` when there is none); `blockReason` from `promptFeedback.blockReason` (or
+  `null`); `usage` from `usageMetadata` (`promptTokenCount`, `candidatesTokenCount`,
+  `thoughtsTokenCount`) or `null` when absent.
+- `{kind: "http_error", status, category, retryAfterMs}`: the provider answered non-200.
+- `{kind: "no_response", sent: true}`: the request was handed to the network and no complete
+  response arrived (timeout, reset). `sent: false` (DNS or connect failure before any byte was
+  written) is reported as `http_error` with category `request_failed` and is never billed.
+
 The server credential is read from the environment at start; it is never logged, never put in
-an error, and never returned. `usage` is read from `usageMetadata`
-(`promptTokenCount`, `candidatesTokenCount`, `thoughtsTokenCount`). When `usageMetadata` is
-missing, `usage` is `null` and E2 settles at the worst case.
+an error, and never returned. E2 maps each outcome to a charge with the table in 6.3. The table is
+per route: the one in 6.3 comes from the AI Studio billing FAQ. The Vertex route says only that it
+charges "for requests that return a 200"; its table must be derived and tested before M2, and until
+then the Vertex provider client treats every `ok` outcome as fully billed to the ceiling.
 
 ### C4 — Stripe webhook (owner E5; producer Stripe)
 
 `POST /v0/stripe/webhook`. The raw body is verified against `Stripe-Signature` with the endpoint
-secret and a 300-second tolerance before it is parsed. Only `checkout.session.completed` with
-`payment_status: "paid"` and `mode: "payment"` grants credit. The account is
-`client_reference_id`, which must match `^acct_[A-Z2-7]{26}$` and exist. The grant amount comes
-from the proxy's own price-to-credit table keyed on the Payment Link / Price id, **never** from
-the amount in the event. Every other event type returns 200 and does nothing. Refunds and
-disputes (`charge.refunded`, `charge.dispute.created`) are recorded for an operator to act on in
-v0; they do not automatically claw back credit.
+secret and a 300-second tolerance before it is parsed; a bad or stale signature is `400` and
+changes nothing.
+
+- **Grant.** `checkout.session.completed` or `checkout.session.async_payment_succeeded`, with
+  `mode: "payment"` and `payment_status: "paid"`, grants credit if **all** of these hold:
+  `payment_link` is the one configured link; `currency` is `usd`; `amount_total` equals that
+  link's configured price exactly (so a discount, a changed price or a misconfigured link grants
+  nothing and is logged for the operator); `client_reference_id` matches `^acct_[A-Z2-7]{26}$`
+  and names an existing, unfrozen account. The amount granted comes from the proxy's own table
+  for that link, never from the event. The grant is unique per Checkout session id (C2). A
+  completed session with `payment_status` other than `paid` grants nothing; its later
+  `async_payment_succeeded` event grants once. v0 configures the link for card payments only, so
+  the asynchronous case should not occur, but it is handled.
+- **Refund.** `charge.refunded`: find the grant by the charge's Checkout session, `reverse` the
+  refunded amount's credit, and `freeze` the account if the balance cannot cover it.
+- **Dispute.** `charge.dispute.created`: `freeze` the account and `reverse` the disputed pack's
+  remaining credit. Unfreezing is a manual operator action after the dispute closes.
+- **Orphan payment.** A paid session whose `client_reference_id` is missing (someone opened the
+  bare link), malformed or unknown returns 200 (so Stripe stops retrying), grants nothing, and is
+  recorded as an orphan for the operator to refund.
+- The Payment Link is configured with a fixed quantity of one, no promotion codes and cards only;
+  the amount check above catches a link changed later.
+- Every other event type returns 200 and changes nothing. Webhook handling is idempotent per
+  event id.
+
+A reader can therefore recover at most one pack's spent credit per dispute before the account
+stops working, and Stripe Radar sees the repeated card.
 
 ### C5 — Pricing (owner E6; consumer E2)
 
-`worstCaseMicros(model, systemChars, userChars, maxOutputTokens)` and
-`actualMicros(model, usage)`, both rounding **up** to the next micro-dollar, both including the
-markup. Input tokens are bounded above as `ceil(chars / 2)` for the worst case [assumption, to be
-checked against `countTokens` and real `usageMetadata` in M1: a token of English or Spanish
-prose or JSON is rarely under two characters]. Output is bounded by `maxOutputTokens`; whether
-that cap also bounds thinking tokens on 3.5 Flash-Lite is unverified, so any excess is recorded
-as operator overage (C2). The table is data with a
-`checkedOn` date and the price source URL; a test fails if the date is older than 90 days.
+`worst(model, requestBytes, maxOutputTokens) → {readerMicros, providerMicros}` and
+`actual(model, outcome) → {readerMicros, providerMicros}`, both rounding **up** to the next
+micro-dollar. Reader micros include the markup; provider micros do not.
+
+- **Input bound:** the number of UTF-8 bytes of the full serialized request body, including
+  `responseSchema` and the system instruction. A tokenizer with
+  byte fallback never produces more tokens than bytes [assumption about Google's tokenizer, to be
+  checked against `countTokens` in M1]. This is far above the real count (about four bytes per
+  token) and still small: 32 KB of request text costs at most $0.0096 at $0.30 per million.
+- **Output bound:** `maxOutputTokens`. Whether that cap also bounds thinking tokens on 3.5
+  Flash-Lite is **unverified**, so the reservation does not rely on it for the operator bound:
+  the per-call overage a reservation can miss is limited by the model's maximum output length
+  (to be read from the model card in M1 and recorded in the table). Any excess is charged to the
+  ceiling, never the reader (C2).
+- **Freshness:** the table is data with a `checkedOn` date and the price source URL. A test fails
+  when `checkedOn` is older than 30 days, and the table carries announced future prices with their
+  effective dates (3.8 Flash doubles on 2027-01-01), selecting by the call's date. The test is
+  meant to fail on the calendar alone: the fix is to re-read the price page and update the
+  price and `checkedOn` together, never to bump the date.
 
 ## 6. Design choices and why
 
 ### 6.1 Prepaid credits, not a subscription
 
-Recommendation: **prepaid credit packs through a Stripe Payment Link**, starting with one $5
-pack.
+Recommendation: **prepaid credit packs through a Stripe Payment Link**, starting with one $10
+pack (section 10.5 explains why not $5).
 
 - A balance is the hard per-reader bound in goal 1. A subscription still needs a usage cap,
   plus proration, renewal failure, cancellation and dunning: more code and more support.
@@ -197,15 +305,19 @@ modules the extension ships. It never runs a client-supplied system instruction.
 
 Two reasons. First, the contract: the Google APIs Terms forbid creating "an API Client that
 functions substantially the same as the APIs and offer[ing] it for use by third parties"
-(section 10). An endpoint that runs any client-supplied system prompt under a fixed schema is
+(Google APIs Terms 4(a), quoted in section 10.1). An endpoint that runs any client-supplied system prompt under a fixed schema is
 uncomfortably close to that line; an endpoint that only turns passages and a word list into
-swaps is plainly an application. Second, abuse: with the prompt fixed, the only free text is
+swaps reads much more clearly as an application (the brief marks this as inference, and section
+13 keeps it as an open question). Second, abuse: with the prompt fixed, the only free text is
 the passage itself, which is exactly the content any reading app must accept.
 
 The version-skew cost is handled by `promptVersion`. The proxy is deployed from a release
-commit and carries the prompt modules of that release and the one before it. An extension
-ahead of the proxy gets `409 managed_update_required`, which the adapter shows as "Managed
-reading is updating; try again later". BYOK readers are unaffected. The extension still
+commit. It imports the current prompt modules from `extension/src/` and carries the previous
+release's in a vendored snapshot, `proxy/prompts/<version>/`, generated by a script and checked
+by a test that the snapshot equals that release tag's files. An extension ahead of the proxy gets
+`409 managed_update_required` with `"ahead": true` and sees "Managed reading is updating; try
+again later". An extension older than both gets `"ahead": false` and sees "Update Lang Weave to
+keep using managed reading". BYOK readers are unaffected. The extension still
 validates every swap (`engine.js:37-40`).
 
 ### 6.3 Metering by outcome, not by `usageMetadata` alone
@@ -215,28 +327,40 @@ with `finishReason: SAFETY` bills input but not output. It also warns that `usag
 can carry `promptTokenCount` on a 200 whose input was not charged. So settlement keys on the
 outcome:
 
-| Outcome | Reader charged |
-|---|---|
-| Validation, auth, balance or ceiling failure | nothing; no reservation or provider call |
-| Provider HTTP 4xx/5xx | nothing; reservation released |
-| HTTP 200, `finishReason` `STOP` or `MAX_TOKENS` | input + output + thinking from `usageMetadata`, priced by E6, clamped to the reservation |
-| HTTP 200, `finishReason` `SAFETY` or other blocked class | input only |
-| HTTP 200 without `usageMetadata` | the reservation (worst case), reason `no_usage` |
-| Timeout or connection loss after the request was sent | the reservation (worst case), reason `timeout` |
+| Outcome (C3) | Reader charged | Counted against the daily ceiling |
+|---|---|---|
+| Validation, auth, balance, ceiling, busy or frozen | nothing; no reservation, no provider call | nothing |
+| `http_error` (any non-200), or failure before sending | nothing; reservation released | nothing |
+| `ok`, `finishReason` `STOP` | input + output + thinking from `usage`, clamped to the reservation | full provider cost from `usage` |
+| `ok`, `finishReason` `MAX_TOKENS` | the same (Google bills it), but counted and alerted on: the JSON is truncated and `parseSwapsResponse` will throw, so a rising rate means the output cap is too low | full provider cost from `usage` |
+| `ok`, `finishReason` `SAFETY`, `RECITATION`, `PROHIBITED_CONTENT`, `BLOCKLIST` or `SPII` | input only | input cost |
+| `ok` with `blockReason` set and no candidate (prompt blocked) | nothing | input cost at the worst case (the FAQ does not say whether this input is billed; the operator absorbs the doubt) |
+| `ok` with any other or unknown `finishReason` | input only, reason `unclassified`, flagged for operator review | input + output cost from `usage` |
+| `ok` without `usage` | the reservation, reason `no_usage` | provider worst case |
+| `no_response`, `sent: true` | the reservation, reason `timeout` | provider worst case |
 
-The last two rows charge the reader for a call Google may have billed. Charging zero would make
-the operator's loss unbounded under retry loops. The per-call worst case is under one cent
-(section 10), the extension already backs off on timeouts (`engine.js:8-11`), and the ledger
-shows the reason. Any usage above the reservation (for example, if thinking tokens are not
-bounded by `maxOutputTokens`) is the operator's `overage`, never the reader's.
+The rule is: charge the reader only for classes the billing FAQ says are billed, and charge the
+ceiling for anything that might be. The last two rows charge the reader for a call Google may have
+billed, because charging zero would let a retry loop spend without limit. The per-call worst case
+is about three cents to the reader at the 2× markup (section 10.4), the extension already backs off
+on timeouts (`engine.js:8-11`), the ledger shows the reason, and the per-account limit of one open
+reservation stops parallel retries.
 
-### 6.4 Anonymous bearer token, no email
+### 6.4 Bearer token, no email held by Lang Weave
 
-The token is the account. It sits in `chrome.storage.local` under the same trusted-context
-access level as today's API key (`background.js:81-89`). A lost token loses the balance unless
-the reader asks support with their Stripe receipt; the operator can then move the balance to a
-new account id by hand. This keeps "no account" true in the sense readers care about (no login,
-no email held by Lang Weave) while being honest that Stripe holds the purchaser's email and
+The token is the account. It is stored exactly like today's API key: in `chrome.storage.local`
+with the `TRUSTED_CONTEXTS` access level (`background.js:58-63`), out of content scripts' reach. Two
+existing key rules extend to it. Backups exclude it (`portability.js:42,51` list `apiKey` as
+non-learning; the token is added beside it), and import into a profile that holds a token is
+refused like a profile with a key (`portability.js:556`). When key isolation is unavailable, the
+API key falls back into `settings` (`background.js:61-75`); the managed token never does: managed
+mode refuses to turn on and says why.
+
+A lost token loses the balance unless the reader recovers it. Recovery needs **two** things: the
+Stripe receipt, and the account id that Settings shows and the reader can copy (the account id is
+not a credential; the token is). A forwarded receipt alone is not enough. The operator then moves
+the balance to a new account with `adjust` and records both references. This keeps "no login and
+no email held by Lang Weave" true, while being honest that Stripe holds the purchaser's email and
 card details under Stripe's own terms.
 
 ## 7. Abuse and key-leak risks
@@ -244,7 +368,7 @@ card details under Stripe's own terms.
 | Risk | Effect | v0 control | Residual |
 |---|---|---|---|
 | Provider credential leaks from the proxy | Unbounded spend on the operator's account | Credential only in the host's secret store; never logged; restricted to the one API; global daily ceiling in the ledger; provider-side budget alert | Provider budget alerts notify, they do not stop spend; ceiling only covers calls that pass through the proxy. Rotate on any suspicion. |
-| Reader's bearer token stolen (malware, synced profile, shared machine) | Thief spends that reader's balance | Balance is the bound; token revocation endpoint is v1; operator can revoke by hand | Same exposure class as today's BYOK key, but bounded by a prepaid balance instead of the key's quota |
+| Reader's bearer token stolen (malware, synced profile, shared machine) | Thief spends that reader's balance | Balance and the per-account daily cap are the bound; `revokeToken`/`rotateToken` (C2) | Same exposure class as today's BYOK key, but bounded by a prepaid balance instead of the key's quota |
 | Proxy used as a cheap general LLM, or read by Google as resold API access | Content-policy and contract exposure for the operator | Server-built prompt; only passages and validated word forms are free input; fixed schema, model allowlist, size caps, output cap, prepaid only | Instructions inside passage text can still steer string fields. Bounded by balance and the cap, and the same as any reading app. |
 | One project's provider quota and spend cap | All managed readers pause together; on AI Studio Tier 1 the billing account pauses at $250 a month | Global daily ceiling well under the tier cap; one project, honest quota-increase requests (splitting projects to multiply quota is circumvention under both contracts) | A busy day returns `managed_unavailable` to everyone |
 | Card testing on the Payment Link | Stripe fees, disputes | Stripe Radar defaults; one fixed-price pack; no free credit | Dispute fees per incident |
@@ -264,7 +388,8 @@ provider account, which changes the Google data-use terms that apply to the pass
 developer's server", "authentication information" (the token) and "financial and payment
 information: processed by Stripe, not collected by Lang Weave". Limited Use must be restated.
 
-**In-extension payment.** The Chrome Web Store no longer offers its own payments; an extension
+**In-extension payment.** The Chrome Web Store appears to offer no payments of its own any more
+[inference: the old payments page returns 404 and no current page documents one]; an extension
 may send readers to an external payment page, and the listing must disclose paid features.
 Section 10 quotes the current policy text and the publisher-identity requirements that start
 when an item offers paid features.
@@ -278,7 +403,7 @@ There are no known outside users. The scout run on the night of 2026-11-28 found
 the mission record is the owner's fleet. The category record is poor: Toucan sold to Babbel and
 stopped shipping, Lingua.ly closed, and a published freemium-extension report shows about 0.8%
 of all users converting (`docs/research/market.md`, "Monetization"). At 0.8%, covering even a
-$5/month fixed hosting bill at a $2 margin per pack needs a few hundred active readers.
+$5/month fixed hosting bill at the $4.41 margin per $10 pack (section 10.5) needs a few hundred active readers.
 
 Evidence that would change this, in the order it could arrive:
 
@@ -326,7 +451,11 @@ on the proxy's shape, which is why 6.2 builds the prompt on the server.
   responses to improve our products" but "logs prompts and responses for a limited period of
   time, solely for detecting and preventing violations of the Prohibited Use Policy". A managed
   key is always a paid project, so a managed reader's passages get the paid-tier treatment, which
-  is **better** than what a free-key BYOK reader gets today.
+  is **better** than what a free-key BYOK reader gets today. On the recommended Vertex route the
+  governing text is instead the Google Cloud Service Specific Terms (section 20.h of the
+  generative AI terms, which the brief summarizes as keeping prompts and output inside the
+  customer's account). Whether Vertex also logs prompts for abuse monitoring, and for how long,
+  was not checked tonight and must be read before the privacy text is written.
 - **Google Cloud Terms of Service** (Vertex AI route, last modified 2026-11-18), 1.1: Customer
   "may use the Services, and integrate the GCP Services ... into any Customer Application that
   has material value independent of the Services". 3.3: Customer will not "(c) sell, resell,
@@ -341,6 +470,15 @@ Vertex route has an express permission for exactly this ("Customer Application t
 material value independent of the Services"), defined End Users and no consumer-use sentence;
 its global endpoint costs the same as AI Studio. **Recommendation: Vertex AI global endpoint for
 a real managed key.** The 18+ clause applies to both routes and to BYOK already.
+
+Earlier research reached the same line. `docs/research/sync-service.md` ("Provider resale")
+proposed a `/v1/weave` endpoint that "only performs Lang Weave's own prompt and returns validated
+swaps" as the product shape and called a general model proxy "the resale shape". It also quotes
+OpenAI's and Anthropic's commercial terms, both of which allow a product for end users and forbid
+reselling raw access. If paid progress sync (Ted's 2026-11-02 direction, ditz
+`hosted-tier-and-donations-ruling`) is ever built, the managed key's ledger and auth can live on
+the same server; this spec keeps them separate so either can ship alone. The open ruling ditz
+`hosted-weave-privacy-terms-ruling` is the one this spec asks Ted to decide (DECISIONS D6, D7).
 
 ### 10.2 The alternative that holds no money
 
@@ -379,9 +517,9 @@ Output dominates the cost, so the first thing M1 measures is `usageMetadata` on 
 |---|---:|---:|---:|
 | Eight passages, typical (estimate) | 2,000 | 1,000 | $0.0031 |
 | One passage (estimate) | 960 | 700 | $0.0020 |
-| Worst-case reservation (hard bound: built prompt ≤ 30,000 chars ≈ 15,000 tok; `maxOutputTokens` 2,048) | 15,000 | 2,048 | $0.0096 |
+| Worst-case reservation (input bound = request bytes, ≤ 32,000; output = `maxOutputTokens` 2,048; thinking beyond the cap unverified, see C5) | 32,000 | 2,048 | $0.0147 |
 
-Monthly provider cost per reader at $0.0031 a call: 20 calls a day $1.87; 50 a day $4.67; 150 a
+Provider cost per reader per 30 days at $0.0031 a call: 20 calls a day $1.87; 50 a day $4.67; 150 a
 day $14.00; the local cap of 1,000 a day $93.30. Calls per day are themselves an estimate (20 to
 50 for a typical reader). This spread is why v0 sells credits, not a flat subscription: a $4.99
 monthly plan loses money on a 50-call-a-day reader at this model.
@@ -403,8 +541,8 @@ typical $0.0031 call.
 Not in the table, and each real: one $15 dispute erases about three packs' margin at 2×;
 hosting, domain and the store fee are fixed costs whose current prices were **not checked
 tonight**; US sales tax and EU VAT on digital services may apply from the first sale (section 13).
-Recommendation: **2× markup, one $10 pack, US only**. At 2× a reader paying $10 gets about two
-to three months of typical reading, which is in line with the $3 to $6 a month the category
+Recommendation: **2× markup, one $10 pack, US only**. At 2× a reader paying $10 gets about 32 to
+80 days of reading at 50 to 20 calls a day, which is in line with the $3 to $6 a month the category
 charges (`docs/research/market.md`).
 
 ### 10.6 Payments and the store
@@ -441,7 +579,8 @@ US** on a beta build with the flag on, before any listing changes.
    webhook grants $10 of credit once.
 3. **Extension:** `managedProvider` flag (hidden setting, default off). When on: an explicit
    disclosure page before the first managed call (passages go to Lang Weave's server and then
-   to Google's paid API; nothing is stored; 18 or older; US only; Lang Weave, not Google, is
+   to Google's paid API; passage text and model output are not stored (the ledger keeps the time,
+   token counts and cost of each call, and Stripe keeps the purchase); 18 or older; US only; Lang Weave, not Google, is
    the seller; refund terms), a balance line, a "Buy $10 of reading" link, and the existing
    error UI for the new categories.
 4. **Ted's part:** sections in DECISIONS.md: choose the route, open the Stripe account (KYC),
@@ -477,9 +616,14 @@ For Ted: `docs/specs/DECISIONS.md`. For a lawyer or Google (from the research br
    unclaimed-property rules? What refund and expiry terms are required?
 5. Does selling to US readers create sales-tax obligations in some states from the first sale,
    and does selling to EU readers require VAT OSS registration? (v0 is US only.)
-6. Will Google raise the project quota for a sole proprietor's consumer service, and on what
+6. Google APIs ToS 5(e) bars selling or distributing "content returned from the APIs", while the
+   Gemini Additional Terms disclaim ownership of generated content. Does showing paying readers
+   swaps built from model output fall under the more specific Additional Terms (AI Studio), and
+   does the Google Cloud clause making generated output Customer Data settle it on Vertex? The
+   research brief leaves this unresolved; DECISIONS D7 carries it.
+7. Will Google raise the project quota for a sole proprietor's consumer service, and on what
    terms?
-7. Unmeasured: real input, output and thinking tokens per call, calls per reader per day, and
+8. Unmeasured: real input, output and thinking tokens per call, calls per reader per day, and
    whether `maxOutputTokens` bounds thinking. M1 can measure the first two with Ted's own key on
    his own reading; nothing tonight did.
 
