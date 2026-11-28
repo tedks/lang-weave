@@ -1,10 +1,14 @@
 import { Database } from 'bun:sqlite';
 import { createHash, randomBytes } from 'node:crypto';
+import { activePriceRow, PRICE_ROWS, utcDay } from './pricing.js';
 
 export const ACCOUNT_DAILY_PROVIDER_MAX = 1_000_000;
 export const IN_FLIGHT_MAX = 4;
 export const STALE_MS = 5 * 60_000;
 export const IDEMPOTENCY_MS = 60_000;
+const HOUR_MS = 60 * 60_000;
+const DAY_MS = 24 * HOUR_MS;
+const SIGNUP_LIMIT = 5;
 
 export const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 export const newToken = () => `lwk_${randomBytes(32).toString('base64url')}`;
@@ -31,13 +35,43 @@ const schema = `
     tokenHash TEXT UNIQUE,
     balanceMicros INTEGER NOT NULL DEFAULT 0,
     reservedMicros INTEGER NOT NULL DEFAULT 0,
+    frozen INTEGER NOT NULL DEFAULT 0 CHECK (frozen IN (0, 1)),
     frozenReason TEXT,
+    CHECK ((frozen = 0 AND frozenReason IS NULL) OR (frozen = 1 AND length(trim(frozenReason)) > 0)),
     CHECK (balanceMicros >= reservedMicros AND reservedMicros >= 0)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS enrolled_accounts (
+    accountId TEXT PRIMARY KEY REFERENCES accounts
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS account_creations (
+    ipDigest TEXT NOT NULL,
+    createdAt INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS creations_digest ON account_creations(ipDigest, createdAt);
+  CREATE INDEX IF NOT EXISTS creations_expiry ON account_creations(createdAt);
+  CREATE TABLE IF NOT EXISTS price_rows (
+    id TEXT PRIMARY KEY,
+    model TEXT NOT NULL,
+    checkedOn TEXT NOT NULL,
+    startsOn TEXT,
+    endsBefore TEXT,
+    input INTEGER NOT NULL CHECK (input >= 0),
+    output INTEGER NOT NULL CHECK (output >= 0)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS prices_model ON price_rows(model);
+  CREATE TABLE IF NOT EXISTS managed_stop (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    reservationId TEXT NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS stop_clearances (
+    ref TEXT PRIMARY KEY,
+    clearedAt INTEGER NOT NULL
   ) STRICT;
   CREATE TABLE IF NOT EXISTS reservations (
     reservationId TEXT PRIMARY KEY,
     accountId TEXT NOT NULL REFERENCES accounts,
     dayKey TEXT NOT NULL,
+    priceRowId TEXT NOT NULL REFERENCES price_rows,
     createdAt INTEGER NOT NULL,
     readerWorst INTEGER NOT NULL CHECK (readerWorst >= 0),
     providerMax INTEGER NOT NULL CHECK (providerMax >= 0),
@@ -58,7 +92,6 @@ const schema = `
     ON reservations(accountId) WHERE state = 'open';
   CREATE INDEX IF NOT EXISTS reservation_day ON reservations(dayKey, accountId);
   CREATE INDEX IF NOT EXISTS reservation_request ON reservations(providerRequestId);
-  CREATE INDEX IF NOT EXISTS overage_alarm ON reservations(overage) WHERE overage = 1;
   CREATE TABLE IF NOT EXISTS idempotency (
     accountId TEXT NOT NULL REFERENCES accounts,
     keyHash TEXT NOT NULL,
@@ -113,18 +146,52 @@ const schema = `
 // The ledger requires a synchronous transaction that supplies get/all/run
 // with SQLite-compatible SQL and positional parameters. A thrown operation
 // rolls back the entire transaction, including webhook deduplication.
-export function createSqliteStorage(filename = ':memory:') {
+export function createSqliteStorage(filename = ':memory:', { priceRows = PRICE_ROWS, now = Date.now } = {}) {
   const db = new Database(filename, { strict: true });
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec(schema);
+  db.exec('PRAGMA busy_timeout = 2000');
   const tx = {
     get: (sql, ...params) => db.query(sql).get(...params),
     all: (sql, ...params) => db.query(sql).all(...params),
     run: (sql, ...params) => db.query(sql).run(...params),
   };
+  function transaction(operation, { readOnly = false } = {}) {
+    const run = db.transaction(() => operation(tx));
+    return readOnly ? run.deferred() : run.immediate();
+  }
+
+  try {
+    transaction(() => {
+      db.exec(schema);
+      for (const row of priceRows) {
+        const values = [row.model, row.checkedOn, row.from ?? null, row.until ?? null, row.input, row.output];
+        tx.run('INSERT OR IGNORE INTO price_rows (id, model, checkedOn, startsOn, endsBefore, input, output) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          row.id, ...values);
+        const saved = tx.get('SELECT model, checkedOn, startsOn, endsBefore, input, output FROM price_rows WHERE id = ?', row.id);
+        if (Object.values(saved).some((value, i) => value !== values[i])) throw new Error('Immutable price row changed');
+      }
+    });
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+
+  // One hour of history is sufficient for the limit. The periodic sweep
+  // also drops inactive hashes when no further requests come in.
+  const sweep = setInterval(() => {
+    try {
+      transaction((context) => context.run('DELETE FROM account_creations WHERE createdAt <= ?', now() - HOUR_MS));
+    } catch {
+      // A concurrent writer can defer housekeeping until the next sweep.
+    }
+  }, HOUR_MS);
+  sweep.unref();
   return {
-    transaction: (operation) => db.transaction(() => operation(tx)).immediate(),
-    close: () => db.close(),
+    transaction,
+    close() {
+      clearInterval(sweep);
+      db.close();
+    },
   };
 }
 
@@ -133,7 +200,7 @@ function checkMicros(value, minimum = 0) {
 }
 
 function account(tx, accountId) {
-  return tx.get('SELECT accountId, balanceMicros, reservedMicros, frozenReason FROM accounts WHERE accountId = ?', accountId);
+  return tx.get('SELECT accountId, balanceMicros, reservedMicros, frozen, frozenReason FROM accounts WHERE accountId = ?', accountId);
 }
 
 function reservation(tx, id) {
@@ -152,6 +219,31 @@ function claim(tx, accountId, keyHash, now) {
   `, accountId, keyHash, now);
 }
 
+function claimResult(prior, bodyHash) {
+  if (!prior) return null;
+  const { reservationId, costMicros } = prior;
+  if (prior.bodyHash !== bodyHash) return { kind: 'KEY_REUSE', reservationId };
+  return prior.state === 'open' ? { kind: 'OPEN', reservationId }
+    : { kind: 'DUPLICATE', reservationId, charged: costMicros > 0 };
+}
+
+function currentPrice(tx, model, day) {
+  const rows = tx.all('SELECT id, model, checkedOn, startsOn AS "from", endsBefore AS "until", input, output FROM price_rows WHERE model = ?', model);
+  return activePriceRow(rows, model, day);
+}
+
+function isEnrolled(tx, id) {
+  return !!tx.get('SELECT 1 FROM enrolled_accounts WHERE accountId = ?', id);
+}
+
+function validReason(reason) {
+  if (typeof reason !== 'string' || !reason.trim()) throw new TypeError('A reason or operator reference is required');
+}
+
+function openStop(tx, id) {
+  tx.run('INSERT OR IGNORE INTO managed_stop (singleton, reservationId) VALUES (1, ?)', id);
+}
+
 function changeBalance(tx, current, deltaMicros) {
   const balance = current.balanceMicros + deltaMicros;
   checkMicros(balance, current.reservedMicros);
@@ -159,7 +251,8 @@ function changeBalance(tx, current, deltaMicros) {
 }
 
 function freeze(tx, id, reason) {
-  tx.run('UPDATE accounts SET frozenReason = COALESCE(frozenReason, ?) WHERE accountId = ?', reason, id);
+  validReason(reason);
+  tx.run('UPDATE accounts SET frozen = 1, frozenReason = COALESCE(frozenReason, ?) WHERE accountId = ?', reason, id);
 }
 
 function recordPayment(tx, {
@@ -235,7 +328,7 @@ function grant(tx, id, eventId = null) {
   if (entry?.grantState !== 'pending') return entry;
   const current = account(tx, entry.accountId);
   const prior = checkoutDisposition(tx, entry.checkoutSessionId);
-  const allowed = !prior && current && !current.frozenReason && entry.dispute === 'none' && current.balanceMicros < entry.packMicros;
+  const allowed = !prior && current && !current.frozen && isEnrolled(tx, current.accountId) && entry.dispute === 'none' && current.balanceMicros < entry.packMicros;
   if (allowed) changeBalance(tx, current, entry.packMicros - entry.reversalTarget);
   tx.run('UPDATE payments SET grantState = ? WHERE paymentIntentId = ?', allowed ? 'granted' : 'refused', id);
   setDisposition(tx, entry.checkoutSessionId, allowed ? 'granted' : 'orphan', {
@@ -272,6 +365,7 @@ function finish(tx, entry, {
 }) {
   if (!entry || entry.state !== 'open') return entry;
   const debit = Math.min(readerActual, entry.readerWorst);
+  if (providerActual > entry.providerMax) openStop(tx, entry.reservationId);
   tx.run('UPDATE accounts SET reservedMicros = reservedMicros - ?, balanceMicros = balanceMicros - ? WHERE accountId = ?',
     entry.readerWorst, debit, entry.accountId);
   const { balanceMicros } = account(tx, entry.accountId);
@@ -293,10 +387,13 @@ function expireStale(tx, now) {
   }));
 }
 
-function reconcile(tx, entry, providerActual) {
+function reconcile(tx, entry, providerActual, providerRequestId = null) {
   if (entry?.state !== 'provisional' || entry.providerActual !== null) return entry;
-  tx.run('UPDATE reservations SET providerActual = ?, overage = ? WHERE reservationId = ?',
-    providerActual, Number(providerActual > entry.providerMax), entry.reservationId);
+  if (providerActual > entry.providerMax) openStop(tx, entry.reservationId);
+  tx.run(`
+    UPDATE reservations SET providerActual = ?, overage = ?, providerRequestId = COALESCE(providerRequestId, ?)
+    WHERE reservationId = ?
+  `, providerActual, Number(providerActual > entry.providerMax), providerRequestId, entry.reservationId);
   return reservation(tx, entry.reservationId);
 }
 
@@ -309,15 +406,51 @@ const dayCost = `
 
 // A null providerActual keeps providerMax held. The caller supplies the
 // independent, already-classified reader amount from section 6.3.
-export function createLedger(storage, { now = Date.now } = {}) {
-  const transaction = (operation) => storage.transaction(operation);
+export function createLedger(storage, { now = Date.now, onOverage = console.warn } = {}) {
+  const transaction = (operation, options) => storage.transaction(operation, options);
+  function checkOverage(id, operation) {
+    const result = transaction((tx) => {
+      const previous = reservation(tx, id);
+      const entry = operation(tx, previous);
+      return { entry, alarm: !!entry?.overage && !previous?.overage };
+    });
+    if (result.alarm) onOverage({ reason: 'overage', reservationId: result.entry.reservationId });
+    return result.entry;
+  }
   return {
-    createAccount(tokenHash) {
+    createAccount(tokenHash, { digestForDay } = {}) {
       return transaction((tx) => {
+        if (digestForDay) {
+          const at = now();
+          const digest = digestForDay(utcDay(at));
+          const yesterday = digestForDay(utcDay(at - DAY_MS));
+          const { count, earliest } = tx.get(`
+            SELECT COUNT(*) AS count, MIN(createdAt) AS earliest FROM account_creations
+            WHERE ipDigest IN (?, ?) AND createdAt > ?
+          `, digest, yesterday, at - HOUR_MS);
+          if (count >= SIGNUP_LIMIT) return { retryAfterMs: earliest + HOUR_MS - at };
+          tx.run('DELETE FROM account_creations WHERE createdAt <= ?', at - HOUR_MS);
+          tx.run('INSERT INTO account_creations (ipDigest, createdAt) VALUES (?, ?)', digest, at);
+        }
         const id = newAccountId();
         tx.run('INSERT INTO accounts (accountId, tokenHash) VALUES (?, ?)', id, tokenHash);
         return id;
       });
+    },
+    setEnrolled(id, enrolled = true) {
+      return transaction((tx) => enrolled
+        ? tx.run('INSERT OR IGNORE INTO enrolled_accounts (accountId) VALUES (?)', id).changes > 0
+        : tx.run('DELETE FROM enrolled_accounts WHERE accountId = ?', id).changes > 0);
+    },
+    clearStop(ref) {
+      validReason(ref);
+      return transaction((tx) => {
+        if (!tx.run('INSERT OR IGNORE INTO stop_clearances (ref, clearedAt) VALUES (?, ?)', ref, now()).changes) return false;
+        return tx.run('DELETE FROM managed_stop WHERE singleton = 1').changes > 0;
+      });
+    },
+    getActivePriceRow(model) {
+      return transaction((tx) => currentPrice(tx, model, utcDay(now())), { readOnly: true });
     },
     authenticate(tokenHash) {
       return transaction((tx) =>
@@ -364,7 +497,10 @@ export function createLedger(storage, { now = Date.now } = {}) {
     getIdempotency(accountId, keyHash) {
       return transaction((tx) => claim(tx, accountId, keyHash, now()));
     },
-    reserve(accountId, readerWorst, providerMax, dayKey, ceiling, keyHash, bodyHash, { model = null, tokenHash } = {}) {
+    lookupClaim(accountId, keyHash, bodyHash) {
+      return transaction((tx) => claimResult(claim(tx, accountId, keyHash, now()), bodyHash), { readOnly: true });
+    },
+    reserve(accountId, readerWorst, providerMax, priceRowId, ceiling, keyHash, bodyHash, { model, tokenHash } = {}) {
       checkMicros(readerWorst);
       checkMicros(providerMax);
       checkMicros(ceiling);
@@ -373,17 +509,16 @@ export function createLedger(storage, { now = Date.now } = {}) {
         if (tokenHash && !tx.get('SELECT 1 FROM accounts WHERE accountId = ? AND tokenHash = ?', accountId, tokenHash)) {
           return 'UNAUTHORIZED';
         }
-        expireStale(tx, at);
-        tx.run('DELETE FROM idempotency WHERE expiresAt <= ?', at);
-        const prior = claim(tx, accountId, keyHash, at);
-        if (prior) {
-          if (prior.bodyHash !== bodyHash) return 'KEY_REUSE';
-          return prior.state === 'open' ? 'BUSY' : 'DUPLICATE';
-        }
+        const prior = claimResult(claim(tx, accountId, keyHash, at), bodyHash);
+        if (prior) return prior.kind === 'OPEN' ? { ...prior, kind: 'BUSY' } : prior;
 
+        const dayKey = utcDay(at);
+        if (tx.get('SELECT 1 FROM managed_stop WHERE singleton = 1')) return 'STOPPED';
+        const quotedModel = model ?? tx.get('SELECT model FROM price_rows WHERE id = ?', priceRowId)?.model ?? null;
+        if (currentPrice(tx, quotedModel, dayKey)?.id !== priceRowId) return 'STALE_PRICE';
+        if (!isEnrolled(tx, accountId)) return 'STOPPED';
         const current = account(tx, accountId);
-        if (!current || current.frozenReason) return 'FROZEN';
-        if (tx.get('SELECT 1 FROM reservations WHERE overage = 1 LIMIT 1')) return 'CEILING';
+        if (current.frozen) return 'FROZEN';
         if (tx.get("SELECT 1 FROM reservations WHERE accountId = ? AND state = 'open'", accountId) ||
             tx.get("SELECT COUNT(*) AS count FROM reservations WHERE state = 'open'").count >= IN_FLIGHT_MAX) return 'BUSY';
         if (current.balanceMicros - current.reservedMicros < readerWorst) return 'BALANCE';
@@ -392,10 +527,11 @@ export function createLedger(storage, { now = Date.now } = {}) {
         if (providerMax > ceiling - tx.get(dayCost, dayKey).total) return 'CEILING';
 
         const id = randomBytes(16).toString('hex');
+        tx.run('DELETE FROM idempotency WHERE expiresAt <= ?', at);
         tx.run(`
-          INSERT INTO reservations (reservationId, accountId, dayKey, createdAt, readerWorst, providerMax, model)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, id, accountId, dayKey, at, readerWorst, providerMax, model);
+          INSERT INTO reservations (reservationId, accountId, dayKey, priceRowId, createdAt, readerWorst, providerMax, model)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, id, accountId, dayKey, priceRowId, at, readerWorst, providerMax, quotedModel);
         tx.run('INSERT INTO idempotency (accountId, keyHash, bodyHash, reservationId) VALUES (?, ?, ?, ?)',
           accountId, keyHash, bodyHash, id);
         tx.run('UPDATE accounts SET reservedMicros = reservedMicros + ? WHERE accountId = ?', readerWorst, accountId);
@@ -405,7 +541,7 @@ export function createLedger(storage, { now = Date.now } = {}) {
     settle(id, readerActual, providerActual, reason, { providerRequestId = null, usage = null } = {}) {
       checkMicros(readerActual);
       if (providerActual !== null) checkMicros(providerActual);
-      return transaction((tx) => finish(tx, reservation(tx, id), {
+      return checkOverage(id, (tx, prior) => finish(tx, prior, {
         state: providerActual === null ? 'provisional' : 'settled',
         readerActual, providerActual, reason, now: now(), providerRequestId, usage,
       }));
@@ -419,16 +555,20 @@ export function createLedger(storage, { now = Date.now } = {}) {
       return transaction((tx) => expireStale(tx, at));
     },
     // Direct reconciliation is for an attributable response to this request.
-    reconcile(id, providerActual) {
-      checkMicros(providerActual);
-      return transaction((tx) => reconcile(tx, reservation(tx, id), providerActual));
+    reconcile(id, providerActual, { providerRequestId = null } = {}) {
+      if (providerActual !== null) checkMicros(providerActual);
+      return checkOverage(id, (tx, prior) => reconcile(tx, prior, providerActual, providerRequestId));
     },
     reconcileProviderRequest(providerRequestId, providerActual) {
       checkMicros(providerActual);
-      return transaction((tx) => {
+      const { entry, alarm } = transaction((tx) => {
         const matches = tx.all('SELECT * FROM reservations WHERE providerRequestId = ? LIMIT 2', providerRequestId);
-        return matches.length === 1 ? reconcile(tx, matches[0], providerActual) : null;
+        if (matches.length !== 1) return { entry: null, alarm: false };
+        const result = reconcile(tx, matches[0], providerActual);
+        return { entry: result, alarm: !!result.overage && !matches[0].overage };
       });
+      if (alarm) onOverage({ reason: 'overage', reservationId: entry.reservationId });
+      return entry;
     },
     recordPayment(input) {
       return transaction((tx) => recordPayment(tx, input));
@@ -441,6 +581,11 @@ export function createLedger(storage, { now = Date.now } = {}) {
     },
     freeze(id, reason) {
       return transaction((tx) => freeze(tx, id, reason));
+    },
+    unfreeze(id, ref) {
+      validReason(ref);
+      return transaction((tx) =>
+        tx.run('UPDATE accounts SET frozen = 0, frozenReason = NULL WHERE accountId = ? AND frozen = 1', id).changes > 0);
     },
     applyPaymentEvent(id, operation) {
       return transaction((tx) => {
@@ -479,10 +624,11 @@ export function createLedger(storage, { now = Date.now } = {}) {
         const source = account(tx, from);
         const destination = account(tx, to);
         if (!source || !destination || from === to) return 'UNKNOWN_ACCOUNT';
-        if (source.frozenReason || destination.frozenReason) return 'FROZEN';
+        if (source.frozen || destination.frozen) return 'FROZEN';
+        if (!isEnrolled(tx, to)) return 'STOPPED';
         if (tx.get("SELECT 1 FROM reservations WHERE accountId = ? AND state = 'open'", from)) return 'BUSY';
         changeBalance(tx, destination, source.balanceMicros);
-        tx.run("UPDATE accounts SET balanceMicros = 0, tokenHash = NULL, frozenReason = 'transfer' WHERE accountId = ?", from);
+        tx.run("UPDATE accounts SET balanceMicros = 0, tokenHash = NULL, frozen = 1, frozenReason = 'transfer' WHERE accountId = ?", from);
         tx.run('UPDATE payments SET accountId = ? WHERE accountId = ?', to, from);
         tx.run("INSERT INTO corrections (ref, kind, accountId, toAccountId, deltaMicros) VALUES (?, 'transfer', ?, ?, ?)",
           ref, from, to, source.balanceMicros);

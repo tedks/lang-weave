@@ -25,6 +25,12 @@ export function priceRowIsCurrent(row, day) {
   return age >= 0 && age <= 30 * DAY_MS;
 }
 
+export function activePriceRow(rows, model, day) {
+  return rows.filter((row) => row.model === model && priceRowIsCurrent(row, day))
+    .sort((a, b) => b.checkedOn.localeCompare(a.checkedOn) ||
+      (b.from ?? '').localeCompare(a.from ?? '') || b.id.localeCompare(a.id))[0] ?? null;
+}
+
 function tokenCount(value) {
   if (!Number.isSafeInteger(value) || value < 0) throw new RangeError('Invalid token count');
   return BigInt(value);
@@ -57,11 +63,17 @@ export function createPricing({ markup = 2, now = Date.now, rows = PRICE_ROWS } 
     return { readerMicros: micros(amount * BigInt(markup)), providerMicros: micros(amount) };
   }
 
+  function quoteRow(row, requestBytes, maxOutputTokens) {
+    if (!row) return 'NO_PRICE';
+    if (!rowsById.has(row.id)) rowsById.set(row.id, Object.freeze({ ...row }));
+    return { ...cost(byId(row.id), requestBytes, maxOutputTokens), priceRowId: row.id };
+  }
+
   return {
+    quoteRow,
     worst(model, requestBytes, maxOutputTokens, date = now()) {
       const day = utcDay(date);
-      const row = [...rowsById.values()].findLast((entry) => entry.model === model && priceRowIsCurrent(entry, day));
-      return row ? { ...cost(row, requestBytes, maxOutputTokens), priceRowId: row.id } : 'NO_PRICE';
+      return quoteRow(activePriceRow([...rowsById.values()], model, day), requestBytes, maxOutputTokens);
     },
     actual(priceRowId, outcome) {
       const { promptTokenCount, candidatesTokenCount = 0, thoughtsTokenCount = 0 } = outcome.usage;
